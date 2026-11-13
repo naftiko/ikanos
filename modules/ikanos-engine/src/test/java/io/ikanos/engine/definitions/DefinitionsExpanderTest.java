@@ -22,6 +22,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.InputParameterSpec;
@@ -486,6 +488,38 @@ class DefinitionsExpanderTest {
                 + " 'schema: date-range' takes no other key than 'description' and 'required',"
                 + " found [type, format]. Change the schema, or declare the input inline."),
                 errors);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"true", "false"})
+    void expandAllShouldReportARequiredFlagBesideANestedSchema(String required)
+            throws Exception {
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    date-range: { type: string }
+                    window:
+                      type: object
+                      properties:
+                        period: { schema: date-range, required: %s }
+                """.formatted(required), """
+                list-calls:
+                  description: "List calls."
+                  inputParameters:
+                    periods:
+                      type: array
+                      description: "Periods."
+                      items: { schema: date-range, required: %s }
+                    window: { schema: window, description: "W." }
+                  call: erp.list-calls
+                """.formatted(required));
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        assertEquals(2, errors.size(), errors.toString());
+        assertTrue(errors.stream().allMatch(error -> error.contains(
+                "'schema: date-range' takes no other key than 'description', found [required]")),
+                errors.toString());
     }
 
     @Test
