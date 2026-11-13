@@ -28,6 +28,13 @@ WORKDIR /app
 # Copy the built jar from the build stage
 COPY --from=build /app/modules/ikanos-cli/target/ikanos.jar ikanos.jar
 
-# Set the entrypoint to run the CLI jar and default to the runtime subcommand
-ENTRYPOINT ["java", "-jar", "ikanos.jar"]
+# Extension directory: every jar in /app/lib joins the class path, so an image built FROM this
+# one can add a JDBC driver or an optional module without rebuilding Ikanos. JDBC 4 drivers
+# register themselves through their own META-INF/services/java.sql.Driver.
+RUN mkdir -p /app/lib
+
+# Run the CLI from the class path rather than with -jar, which would ignore /app/lib, and default
+# to the runtime subcommand. The class path is in exec form, so the shell never expands the
+# wildcard: the JVM does.
+ENTRYPOINT ["java", "-cp", "/app/ikanos.jar:/app/lib/*", "io.ikanos.Cli"]
 CMD ["serve"]
