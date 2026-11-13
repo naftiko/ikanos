@@ -174,6 +174,19 @@ public abstract class StoreConformanceTest {
     }
 
     @Test
+    void indexShouldSetAStatusOnlyFromTheExpectedOne() {
+        stores.index().create(record(ID, NOW));
+
+        assertTrue(stores.index().compareAndSetStatus(ID, ExecutionStatus.RUNNING,
+                ExecutionStatus.COMPLETED));
+        assertFalse(stores.index().compareAndSetStatus(ID, ExecutionStatus.RUNNING,
+                ExecutionStatus.CANCELLED), "A status read before the completion is stale");
+        assertEquals(ExecutionStatus.COMPLETED, stores.index().find(ID).orElseThrow().status());
+        assertFalse(stores.index().compareAndSetStatus(new ExecutionId("unknown"),
+                ExecutionStatus.RUNNING, ExecutionStatus.CANCELLED));
+    }
+
+    @Test
     void indexShouldKeepEveryRecordField() {
         ExecutionRecord record = record(ID, NOW);
         stores.index().create(record);

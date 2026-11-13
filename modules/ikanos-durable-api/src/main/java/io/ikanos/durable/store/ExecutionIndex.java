@@ -32,6 +32,14 @@ public interface ExecutionIndex {
     /** Sets the status of an execution. */
     void updateStatus(ExecutionId executionId, ExecutionStatus status);
 
+    /**
+     * Sets the status of an execution only if it is still {@code expected}, atomically. Returns
+     * {@code false}, and changes nothing, when the status is another one or the execution does not
+     * exist: a status read earlier cannot overwrite one written since.
+     */
+    boolean compareAndSetStatus(ExecutionId executionId, ExecutionStatus expected,
+            ExecutionStatus status);
+
     /** Lists up to {@code limit} executions with {@code status}, oldest first. */
     List<ExecutionRecord> list(ExecutionStatus status, int limit);
 

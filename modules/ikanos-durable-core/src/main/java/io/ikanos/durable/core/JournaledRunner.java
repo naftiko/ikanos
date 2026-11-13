@@ -26,6 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 import io.ikanos.durable.ActionExecutor;
 import io.ikanos.durable.ActionOutcome;
+import io.ikanos.durable.ActionRequest;
 import io.ikanos.durable.Command;
 import io.ikanos.durable.ExecutionId;
 import io.ikanos.durable.ExecutionRequest;
@@ -70,7 +71,8 @@ public final class JournaledRunner implements Runner {
     private final PayloadCodec codec;
     private final Clock clock;
     private final String specDigest;
-    private final Map<ExecutionId, ReentrantLock> locks = new ConcurrentHashMap<>();
+    /** The lock of each execution a thread runs or waits on; removed once none does. */
+    private final Map<ExecutionId, ExecutionLock> locks = new ConcurrentHashMap<>();
 
     public JournaledRunner(Stores stores, PayloadCodec codec, Clock clock, String specDigest) {
         this.stores = Objects.requireNonNull(stores, "stores");
@@ -95,8 +97,7 @@ public final class JournaledRunner implements Runner {
      */
     public boolean start(ExecutionRequest request, String entry, Map<String, String> labels) {
         ExecutionId id = request.executionId();
-        ReentrantLock lock = lockOf(id);
-        lock.lock();
+        ExecutionLock lock = lock(id);
         try {
             if (!stores.index().create(new ExecutionRecord(id, specDigest, entry,
                     ExecutionStatus.RUNNING, clock.instant(), request.deadline(), labels))) {
@@ -108,16 +109,17 @@ public final class JournaledRunner implements Runner {
         } catch (ConcurrentAppendException e) {
             throw new IllegalStateException("Another owner appended to the journal of " + id, e);
         } finally {
-            lock.unlock();
+            unlock(id, lock);
         }
     }
 
     /**
      * The idempotency key of an action: stable across every run of the execution, so an action
-     * invoked again after a crash carries the same key as the attempt the crash cut short.
+     * invoked again after a crash carries the same key as the attempt the crash cut short. It is
+     * {@link ActionRequest#idempotencyKey(ExecutionId, NodePath)}, the key executors receive.
      */
     public static String idempotencyKey(ExecutionId executionId, NodePath path) {
-        return executionId.value() + "/" + path.value();
+        return ActionRequest.idempotencyKey(executionId, path);
     }
 
     /** The input recorded by {@link #start}, or empty when the execution has none. */
@@ -154,8 +156,7 @@ public final class JournaledRunner implements Runner {
      * execution this process cannot run, such as one started by another version of the spec.
      */
     public void fail(ExecutionId executionId, Failure failure) {
-        ReentrantLock lock = lockOf(executionId);
-        lock.lock();
+        ExecutionLock lock = lock(executionId);
         try {
             Optional<ExecutionStatus> status = status(executionId);
             if (status.isEmpty() || status.get().isTerminal()) {
@@ -166,7 +167,7 @@ public final class JournaledRunner implements Runner {
             throw new IllegalStateException(
                     "Another owner appended to the journal of " + executionId, e);
         } finally {
-            lock.unlock();
+            unlock(executionId, lock);
         }
     }
 
@@ -210,9 +211,17 @@ public final class JournaledRunner implements Runner {
         // Not under the execution's lock, which a running execution holds for its whole run: a
         // cancel must reach it while it runs. The run reads the status at its next loop and at
         // its next step, and ends as cancelled (see Run#cancelled).
-        Optional<ExecutionStatus> status = status(executionId);
-        if (status.isPresent() && !status.get().isTerminal()) {
-            stores.index().updateStatus(executionId, ExecutionStatus.CANCELLED);
+        // The update is conditional on the status read: a run that ended since the read keeps its
+        // end, so the index never says CANCELLED over a journal that recorded the completion.
+        while (true) {
+            Optional<ExecutionStatus> status = status(executionId);
+            if (status.isEmpty() || status.get().isTerminal()) {
+                return;
+            }
+            if (stores.index().compareAndSetStatus(executionId, status.get(),
+                    ExecutionStatus.CANCELLED)) {
+                return;
+            }
         }
     }
 
@@ -222,8 +231,7 @@ public final class JournaledRunner implements Runner {
         Objects.requireNonNull(interpreter, "interpreter");
         Objects.requireNonNull(executor, "executor");
         ExecutionId id = request.executionId();
-        ReentrantLock lock = lockOf(id);
-        lock.lock();
+        ExecutionLock lock = lock(id);
         try {
             create(request, null);
             ExecutionStatus status = status(id).orElse(ExecutionStatus.RUNNING);
@@ -241,18 +249,47 @@ public final class JournaledRunner implements Runner {
             }
             Run run = new Run(request);
             run.receiveUpdates();
-            stores.index().updateStatus(id, ExecutionStatus.RUNNING);
+            // Conditional, as cancel is: a cancel that landed since the read is not undone; the
+            // loop then sees it and ends the run as cancelled.
+            stores.index().compareAndSetStatus(id, status, ExecutionStatus.RUNNING);
             return run.loop(interpreter, executor);
         } catch (ConcurrentAppendException e) {
             throw new IllegalStateException(
                     "Another owner appended to the journal of " + id, e);
         } finally {
-            lock.unlock();
+            unlock(id, lock);
         }
     }
 
-    private ReentrantLock lockOf(ExecutionId executionId) {
-        return locks.computeIfAbsent(executionId, id -> new ReentrantLock());
+    /** The number of executions whose lock is held or awaited, for the tests. */
+    int lockCount() {
+        return locks.size();
+    }
+
+    /**
+     * Takes the lock of an execution, registering this thread as one of its users first, so the
+     * lock is not removed while the thread waits on it.
+     */
+    private ExecutionLock lock(ExecutionId executionId) {
+        ExecutionLock lock = locks.compute(executionId, (id, held) -> {
+            ExecutionLock registered = held == null ? new ExecutionLock() : held;
+            registered.users++;
+            return registered;
+        });
+        lock.lock.lock();
+        return lock;
+    }
+
+    /** Releases the lock of an execution, and removes it once no thread holds or awaits it. */
+    private void unlock(ExecutionId executionId, ExecutionLock lock) {
+        lock.lock.unlock();
+        locks.computeIfPresent(executionId, (id, held) -> --held.users == 0 ? null : held);
+    }
+
+    /** A lock and the number of threads holding or awaiting it, changed only inside compute. */
+    private static final class ExecutionLock {
+        final ReentrantLock lock = new ReentrantLock();
+        int users;
     }
 
     /** One run of one execution: its view rebuilt from the journal, and its appends. */
