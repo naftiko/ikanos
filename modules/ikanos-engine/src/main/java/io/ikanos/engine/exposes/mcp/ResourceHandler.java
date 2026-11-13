@@ -461,19 +461,26 @@ public class ResourceHandler {
         // bytes under the maxBinarySize cap and return a BlobResourceContents (base64) instead of
         // text. outputParameters mappings are skipped — they are nonsensical for raw bytes.
         // See capability-binary-content.md §4.5 / §8.3.
-        // Upstream freshness is only meaningful for a single call: with steps, several upstreams
-        // contribute and no one answer speaks for the result (#1019)
-        Freshness freshness = found != null && spec.getCall() != null
-                && spec.getSteps().isEmpty() ? found.freshness() : Freshness.UNKNOWN;
-
         if (found != null && found.operation().isBinary()) {
-            return readBinaryDynamic(spec, uri, found).stream()
-                    .map(content -> content.withFreshness(freshness)).toList();
+            List<ResourceContent> contents = readBinaryDynamic(spec, uri, found);
+            Freshness freshness = freshness(spec, found);
+            return contents.stream().map(content -> content.withFreshness(freshness)).toList();
         }
 
         String text = extractContent(spec, found);
         String mimeType = spec.getMimeType() != null ? spec.getMimeType() : "application/json";
-        return List.of(ResourceContent.text(uri, mimeType, text).withFreshness(freshness));
+        return List.of(ResourceContent.text(uri, mimeType, text)
+                .withFreshness(freshness(spec, found)));
+    }
+
+    /**
+     * The upstream freshness of a read, asked once the body is read so that the download time is
+     * deducted. It is only meaningful for a single call: with steps, several upstreams contribute
+     * and no one answer speaks for the result (#1019).
+     */
+    private static Freshness freshness(McpServerResourceSpec spec, ConsumedResult found) {
+        return found != null && spec.getCall() != null && spec.getSteps().isEmpty()
+                ? found.freshness() : Freshness.UNKNOWN;
     }
 
     private String extractContent(McpServerResourceSpec spec,

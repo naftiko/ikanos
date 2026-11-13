@@ -90,8 +90,10 @@ public class HttpInvocation extends ConsumedInvocation {
         // Inject W3C trace context after the client span is current so downstream services see
         // this span as the parent.
         OtelRestletBridge.injectContext(request);
+        // Timed so that the upstream freshness deducts the time the answer took to arrive (#1019)
+        long sentAt = System.currentTimeMillis();
         adapter.getHttpClient().handle(request, response);
-        return new HttpConsumedResult(operationSpec, response);
+        return new HttpConsumedResult(operationSpec, response, sentAt, System.currentTimeMillis());
     }
 
     /**
