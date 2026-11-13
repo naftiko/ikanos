@@ -1,0 +1,104 @@
+# Spectral fixture — consumed SQL rules MUST NOT FIRE:
+#   bound credentials, read statements (with a leading comment, a CTE, a cast,
+#   a placeholder used twice and a colon inside a string literal), and every
+#   input used through its placeholder or its key. A PostgreSQL URL nests block
+#   comments, a SQL Server URL reads [...] as an identifier, and a MySQL URL
+#   reads # as a comment.
+ikanos: "1.0.0-beta10"
+info:
+  display: "Consumed SQL rules — compliant"
+  description: "Fixture that satisfies every consumed SQL Polychro rule."
+binds:
+  - namespace: erp-db
+    description: "ERP database connection."
+    location: "file:///./shared/secrets.yaml"
+    keys:
+      JDBC_URL: "erp-jdbc-url"
+      DB_USER: "erp-db-user"
+      DB_PASSWORD: "erp-db-password"
+capability:
+  consumes:
+    - type: sql
+      namespace: erp
+      description: "ERP database."
+      connection:
+        url: "{{JDBC_URL}}"
+        username: "{{DB_USER}}"
+        password: "{{DB_PASSWORD}}"
+      procedures:
+        get-customer:
+          description: One customer by id.
+          statement: |
+            -- one customer
+            select id, name, 'a:b' as tag from customers
+            where id = :customerId or legacy_id = :customerId
+          inputParameters:
+            customer-id: { type: string, placeholder: customerId }
+          outputParameters:
+            name: { type: string, value: "$.rows[0].name" }
+        changed-since:
+          description: Customers changed since a time.
+          statement: |
+            with recent as (
+              select id from customers where updated_at >= :since::timestamp
+            )
+            select * from recent
+          inputParameters:
+            since: { type: string, sqlType: TIMESTAMP }
+          outputParameters:
+            customers: { type: array, value: "$.rows" }
+    - type: sql
+      namespace: pg
+      description: "PostgreSQL database, read with nested comments."
+      connection:
+        url: "jdbc:postgresql://db.internal:5432/erp"
+        username: "{{DB_USER}}"
+        password: "{{DB_PASSWORD}}"
+      procedures:
+        nested-comment:
+          description: A nested comment holds no placeholder.
+          statement: select /* outer /* inner */ :ignored */ name from customers where id = :id
+          inputParameters:
+            id: { type: string }
+    - type: sql
+      namespace: mssql
+      description: "SQL Server database, read with bracket identifiers."
+      connection:
+        url: "jdbc:sqlserver://wh.internal:1433;databaseName=billing"
+        username: "{{DB_USER}}"
+        password: "{{DB_PASSWORD}}"
+      procedures:
+        bracket-identifiers:
+          description: Bracket identifiers hold no placeholder.
+          statement: SELECT [delete], [tag:x] FROM inventory WHERE id = :id
+          inputParameters:
+            id: { type: string }
+    - type: sql
+      namespace: shop
+      description: "MySQL database, read with # comments."
+      connection:
+        url: "jdbc:mysql://shop.internal:3306/shop"
+        username: "{{DB_USER}}"
+        password: "{{DB_PASSWORD}}"
+      procedures:
+        hash-comment:
+          description: A # comment holds no placeholder and may start the statement.
+          statement: |
+            # one order
+            select id from orders # :ignored
+            where id = :id
+          inputParameters:
+            id: { type: string }
+  exposes:
+    - type: mcp
+      namespace: erp-mcp
+      port: 3001
+      tools:
+        get-customer:
+          description: One customer by id.
+          hints: { readOnly: true }
+          call: erp.get-customer
+        changed-since:
+          description: Customers changed since a time.
+          hints: { readOnly: true }
+          call: erp.changed-since

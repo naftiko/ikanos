@@ -16,6 +16,7 @@ package io.ikanos.engine.aggregates;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import io.ikanos.engine.consumes.ConsumedOperationView;
@@ -43,6 +44,10 @@ import io.ikanos.spec.util.IkanosMappers;
 public class FlowConsumedResult implements ConsumedResult {
 
     private static final ObjectMapper JSON = IkanosMappers.json();
+    /** Reads the flow's own output so its decimals, such as SQL NUMERIC values, stay exact. */
+    private static final ObjectMapper EXACT_JSON = IkanosMappers.jsonBuilder()
+            .enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+            .build();
     private static final String JSON_MEDIA_TYPE = "application/json";
 
     private final AggregateFlow flow;
@@ -168,10 +173,23 @@ public class FlowConsumedResult implements ConsumedResult {
     @Override
     public JsonNode document() throws IOException {
         if (ownOutput != null) {
-            return JSON.readTree(ownOutput);
+            return EXACT_JSON.readTree(ownOutput);
         }
         ConsumedResult last = passThrough();
         return last != null ? last.document() : null;
+    }
+
+    /**
+     * The flow's own output is read with exact decimals, and a passed-through result keeps its
+     * own answer, so a step calling a flow sees the decimals a direct call would.
+     */
+    @Override
+    public boolean nativeDocument() {
+        if (ownOutput != null) {
+            return true;
+        }
+        ConsumedResult last = passThrough();
+        return last != null && last.nativeDocument();
     }
 
     @Override

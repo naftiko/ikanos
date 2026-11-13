@@ -51,6 +51,18 @@ public class InputParameterSpec extends StructureSpec<InputParameterSpec> {
     private volatile String wireName;
 
     /**
+     * SQL procedures only: name of the {@code :placeholder} this input binds in the statement,
+     * when it differs from the map key (a kebab-case key is not a valid SQL identifier).
+     */
+    private volatile String placeholder;
+
+    /**
+     * SQL procedures only: the {@code java.sql.JDBCType} name the value is bound as, such as
+     * {@code TIMESTAMP} or {@code DECIMAL}.
+     */
+    private volatile String sqlType;
+
+    /**
      * How a list value is serialized in a query parameter, as in OpenAPI: {@code form} (default),
      * {@code spaceDelimited} or {@code pipeDelimited}.
      */
@@ -158,6 +170,22 @@ public class InputParameterSpec extends StructureSpec<InputParameterSpec> {
 
     public void setWireName(String wireName) {
         this.wireName = wireName;
+    }
+
+    public String getPlaceholder() {
+        return placeholder;
+    }
+
+    public void setPlaceholder(String placeholder) {
+        this.placeholder = placeholder;
+    }
+
+    public String getSqlType() {
+        return sqlType;
+    }
+
+    public void setSqlType(String sqlType) {
+        this.sqlType = sqlType;
     }
 
     public String getStyle() {
