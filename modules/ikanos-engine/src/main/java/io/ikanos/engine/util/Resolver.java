@@ -349,6 +349,42 @@ public class Resolver {
         return List.copyOf(missing);
     }
 
+    /** Written for a variable with no usable value, so it can be found in the output. */
+    private static final String EMPTY_VARIABLE = " empty ";
+
+    /**
+     * Tells whether rendering {@code template} with {@code parameters} writes a variable that has
+     * no usable value: absent, null or blank. Unlike {@link #missingVariables(String, Map)}, this
+     * checks every variable that is rendered, whole dotted paths ({@code {{order.etag}}} when
+     * {@code order} has no {@code etag}) and variables inside a section that renders included.
+     * Variables of a section that does not render are not checked: they are optional by
+     * construction. A precondition of a write is refused on this (#1001): rendered empty, as in
+     * {@code W/""}, it would be sent as an entity tag the caller never meant.
+     *
+     * @param template the template, may be null
+     * @param parameters the parameters the template is rendered with, may be null
+     * @return {@code true} when a rendered variable has no usable value; {@code false} also for
+     *         an invalid template, which rendering reports on its own
+     */
+    static boolean rendersEmptyVariable(String template, Map<String, Object> parameters) {
+        if (template == null || !template.contains("{{")) {
+            return false;
+        }
+        // The formatter also receives the default value written for a missing variable
+        Mustache.Compiler compiler = Mustache.compiler().escapeHTML(false)
+                .defaultValue(EMPTY_VARIABLE)
+                .withFormatter(value -> value == null || EMPTY_VARIABLE.equals(value)
+                        || String.valueOf(value).isBlank() ? EMPTY_VARIABLE : "x");
+        try {
+            return compileTemplate(compiler, template)
+                    .execute(parameters == null ? Map.of() : parameters)
+                    .contains(EMPTY_VARIABLE);
+        } catch (RuntimeException e) {
+            logger.debug("Template is not valid Mustache ({})", e.getClass().getSimpleName());
+            return false;
+        }
+    }
+
     /**
      * Lists the variables of a credential template that have no usable value: absent, null or
      * blank in {@code values}, in template order. Each is named by its full reference, so
@@ -965,7 +1001,8 @@ public class Resolver {
                             && StandardRequestHeaders.isConditional(wireName)
                             && clientRequest.getMethod() != null
                             && !clientRequest.getMethod().isSafe();
-                    if (guardsWrite && !missingVariables(template, parameters).isEmpty()) {
+                    if (guardsWrite && (!missingVariables(template, parameters).isEmpty()
+                            || rendersEmptyVariable(template, parameters))) {
                         throw unresolvedPrecondition(wireName);
                     }
                     boolean noParameters = parameters == null || parameters.isEmpty();

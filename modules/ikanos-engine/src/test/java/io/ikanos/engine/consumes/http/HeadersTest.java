@@ -22,6 +22,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.restlet.Request;
 import org.restlet.data.MediaType;
 import org.restlet.data.Method;
@@ -165,6 +167,44 @@ public class HeadersTest {
         assertThrows(StandardRequestHeaders.InvalidPreconditionException.class,
                 () -> Resolver.resolveInputParametersToRequest(request,
                         List.of(ifMatch("{{etag}}")), params));
+    }
+
+    /** An order with an id, a blank and a null field, and no etag. */
+    private static Map<String, Object> orderWithoutEtag() {
+        Map<String, Object> order = new HashMap<>(Map.of("id", "42"));
+        order.put("blank", " ");
+        order.put("none", null);
+        Map<String, Object> params = new HashMap<>();
+        params.put("order", order);
+        return params;
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"W/\"{{order.etag}}\"", "\"{{order.etag}}\"",
+            "\"{{order.blank}}\"", "\"{{order.none}}\"", "{{order.etag}}",
+            "{{#order}}\"{{etag}}\"{{/order}}", "\"{{order.id}}\", \"{{order.etag}}\""})
+    public void resolveInputParametersShouldRefuseAnIfMatchOfAPutWhoseNestedValueIsMissing(
+            String template) {
+        Request request = new Request(Method.PUT, "https://api.example.com/v1/items/1");
+
+        assertThrows(StandardRequestHeaders.InvalidPreconditionException.class,
+                () -> Resolver.resolveInputParametersToRequest(request,
+                        List.of(ifMatch(template)), orderWithoutEtag()),
+                template + ": a write sent with an empty entity tag is not the one intended");
+        assertTrue(request.getConditions().getMatch().isEmpty());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"W/\"{{order.id}}\"", "{{#order}}\"{{id}}\"{{/order}}",
+            "{{^order.etag}}*{{/order.etag}}"})
+    public void resolveInputParametersShouldSendAnIfMatchOfAPutWhoseNestedValueIsPresent(
+            String template) {
+        Request request = new Request(Method.PUT, "https://api.example.com/v1/items/1");
+
+        Resolver.resolveInputParametersToRequest(request, List.of(ifMatch(template)),
+                orderWithoutEtag());
+
+        assertEquals(1, request.getConditions().getMatch().size(), template);
     }
 
     @Test
