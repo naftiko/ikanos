@@ -316,4 +316,30 @@ class SqlWriteTest {
             assertTrue(pooled.getAutoCommit());
         }
     }
+
+    @Test
+    void runWriteShouldApplyTheFetchSize() throws Exception {
+        SqlClientSpec spec = spec("""
+                ship:
+                  description: Ships one paid order and returns it.
+                  readOnly: false
+                  fetchSize: 50
+                  statement: update orders set status = 'SHIPPED' where id = :id
+                  inputParameters:
+                    id: { type: integer }
+                """);
+        adapter = new SqlClientAdapter(null, spec);
+        java.sql.Connection connection = org.mockito.Mockito.mock(java.sql.Connection.class);
+        java.sql.PreparedStatement statement =
+                org.mockito.Mockito.mock(java.sql.PreparedStatement.class);
+        org.mockito.Mockito.when(connection.prepareStatement(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(statement);
+        org.mockito.Mockito.when(statement.getUpdateCount()).thenReturn(1, -1);
+
+        ConsumedResult result = adapter.runWrite(connection,
+                SqlClientAdapter.buildProcedures(spec, SqlStatement.Dialect.STANDARD).get("ship"), java.util.List.of());
+
+        assertEquals(200, result.status());
+        org.mockito.Mockito.verify(statement).setFetchSize(50);
+    }
 }

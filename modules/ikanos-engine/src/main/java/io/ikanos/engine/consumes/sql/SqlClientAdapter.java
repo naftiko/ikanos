@@ -539,10 +539,15 @@ public class SqlClientAdapter extends ClientAdapter {
         }
     }
 
-    private ConsumedResult runWrite(Connection connection, Procedure procedure,
+    /** Run a write on a connection whose transaction the caller owns. Package-private for tests. */
+    ConsumedResult runWrite(Connection connection, Procedure procedure,
             List<SqlBind> binds) throws SQLException {
         try (PreparedStatement statement = prepare(connection, procedure)) {
             statement.setQueryTimeout(timeoutSeconds(procedure.spec()));
+            if (procedure.spec().getFetchSize() != null) {
+                // RETURNING, OUTPUT and a write procedure's rows are fetched as a read's are
+                statement.setFetchSize(procedure.spec().getFetchSize());
+            }
             for (SqlBind bind : binds) {
                 bind.bind(statement);
             }
