@@ -242,4 +242,11 @@ class SqlClientSchemaValidationTest {
         assertFalse(validate(yaml).isEmpty(),
                 "the statement names the input key; an input has no placeholder property");
     }
+
+    @Test
+    void schemaShouldRejectReadOnlyFalseUntilWritesAreSupported() throws Exception {
+        String yaml = capability(GET_BALANCE.replace("readOnly: true", "readOnly: false"));
+
+        assertFalse(validate(yaml).isEmpty(), "readOnly: false is not supported yet");
+    }
 }

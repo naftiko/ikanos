@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.Map;
 import java.util.UUID;
@@ -242,5 +243,81 @@ class SqlStoredProcedureTest {
                         "readOnly: true", "readOnly: true\n  statement: select 1"))));
 
         assertTrue(e.getMessage().contains("exactly one"), e.getMessage());
+    }
+
+    @Test
+    void invokeShouldReadAnOutValueByItsDeclaredType() throws Exception {
+        try (Statement ddl = keepAlive.createStatement()) {
+            ddl.execute("""
+                    create procedure audit_stamp(out ts timestamp, out ok boolean, out n bigint)
+                    contains sql
+                    begin atomic
+                      set ts = timestamp '2026-11-04 09:12:30';
+                      set ok = true;
+                      set n = 9007199254740993;
+                    end""");
+        }
+
+        ConsumedResult result = call("""
+                audit-stamp:
+                  description: A timestamp, a flag and a large integer.
+                  storedProcedure: audit_stamp
+                  readOnly: true
+                  outParameters:
+                    ts: { position: 1, sqlType: TIMESTAMP }
+                    ok: { position: 2, sqlType: BOOLEAN }
+                    n: { position: 3, sqlType: BIGINT }
+                """, "audit-stamp", Map.of());
+
+        JsonNode out = result.document().get("out");
+        assertEquals("2026-11-04T09:12:30", out.get("ts").asString());
+        assertTrue(out.get("ok").booleanValue());
+        assertEquals(9007199254740993L, out.get("n").longValue());
+    }
+
+    @Test
+    void valueShouldReadACursorIntoRowsAndCloseIt() throws Exception {
+        try (Statement query = keepAlive.createStatement()) {
+            ResultSet cursor = query.executeQuery("select id from accounts order by id");
+
+            JsonNode rows = SqlRowDocument.value(cursor, "accounts");
+
+            assertEquals(3, rows.size());
+            assertEquals("a1", rows.get(0).get("ID").asString());
+            assertTrue(cursor.isClosed());
+        }
+    }
+
+    @Test
+    void invokeShouldBindTheInputHalfOfAnInoutParameterAsItsOutType() throws Exception {
+        ConsumedResult result = call("""
+                double-it:
+                  description: Doubles a number given as text.
+                  storedProcedure: double_it
+                  readOnly: true
+                  inputParameters:
+                    n: { type: string, position: 1 }
+                  outParameters:
+                    n: { position: 1, sqlType: INTEGER }
+                """, "double-it", Map.of("n", "21"));
+
+        assertEquals(42, result.document().get("out").get("n").intValue());
+    }
+
+    @Test
+    void constructorShouldRefuseAnInoutParameterWithTwoTypes() throws Exception {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> new SqlClientAdapter(null, spec("""
+                        double-it:
+                          description: Two types at one position.
+                          storedProcedure: double_it
+                          readOnly: true
+                          inputParameters:
+                            n: { type: string, position: 1, sqlType: VARCHAR }
+                          outParameters:
+                            n: { position: 1, sqlType: INTEGER }
+                        """)));
+
+        assertTrue(e.getMessage().contains("one type"), e.getMessage());
     }
 }
