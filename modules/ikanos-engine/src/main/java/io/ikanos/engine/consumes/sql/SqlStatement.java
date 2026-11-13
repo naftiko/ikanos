@@ -177,9 +177,18 @@ final class SqlStatement {
             "SHUTDOWN", "WAITFOR", "KILL");
 
     /**
+     * T-SQL statements that are not reserved words, so not in
+     * {@link #SQLSERVER_STATEMENT_KEYWORDS}, yet change the database: {@code ENABLE TRIGGER} and
+     * {@code DISABLE TRIGGER}. A write that holds them is refused on SQL Server, where
+     * {@code UPDATE t SET a = 1 WHERE id = 1 DISABLE TRIGGER audit ON t} is two statements. A
+     * column with such a name is written quoted.
+     */
+    static final Set<String> SQLSERVER_WRITE_REFUSED_KEYWORDS = Set.of("ENABLE", "DISABLE");
+
+    /**
      * On SQL Server, which runs a batch whose statements are not separated by {@code ;}, find a
-     * T-SQL statement keyword ({@link #SQLSERVER_STATEMENT_KEYWORDS}) in a write, as a read is
-     * checked. The {@code SET} of an {@code UPDATE} (one per {@code UPDATE}, a {@code MERGE}
+     * T-SQL statement keyword ({@link #SQLSERVER_STATEMENT_KEYWORDS},
+     * {@link #SQLSERVER_WRITE_REFUSED_KEYWORDS}) in a write, as a read is checked. The {@code SET} of an {@code UPDATE} (one per {@code UPDATE}, a {@code MERGE}
      * branch included) is part of it; any other {@code SET} starts a statement of its own.
      *
      * @return the first such keyword, or {@code null} when there is none or the database is not
@@ -195,7 +204,8 @@ final class SqlStatement {
                 pendingSets++;
             } else if ("SET".equals(keyword) && pendingSets > 0) {
                 pendingSets--;
-            } else if (SQLSERVER_STATEMENT_KEYWORDS.contains(keyword)) {
+            } else if (SQLSERVER_STATEMENT_KEYWORDS.contains(keyword)
+                    || SQLSERVER_WRITE_REFUSED_KEYWORDS.contains(keyword)) {
                 return keyword;
             }
         }

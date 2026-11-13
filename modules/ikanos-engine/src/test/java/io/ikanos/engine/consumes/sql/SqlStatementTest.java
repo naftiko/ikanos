@@ -405,6 +405,20 @@ class SqlStatementTest {
     }
 
     @Test
+    void writeOperationShouldRefuseTriggerDdlAppendedToASqlServerWrite() {
+        for (String keyword : List.of("DISABLE", "ENABLE")) {
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                    () -> SqlStatement.parse("update orders set status = 'SHIPPED' where id = 1 "
+                            + keyword.toLowerCase() + " trigger audit on orders",
+                            SqlStatement.Dialect.SQLSERVER).writeOperation());
+
+            assertTrue(e.getMessage().contains(keyword), e.getMessage());
+        }
+        assertEquals("UPDATE", SqlStatement.parse("update t set \"disable\" = 1 where id = 1",
+                SqlStatement.Dialect.SQLSERVER).writeOperation());
+    }
+
+    @Test
     void writeOperationShouldAcceptTheSetOfAnUpdateOnSqlServer() {
         assertEquals("UPDATE", SqlStatement.parse("update orders set status = :status"
                 + " where id = :id", SqlStatement.Dialect.SQLSERVER).writeOperation());
