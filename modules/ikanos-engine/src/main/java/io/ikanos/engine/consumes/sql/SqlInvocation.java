@@ -27,7 +27,7 @@ import io.opentelemetry.api.trace.StatusCode;
  * One prepared SQL call: the procedure and its bound values, built by
  * {@link SqlClientAdapter#prepare}. Nothing touches the database until {@link #invoke()}.
  *
- * <p>The client span is named after the operation ({@code SELECT}) and the database
+ * <p>The client span is named after the operation ({@code SELECT} or {@code CALL}) and the database
  * ({@code <system>://<host>/<database>}), and carries the OpenTelemetry database attributes. It
  * never carries the query text or a bound value.</p>
  */
@@ -37,6 +37,8 @@ final class SqlInvocation extends ConsumedInvocation {
     static final AttributeKey<String> ATTR_DB_NAMESPACE = AttributeKey.stringKey("db.namespace");
     static final AttributeKey<String> ATTR_DB_OPERATION =
             AttributeKey.stringKey("db.operation.name");
+    static final AttributeKey<String> ATTR_DB_STORED_PROCEDURE =
+            AttributeKey.stringKey("db.stored_procedure.name");
     static final AttributeKey<String> ATTR_DB_PROCEDURE =
             AttributeKey.stringKey("ikanos.sql.procedure");
     static final AttributeKey<String> ATTR_DB_STATUS =
@@ -84,6 +86,10 @@ final class SqlInvocation extends ConsumedInvocation {
         span.setAttribute(OtelNullSafety.nonNullStringKey(ATTR_DB_OPERATION),
                 procedure.operation());
         span.setAttribute(OtelNullSafety.nonNullStringKey(ATTR_DB_PROCEDURE), procedure.name());
+        if (procedure.isStored()) {
+            span.setAttribute(OtelNullSafety.nonNullStringKey(ATTR_DB_STORED_PROCEDURE),
+                    procedure.spec().getStoredProcedure().trim());
+        }
         return adapter.execute(procedure, binds);
     }
 
