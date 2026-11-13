@@ -167,6 +167,26 @@ final class SqlRowDocument {
         }
     }
 
+    /** @return an integer {@code OUT} value, whichever {@link Number} the driver gave it as */
+    private static JsonNode outInteger(Object value, String label) {
+        if (value == null) {
+            return NODES.nullNode();
+        }
+        if (value instanceof Long || value instanceof Integer || value instanceof Short
+                || value instanceof Byte) {
+            return NODES.numberNode(((Number) value).longValue());
+        }
+        if (value instanceof Boolean flag) {
+            // MySQL reads TINYINT(1) as a boolean
+            return NODES.numberNode(flag ? 1L : 0L);
+        }
+        try {
+            return NODES.numberNode(new BigDecimal(value.toString().trim()).toBigIntegerExact());
+        } catch (ArithmeticException | NumberFormatException e) {
+            throw new SqlClientException("OUT parameter '" + label + "' is not an integer");
+        }
+    }
+
     /**
      * Read a stored-procedure {@code OUT} value by the type it was registered as, the way
      * {@link #column} reads a result-set column: exact numerics keep their precision, dates and
@@ -177,7 +197,7 @@ final class SqlRowDocument {
      * @param type the declared {@code sqlType}
      * @param label the parameter name, for error messages
      * @throws SQLException when the driver fails
-     * @throws SqlClientException when the value is binary
+     * @throws SqlClientException when the value is binary, or an integer type holds a fraction
      */
     static JsonNode out(CallableStatement call, int position, JDBCType type, String label)
             throws SQLException {
@@ -187,14 +207,19 @@ final class SqlRowDocument {
                 return call.wasNull() ? NODES.nullNode() : NODES.booleanNode(value);
             }
             case TINYINT, SMALLINT, INTEGER, BIGINT -> {
-                long value = call.getLong(position);
-                return call.wasNull() ? NODES.nullNode() : NODES.numberNode(value);
+                // getObject: PostgreSQL refuses a typed getter that differs from the registered
+                // type, and MySQL gives BIGINT UNSIGNED as a BigInteger past Long.MAX_VALUE
+                return outInteger(call.getObject(position), label);
             }
             case NUMERIC, DECIMAL -> {
                 BigDecimal value = call.getBigDecimal(position);
                 return value == null ? NODES.nullNode() : NODES.numberNode(value);
             }
-            case REAL, FLOAT, DOUBLE -> {
+            case REAL -> {
+                float value = call.getFloat(position);
+                return call.wasNull() ? NODES.nullNode() : NODES.numberNode(value);
+            }
+            case FLOAT, DOUBLE -> {
                 double value = call.getDouble(position);
                 return call.wasNull() ? NODES.nullNode() : NODES.numberNode(value);
             }

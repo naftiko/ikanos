@@ -480,6 +480,36 @@ class SqlClientAdapterTest {
     }
 
     @Test
+    void outShouldReadAnUnsignedBigintPastLongMaxValue() throws Exception {
+        java.sql.CallableStatement call = org.mockito.Mockito.mock(java.sql.CallableStatement.class);
+        org.mockito.Mockito.when(call.getObject(1))
+                .thenReturn(new java.math.BigInteger("18446744073709551615"));
+        org.mockito.Mockito.when(call.getLong(1)).thenThrow(new java.sql.SQLException("range"));
+
+        JsonNode value = SqlRowDocument.out(call, 1, java.sql.JDBCType.BIGINT, "ID");
+
+        assertEquals("18446744073709551615", value.toString());
+    }
+
+    @Test
+    void outShouldReadIntegersAndRealsWithoutAGetterOfAnotherType() throws Exception {
+        java.sql.CallableStatement call = org.mockito.Mockito.mock(java.sql.CallableStatement.class);
+        // PostgreSQL refuses getLong on an INTEGER OUT and getDouble on a REAL OUT
+        org.mockito.Mockito.when(call.getLong(org.mockito.ArgumentMatchers.anyInt()))
+                .thenThrow(new java.sql.SQLException("type mismatch"));
+        org.mockito.Mockito.when(call.getDouble(org.mockito.ArgumentMatchers.anyInt()))
+                .thenThrow(new java.sql.SQLException("type mismatch"));
+        org.mockito.Mockito.when(call.getObject(1)).thenReturn(42);
+        org.mockito.Mockito.when(call.getObject(2)).thenReturn((short) 7);
+        org.mockito.Mockito.when(call.getFloat(3)).thenReturn(1.5f);
+
+        assertEquals(42, SqlRowDocument.out(call, 1, java.sql.JDBCType.INTEGER, "N").intValue());
+        assertEquals(7, SqlRowDocument.out(call, 2, java.sql.JDBCType.SMALLINT, "S").intValue());
+        assertEquals(1.5, SqlRowDocument.out(call, 3, java.sql.JDBCType.REAL, "R").doubleValue());
+        assertTrue(SqlRowDocument.out(call, 4, java.sql.JDBCType.INTEGER, "NONE").isNull());
+    }
+
+    @Test
     void columnShouldKeepTheDecimalsOfAJsonColumn() throws Exception {
         java.sql.ResultSet rs = org.mockito.Mockito.mock(java.sql.ResultSet.class);
         java.sql.ResultSetMetaData meta = org.mockito.Mockito.mock(java.sql.ResultSetMetaData.class);

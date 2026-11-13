@@ -355,7 +355,8 @@ public class SqlClientAdapter extends ClientAdapter {
      * Run one read on a pooled connection. A procedure with a cursor {@code OUT} runs in a
      * transaction, rolled back once its rows are read: PostgreSQL closes a {@code refcursor} at
      * the end of the transaction, which in auto-commit is the call itself. HikariCP restores
-     * auto-commit when the connection returns to the pool. Package-private for tests.
+     * auto-commit when the connection returns to the pool. A rollback that fails evicts the
+     * connection and fails the call. Package-private for tests.
      */
     ConsumedResult read(Connection connection, Procedure procedure, List<SqlBind> binds)
             throws SQLException {
@@ -364,17 +365,41 @@ public class SqlClientAdapter extends ClientAdapter {
         if (cursor) {
             connection.setAutoCommit(false);
         }
+        ConsumedResult result;
         try {
-            return readStatement(connection, procedure, binds);
-        } finally {
+            result = readStatement(connection, procedure, binds);
+        } catch (SQLException | RuntimeException e) {
             if (cursor) {
-                try {
-                    connection.rollback();
-                } catch (SQLException e) {
-                    LOGGER.log(Level.FINE, "Rollback after SQL procedure {0} failed",
-                            procedure.name());
-                }
+                endCursorTransaction(connection, procedure, e);
             }
+            throw e;
+        }
+        if (cursor) {
+            endCursorTransaction(connection, procedure, null);
+        }
+        return result;
+    }
+
+    /**
+     * Roll back the transaction a cursor read ran in. When that fails, the connection is evicted,
+     * so the pool never hands out a connection still in a transaction, and the rollback error is
+     * thrown, or added to the {@code failure} the read already threw.
+     */
+    private void endCursorTransaction(Connection connection, Procedure procedure,
+            Exception failure) throws SQLException {
+        try {
+            connection.rollback();
+        } catch (SQLException e) {
+            LOGGER.log(Level.WARNING, "Rollback failed for SQL procedure " + getNamespace() + "."
+                    + procedure.name() + "; evicting the connection", e);
+            HikariDataSource current = pool;
+            if (current != null) {
+                current.evictConnection(connection);
+            }
+            if (failure == null) {
+                throw e;
+            }
+            failure.addSuppressed(e);
         }
     }
 
