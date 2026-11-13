@@ -1048,6 +1048,11 @@ public class Resolver {
                     if (guardsWrite) {
                         throw unresolvedPrecondition(wireName);
                     }
+                    if (!carried && val != null && "If-Range".equalsIgnoreCase(wireName)) {
+                        // required: false and sent blank: left out, but its Range must not go
+                        // alone, as for a blank If-Range of a safe request (#1001)
+                        StandardRequestHeaders.refuseIfRange(clientRequest);
+                    }
                     continue;
                 }
 

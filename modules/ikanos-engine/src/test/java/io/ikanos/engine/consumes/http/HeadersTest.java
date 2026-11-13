@@ -284,6 +284,46 @@ public class HeadersTest {
         assertNotNull(request.getConditions().getRangeTag());
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"absent", "null", "blank"})
+    public void resolveInputParametersShouldNotSendTheRangeOfAPostWhoseOptionalIfRangeIsBlank(
+            String supplied) {
+        Request request = new Request(Method.POST, "https://api.example.com/v1/items/1");
+        InputParameterSpec ifRange = new InputParameterSpec();
+        ifRange.setName("If-Range");
+        ifRange.setIn("header");
+        ifRange.setRequired(false);
+        Map<String, Object> params = new HashMap<>(Map.of("other", "x"));
+        if (!"absent".equals(supplied)) {
+            params.put("If-Range", "null".equals(supplied) ? null : " ");
+        }
+
+        Resolver.resolveInputParametersToRequest(request,
+                List.of(header("Range", "bytes=0-9"), ifRange), params);
+
+        // A blank If-Range is refused, so its Range is not sent alone; an absent one leaves the
+        // Range unconditional, as the input declares
+        assertEquals("blank".equals(supplied) ? 0 : 1, request.getRanges().size(), supplied);
+        assertEquals(null, request.getConditions().getRangeTag());
+    }
+
+    @Test
+    public void resolveInputParametersShouldKeepTheRangeOfAPostWhoseIfRangeTheRequestCarries() {
+        Request request = new Request(Method.POST, "https://api.example.com/v1/items/1");
+        request.getConditions().setRangeTag(org.restlet.data.Tag.parse("\"v1\""));
+        request.setRanges(new java.util.ArrayList<>(List.of(new org.restlet.data.Range(0, 10))));
+        InputParameterSpec ifRange = new InputParameterSpec();
+        ifRange.setName("If-Range");
+        ifRange.setIn("header");
+        ifRange.setRequired(false);
+
+        Resolver.resolveInputParametersToRequest(request, List.of(ifRange),
+                new HashMap<>(Map.of("If-Range", " ")));
+
+        assertEquals(1, request.getRanges().size());
+        assertNotNull(request.getConditions().getRangeTag());
+    }
+
     private static InputParameterSpec suppliedIfMatch(boolean required) {
         InputParameterSpec spec = new InputParameterSpec();
         spec.setName("If-Match");
