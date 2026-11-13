@@ -3500,7 +3500,7 @@
         "retention": {
           "type": "string",
           "pattern": "^P(?!$)(\\d+D)?(T(?=\\d)(\\d+H)?(\\d+M)?(\\d+(\\.\\d+)?S)?)?$",
-          "description": "How long a completed execution is kept, as an ISO 8601 duration in days, hours, minutes and seconds (for example `P7D` or `PT12H`)."
+          "description": "Task lifetime advertised to clients, as an ISO 8601 duration in days, hours, minutes and seconds (for example `P7D` or `PT12H`); stored executions are not deleted yet."
         },
         "sealingKey": {
           "type": "string",
@@ -3515,14 +3515,14 @@
       "properties": {
         "type": {
           "type": "string",
-          "description": "Store type, such as `memory`, `h2` or `jdbc`."
+          "enum": ["memory", "h2"],
+          "description": "Store type: `memory` for the `memory` mode, `h2` for the `local` mode. Absent, the mode's own type is used."
         },
         "path": {
           "type": "string",
           "description": "File of an embedded store, such as the H2 database of `local`, relative to the working directory; H2 adds its `.mv.db` extension."
         }
       },
-      "required": ["type"],
       "additionalProperties": false
     },
     "ControlManagementSpec": {
