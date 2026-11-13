@@ -267,11 +267,14 @@ public final class InlineRounds {
         // started after the cutoff cannot be expired.
         for (ExecutionRecord record : runner.listLabelled(ExecutionStatus.SUSPENDED, KIND, MRTR,
                 cutoff, SWEEP_LIMIT)) {
-            // The journal is read only for the calls started before the cutoff.
-            if (InputRounds.askedAt(runner.view(record.executionId()))
-                    .orElse(record.createdAt()).isBefore(cutoff)) {
-                runner.fail(record.executionId(), new Failure(EXPIRED,
-                        "The call's questions went unanswered past its state's expiry"));
+            // Read first without the call's lock, then again under it, where the call is failed:
+            // an answer may resume it in between, and the round it asks then is not expired.
+            // What it waits on is cancelled only if this sweep failed it.
+            if (expired(runner.view(record.executionId()), record, cutoff)
+                    && runner.failIf(record.executionId(), ExecutionStatus.SUSPENDED,
+                            view -> expired(view, record, cutoff), new Failure(EXPIRED,
+                                    "The call's questions went unanswered past its state's "
+                                            + "expiry"))) {
                 try {
                     onCancel.accept(record.executionId());
                 } catch (RuntimeException e) {
@@ -279,5 +282,10 @@ public final class InlineRounds {
                 }
             }
         }
+    }
+
+    /** Whether a call's last round asked before {@code cutoff}. */
+    private static boolean expired(ExecutionView view, ExecutionRecord record, Instant cutoff) {
+        return InputRounds.askedAt(view).orElse(record.createdAt()).isBefore(cutoff);
     }
 }
