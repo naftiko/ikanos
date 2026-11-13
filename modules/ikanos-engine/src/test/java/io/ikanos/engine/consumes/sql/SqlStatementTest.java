@@ -130,6 +130,18 @@ class SqlStatementTest {
     }
 
     @Test
+    void nonReadKeywordShouldReadADollarSignAsPartOfAnIdentifier() {
+        for (SqlStatement.Dialect dialect : SqlStatement.Dialect.values()) {
+            SqlStatement statement =
+                    SqlStatement.parse("select audit$delete, a$b$ from events", dialect);
+
+            assertNull(statement.nonReadKeyword(), dialect.name());
+            assertEquals("select audit$delete, a$b$ from events", statement.jdbcSql(),
+                    dialect.name());
+        }
+    }
+
+    @Test
     void parseShouldReadMysqlBackslashEscapesSoASecondStatementCannotHide() {
         String sql = "select 'a\\'' from t; delete from t; -- '";
 

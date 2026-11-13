@@ -40,6 +40,21 @@ class JdbcUrlTest {
     }
 
     @Test
+    void spanTargetShouldNotReadADatabaseNameFromABracedSqlServerPassword() {
+        JdbcUrl url = JdbcUrl.parse("jdbc:sqlserver://db:1433;"
+                + "password={prefix;databaseName=su}}ffix};databaseName=billing");
+
+        assertEquals("sqlserver://db/billing", url.spanTarget());
+    }
+
+    @Test
+    void spanTargetShouldLeaveOutABracedSqlServerDatabaseName() {
+        JdbcUrl url = JdbcUrl.parse("jdbc:sqlserver://db:1433;databaseName={bil;ling}");
+
+        assertEquals("sqlserver://db", url.spanTarget());
+    }
+
+    @Test
     void spanTargetShouldReadAnOracleThinUrl() {
         JdbcUrl url = JdbcUrl.parse("jdbc:oracle:thin:@//ora.internal:1521/FINANCE");
 
