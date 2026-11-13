@@ -605,7 +605,6 @@ public class ResourceRestlet extends Restlet {
                                 forwardSpec.getTrustedHeaders(), "Authorization") ? request : null;
                         httpAdapter.setChallengeResponse(credentialSource, clientRequest,
                                 clientRequest.getResourceRef().toString(), parameters);
-                        httpAdapter.setHeaders(clientRequest);
 
                         // Send the request to the target endpoint
                         httpAdapter.getHttpClient().handle(clientRequest, clientResponse);

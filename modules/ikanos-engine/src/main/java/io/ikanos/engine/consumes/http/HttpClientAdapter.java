@@ -326,10 +326,11 @@ public class HttpClientAdapter extends ClientAdapter {
             clientRequest.setEntity(resolvedBody, bodyMediaType);
         }
 
-        // Set authentication and headers
+        // Set authentication. Header parameters, the adapter's included, were already set with
+        // their resolved values above: setting them again from their raw value sent a template
+        // as text and ignored wireName (#1070).
         setChallengeResponse(null, clientRequest, clientRequest.getResourceRef().toString(),
                 parameters);
-        setHeaders(clientRequest, replaced);
         return new HttpInvocation(this, clientOp, clientRequest);
     }
 
@@ -446,26 +447,6 @@ public class HttpClientAdapter extends ClientAdapter {
             return parsed != null && !parsed.isMissingNode();
         } catch (JacksonException e) {
             return false;
-        }
-    }
-
-    /**
-     * Set any default headers from the input parameters on the client request
-     */
-    public void setHeaders(Request request) {
-        setHeaders(request, Set.of());
-    }
-
-    /**
-     * Same, but skips the adapter headers that a narrower parameter replaces, so that the
-     * narrower value is the one sent (#909).
-     */
-    void setHeaders(Request request, Set<InputParameterSpec> replaced) {
-        for (InputParameterSpec param : getHttpClientSpec().getInputParameters()) {
-            if ("header".equalsIgnoreCase(param.getIn()) && param.getValue() != null
-                    && !replaced.contains(param)) {
-                request.getHeaders().set(param.getName(), param.getValue());
-            }
         }
     }
 
