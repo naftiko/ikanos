@@ -34,6 +34,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -322,8 +323,60 @@ public class HttpClientAdapterTest {
         Request request = prepareDefaults(new HashMap<>());
 
         assertEquals("from-resource", request.getHeaders().getFirstValue("X-Mode"),
-                "#909: setHeaders should not set an adapter header again once a narrower"
-                        + " parameter has replaced it");
+                "#909: an adapter header replaced by a narrower parameter should not be sent");
+    }
+
+    @Test
+    public void prepareShouldSendTheResolvedValueOfATemplatedAdapterHeader() throws Exception {
+        Request request = prepareWithAdapterHeader("""
+                X-User:
+                  in: header
+                  value: "{{user}}"
+                """, new HashMap<>(Map.of("user", "alice")));
+
+        assertEquals("alice", request.getHeaders().getFirstValue("X-User"),
+                "#1070: an adapter-level header must be sent with its resolved value, not set"
+                        + " again from its raw template");
+    }
+
+    @Test
+    public void prepareShouldSendAnAdapterHeaderUnderItsWireNameOnly() throws Exception {
+        Request request = prepareWithAdapterHeader("""
+                apiVersion:
+                  in: header
+                  wireName: "Api-Version"
+                  value: "2"
+                """, new HashMap<>());
+
+        assertEquals("2", request.getHeaders().getFirstValue("Api-Version"),
+                "#1070: an adapter-level header must be sent under its wireName");
+        assertNull(request.getHeaders().getFirstValue("apiVersion"),
+                "#1070: an adapter-level header must not be sent a second time under its key");
+    }
+
+    /** Prepares {@code list} on an adapter declaring the given adapter-level inputs. */
+    private Request prepareWithAdapterHeader(String adapterInputs, Map<String, Object> arguments)
+            throws Exception {
+        String yaml = """
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - type: http
+                      namespace: api
+                      baseUri: "https://probe.example/v1"
+                      inputParameters:
+                %s
+                      resources:
+                        things:
+                          path: "/things"
+                          operations:
+                            list:
+                              method: GET
+                """.formatted(VersionHelper.getSchemaVersion(), adapterInputs.indent(8));
+        IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                (HttpClientSpec) spec.getCapability().getConsumes().get(0));
+        return adapter.prepare("list", arguments).getRequest();
     }
 
     private Request prepareDefaults(Map<String, Object> arguments) throws Exception {
