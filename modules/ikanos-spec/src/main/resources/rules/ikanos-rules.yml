@@ -430,10 +430,12 @@ rules:
   # Consumed SQL databases (consumes type sql)
 
   ikanos-sql-no-inline-credentials:
-    message: "A consumed SQL `connection.username` and `connection.password` must come from `binds`."
+    message: "A consumed SQL `connection.username`, `connection.password` or `password` driver property must come from `binds`."
     description: >
       Database credentials written in the capability end up in version control
-      and in every copy of the file. Take them from a `binds` entry
+      and in every copy of the file, whether in `connection.username`,
+      `connection.password` or a `password` / `pwd` entry of
+      `connection.properties`. Take them from a `binds` entry
       (`{{DB_USER}}`, `{{DB_PASSWORD}}`), resolved once when the capability
       loads.
     severity: error
@@ -443,10 +445,31 @@ rules:
       - "$.consumes[?(@.type == 'sql')].connection.password"
       - "$.capability.consumes[?(@.type == 'sql')].connection.username"
       - "$.capability.consumes[?(@.type == 'sql')].connection.password"
+      - "$.consumes[?(@.type == 'sql')].connection.properties.password"
+      - "$.consumes[?(@.type == 'sql')].connection.properties.pwd"
+      - "$.capability.consumes[?(@.type == 'sql')].connection.properties.password"
+      - "$.capability.consumes[?(@.type == 'sql')].connection.properties.pwd"
     then:
       function: pattern
       functionOptions:
         match: "^\\{\\{[A-Za-z0-9_.-]+\\}\\}$"
+
+  ikanos-sql-no-url-credentials:
+    message: "A consumed SQL `connection.url` must not carry a password: use `connection.password`."
+    description: >
+      A password in the JDBC URL (`//user:secret@host`, `password=secret`)
+      ends up in version control and in every copy of the file. Bind the whole
+      URL (`{{JDBC_URL}}`), or move the password to `connection.password`
+      bound from `binds`.
+    severity: error
+    recommended: true
+    given:
+      - "$.consumes[?(@.type == 'sql')].connection.url"
+      - "$.capability.consumes[?(@.type == 'sql')].connection.url"
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: "/(^|[?&;:(,])\\s*(password|pwd)\\s*=(?!\\s*\\{\\{)|\\/\\/[^\\/@?;]*:[^\\/@?;{]+@|:thin:[^@\\/:{]+\\/[^@{]+@/i"
 
   ikanos-sql-statement-read-only:
     message: "A SQL procedure `statement` must read: start with SELECT, WITH or VALUES."
@@ -463,7 +486,7 @@ rules:
     then:
       function: pattern
       functionOptions:
-        match: "/^(\\s|--[^\\n]*\\n|\\/\\*[\\s\\S]*?\\*\\/)*(select|with|values)\\b/i"
+        match: "/^(\\s|\\(|--[^\\n]*\\n|\\/\\*[\\s\\S]*?\\*\\/)*(select|with|values)\\b/i"
 
   ikanos-sql-placeholders-bound:
     message: "{{error}}"

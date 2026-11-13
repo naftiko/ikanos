@@ -629,6 +629,29 @@ public class IkanosPolychroRulesetTest {
             "Expected no consumed SQL findings.\n" + result.output());
     }
 
+    @Test
+    public void sqlNoUrlCredentialsRuleShouldFireForAPasswordInTheUrl() {
+        ProcessResult result = lintFixture("rules/spectral-sql-credentials-violations.yaml");
+        assertEquals(2, findings(result, "ikanos-sql-no-url-credentials"),
+            "Expected ikanos-sql-no-url-credentials on password= and on user:password@.\n"
+                + result.output());
+    }
+
+    @Test
+    public void sqlNoInlineCredentialsRuleShouldFireForALiteralPasswordProperty() {
+        ProcessResult result = lintFixture("rules/spectral-sql-credentials-violations.yaml");
+        assertEquals(1, findings(result, "ikanos-sql-no-inline-credentials"),
+            "Expected ikanos-sql-no-inline-credentials on connection.properties.password.\n"
+                + result.output());
+    }
+
+    @Test
+    public void sqlStatementReadOnlyRuleShouldAcceptAParenthesizedSelect() {
+        ProcessResult result = lintFixture("rules/spectral-sql-credentials-violations.yaml");
+        assertEquals(0, findings(result, "ikanos-sql-statement-read-only"),
+            "Expected no ikanos-sql-statement-read-only on (select ...).\n" + result.output());
+    }
+
     // ────────────────────────────────────────────────────────────────
     // Flow composition rules (#794)
     // ────────────────────────────────────────────────────────────────

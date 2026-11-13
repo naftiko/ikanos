@@ -29,6 +29,11 @@ import java.util.Set;
  * {@code ::} casts. The same walk collects the keywords outside literals and comments, which
  * classify the statement, and rejects a second statement after a {@code ;}.</p>
  *
+ * <p>With {@code mysql} set (MySQL and MariaDB URLs), the walk follows that dialect instead:
+ * backslash escapes in {@code '…'} and {@code "…"} literals, {@code #} line comments,
+ * {@code --} as a comment only when whitespace follows, and no dollar quoting. Reading MySQL text
+ * with the standard rules would let {@code 'a\''} or {@code # '} hide a second statement.</p>
+ *
  * <p>The SQL itself is sent to the driver verbatim otherwise: Ikanos never rewrites the dialect.</p>
  */
 final class SqlStatement {
@@ -110,6 +115,18 @@ final class SqlStatement {
      *     unterminated literal, identifier or comment. The message never quotes the SQL.
      */
     static SqlStatement parse(String sql) {
+        return parse(sql, false);
+    }
+
+    /**
+     * Parse an authored statement in a dialect.
+     *
+     * @param sql the statement as written in the capability
+     * @param mysql whether to read it as MySQL / MariaDB text
+     * @return the parsed statement
+     * @throws IllegalArgumentException as {@link #parse(String)}
+     */
+    static SqlStatement parse(String sql, boolean mysql) {
         if (sql == null || sql.isBlank()) {
             throw new IllegalArgumentException("statement is empty");
         }
@@ -121,11 +138,11 @@ final class SqlStatement {
         boolean ended = false;
         while (i < n) {
             char c = sql.charAt(i);
-            if (ended && !Character.isWhitespace(c) && !startsComment(sql, i)) {
+            if (ended && !Character.isWhitespace(c) && !startsComment(sql, i, mysql)) {
                 throw new IllegalArgumentException(
                         "statement holds more than one SQL statement; declare one per procedure");
             }
-            if (c == '-' && i + 1 < n && sql.charAt(i + 1) == '-') {
+            if (startsLineComment(sql, i, mysql)) {
                 int end = sql.indexOf('\n', i);
                 end = end < 0 ? n : end;
                 out.append(sql, i, end);
@@ -138,16 +155,16 @@ final class SqlStatement {
                 out.append(sql, i, end + 2);
                 i = end + 2;
             } else if (c == '\'') {
-                boolean backslashEscapes = i > 0 && (sql.charAt(i - 1) == 'E'
-                        || sql.charAt(i - 1) == 'e') && (i < 2 || !isWordChar(sql.charAt(i - 2)));
+                boolean backslashEscapes = mysql || (i > 0 && (sql.charAt(i - 1) == 'E'
+                        || sql.charAt(i - 1) == 'e') && (i < 2 || !isWordChar(sql.charAt(i - 2))));
                 int end = endOfQuoted(sql, i, '\'', backslashEscapes);
                 out.append(sql, i, end);
                 i = end;
             } else if (c == '"' || c == '`') {
-                int end = endOfQuoted(sql, i, c, false);
+                int end = endOfQuoted(sql, i, c, mysql && c == '"');
                 out.append(sql, i, end);
                 i = end;
-            } else if (c == '$' && dollarTag(sql, i) != null) {
+            } else if (!mysql && c == '$' && dollarTag(sql, i) != null) {
                 String tag = dollarTag(sql, i);
                 int end = sql.indexOf(tag, i + tag.length());
                 if (end < 0) {
@@ -186,9 +203,20 @@ final class SqlStatement {
         return new SqlStatement(sql, out.toString().strip(), placeholders, keywords);
     }
 
-    private static boolean startsComment(String sql, int i) {
-        return i + 1 < sql.length() && ((sql.charAt(i) == '-' && sql.charAt(i + 1) == '-')
-                || (sql.charAt(i) == '/' && sql.charAt(i + 1) == '*'));
+    private static boolean startsComment(String sql, int i, boolean mysql) {
+        return startsLineComment(sql, i, mysql) || (i + 1 < sql.length()
+                && sql.charAt(i) == '/' && sql.charAt(i + 1) == '*');
+    }
+
+    /** {@code --}, and in MySQL {@code #}; MySQL needs whitespace after {@code --}. */
+    private static boolean startsLineComment(String sql, int i, boolean mysql) {
+        if (mysql && sql.charAt(i) == '#') {
+            return true;
+        }
+        if (sql.charAt(i) != '-' || i + 1 >= sql.length() || sql.charAt(i + 1) != '-') {
+            return false;
+        }
+        return !mysql || i + 2 >= sql.length() || Character.isWhitespace(sql.charAt(i + 2));
     }
 
     /** @return the index just past the closing quote */
