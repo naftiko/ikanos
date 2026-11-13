@@ -62,9 +62,10 @@ public class StdioJsonRpcHandler implements Runnable {
                                InputStream input, OutputStream output) {
         this.dispatcher = dispatcher;
         this.input = input;
-        this.output = (output instanceof PrintStream)
-                ? (PrintStream) output
-                : new PrintStream(output, true, StandardCharsets.UTF_8);
+        // Always encode as UTF-8, even when given a PrintStream such as System.out, whose
+        // charset follows the platform (stdout.encoding): MCP messages are UTF-8 (issue #1034).
+        // PrintStream.write(byte[]) passes the encoded bytes through unchanged.
+        this.output = new PrintStream(output, true, StandardCharsets.UTF_8);
         this.running = true;
     }
 
