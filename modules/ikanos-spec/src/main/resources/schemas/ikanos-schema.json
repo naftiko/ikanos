@@ -1401,7 +1401,7 @@
     },
     "McpTrust": {
       "type": "object",
-      "description": "Agent identity trust for an HTTP MCP adapter. The identity is recorded on traces and logs for audit only: it never authorizes a request and is never forwarded to consumed APIs.",
+      "description": "Agent identity trust for an HTTP MCP adapter. The identity is recorded on traces and logs for audit only: it never authorizes a request and is never forwarded to consumed APIs by itself. To pass the caller's identity on, a capability reads the validated token explicitly with `{{auth.claims...}}` templates or `forward.identityHeaders` (`authentication: oauth2`).",
       "properties": {
         "mode": {
           "type": "string",
@@ -3361,12 +3361,55 @@
           },
           "description": "Allowlist of incoming HTTP header names that may be forwarded to the upstream adapter. Headers not in this list are stripped before forwarding. Example: `[\"Authorization\", \"X-Correlation-Id\"]`.",
           "minItems": 1
+        },
+        "identityHeaders": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[!#$%&'*+.^_`|~0-9A-Za-z-]+$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/IdentityHeader"
+          },
+          "minProperties": 1,
+          "description": "Headers the engine sets on the forwarded request from the caller's validated OAuth 2.1 token, keyed by header name, so the upstream can trust who is calling. Each one is always set by the engine: any copy the client sent is removed first, even when the header is listed in `trustedHeaders`. Needs `authentication: oauth2` on the adapter. A standard header the HTTP connector sets itself, such as `Authorization`, `Host` or `User-Agent`, cannot be used: the capability does not start. Example: `{ X-User-Id: sub, X-User-Roles: roles }`."
         }
       },
       "required": [
         "targetNamespace"
       ],
       "additionalProperties": false
+    },
+    "IdentityHeader": {
+      "description": "The claim of the caller's validated token a forwarded identity header carries. Written as the claim name (`sub`), or as an object to say what happens when the token does not carry it. A claim name that is not a claim of its own is read as a path into nested claims, such as `realm_access.roles`. An array claim is sent comma-separated. A value longer than 256 characters, or with characters other than letters, digits and `. _ ~ : @ / + = | -`, counts as missing.",
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "object",
+          "properties": {
+            "claim": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Claim name, or a dotted path into nested claims."
+            },
+            "ifMissing": {
+              "type": "string",
+              "enum": [
+                "fail",
+                "omit"
+              ],
+              "default": "fail",
+              "description": "When the token does not carry the claim: `fail` (default) refuses the call with `403` before any upstream request; `omit` forwards the request without the header."
+            }
+          },
+          "required": [
+            "claim"
+          ],
+          "additionalProperties": false
+        }
+      ]
     },
     "Authentication": {
       "description": "Authentication strategy applied to incoming request validation (on `Exposes*`); consumed adapters use `ConsumedAuthentication`, without `oauth2`. Choose the variant matching how the adapter's clients authenticate:\n- `basic` \u2014 HTTP Basic (username + password)\n- `apikey` \u2014 API key in header or query string\n- `bearer` \u2014 Static Bearer token\n- `digest` \u2014 HTTP Digest (username + password)\n- `oauth2` \u2014 OAuth 2.1 resource server (JWT validation or token introspection)",

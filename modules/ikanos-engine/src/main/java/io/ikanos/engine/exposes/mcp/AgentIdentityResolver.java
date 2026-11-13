@@ -23,6 +23,7 @@ import java.util.regex.Pattern;
 import org.restlet.Context;
 import org.restlet.Request;
 import com.nimbusds.jwt.JWTClaimsSet;
+import io.ikanos.engine.exposes.IdentityValues;
 import io.ikanos.engine.exposes.OAuth2AuthenticationRestlet;
 import io.ikanos.engine.util.CidrRange;
 import io.ikanos.spec.exposes.mcp.McpTrustSpec;
@@ -51,14 +52,10 @@ import io.ikanos.spec.exposes.mcp.McpTrustSpec;
 public class AgentIdentityResolver {
 
     /** Longest identity recorded; longer values are dropped rather than truncated. */
-    static final int MAX_IDENTITY_LENGTH = 256;
+    static final int MAX_IDENTITY_LENGTH = IdentityValues.MAX_LENGTH;
 
-    /**
-     * Characters an identity may contain: enough for ids, emails, SPIFFE URIs and provider-prefixed
-     * subjects such as Auth0's {@code google-oauth2|123}, and nothing that can split a log line, a
-     * header or a list (no whitespace, quotes, commas or semicolons).
-     */
-    static final Pattern IDENTITY_PATTERN = Pattern.compile("[A-Za-z0-9._~:@/+=|-]+");
+    /** Characters an identity may contain (see {@link IdentityValues#PATTERN}). */
+    static final Pattern IDENTITY_PATTERN = IdentityValues.PATTERN;
 
     private final String mode;
     private final String identityHeader;
@@ -157,34 +154,14 @@ public class AgentIdentityResolver {
         return false;
     }
 
-    /**
-     * @return the trimmed value, or {@code null} when blank, too long, or containing a character
-     *         outside {@link #IDENTITY_PATTERN} (control characters included, so it cannot forge
-     *         log lines).
-     */
+    /** @see IdentityValues#sanitize(String) */
     static String sanitize(String value) {
-        if (value == null || value.trim().isEmpty() || rejectionOf(value) != null) {
-            return null;
-        }
-        return value.trim();
+        return IdentityValues.sanitize(value);
     }
 
-    /**
-     * @return why {@code value} cannot be recorded, or {@code null} when it can, or when it is
-     *         absent or blank (nothing was sent, so there is nothing to report).
-     */
+    /** @see IdentityValues#rejectionOf(String) */
     static String rejectionOf(String value) {
-        if (value == null) {
-            return null;
-        }
-        String trimmed = value.trim();
-        if (trimmed.length() > MAX_IDENTITY_LENGTH) {
-            return "longer than " + MAX_IDENTITY_LENGTH + " characters";
-        }
-        if (!trimmed.isEmpty() && !IDENTITY_PATTERN.matcher(trimmed).matches()) {
-            return "contains characters other than letters, digits and . _ ~ : @ / + = | -";
-        }
-        return null;
+        return IdentityValues.rejectionOf(value);
     }
 
     /**

@@ -1283,4 +1283,181 @@ public class ResolverTest {
     private static InputParameterSpec input(String name, String type) {
         return new InputParameterSpec(name, type, null, null);
     }
+
+    // ─── Caller claims (#998) ───────────────────────────────────────────────────
+
+    private static Map<String, Object> callerParameters(Map<String, Object> claims) {
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put("id", "42");
+        parameters.put(Resolver.CALLER_ROOT, new CallerRoot(Map.of("claims", claims)));
+        return parameters;
+    }
+
+    @Test
+    void requireCallerValuesShouldRefuseACallerValueReadInsideASection() {
+        assertThrows(IllegalArgumentException.class,
+                () -> Resolver.resolveMustacheTemplate(
+                        "{{#filter}}{{auth.claims.sub}}{{/filter}}",
+                        callerParameters(Map.of("sub", "alice"))));
+    }
+
+    @Test
+    void requireCallerValuesShouldNotLetANestedClientObjectReplaceTheCaller() {
+        Map<String, Object> parameters = callerParameters(Map.of("sub", "alice"));
+        parameters.put("filter", Map.of("auth", Map.of("claims", Map.of("sub", "admin"))));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> Resolver.resolveMustacheTemplate(
+                        "{{#filter}}owner={{auth.claims.sub}}{{/filter}}", parameters),
+                "#998: a key 'auth' of a section value must never be read as the caller");
+    }
+
+    @Test
+    void requireCallerValuesShouldRefuseAClaimSectionNestedInAnotherSection() {
+        Map<String, Object> parameters = callerParameters(Map.of("sub", "alice"));
+        parameters.put("filter", Map.of("auth", Map.of("claims", Map.of("email", "admin@x"))));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> Resolver.resolveMustacheTemplate("{{#filter}}{{#auth.claims.email}}{{.}}"
+                        + "{{/auth.claims.email}}{{/filter}}", parameters),
+                "#998: a nested section over a claim could read the section's value");
+    }
+
+    @Test
+    void requireCallerValuesShouldLeaveOtherUsesOfTheNameAuthAlone() {
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put(Resolver.CALLER_ROOT, Map.of("access_token", "t-1"));
+
+        assertEquals("Bearer t-1", Resolver.resolveMustacheTemplate(
+                "Bearer {{auth.access_token}}", parameters),
+                "a step named auth read as before #998 keeps working");
+    }
+
+    @Test
+    void requireCallerValuesShouldRefuseASectionOverTheClaims() {
+        Map<String, Object> parameters = callerParameters(Map.of("email", "a@b.c"));
+        parameters.put("sub", "mallory");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> Resolver.resolveMustacheTemplate("{{#auth.claims}}{{sub}}{{/auth.claims}}",
+                        parameters),
+                "#998: a name inside the section would fall back to the client's 'sub'");
+        assertThrows(IllegalArgumentException.class,
+                () -> Resolver.resolveMustacheTemplate(
+                        "{{^auth.claims.email}}none{{/auth.claims.email}}", parameters));
+    }
+
+    @Test
+    void requireCallerValuesShouldTreatAWholeObjectReadAsMissing() {
+        assertThrows(CallerClaimMissingException.class,
+                () -> Resolver.resolveMustacheTemplate("{{auth.claims}}",
+                        callerParameters(Map.of("sub", "alice"))));
+    }
+
+    @Test
+    void requireCallerValuesShouldRefuseAStepOrWithKeyNamedLikeTheRoot() {
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put(Resolver.CALLER_ROOT, Map.of("claims", Map.of("sub", "upstream")));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> Resolver.resolveMustacheTemplate("{{auth.claims.sub}}", parameters));
+    }
+
+    @Test
+    void requireCallerValuesShouldRefuseADottedKeyShadowingTheRoot() {
+        Map<String, Object> parameters = callerParameters(Map.of("sub", "alice"));
+        parameters.put("auth.claims.sub", "admin");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> Resolver.resolveMustacheTemplate("{{auth.claims.sub}}", parameters));
+    }
+
+    @Test
+    void resolveJsonDataShouldFailWhenAStructuredBodyReadsAMissingCallerClaim() {
+        assertThrows(CallerClaimMissingException.class,
+                () -> Resolver.resolveJsonData(Map.of("owner", "{{auth.claims.email}}"),
+                        callerParameters(Map.of("sub", "alice"))));
+        assertThrows(CallerClaimMissingException.class,
+                () -> Resolver.resolveJsonData(Map.of("note", "by {{auth.claims.email}}"),
+                        callerParameters(Map.of("sub", "alice"))));
+    }
+
+    @Test
+    void resolveInputParametersToRequestShouldFailWithoutAnyParameter() {
+        InputParameterSpec header = new InputParameterSpec();
+        header.setName("X-User-Id");
+        header.setIn("header");
+        header.setValue("{{auth.claims.sub}}");
+
+        assertThrows(CallerClaimMissingException.class,
+                () -> Resolver.resolveInputParametersToRequest(
+                        new Request(Method.GET, "http://api.example.com/records"),
+                        List.of(header), new HashMap<>()),
+                "#998: a call without other parameters must not drop the identity silently");
+    }
+
+    @Test
+    void resolveInputParametersToRequestShouldReplaceAHeaderCopyWithOtherCase() {
+        InputParameterSpec header = new InputParameterSpec();
+        header.setName("X-User-Id");
+        header.setIn("header");
+        header.setValue("{{auth.claims.sub}}");
+        Request request = new Request(Method.GET, "http://api.example.com/records");
+        request.getHeaders().add("x-user-id", "mallory");
+
+        Resolver.resolveInputParametersToRequest(request, List.of(header),
+                callerParameters(Map.of("sub", "alice")));
+
+        assertEquals(1, request.getHeaders().subList("X-User-Id", true).size());
+        assertEquals("alice", request.getHeaders().getFirstValue("X-User-Id", true));
+    }
+
+    @Test
+    void resolveMustacheTemplateShouldFailWhenACallerClaimIsMissing() {
+        CallerClaimMissingException error = assertThrows(CallerClaimMissingException.class,
+                () -> Resolver.resolveMustacheTemplate("user={{auth.claims.sub}}",
+                        callerParameters(Map.of("roles", "editor"))));
+
+        assertEquals(List.of("auth.claims.sub"), error.getReferences());
+    }
+
+    @Test
+    void resolveMustacheTemplateShouldFailWhenThereIsNoCallerAtAll() {
+        assertThrows(CallerClaimMissingException.class,
+                () -> Resolver.resolveMustacheTemplate("{{auth.claims.sub}}-{{id}}",
+                        Map.of("id", "42")));
+    }
+
+    @Test
+    void resolveValueShouldFailWhenAWholeValueCallerClaimIsMissing() {
+        assertThrows(CallerClaimMissingException.class,
+                () -> Resolver.resolveValue("{{auth.claims.sub}}", callerParameters(Map.of())));
+    }
+
+    @Test
+    void resolveValueShouldReturnACallerClaimThatIsPresent() {
+        assertEquals("alice", Resolver.resolveValue("{{auth.claims.sub}}",
+                callerParameters(Map.of("sub", "alice"))));
+    }
+
+    @Test
+    void resolveInputParametersToRequestShouldFailRatherThanSkipAMissingCallerClaim() {
+        InputParameterSpec header = new InputParameterSpec();
+        header.setName("X-User-Id");
+        header.setIn("header");
+        header.setValue("{{auth.claims.sub}}");
+        Request request = new Request(Method.GET, "http://api.example.com/records");
+
+        assertThrows(CallerClaimMissingException.class,
+                () -> Resolver.resolveInputParametersToRequest(request, List.of(header),
+                        callerParameters(Map.of())));
+        assertNull(request.getHeaders().getFirstValue("X-User-Id"),
+                "#998: no empty identity header may be sent");
+    }
+
+    @Test
+    void resolveMustacheTemplateShouldStillRenderAnOtherMissingVariableAsEmpty() {
+        assertEquals("id=42;tenant=", Resolver.resolveMustacheTemplate(
+                "id={{id}};tenant={{tenant}}", callerParameters(Map.of("sub", "alice"))));
+    }
 }

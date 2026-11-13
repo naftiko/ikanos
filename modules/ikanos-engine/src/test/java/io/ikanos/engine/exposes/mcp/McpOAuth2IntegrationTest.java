@@ -284,6 +284,169 @@ class McpOAuth2IntegrationTest {
         }
     }
 
+    // ─── Caller identity passed to consumed APIs (#998) ─────────────────────────
+
+    @Test
+    void toolShouldSendTheValidatedSubjectToTheConsumedApi() throws Exception {
+        try (RecordingUpstream upstream = new RecordingUpstream()) {
+            McpServerAdapter adapter = startOAuth2ServerWithCallerIdentity(upstream);
+            try {
+                HttpResponse<String> response = sendOrderStatusCall(adapter,
+                        tokenFor(adapter, new JWTClaimsSet.Builder().subject("alice")),
+                        "{\"auth\":{\"claims\":{\"sub\":\"mallory\"}}}");
+
+                assertEquals(200, response.statusCode(), response.body());
+                assertTrue(response.body().contains("shipped"), response.body());
+            } finally {
+                adapter.stop();
+            }
+            assertEquals(1, upstream.requests().size());
+            assertEquals("alice", upstream.requests().get(0).get("X-User-Id"),
+                    "#998: the validated subject is sent, never a value from the arguments");
+        }
+    }
+
+    @Test
+    void toolShouldReturnAnErrorWithoutCallingTheUpstreamWhenAClaimIsMissing()
+            throws Exception {
+        try (RecordingUpstream upstream = new RecordingUpstream()) {
+            McpServerAdapter adapter = startOAuth2ServerWithCallerIdentity(upstream);
+            try {
+                HttpResponse<String> response = sendOrderStatusCall(adapter,
+                        tokenFor(adapter, new JWTClaimsSet.Builder().claim("client_id", "app")),
+                        "{}");
+
+                assertEquals(200, response.statusCode(), response.body());
+                JsonNode result = JSON.readTree(response.body()).path("result");
+                assertTrue(result.path("isError").asBoolean(), response.body());
+                assertTrue(response.body().contains("auth.claims.sub"), response.body());
+            } finally {
+                adapter.stop();
+            }
+            assertTrue(upstream.requests().isEmpty(),
+                    "#998: no empty identity may reach the upstream");
+        }
+    }
+
+    @Test
+    void toolStepsAndWithShouldReturnAnErrorResultWhenAClaimIsMissing() throws Exception {
+        try (RecordingUpstream upstream = new RecordingUpstream()) {
+            McpServerAdapter adapter = startOAuth2ServerWithCallerIdentity(upstream);
+            try {
+                String noSubject = tokenFor(adapter,
+                        new JWTClaimsSet.Builder().claim("client_id", "app"));
+                for (String tool : new String[] {"order-steps", "order-contact"}) {
+                    HttpResponse<String> response = sendToolCall(adapter, noSubject, tool);
+
+                    assertEquals(200, response.statusCode(), tool + ": " + response.body());
+                    assertTrue(JSON.readTree(response.body()).path("result").path("isError")
+                            .asBoolean(), "#998: an error result, not a protocol error, for "
+                                    + tool + ": " + response.body());
+                }
+            } finally {
+                adapter.stop();
+            }
+            assertTrue(upstream.requests().isEmpty(),
+                    "#998: no empty identity may reach the upstream");
+        }
+    }
+
+    private static HttpResponse<String> sendToolCall(McpServerAdapter adapter, String token,
+            String tool) throws Exception {
+        String body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\","
+                + "\"params\":{\"name\":\"" + tool + "\",\"arguments\":{},"
+                + "\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\""
+                + ProtocolDispatcher.MCP_PROTOCOL_VERSION + "\"}}}";
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            return client.send(HttpRequest.newBuilder(URI.create(baseUrlFor(adapter)))
+                    .POST(HttpRequest.BodyPublishers.ofString(body))
+                    .header("Content-Type", "application/json")
+                    .header("MCP-Protocol-Version", ProtocolDispatcher.MCP_PROTOCOL_VERSION)
+                    .header("Mcp-Method", "tools/call")
+                    .header("Mcp-Name", tool)
+                    .header("Authorization", "Bearer " + token)
+                    .build(), HttpResponse.BodyHandlers.ofString());
+        }
+    }
+
+    /**
+     * An OAuth2 MCP adapter whose {@code order-status} tool calls the stub through an adapter that
+     * sends the caller's subject as {@code X-User-Id} (#998).
+     */
+    private McpServerAdapter startOAuth2ServerWithCallerIdentity(RecordingUpstream upstream)
+            throws Exception {
+        int port = findFreePort();
+        String yaml = """
+                ikanos: "%s"
+                info:
+                  display: "OAuth2 MCP Test"
+                  description: "Caller identity integration test"
+                capability:
+                  exposes:
+                    - type: "mcp"
+                      address: "127.0.0.1"
+                      port: %d
+                      namespace: "oauth2-test-mcp"
+                      description: "OAuth2 protected MCP server passing the caller on"
+                      authentication:
+                        type: "oauth2"
+                        authorizationServerUri: "http://127.0.0.1:%d"
+                        resource: "http://127.0.0.1:%d/mcp"
+                      tools:
+                        order-status:
+                          description: "Status of order 42"
+                          call: "shop.get-order"
+                          outputParameters:
+                            - type: "string"
+                              mapping: "$.status"
+                        order-steps:
+                          description: "Status of order 42, through a step"
+                          steps:
+                            fetch:
+                              type: call
+                              call: "shop.get-order"
+                        order-contact:
+                          description: "Status of order 42, for the caller's email"
+                          with:
+                            contact: "{{auth.claims.email}}"
+                          call: "shop.get-order"
+                  consumes:
+                    - type: "http"
+                      namespace: "shop"
+                      baseUri: "%s"
+                      inputParameters:
+                        X-User-Id:
+                          in: "header"
+                          value: "{{auth.claims.sub}}"
+                      resources:
+                        order:
+                          path: "/orders/42"
+                          operations:
+                            get-order:
+                              method: "GET"
+                """.formatted(VersionHelper.getSchemaVersion(), port, mockAsPort, port,
+                upstream.baseUri());
+        return startAdapter(yaml);
+    }
+
+    private static HttpResponse<String> sendOrderStatusCall(McpServerAdapter adapter, String token,
+            String arguments) throws Exception {
+        String body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\","
+                + "\"params\":{\"name\":\"order-status\",\"arguments\":" + arguments + ","
+                + "\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\""
+                + ProtocolDispatcher.MCP_PROTOCOL_VERSION + "\"}}}";
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            return client.send(HttpRequest.newBuilder(URI.create(baseUrlFor(adapter)))
+                    .POST(HttpRequest.BodyPublishers.ofString(body))
+                    .header("Content-Type", "application/json")
+                    .header("MCP-Protocol-Version", ProtocolDispatcher.MCP_PROTOCOL_VERSION)
+                    .header("Mcp-Method", "tools/call")
+                    .header("Mcp-Name", "order-status")
+                    .header("Authorization", "Bearer " + token)
+                    .build(), HttpResponse.BodyHandlers.ofString());
+        }
+    }
+
     // ─── Server Helpers ─────────────────────────────────────────────────────────
 
     private McpServerAdapter startOAuth2Server() throws Exception {

@@ -13,8 +13,13 @@
  */
 package io.ikanos.spec.exposes.rest;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
  * Specification Element for forwarding trusted headers
@@ -24,6 +29,9 @@ public class RestServerForwardSpec {
     private volatile String targetNamespace;
 
     private final List<String> trustedHeaders;
+
+    private final Map<String, IdentityHeaderSpec> identityHeaders =
+            Collections.synchronizedMap(new LinkedHashMap<>());
 
     public RestServerForwardSpec() {
         this(null);
@@ -44,6 +52,24 @@ public class RestServerForwardSpec {
 
     public List<String> getTrustedHeaders() {
         return trustedHeaders;
+    }
+
+    /**
+     * @return the headers the engine sets from the caller's validated claims, keyed by header name,
+     *         in declaration order (#998). Never {@code null}.
+     */
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    public Map<String, IdentityHeaderSpec> getIdentityHeaders() {
+        return identityHeaders;
+    }
+
+    public void setIdentityHeaders(Map<String, IdentityHeaderSpec> identityHeaders) {
+        synchronized (this.identityHeaders) {
+            this.identityHeaders.clear();
+            if (identityHeaders != null) {
+                this.identityHeaders.putAll(identityHeaders);
+            }
+        }
     }
 
 }

@@ -27,9 +27,11 @@ import io.ikanos.engine.consumes.ConsumedInvocation;
 import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.engine.consumes.RestletBackedResult;
 import io.ikanos.engine.consumes.http.HttpClientAdapter;
+import io.ikanos.engine.exposes.CallerClaims;
 import io.ikanos.engine.exposes.ErrorReference;
 import io.ikanos.engine.observability.OtelRestletBridge;
 import io.ikanos.engine.observability.TelemetryBootstrap;
+import io.ikanos.engine.util.CallerClaimMissingException;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.OutputParameterSpec;
@@ -43,6 +45,8 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.NullNode;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -141,9 +145,20 @@ public class ResourceRestlet extends Restlet {
                     return true;
                 }
 
+                // The caller's validated claims, for {{auth.claims...}} templates (#998). Set
+                // here, from the token, so no request input can supply or replace them.
+                CallerClaims.putInto(inputParameters, CallerClaims.of(request));
+
                 // Include operation-level 'with' parameters for template resolution
-                OperationStepExecutor.mergeWithParameters(serverOp.getWith(), inputParameters,
-                        getServerSpec().getNamespace());
+                try {
+                    OperationStepExecutor.mergeWithParameters(serverOp.getWith(), inputParameters,
+                            getServerSpec().getNamespace());
+                } catch (IllegalArgumentException e) {
+                    sendError(response, Status.CLIENT_ERROR_BAD_REQUEST,
+                            "Error resolving request parameters",
+                            "Error resolving operation 'with' parameters", e);
+                    return true;
+                }
 
                 // Delegate to aggregate function when ref is set
                 if (serverOp.getRef() != null) {
@@ -404,6 +419,16 @@ public class ResourceRestlet extends Restlet {
      */
     void sendError(Response response, Status status, String publicMessage, String logContext,
             Throwable cause) {
+        // A template read a claim the caller's token does not carry (#998): the token falls
+        // short, whatever the step that found it, so it is a refusal and not a server error.
+        CallerClaimMissingException missing = CallerClaimMissingException.find(cause);
+        if (missing != null) {
+            String reference = ErrorReference.record(Level.INFO, logContext, missing);
+            response.setStatus(Status.CLIENT_ERROR_FORBIDDEN);
+            response.setEntity(ErrorReference.withReference(missing.getMessage(), reference),
+                    MediaType.TEXT_PLAIN);
+            return;
+        }
         String correlationId = ErrorReference.record(Level.WARNING, logContext, cause);
         response.setStatus(status);
         response.setEntity(ErrorReference.withReference(publicMessage, correlationId),
@@ -563,6 +588,33 @@ public class ResourceRestlet extends Restlet {
     }
 
     /**
+     * Sets the {@code forward.identityHeaders} of the resource on a forwarded request, from the
+     * caller's validated claims (#998). Any copy of such a header the client sent is removed first,
+     * whatever its case and even when the header is in {@code trustedHeaders}, so the upstream
+     * only ever receives the engine's value.
+     *
+     * @throws CallerClaimMissingException when a header without {@code ifMissing: omit} has no
+     *         usable claim value
+     */
+    static void setIdentityHeaders(Request clientRequest, RestServerForwardSpec forwardSpec,
+            Map<String, Object> caller) {
+        List<String> missing = new ArrayList<>();
+        forwardSpec.getIdentityHeaders().forEach((header, identity) -> {
+            clientRequest.getHeaders().removeAll(header, true);
+            String value = CallerClaims.claim(caller, identity.getClaim());
+            if (value != null) {
+                clientRequest.getHeaders().add(header, value);
+            } else if (!identity.omitsWhenMissing()) {
+                missing.add(Resolver.CALLER_ROOT + "." + CallerClaims.CLAIMS + "."
+                        + identity.getClaim());
+            }
+        });
+        if (!missing.isEmpty()) {
+            throw new CallerClaimMissingException(missing);
+        }
+    }
+
+    /**
      * Prepare a client request context based on a forward specification. This is used for direct
      * calls to the resource that should be forwarded to a target endpoint without going through the
      * operation steps.
@@ -588,8 +640,11 @@ public class ResourceRestlet extends Restlet {
                         copyTrustedHeaders(request, clientRequest,
                                 getResourceSpec().getForward().getTrustedHeaders());
 
-                        // Prepare parameters map for template resolution
+                        // Prepare parameters map for template resolution, with the caller's
+                        // validated claims for {{auth.claims...}} templates (#998)
                         Map<String, Object> parameters = new ConcurrentHashMap<>();
+                        Map<String, Object> caller = CallerClaims.of(request);
+                        CallerClaims.putInto(parameters, caller);
 
                         // Resolve client input parameters first so authentication templates
                         // (e.g. bearer token from environment) can be resolved correctly
@@ -605,6 +660,9 @@ public class ResourceRestlet extends Restlet {
                                 forwardSpec.getTrustedHeaders(), "Authorization") ? request : null;
                         httpAdapter.setChallengeResponse(credentialSource, clientRequest,
                                 clientRequest.getResourceRef().toString(), parameters);
+
+                        // Identity headers last, so no client copy survives, trusted or not
+                        setIdentityHeaders(clientRequest, forwardSpec, caller);
 
                         // Send the request to the target endpoint
                         httpAdapter.getHttpClient().handle(clientRequest, clientResponse);

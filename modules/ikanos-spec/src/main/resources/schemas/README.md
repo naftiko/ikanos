@@ -1440,6 +1440,7 @@ Defines forwarding configuration for an exposed resource to pass requests throug
 | --- | --- | --- |
 | **targetNamespace** | `string` | **REQUIRED**. The consumer namespace to forward requests to. MUST match pattern `^[a-zA-Z0-9-]+$`. |
 | **trustedHeaders** | [`string`] | **REQUIRED**. List of headers allowed to be forwarded (minimum 1 entry). No wildcards supported. |
+| **identityHeaders** | `Map<string, IdentityHeader>` | Headers the engine sets from the caller's validated OAuth 2.1 token, keyed by header name: a claim name (`X-User-Id: sub`), or `{ claim, ifMissing }` with `ifMissing` `fail` (default) or `omit`. Needs `authentication: oauth2` on the adapter. See [3.21.5](#3215-caller-identity-authclaims). |
 
 #### 3.18.2 Rules
 
@@ -1448,6 +1449,7 @@ Defines forwarding configuration for an exposed resource to pass requests throug
 - Header names in `trustedHeaders` are case-insensitive (following HTTP header conventions).
 - Only headers listed in `trustedHeaders` will be forwarded to the consumed source.
 - This includes `Authorization`: the caller's credential reaches the consumed source only when `Authorization` is listed. When the target adapter declares `authentication`, its own credential is sent instead.
+- An `identityHeaders` header is always set by the engine: any copy the client sent is removed first, whatever its case, even when the header is listed in `trustedHeaders`.
 - No additional properties are allowed.
 
 #### 3.18.3 ForwardConfig Object Example
@@ -1722,6 +1724,29 @@ exposes:
 ```
 
 ---
+
+#### 3.21.5 Caller identity (`auth.claims`)
+
+When an exposed adapter uses `authentication: oauth2`, the claims of the caller's validated token are available to the templates of the calls it makes, under the reserved root `auth`: `{{auth.claims.sub}}`, `{{auth.claims.roles}}`, `{{auth.claims.realm_access.roles}}`. They can be used wherever a consumed call accepts a template: input parameters (`in: header`, `query`, …), `with`, URIs and bodies. Unlike `binds`, they come from the request, so a capability can tell a consumed API who is calling in a way the client cannot forge.
+
+- They are set by the engine from the validated token only, after the request inputs. Only `auth.claims` is reserved: an input, a step, a `with` key or a binding named `auth` keeps working as before, but then `{{auth.claims...}}` cannot read the claims and fails the call rather than read that value.
+- A string, number or boolean claim is used as is; a date (`exp`, `iat`) as seconds since the epoch; an array claim is joined with commas; an object claim is read by path (`{{auth.claims.realm_access.roles}}`), never as a whole (`{{auth.claims}}` counts as missing).
+- A value longer than 256 characters, or with characters other than letters, digits and `. _ ~ : @ / + = | -`, counts as missing, so it can never split a header or a list.
+- A template that reads a claim the token does not carry fails the call, whatever it renders (a parameter, a credential, a URI, a string or structured body): REST answers `403`, an MCP tool returns an error result, and no upstream request is sent. It is never sent empty. In forward mode, `identityHeaders` can instead leave out a header whose claim is missing (`ifMissing: omit`).
+- A claim is read as a single value, never through a section: not inside another section (`{{#items}}...{{auth.claims.sub}}...{{/items}}`), where a key of the section's value could take its place, and not as a section itself (`{{#auth.claims}}...{{/auth.claims}}`), whose inner names would fall back to other parameters. Such a template fails the call.
+- A header parameter that reads a claim replaces any copy of the same header whatever its case, including a header forwarded through `trustedHeaders`.
+- In forward mode, use `forward.identityHeaders` ([3.18](#318-forwardconfig-object)), since forwarded requests have no templates of their own.
+
+```yaml
+consumes:
+  - type: http
+    namespace: domain
+    baseUri: "http://domain-service:8080"
+    inputParameters:
+      X-User-Id:
+        in: header
+        value: "{{auth.claims.sub}}"   # validated claim, never a client value
+```
 
 ## 4. Complete Examples
 

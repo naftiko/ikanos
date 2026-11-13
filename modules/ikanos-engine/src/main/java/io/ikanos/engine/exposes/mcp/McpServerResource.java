@@ -16,6 +16,7 @@ package io.ikanos.engine.exposes.mcp;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
+import io.ikanos.engine.exposes.CallerClaims;
 import io.ikanos.engine.exposes.mcp.handler.LegacyInitializeHandler;
 import io.ikanos.engine.exposes.mcp.handler.McpCallHandler;
 import io.ikanos.engine.exposes.mcp.model.DispatchResult;
@@ -86,7 +87,10 @@ public class McpServerResource extends ServerResource {
             // Extract W3C trace context (params._meta takes precedence over the inbound HTTP
             // traceparent header — see McpMetaTraceContextBridge), create the SERVER span,
             // populate MDC, and delegate to the shared protocol dispatcher.
-            DispatchResult result = dispatcher.dispatchWithTracing(root, getRequest());
+            // The caller's validated claims, for {{auth.claims...}} templates of tools and
+            // resources (#998): taken from this request here, read once by the handlers.
+            DispatchResult result = CallerClaims.runAs(CallerClaims.of(getRequest()),
+                    () -> dispatcher.dispatchWithTracing(root, getRequest()));
             if (result.isOnError()) {
                 setStatusCode(result.rpcError());
             }
