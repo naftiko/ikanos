@@ -144,4 +144,14 @@ public interface ConsumedResult {
     default void release() {
         // nothing to release by default
     }
+
+    /**
+     * How long the upstream says this answer stays fresh, from its caching headers. Used when an
+     * exposed resource opts in with {@code ttlFromUpstream}.
+     *
+     * @return the freshness; {@link Freshness#UNKNOWN} when the protocol carries none
+     */
+    default Freshness freshness() {
+        return Freshness.UNKNOWN;
+    }
 }

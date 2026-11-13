@@ -1823,6 +1823,11 @@
         "cacheScope": {
           "$ref": "#/$defs/CacheScope",
           "description": "Returned as `cacheScope` on `resources/read` of this resource. Overrides the adapter's `cacheScope`. Lists keep the adapter's value."
+        },
+        "ttlFromUpstream": {
+          "type": "boolean",
+          "default": false,
+          "description": "For a resource with a single `call` to an HTTP operation: take `ttlMs` on `resources/read` from the upstream's caching headers. `Cache-Control: max-age` wins over `Expires`; `no-store` or `no-cache` give 0; `Cache-Control: private` also makes `cacheScope` private. When the upstream gives no freshness, the resource's `ttlMs` (or the adapter's) applies. No effect on static resources, resources with `steps`, or MCP upstreams, which carry no caching headers."
         }
       },
       "required": [

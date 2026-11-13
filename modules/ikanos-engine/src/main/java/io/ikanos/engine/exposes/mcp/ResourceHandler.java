@@ -30,6 +30,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import io.ikanos.Capability;
 import io.ikanos.engine.consumes.ConsumedResult;
+import io.ikanos.engine.consumes.Freshness;
 import io.ikanos.engine.util.BinarySize;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.spec.exposes.mcp.McpServerResourceSpec;
@@ -92,25 +93,38 @@ public class ResourceHandler {
          * when the resource declares none.
          */
         public final Map<String, Object> meta;
+        /**
+         * How long the upstream said this content stays fresh; {@link Freshness#UNKNOWN} for
+         * static files and for resources read through orchestration steps.
+         */
+        public final Freshness freshness;
 
         private ResourceContent(String uri, String mimeType, String text, String blob,
-                Map<String, Object> meta) {
+                Map<String, Object> meta, Freshness freshness) {
             this.uri = uri;
             this.mimeType = mimeType;
             this.text = text;
             this.blob = blob;
             this.meta = meta;
+            this.freshness = freshness;
         }
 
         public static ResourceContent text(String uri, String mimeType, String text) {
-            return new ResourceContent(uri, mimeType, text, null, null);
+            return new ResourceContent(uri, mimeType, text, null, null, Freshness.UNKNOWN);
         }
 
         /**
          * Return a copy of this content item carrying {@code meta} as its {@code _meta}.
          */
         public ResourceContent withMeta(Map<String, Object> meta) {
-            return new ResourceContent(uri, mimeType, text, blob, meta);
+            return new ResourceContent(uri, mimeType, text, blob, meta, freshness);
+        }
+
+        /**
+         * Return a copy of this content item carrying the upstream {@code freshness}.
+         */
+        public ResourceContent withFreshness(Freshness freshness) {
+            return new ResourceContent(uri, mimeType, text, blob, meta, freshness);
         }
 
         /**
@@ -122,7 +136,7 @@ public class ResourceHandler {
          * @param base64   the base64-encoded bytes
          */
         public static ResourceContent binary(String uri, String mimeType, String base64) {
-            return new ResourceContent(uri, mimeType, null, base64, null);
+            return new ResourceContent(uri, mimeType, null, base64, null, Freshness.UNKNOWN);
         }
     }
 
@@ -448,12 +462,25 @@ public class ResourceHandler {
         // text. outputParameters mappings are skipped — they are nonsensical for raw bytes.
         // See capability-binary-content.md §4.5 / §8.3.
         if (found != null && found.operation().isBinary()) {
-            return readBinaryDynamic(spec, uri, found);
+            List<ResourceContent> contents = readBinaryDynamic(spec, uri, found);
+            Freshness freshness = freshness(spec, found);
+            return contents.stream().map(content -> content.withFreshness(freshness)).toList();
         }
 
         String text = extractContent(spec, found);
         String mimeType = spec.getMimeType() != null ? spec.getMimeType() : "application/json";
-        return List.of(ResourceContent.text(uri, mimeType, text));
+        return List.of(ResourceContent.text(uri, mimeType, text)
+                .withFreshness(freshness(spec, found)));
+    }
+
+    /**
+     * The upstream freshness of a read, asked once the body is read so that the download time is
+     * deducted. It is only meaningful for a single call: with steps, several upstreams contribute
+     * and no one answer speaks for the result (#1019).
+     */
+    private static Freshness freshness(McpServerResourceSpec spec, ConsumedResult found) {
+        return found != null && spec.getCall() != null && spec.getSteps().isEmpty()
+                ? found.freshness() : Freshness.UNKNOWN;
     }
 
     private String extractContent(McpServerResourceSpec spec,

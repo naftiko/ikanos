@@ -73,13 +73,15 @@ class CacheHintsSchemaValidationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"ttlMs: 0", "ttlMs: 60000", "cacheScope: public", "cacheScope: private", "cacheScope: auto"})
+    @ValueSource(strings = {"ttlMs: 0", "ttlMs: 60000", "cacheScope: public", "cacheScope: private", "cacheScope: auto",
+            "ttlFromUpstream: true", "ttlFromUpstream: false"})
     void schemaShouldAcceptCacheHintsOnAResource(String line) throws Exception {
         assertValid(mcpResource(line));
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"ttlMs: -1", "ttlMs: \"60000\"", "cacheScope: shared"})
+    @ValueSource(strings = {"ttlMs: -1", "ttlMs: \"60000\"", "cacheScope: shared",
+            "ttlFromUpstream: \"yes\""})
     void schemaShouldRejectInvalidCacheHintsOnAResource(String line) throws Exception {
         assertInvalid(mcpResource(line));
     }

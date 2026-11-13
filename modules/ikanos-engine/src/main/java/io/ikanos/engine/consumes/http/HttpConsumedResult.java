@@ -18,14 +18,17 @@ import java.io.IOException;
 import java.io.InputStream;
 import org.restlet.Request;
 import org.restlet.Response;
+import org.restlet.data.Header;
 import org.restlet.data.MediaType;
 import org.restlet.data.Status;
 import org.restlet.representation.EmptyRepresentation;
 import org.restlet.representation.Representation;
 import org.restlet.representation.StringRepresentation;
+import org.restlet.util.Series;
 import tools.jackson.databind.JsonNode;
 import io.ikanos.engine.consumes.ConsumedOperationView;
 import io.ikanos.engine.consumes.ConsumedResult;
+import io.ikanos.engine.consumes.Freshness;
 import io.ikanos.engine.consumes.Outcome;
 import io.ikanos.engine.consumes.RestletBackedResult;
 import io.ikanos.engine.util.ConversionFormat;
@@ -54,6 +57,8 @@ public class HttpConsumedResult implements ConsumedResult, RestletBackedResult {
     private final HttpClientOperationSpec operationSpec;
     private final ConsumedOperationView operation;
     private final Response response;
+    private final long sentAt;
+    private final long receivedAt;
 
     private String text;
     private boolean textRead;
@@ -66,6 +71,19 @@ public class HttpConsumedResult implements ConsumedResult, RestletBackedResult {
      * @param response      the Restlet response, filled by the HTTP client
      */
     public HttpConsumedResult(HttpClientOperationSpec operationSpec, Response response) {
+        this(operationSpec, response, System.currentTimeMillis(), System.currentTimeMillis());
+    }
+
+    /**
+     * @param operationSpec the consumed operation, or {@code null} when none is bound
+     * @param response      the Restlet response, filled by the HTTP client
+     * @param sentAt        when the request was sent, in epoch milliseconds
+     * @param receivedAt    when the HTTP client returned the response, in epoch milliseconds
+     */
+    HttpConsumedResult(HttpClientOperationSpec operationSpec, Response response, long sentAt,
+            long receivedAt) {
+        this.sentAt = sentAt;
+        this.receivedAt = receivedAt;
         this.operationSpec = operationSpec;
         this.operation = operationSpec != null
                 ? ConsumedOperationView.of(operationSpec, operationSpec.getOutputMediaType(),
@@ -130,6 +148,28 @@ public class HttpConsumedResult implements ConsumedResult, RestletBackedResult {
         return entity != null && entity.getMediaType() != null
                 ? entity.getMediaType().getName()
                 : null;
+    }
+
+    /**
+     * Freshness from the upstream's {@code Cache-Control}, {@code Expires}, {@code Date} and
+     * {@code Age} headers, read raw so that {@link Freshness#parse} sees exactly what the upstream
+     * sent (an invalid {@code Expires} such as {@code 0} included). Only a successful (2xx) answer
+     * has any. As RFC 9111 4.2.3 computes the current age, {@code Age} is corrected by the time
+     * from sending the request to getting the response (the HTTP client may download the whole
+     * body in that time), and the freshness is then aged by the time spent since (the resident
+     * time, such as reading a body the client streams), so a caller that asks after reading the
+     * body gets only what is left.
+     */
+    @Override
+    public Freshness freshness() {
+        if (response == null || !isSuccessful()) {
+            return Freshness.UNKNOWN;
+        }
+        Series<Header> headers = response.getHeaders();
+        return Freshness.parse(headers.getValues("Cache-Control", ",", true),
+                headers.getFirstValue("Expires", true), headers.getFirstValue("Date", true),
+                headers.getFirstValue("Age", true), sentAt, receivedAt)
+                .agedBy(System.currentTimeMillis() - receivedAt);
     }
 
     @Override

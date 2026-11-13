@@ -15,6 +15,7 @@ package io.ikanos.engine.exposes.mcp.processor;
 
 import java.util.Objects;
 import tools.jackson.databind.node.ObjectNode;
+import io.ikanos.engine.consumes.Freshness;
 import io.ikanos.engine.exposes.CacheScopes;
 import io.ikanos.spec.exposes.mcp.McpServerResourceSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
@@ -68,6 +69,23 @@ public record CacheHints(int ttlMs, String cacheScope) {
                 ? resource.getTtlMs() : server.getTtlMs();
         return new CacheHints(ttlMs != null ? ttlMs : DEFAULT_TTL_MS,
                 scopeDecision(server, resource).scope());
+    }
+
+    /**
+     * The hints for one read of {@code resource}, given what its upstream said. When the resource
+     * opts in with {@code ttlFromUpstream}, the upstream's freshness replaces the TTL and an
+     * upstream {@code private} answer makes the scope private; otherwise the upstream is ignored.
+     */
+    public static CacheHints forRead(McpServerSpec server, McpServerResourceSpec resource,
+            Freshness upstream) {
+        CacheHints hints = forResource(server, resource);
+        if (resource == null || !resource.isTtlFromUpstream() || upstream == null) {
+            return hints;
+        }
+        int ttlMs = upstream.ttlMs() != null
+                ? (int) Math.min(upstream.ttlMs(), Integer.MAX_VALUE) : hints.ttlMs();
+        String scope = upstream.privateOnly() ? CacheScopes.PRIVATE : hints.cacheScope();
+        return new CacheHints(ttlMs, scope);
     }
 
     /**
