@@ -37,6 +37,7 @@ import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
+import io.ikanos.spec.exposes.AuthorizationSpec;
 
 /**
  * Unit tests for the shared {@link OAuth2AuthenticationRestlet}. Validates JWT signature
@@ -190,10 +191,44 @@ class OAuth2AuthenticationRestletTest {
     }
 
     @Test
-    void handleShouldReturnForbiddenForInsufficientScope() throws Exception {
+    void handleShouldAcceptJwtLackingSomeRecognizedScopes() throws Exception {
+        // #999: the adapter's scopes are the ones it recognizes, not scopes every call requires
         OAuth2AuthenticationSpec spec = minimalSpec();
         spec.setScopes(List.of("tools:read", "tools:execute"));
-        OAuth2AuthenticationRestlet restlet = buildRestlet(spec);
+        TrackingRestlet tracker = new TrackingRestlet();
+        OAuth2AuthenticationRestlet restlet = buildRestlet(spec, tracker);
+
+        String token = signedJwt(new JWTClaimsSet.Builder()
+                .issuer("https://auth.example.com")
+                .audience("https://mcp.example.com/mcp")
+                .expirationTime(futureDate())
+                .claim("scope", "tools:read")
+                .build());
+
+        Request request = bearerRequest(token);
+        Response response = new Response(request);
+
+        restlet.handle(request, response);
+
+        assertTrue(tracker.wasCalled(), "A recognized scope is not required on every call");
+        assertEquals(Status.SUCCESS_OK, response.getStatus());
+    }
+
+    @Test
+    void handleShouldAnswerInsufficientScopeChallengeWhenTheRequestIsDenied() throws Exception {
+        OAuth2AuthenticationSpec spec = minimalSpec();
+        spec.setScopes(List.of("tools:read", "tools:execute"));
+        AuthorizationSpec requirement =
+                new AuthorizationSpec(List.of("tools:execute"), null);
+        Restlet guarded = new Restlet() {
+            @Override
+            public void handle(Request request, Response response) {
+                if (AccessControl.enforce(requirement, request, response)) {
+                    response.setStatus(Status.SUCCESS_OK);
+                }
+            }
+        };
+        OAuth2AuthenticationRestlet restlet = buildRestlet(spec, guarded);
 
         String token = signedJwt(new JWTClaimsSet.Builder()
                 .issuer("https://auth.example.com")
@@ -209,8 +244,38 @@ class OAuth2AuthenticationRestletTest {
 
         assertEquals(Status.CLIENT_ERROR_FORBIDDEN, response.getStatus());
         String rawValue = response.getChallengeRequests().get(0).getRawValue();
-        assertTrue(rawValue.contains("insufficient_scope"));
-        assertTrue(rawValue.contains("tools:execute"));
+        assertTrue(rawValue.contains("error=\"insufficient_scope\""), rawValue);
+        assertTrue(rawValue.contains("scope=\"tools:execute\""), rawValue);
+    }
+
+    @Test
+    void handleShouldOmitScopeParameterWhenOnlyClaimsAreRequired() throws Exception {
+        AuthorizationSpec requirement =
+                new AuthorizationSpec(null, java.util.Map.of("roles", List.of("admin")));
+        Restlet guarded = new Restlet() {
+            @Override
+            public void handle(Request request, Response response) {
+                AccessControl.enforce(requirement, request, response);
+            }
+        };
+        OAuth2AuthenticationRestlet restlet = buildRestlet(minimalSpec(), guarded);
+
+        String token = signedJwt(new JWTClaimsSet.Builder()
+                .issuer("https://auth.example.com")
+                .audience("https://mcp.example.com/mcp")
+                .expirationTime(futureDate())
+                .claim("roles", List.of("viewer"))
+                .build());
+
+        Request request = bearerRequest(token);
+        Response response = new Response(request);
+
+        restlet.handle(request, response);
+
+        assertEquals(Status.CLIENT_ERROR_FORBIDDEN, response.getStatus());
+        String rawValue = response.getChallengeRequests().get(0).getRawValue();
+        assertTrue(rawValue.contains("insufficient_scope"), rawValue);
+        assertFalse(rawValue.contains("scope=\""), rawValue);
     }
 
     @Test
@@ -347,10 +412,12 @@ class OAuth2AuthenticationRestletTest {
     }
 
     @Test
-    void handleShouldReturnForbiddenWhenTokenHasNoScopeClaimButScopesRequired() throws Exception {
+    void handleShouldAcceptJwtWithoutScopeClaimWhenAdapterListsScopes() throws Exception {
+        // #999: scopes are required with 'authorization', not by the adapter's authentication.scopes
         OAuth2AuthenticationSpec spec = minimalSpec();
         spec.setScopes(List.of("tools:read"));
-        OAuth2AuthenticationRestlet restlet = buildRestlet(spec);
+        TrackingRestlet tracker = new TrackingRestlet();
+        OAuth2AuthenticationRestlet restlet = buildRestlet(spec, tracker);
 
         String token = signedJwt(new JWTClaimsSet.Builder()
                 .issuer("https://auth.example.com")
@@ -363,7 +430,7 @@ class OAuth2AuthenticationRestletTest {
 
         restlet.handle(request, response);
 
-        assertEquals(Status.CLIENT_ERROR_FORBIDDEN, response.getStatus());
+        assertTrue(tracker.wasCalled());
     }
 
     @Test

@@ -451,6 +451,41 @@ public class IkanosPolychroRulesetTest {
     }
 
     // ────────────────────────────────────────────────────────────────
+    // Authorization (#999)
+    // ────────────────────────────────────────────────────────────────
+
+    @Test
+    public void authorizationRulesShouldNotFireOnAuthorizationOfOAuth2Adapters() {
+        LintResult result = lintFixture("rules/polychro-authorization-compliant.yaml");
+        assertEquals(0, result.exitCode(), result.output());
+        assertFalse(result.output().contains("ikanos-authorization-"), result.output());
+        assertFalse(result.output().contains("ikanos-oauth2-scopes-not-enforced"),
+            result.output());
+    }
+
+    @Test
+    public void requiresOAuth2RuleShouldFireOnABearerAdapterAndOnStdio() {
+        LintResult result = lintFixture("rules/polychro-authorization-violations.yaml");
+        assertTrue(result.output().contains("operation 'records.update-record' needs"),
+            result.output());
+        assertTrue(result.output().contains("cannot be enforced on the stdio transport"),
+            result.output());
+    }
+
+    @Test
+    public void requiresScopesDeclaredRuleShouldFireOnAnUnlistedScope() {
+        assertRuleFires("rules/polychro-authorization-violations.yaml",
+            "ikanos-authorization-scopes-declared");
+    }
+
+    @Test
+    public void oauth2ScopesNotEnforcedRuleShouldWarnWhenNoAuthorizationIsDeclared() {
+        LintResult result = lintFixture("rules/polychro-authorization-violations.yaml");
+        assertTrue(result.output().contains("ikanos-oauth2-scopes-not-enforced"),
+            result.output());
+    }
+
+    // ────────────────────────────────────────────────────────────────
     // MCP Apps rules (SEP-1865)
     // ────────────────────────────────────────────────────────────────
 

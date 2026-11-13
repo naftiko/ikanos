@@ -25,6 +25,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import tools.jackson.databind.annotation.JsonDeserialize;
 
 import io.ikanos.spec.OperationSpec;
+import io.ikanos.spec.exposes.AuthorizationSpec;
 import io.ikanos.spec.exposes.ServerCallSpec;
 import io.ikanos.spec.util.OperationStepMapDeserializer;
 import io.ikanos.spec.util.OperationStepSpec;
@@ -74,6 +75,7 @@ public class RestServerOperationSpec extends OperationSpec {
 
     private final AtomicReference<Integer> ttlMs = new AtomicReference<>();
     private final AtomicReference<String> cacheScope = new AtomicReference<>();
+    private final AtomicReference<AuthorizationSpec> authorization = new AtomicReference<>();
 
     public RestServerOperationSpec() {
         this(null, null, null, null, null, null, null, null, null);
@@ -219,5 +221,18 @@ public class RestServerOperationSpec extends OperationSpec {
     public boolean hasBinaryResponse() {
         return findBinaryResponseMediaType().isPresent();
     }
-}
 
+    /**
+     * @return the scopes or claims a call must carry ({@code authorization}), or {@code null} when
+     *         this level declares none.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public AuthorizationSpec getAuthorization() {
+        return authorization.get();
+    }
+
+    public void setAuthorization(AuthorizationSpec authorization) {
+        this.authorization.set(authorization);
+    }
+
+}

@@ -15,6 +15,7 @@ package io.ikanos.engine.exposes.mcp;
 
 import io.ikanos.Capability;
 import io.ikanos.engine.aggregates.AggregateFlow;
+import io.ikanos.engine.exposes.AccessControl;
 import io.ikanos.engine.exposes.ServerAdapter;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
@@ -91,6 +92,8 @@ public class McpServerAdapter extends ServerAdapter {
         super(capability, serverSpec);
         this.requestState = McpRequestState.withKey(capability.getSealingKey(),
                 capability.getSpecDigest());
+        AccessControl.validate(serverSpec, serverSpec.isStdio(),
+                AccessControl.declaredIn(serverSpec));
 
         // Create the tool handler first (transport-agnostic): it owns each tool's output
         // contract, which buildMcpTool() advertises as the MCP outputSchema.
