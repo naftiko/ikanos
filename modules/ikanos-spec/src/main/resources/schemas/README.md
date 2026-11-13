@@ -1330,7 +1330,7 @@ with:
 
 ### 3.17 Authentication Object
 
-Defines authentication configuration. Five types are supported: basic, apikey, bearer, digest and, on consumed adapters only, awsSigV4.
+Defines authentication configuration. Six types are supported: basic, apikey, bearer, digest, oauth2 and, on consumed adapters only, awsSigV4.
 
 #### 3.17.1 Basic Authentication
 
