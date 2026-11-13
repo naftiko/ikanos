@@ -222,7 +222,9 @@ public class ToolHandler {
         Span span = telemetry.startToolHandlerSpan(toolName);
         long startNanos = System.nanoTime();
         String status = "OK";
-        try (Scope scope = span.makeCurrent()) {
+        try (Scope scope = span.makeCurrent();
+                OperationStepExecutor.UpstreamErrorBodies keep =
+                        OperationStepExecutor.keepUpstreamErrorBodies()) {
             McpSchema.CallToolResult result = doHandleToolCall(toolName, arguments);
             if (result.isError() != null && result.isError()) {
                 status = "ERROR";
