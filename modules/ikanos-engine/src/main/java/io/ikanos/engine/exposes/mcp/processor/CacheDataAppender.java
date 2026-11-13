@@ -31,6 +31,10 @@ public class CacheDataAppender implements DispatchPostProcessor {
 
     public CacheDataAppender(Integer ttlMs, String cacheScope) {
         this.ttlMs = Objects.requireNonNullElse(ttlMs, 0);
+        if (this.ttlMs < 0) {
+            // MCP 2026-07-28 (SEP-2549): ttlMs is an integer of zero or more
+            throw new IllegalArgumentException("MCP ttlMs must be zero or more, got " + this.ttlMs);
+        }
         this.cacheScope = Objects.requireNonNullElse(cacheScope, "private");
     }
 

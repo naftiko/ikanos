@@ -244,7 +244,7 @@
     },
     "CacheScope": {
       "type": "string",
-      "description": "Controls whether shared intermediaries may cache the response.",
+      "description": "Whether a shared cache (gateway, proxy) may serve a result to a caller other than the one it was returned to. `public`: yes. `private`: no.",
       "enum": [
         "public",
         "private"
@@ -1184,11 +1184,13 @@
         },
         "ttlMs": {
           "type": "integer",
-          "description": "A freshness hint (in milliseconds) allowing clients to cache responses and reduce polling. If set to '0', the client will always make a request to the server."
+          "minimum": 0,
+          "maximum": 2147483647,
+          "description": "Freshness hint, in milliseconds, returned as `ttlMs` on list, discover and read results (MCP 2026-07-28, SEP-2549): `tools/list`, `prompts/list`, `resources/list`, `resources/templates/list`, `resources/read`, `server/discover`, and the skills methods when the server serves skills. A client may reuse a result until this much time has passed since it received it. Default: 0, meaning the client should fetch again every time. Tool calls and prompt gets carry no hint."
         },
         "cacheScope": {
           "$ref": "#/$defs/CacheScope",
-          "description": "Controls whether shared intermediaries may cache the response."
+          "description": "Returned as `cacheScope` alongside `ttlMs`. `public`: the result holds no user-specific data, so a shared gateway or proxy may serve it to any caller. `private`: a shared cache must not serve it to a different caller. Default: `private`."
         },
         "authentication": {
           "$ref": "#/$defs/Authentication",
