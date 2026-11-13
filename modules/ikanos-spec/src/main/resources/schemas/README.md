@@ -1684,7 +1684,7 @@ Shared input parameter sets and schemas of an MCP adapter (`exposes` of `type: m
 - A reference is to a whole schema: there is no composition (`allOf`). Schemas may use each other, but not in a cycle.
 - Two sets of one tool or flow must not declare the same input.
 - Mapped (call-mode) outputs do not take `schema:`: they keep their JSONPath `mapping` on every leaf.
-- In an orchestrated output, a schema gives only what such an output declares: its `type` (`integer` becomes `number`), its `properties`, and its `items` when they are objects with properties. The same holds for `items: { schema: name }`: a schema that is not an object with properties gives no `items`, and the array is returned as is. Input-only keywords (`description`, `enum`, `format`, `minimum`, `maximum`, `required`, `additionalProperties`) do not apply there.
+- In an orchestrated output, a schema gives only what such an output declares: its `type` (`integer` becomes `number`), its `properties`, and its `items` when they are objects with properties. The same holds for `items: { schema: name }`: a schema that is not an object with properties gives no `items`, and the array is returned as is. Input-only keywords (`description`, `enum`, `format`, `minimum`, `maximum`, `required`, `additionalProperties`) do not apply there; the `ikanos-definitions-output-keywords` rule notes them (severity info) where the schema is used.
 - A definition that no tool or flow uses is reported as a warning (`ikanos validate`, the engine log, and the `ikanos-definitions-unused` rule).
 - Expansion is bounded, so a document cannot multiply itself without limit: in the declarations it emits, and in nesting depth (a long chain of schemas that use each other is rejected).
 
