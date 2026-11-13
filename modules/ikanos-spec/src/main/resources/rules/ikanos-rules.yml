@@ -36,6 +36,7 @@ functions:
   - tunnel-identity-binds-ref
   - mcp-ui-view-mime-type
   - flow-calls
+  - mcp-tool-inferred-call
   - mcp-trust-networks
   - shared-listener-mounts
   - exposes-hosts-binds-ref
@@ -197,6 +198,20 @@ rules:
       function: flow-calls
       functionOptions:
         check: exposes
+
+  ikanos-mcp-tool-inferred-call:
+    message: "{{error}}"
+    description: >
+      An MCP tool that declares none of `call`, `steps`, `ref` or mock
+      `outputParameters` calls the consumed operation with the same name as
+      the tool (an HTTP operation or a consumed MCP tool). Exactly one consumed
+      namespace must have one; with none or several, the engine rejects the
+      capability at startup. Add `call:` to the tool to name the operation.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: mcp-tool-inferred-call
 
   ikanos-flow-call-semantics-conservative:
     message: "A flow's semantics must not be less conservative than the targets it calls."

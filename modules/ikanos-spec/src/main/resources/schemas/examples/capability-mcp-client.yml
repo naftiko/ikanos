@@ -5,6 +5,10 @@
 # internal CRM API in an aggregate flow, and re-exposes the result as its own
 # MCP tool. The consumed tool key is the upstream tool name.
 #
+# The `get-invoice` and `get-account` tools declare no `call`: each calls the
+# consumed operation with its own name, `billing.get-invoice` (a consumed MCP
+# tool) and `crm.get-account` (an HTTP operation).
+#
 # Only stateless upstreams (MCP protocol 2026-07-28, no `initialize` and no
 # `Mcp-Session-Id`) are supported in phase 1. Consumed tool `hints` are
 # authored locally and never derived from the upstream's annotations.
@@ -119,3 +123,26 @@ capability:
         account-exposure:
           description: "Invoice status and account owner for one customer."
           ref: "collections.account-exposure"
+        get-invoice:
+          description: "Retrieve one invoice."
+          hints:
+            readOnly: true
+          inputParameters:
+            invoice-id:
+              type: "string"
+              description: "Invoice identifier."
+        get-account:
+          description: "Retrieve one CRM account."
+          hints:
+            readOnly: true
+          inputParameters:
+            account-id:
+              type: "string"
+              description: "CRM account identifier."
+          outputParameters:
+            - type: "object"
+              mapping: "$"
+              properties:
+                owner:
+                  type: "string"
+                  mapping: "$.owner"

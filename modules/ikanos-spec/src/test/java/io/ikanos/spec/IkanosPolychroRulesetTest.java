@@ -702,6 +702,38 @@ public class IkanosPolychroRulesetTest {
         assertFalse(result.output().contains("ikanos-definitions-"), result.output());
     }
 
+    @Test
+    public void mcpToolInferredCallRuleShouldFireWhenNoConsumedNamespaceHasTheOperation() {
+        ProcessResult result = lintFixture("rules/spectral-mcp-tool-inferred-call-violations.yaml");
+        assertTrue(result.output().lines().anyMatch(line ->
+                line.contains("ikanos-mcp-tool-inferred-call") && line.contains("get-weather")),
+            "Expected ikanos-mcp-tool-inferred-call on get-weather.\n" + result.output());
+    }
+
+    @Test
+    public void mcpToolInferredCallRuleShouldFireWhenSeveralConsumedNamespacesHaveTheOperation() {
+        ProcessResult result = lintFixture("rules/spectral-mcp-tool-inferred-call-violations.yaml");
+        assertTrue(result.exitCode() != 0, result.output());
+        assertTrue(result.output().lines().anyMatch(line ->
+                line.contains("ikanos-mcp-tool-inferred-call") && line.contains("list-issues")),
+            "Expected ikanos-mcp-tool-inferred-call on list-issues.\n" + result.output());
+    }
+
+    @Test
+    public void mcpToolInferredCallRuleShouldNotFireWhenEachToolHasOneCandidate() {
+        ProcessResult result = lintFixture("rules/spectral-mcp-tool-inferred-call-compliant.yaml");
+        assertFalse(result.output().contains("ikanos-mcp-tool-inferred-call"),
+            "Expected no inferred call findings for a compliant document.\n" + result.output());
+    }
+
+    @Test
+    public void mcpToolInferredCallRuleShouldNotFireWhenOperationMayBeImported() {
+        ProcessResult result = lintFixture("rules/spectral-mcp-tool-inferred-call-imported.yaml");
+        assertFalse(result.output().contains("ikanos-mcp-tool-inferred-call"),
+            "Expected no inferred call finding when a consumes import may hold the operation.\n"
+                + result.output());
+    }
+
     /**
      * Lint a fixture file under {@code src/test/resources/} reporting findings down to
      * {@code severity}.

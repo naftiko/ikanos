@@ -28,6 +28,8 @@ import org.junit.jupiter.api.Test;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.aggregates.AggregateSpec;
+import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
+import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.spec.util.VersionHelper;
 
 /**
@@ -202,5 +204,24 @@ class SourceFileLoaderTest {
 
         assertNotSame(spec1, spec2);
         assertEquals(2, loader.cacheSize());
+    }
+
+    @Test
+    void deepCopyShouldKeepAnImportedMcpToolAMock() throws Exception {
+        // A mock tool that lost its static values would read back as a tool to infer a call for.
+        McpServerToolSpec mock = IkanosMappers.yaml().readValue("""
+                name: "say-hello"
+                description: "Mock greeting"
+                outputParameters:
+                  message:
+                    type: "string"
+                    value: "Hello"
+                """, McpServerToolSpec.class);
+
+        McpServerToolSpec copy = loader.deepCopy(mock, McpServerToolSpec.class);
+
+        assertTrue(copy.hasMockOutputParameters());
+        assertNull(copy.getCall());
+        assertEquals("Hello", copy.getOutputParameters().get(0).getValue());
     }
 }

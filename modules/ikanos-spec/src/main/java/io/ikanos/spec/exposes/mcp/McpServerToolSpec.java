@@ -18,13 +18,17 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import tools.jackson.databind.annotation.JsonDeserialize;
 
 import io.ikanos.spec.InputParameterMapDeserializer;
 import io.ikanos.spec.InputParameterSpec;
+import io.ikanos.spec.OutputParameterListOrMapDeserializer;
 import io.ikanos.spec.OutputParameterSpec;
 import io.ikanos.spec.exposes.ServerCallSpec;
 import io.ikanos.spec.util.OperationStepMapDeserializer;
@@ -35,7 +39,10 @@ import io.ikanos.spec.util.StepOutputMappingSpec;
  * MCP Tool Specification Element.
  *
  * <p>Defines an MCP tool that maps to consumed HTTP operations.
- * Supports both simple call mode (call + with) and full orchestration (steps + mappings).</p>
+ * Supports both simple call mode (call + with) and full orchestration (steps + mappings).
+ * A tool that declares none of {@code call}, {@code steps}, {@code ref} or mock output parameters
+ * calls the consumed operation named like the tool: the engine sets its {@code call} at load
+ * time (#988).</p>
  *
  * <h2>Thread safety</h2>
  * Each scalar field is held in an {@link AtomicReference}; the {@code with} parameter map is
@@ -69,6 +76,9 @@ public class McpServerToolSpec {
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final CopyOnWriteArrayList<OutputParameterSpec> outputParameters = new CopyOnWriteArrayList<>();
+
+    /** Whether {@code outputParameters} was written as a map rather than an array. */
+    private final AtomicBoolean outputParametersKeyed = new AtomicBoolean();
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final CopyOnWriteArrayList<String> tags = new CopyOnWriteArrayList<>();
@@ -133,14 +143,57 @@ public class McpServerToolSpec {
     }
 
     public java.util.List<StepOutputMappingSpec> getMappings() { return mappings; }
+    @JsonIgnore
     public List<OutputParameterSpec> getOutputParameters() {
         return outputParameters;
     }
 
+    /**
+     * The output parameters in the form they were written: a map keyed by name for the map form,
+     * otherwise the array. An import deep-copies the tool through YAML, and the form tells a mock
+     * tool apart from one whose call is inferred ({@link #hasMockOutputParameters()}), so the copy
+     * must keep it.
+     *
+     * @return the map or the list to write as {@code outputParameters}
+     */
+    @JsonProperty("outputParameters")
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    Object getOutputParametersAsWritten() {
+        if (!outputParametersKeyed.get()) {
+            return outputParameters;
+        }
+        Map<String, OutputParameterSpec> keyed = new LinkedHashMap<>();
+        for (OutputParameterSpec param : outputParameters) {
+            if (param.getName() == null || keyed.putIfAbsent(param.getName(), param) != null) {
+                return outputParameters;
+            }
+        }
+        return keyed;
+    }
+
+    @JsonProperty("outputParameters")
     @JsonDeserialize(using = io.ikanos.spec.OutputParameterListOrMapDeserializer.class)
     public void setOutputParameters(List<OutputParameterSpec> params) {
         outputParameters.clear();
         if (params != null) outputParameters.addAll(params);
+        outputParametersKeyed.set(params instanceof OutputParameterListOrMapDeserializer.KeyedList);
+    }
+
+    /**
+     * Whether the tool declares mock output parameters, with neither {@code call} nor
+     * {@code steps}: {@code outputParameters} written as a non-empty map (the schema's mock
+     * form), or as a non-empty array whose every entry is a static {@code value} without a
+     * {@code mapping} (the array form the engine has always run as a mock). Mapped output
+     * parameters, which shape the result of a call, are written as an array with mappings.
+     *
+     * @return {@code true} for a mock tool
+     */
+    public boolean hasMockOutputParameters() {
+        if (outputParameters.isEmpty() || getCall() != null || !steps.isEmpty()) {
+            return false;
+        }
+        return outputParametersKeyed.get() || outputParameters.stream()
+                .allMatch(param -> param.getValue() != null && param.getMapping() == null);
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)

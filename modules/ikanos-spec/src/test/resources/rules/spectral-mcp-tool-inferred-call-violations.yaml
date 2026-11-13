@@ -1,0 +1,40 @@
+ikanos: 1.0.0-beta10
+info:
+  display: Inferred MCP tool calls violations
+  description: Negative fixture for the inferred MCP tool call rule
+  tags:
+  - test
+capability:
+  consumes:
+  - type: http
+    namespace: github
+    description: GitHub API
+    baseUri: https://api.github.com
+    resources:
+      issues:
+        description: Issues
+        path: /issues
+        operations:
+          list-issues:
+            method: GET
+  - type: http
+    namespace: gitlab
+    description: GitLab API
+    baseUri: https://gitlab.example.com/api
+    resources:
+      issues:
+        description: Issues
+        path: /issues
+        operations:
+          list-issues:
+            method: GET
+  exposes:
+  - type: mcp
+    namespace: tools
+    address: localhost
+    port: 3000
+    tools:
+      list-issues:
+        description: Ambiguous, both consumed namespaces have list-issues
+      get-weather:
+        description: No consumed namespace has get-weather
