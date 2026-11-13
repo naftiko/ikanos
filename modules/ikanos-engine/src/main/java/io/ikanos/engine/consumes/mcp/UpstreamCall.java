@@ -309,9 +309,13 @@ final class UpstreamCall {
             reply.put("kind", "ask");
             reply.set("inputRequests", result.path("inputRequests"));
             reply.set("requestState", result.path("requestState"));
-        } else {
+        } else if (McpResultType.COMPLETE.wireValue().equals(type)) {
             reply.put("kind", "result");
             reply.set("result", result);
+        } else {
+            // Neither a task, a question nor a result: its content is no step output.
+            throw new McpClientException(describe() + " answered '" + type
+                    + "', which is not a result type Ikanos handles");
         }
         return reply;
     }
