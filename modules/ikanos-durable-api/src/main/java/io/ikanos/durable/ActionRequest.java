@@ -35,8 +35,12 @@ public record ActionRequest(ExecutionId executionId, NodePath path, Object actio
 
     /**
      * The key that identifies this action across attempts, restarts and replicas:
-     * {@code <execution-id>:<path>}. Sent upstream as {@code Idempotency-Key} when the consumed
-     * operation honours one, so an action that runs twice has its effect once.
+     * {@code <execution-id>:<path>}.
+     *
+     * <p>Replay alone does not make an effect happen once: an action that succeeds upstream and
+     * crashes before its outcome is journaled runs again on resume. Only an executor that passes
+     * this key to an upstream that deduplicates on it, such as an {@code Idempotency-Key} header,
+     * has the effect once. The engine does not forward it to consumed operations yet.</p>
      */
     public String idempotencyKey() {
         return executionId.value() + ":" + path.value();
