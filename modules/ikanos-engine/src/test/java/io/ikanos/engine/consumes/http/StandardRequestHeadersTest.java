@@ -95,6 +95,16 @@ class StandardRequestHeadersTest {
                 () -> StandardRequestHeaders.set(request, "Range", "items=0-9"));
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"Bytes=0-9", "BYTES=0-9", "bYtEs=0-9, 20-29"})
+    void setShouldAcceptARangeUnitInAnyCase(String value) {
+        StandardRequestHeaders.set(request, "Range", value);
+
+        assertEquals(value.contains(",") ? 2 : 1, request.getRanges().size(),
+                "range unit names are case-insensitive (RFC 9110 section 14.1)");
+        assertEquals(0, request.getRanges().get(0).getIndex());
+    }
+
     @Test
     void setShouldWriteAuthorizationVerbatimWhenAuthorizationIsSet() {
         StandardRequestHeaders.set(request, "Authorization", "Token abc");

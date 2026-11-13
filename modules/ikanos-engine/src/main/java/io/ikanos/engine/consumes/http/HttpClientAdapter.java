@@ -247,12 +247,17 @@ public class HttpClientAdapter extends ClientAdapter {
         Map<String, Object> uriParameters = new HashMap<>(parameters);
         Map<String, Object> pathValues = new HashMap<>();
 
+        // The method is known before the parameters are resolved: a precondition of a write that
+        // has no value fails the call (#1001)
+        Request clientRequest = new Request();
+        clientRequest.setMethod(Method.valueOf(clientOp.getMethod()));
+
         // Resolve every declared parameter once, in declaration order, before the URI is
         // rendered: a path variable needs no declaration and takes the call parameter of the same
         // name, but an in: path entry with a value sets it, and that value can use any earlier
         // parameter (#978). Query and header parameters are sent once the URI exists.
-        List<Resolver.ResolvedInputParameter> resolved =
-                Resolver.resolveInputParameterValues(declared, parameters, replaced, pathValues);
+        List<Resolver.ResolvedInputParameter> resolved = Resolver.resolveInputParameterValues(
+                clientRequest, declared, parameters, replaced, pathValues);
         uriParameters.putAll(pathValues);
 
         String clientResUri = getBaseUri()
@@ -269,8 +274,6 @@ public class HttpClientAdapter extends ClientAdapter {
 
         clientResUri = PathSegmentEncoder.encodeMarkedValues(clientResUri);
 
-        Request clientRequest = new Request();
-        clientRequest.setMethod(Method.valueOf(clientOp.getMethod()));
         clientRequest.setResourceRef(new Reference(clientResUri));
 
         // Send the client-level, resource-level and operation-level header and query parameters
