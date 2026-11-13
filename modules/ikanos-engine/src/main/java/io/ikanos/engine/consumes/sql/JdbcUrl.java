@@ -13,6 +13,8 @@
  */
 package io.ikanos.engine.consumes.sql;
 
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -32,16 +34,34 @@ final class JdbcUrl {
 
     /**
      * Driver properties that load classes, read local files, deserialize objects or run scripts
-     * (PostgreSQL, MySQL/MariaDB, H2). The URL comes from the operator, so refusing them is defense
-     * in depth, in the URL and in {@code connection.properties} alike. Compared case-insensitively.
+     * (PostgreSQL, MySQL Connector/J, MariaDB, SQL Server, H2). The URL comes from the operator, so
+     * refusing them is defense in depth, in the URL and in {@code connection.properties} alike.
+     * Compared case-insensitively.
      */
-    static final Set<String> DENIED_PROPERTIES = Set.of("socketfactory", "socketfactoryarg",
-            "sslfactory", "sslfactoryarg", "sslhostnameverifier", "sslpasswordcallback",
-            "authenticationpluginclassname", "loggerfile", "allowloadlocalinfile",
-            "allowurlinlocalinfile", "autodeserialize", "init");
+    static final Set<String> DENIED_PROPERTIES = Set.of(
+            // PostgreSQL
+            "socketfactory", "socketfactoryarg", "sslfactory", "sslfactoryarg",
+            "sslhostnameverifier", "sslpasswordcallback", "authenticationpluginclassname",
+            "loggerfile",
+            // MySQL Connector/J and MariaDB
+            "allowloadlocalinfile", "allowurlinlocalinfile", "allowloadlocalinfileinpath",
+            "autodeserialize", "queryinterceptors", "statementinterceptors",
+            "exceptioninterceptors", "connectionlifecycleinterceptors", "authenticationplugins",
+            "defaultauthenticationplugin", "clientinfoprovider", "propertiestransform",
+            "ha.loadbalancestrategy", "loadbalanceexceptionchecker", "serverconfigcachefactory",
+            "parseinfocachefactory",
+            // SQL Server
+            "socketfactoryclass", "socketfactoryconstructorarg", "trustmanagerclass",
+            "trustmanagerconstructorarg", "accesstokencallbackclass",
+            // H2
+            "init");
 
+    /**
+     * A property name: after {@code ?&;:} (query string and {@code ;key=value} forms) or after
+     * {@code (,} (MySQL's {@code (host=…,key=value)} and {@code address=(key=value)} forms).
+     */
     private static final Pattern PROPERTY_NAME =
-            Pattern.compile("[?&;:]\\s*([A-Za-z][A-Za-z0-9_.-]*)\\s*=");
+            Pattern.compile("[?&;:(,]\\s*([A-Za-z][A-Za-z0-9_.-]*)\\s*=");
     private static final Pattern HOST_FORM =
             Pattern.compile("^(?:[^/]*@)?//(?:[^@/?;]*@)?([^/:?;]+)(?::\\d+)?(?:/([^?;/]*))?");
 
@@ -70,7 +90,7 @@ final class JdbcUrl {
             throw new IllegalArgumentException("consumes '" + namespace
                     + "' connection.url must resolve to a JDBC URL (jdbc:<driver>:...)");
         }
-        Matcher name = PROPERTY_NAME.matcher(url);
+        Matcher name = PROPERTY_NAME.matcher(percentDecoded(url));
         while (name.find()) {
             refuseIfDenied(namespace, name.group(1), "connection.url");
         }
@@ -79,6 +99,23 @@ final class JdbcUrl {
                     "connection.properties"));
         }
         return parse(url);
+    }
+
+    /** Drivers decode {@code %xx} in property names, so the check reads the decoded URL. */
+    static String percentDecoded(String url) {
+        if (url.indexOf('%') < 0) {
+            return url;
+        }
+        try {
+            return URLDecoder.decode(url.replace("+", "%2B"), StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException malformed) {
+            return url;
+        }
+    }
+
+    /** @return whether the database reads backslash escapes in literals and {@code #} comments */
+    boolean mysqlDialect() {
+        return "mysql".equals(system) || "mariadb".equals(system);
     }
 
     private static void refuseIfDenied(String namespace, String property, String where) {

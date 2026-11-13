@@ -35,6 +35,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import com.zaxxer.hikari.HikariConfig;
 import io.ikanos.engine.consumes.ConsumedInvocation;
 import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.engine.consumes.Outcome;
@@ -335,5 +336,52 @@ class SqlClientAdapterTest {
         assertEquals(30, SqlClientAdapter.timeoutSeconds(spec.getProcedures().get("get-customer")));
         spec.getProcedures().get("get-customer").setTimeoutMs(1500);
         assertEquals(2, SqlClientAdapter.timeoutSeconds(spec.getProcedures().get("get-customer")));
+    }
+
+    @Test
+    void invokeShouldRefuseTwoColumnsWithTheSameLabel() throws Exception {
+        started("""
+                pair:
+                  description: Two columns named ID.
+                  statement: select a.id, b.id from customers a, customers b where a.id = 'c1' and b.id = 'c2'
+                """);
+
+        ConsumedResult result = call("pair", Map.of());
+
+        assertEquals(502, result.status());
+    }
+
+    @Test
+    void constructorShouldRefuseAnUnknownSqlType() throws Exception {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> new SqlClientAdapter(null, spec("""
+                        get:
+                          description: Typo in the sqlType.
+                          statement: select * from customers where id = :id
+                          inputParameters:
+                            id: { type: string, sqlType: VARCHARR }
+                        """)));
+
+        assertTrue(e.getMessage().contains("VARCHARR"), e.getMessage());
+    }
+
+    @Test
+    void poolConfigShouldMakePostgresqlEnforceReadOnlyInAutocommit() throws Exception {
+        SqlClientSpec spec = spec(GET_CUSTOMER);
+        spec.getConnection().setUrl("jdbc:postgresql://db:5432/erp");
+
+        HikariConfig config = new SqlClientAdapter(null, spec).poolConfig();
+
+        assertEquals("always", config.getDataSourceProperties().get("readOnlyMode"));
+    }
+
+    @Test
+    void poolConfigShouldKeepAReadOnlyModeTheOperatorSets() throws Exception {
+        SqlClientSpec spec = spec(GET_CUSTOMER);
+        spec.getConnection().setUrl("jdbc:postgresql://db:5432/erp?readOnlyMode=transaction");
+
+        HikariConfig config = new SqlClientAdapter(null, spec).poolConfig();
+
+        assertNull(config.getDataSourceProperties().get("readOnlyMode"));
     }
 }

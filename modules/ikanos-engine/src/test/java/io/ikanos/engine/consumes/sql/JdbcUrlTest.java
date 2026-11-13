@@ -97,4 +97,22 @@ class JdbcUrlTest {
 
         assertEquals("postgresql", url.system());
     }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "jdbc:mysql://(host=db,port=3306,allowLoadLocalInfile=true)/erp",
+        "jdbc:mysql://address=(host=db)(queryInterceptors=x.Y)/erp",
+        "jdbc:mysql://db/erp?allowLoad%4CocalInfile=true",
+        "jdbc:sqlserver://db:1433;trustManagerClass=x.Y"
+    })
+    void checkShouldRefuseDangerousPropertiesInEveryUrlForm(String url) {
+        assertThrows(IllegalArgumentException.class, () -> JdbcUrl.check("erp", url, Map.of()));
+    }
+
+    @Test
+    void mysqlDialectShouldHoldForMysqlAndMariadbOnly() {
+        assertTrue(JdbcUrl.parse("jdbc:mysql://db/erp").mysqlDialect());
+        assertTrue(JdbcUrl.parse("jdbc:mariadb://db/erp").mysqlDialect());
+        assertFalse(JdbcUrl.parse("jdbc:postgresql://db/erp").mysqlDialect());
+    }
 }
