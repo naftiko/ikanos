@@ -28,6 +28,7 @@ import com.networknt.schema.Schema;
 import com.networknt.schema.SpecificationVersion;
 import io.ikanos.spec.consumes.http.AwsSigV4AuthenticationSpec;
 import io.ikanos.spec.consumes.http.HttpClientSpec;
+import io.ikanos.spec.consumes.mcp.McpClientSpec;
 import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.spec.util.IkanosMetaSchemaFactory;
 import io.ikanos.spec.util.VersionHelper;
@@ -100,6 +101,49 @@ class AwsSigV4AuthenticationSchemaTest {
     void acceptsAwsSigV4OnAConsumedAdapter() throws Exception {
         List<Error> errors = validate(capability(AWS_AUTH, null));
         assertTrue(errors.isEmpty(), "Expected no errors, got:\n" + errors);
+    }
+
+    /** A consumed MCP adapter, which sends its JSON-RPC POSTs through the same signing. */
+    private static String mcpCapability(String consumedAuth) {
+        return """
+                ikanos: "%s"
+                capability:
+                  consumes:
+                  - namespace: billing
+                    type: mcp
+                    endpoint: "https://billing.example.execute-api.us-east-1.amazonaws.com/mcp"
+                    authentication:
+                %s
+                    tools:
+                      get-invoice:
+                        description: Retrieve one invoice
+                  exposes:
+                  - type: mcp
+                    port: 8080
+                    namespace: billing-mcp
+                    tools:
+                      get-invoice:
+                        description: Retrieve one invoice
+                        call: billing.get-invoice
+                """.formatted(VersionHelper.getSchemaVersion(), consumedAuth);
+    }
+
+    @Test
+    void acceptsAwsSigV4OnAConsumedMcpAdapter() throws Exception {
+        List<Error> errors = validate(mcpCapability(AWS_AUTH + """
+                  service: execute-api
+            """));
+        assertTrue(errors.isEmpty(), "Expected no errors, got:\n" + errors);
+    }
+
+    @Test
+    void deserializesAwsSigV4OnAConsumedMcpAdapter() throws Exception {
+        IkanosSpec spec = IkanosMappers.yaml().readValue(mcpCapability(AWS_AUTH), IkanosSpec.class);
+
+        McpClientSpec billing = (McpClientSpec) spec.getCapability().getConsumes().get(0);
+        AwsSigV4AuthenticationSpec auth =
+                assertInstanceOf(AwsSigV4AuthenticationSpec.class, billing.getAuthentication());
+        assertEquals("us-east-1", auth.getRegion());
     }
 
     @Test

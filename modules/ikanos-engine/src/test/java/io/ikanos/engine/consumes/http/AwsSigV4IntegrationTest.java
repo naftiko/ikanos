@@ -18,6 +18,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.net.ServerSocket;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HashMap;
@@ -47,9 +51,12 @@ import org.restlet.util.Series;
 import io.ikanos.Capability;
 import io.ikanos.engine.consumes.ClientAdapter;
 import io.ikanos.engine.consumes.ConsumedResult;
+import io.ikanos.engine.consumes.mcp.McpStreamableHttpTransport;
+import io.ikanos.spec.consumes.http.AwsSigV4AuthenticationSpec;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.spec.util.VersionHelper;
+import tools.jackson.databind.JsonNode;
 
 /**
  * Calls an S3-like upstream with {@code awsSigV4} authentication through a capability, and checks
@@ -81,6 +88,21 @@ public class AwsSigV4IntegrationTest {
             public Restlet createInboundRoot() {
                 Router router = new Router(getContext());
                 router.setDefaultMatchingMode(Template.MODE_STARTS_WITH);
+                router.attach("/mcp", new Restlet() {
+                    @Override
+                    public void handle(Request request, Response response) {
+                        try {
+                            receivedBody.set(request.getEntity().getText());
+                        } catch (Exception e) {
+                            response.setStatus(Status.SERVER_ERROR_INTERNAL, e);
+                            return;
+                        }
+                        received.set(request);
+                        response.setStatus(Status.SUCCESS_OK);
+                        response.setEntity("{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":"
+                                + "{\"tools\":[]}}", MediaType.APPLICATION_JSON);
+                    }
+                });
                 router.attach("/documents", new Restlet() {
                     @Override
                     public void handle(Request request, Response response) {
@@ -255,6 +277,9 @@ public class AwsSigV4IntegrationTest {
         assertEquals(sha256Hex(receivedBody.get()),
                 received.get().getHeaders().getFirstValue("x-amz-content-sha256", true),
                 "The signed payload hash should be the hash of the body received");
+        assertEquals(String.valueOf(receivedBody.get().getBytes(StandardCharsets.UTF_8).length),
+                received.get().getHeaders().getFirstValue("Content-Length", true),
+                "S3 and MinIO refuse an unsized body that isn't aws-chunked");
         assertSignatureMatches("s3", false);
     }
 
@@ -276,22 +301,130 @@ public class AwsSigV4IntegrationTest {
     void signsAForwardedUploadWithAnUnsignedPayload() throws Exception {
         start(auth(null));
 
+        // A caller sending a sized body, as S3 clients do (Restlet's own client sends it chunked)
+        HttpResponse<String> response = HttpClient.newHttpClient().send(HttpRequest
+                .newBuilder(URI.create(
+                        "http://localhost:" + restPort + "/files/uploads/report.txt"))
+                .header("Content-Type", "text/plain")
+                .PUT(HttpRequest.BodyPublishers.ofString("Welcome to Amazon S3."))
+                .build(), HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, response.statusCode(), response.body());
+
+        assertEquals("Welcome to Amazon S3.", receivedBody.get());
+        assertEquals("21", received.get().getHeaders().getFirstValue("Content-Length", true),
+                "S3 and MinIO refuse an unsized body that isn't aws-chunked");
+        assertEquals(null,
+                received.get().getHeaders().getFirstValue("Transfer-Encoding", true));
+        assertEquals("/documents/uploads/report.txt", received.get().getResourceRef().getPath());
+        assertEquals(AwsSigV4Helper.UNSIGNED_PAYLOAD,
+                received.get().getHeaders().getFirstValue("x-amz-content-sha256", true));
+        assertSignatureMatches("s3", false);
+    }
+
+    /**
+     * AWS reads x-amz-* headers as part of the operation (x-amz-copy-source, x-amz-acl...), and a
+     * trusted one is signed with the capability's key: a forward to an awsSigV4 adapter refuses
+     * them at load, whatever their case.
+     */
+    @Test
+    void refusesAnAmzTrustedHeaderOnAForwardToAwsSigV4() throws Exception {
+        IkanosSpec spec = IkanosMappers.lenientYaml()
+                .readValue(forwardYaml(auth(null), "X-Amz-Copy-Source"), IkanosSpec.class);
+
+        IllegalArgumentException error =
+                assertThrows(IllegalArgumentException.class, () -> new Capability(spec));
+        assertTrue(error.getMessage().contains("Trusted header 'X-Amz-Copy-Source'"),
+                error.getMessage());
+        assertTrue(error.getMessage().contains("awsSigV4"), error.getMessage());
+    }
+
+    /** Another trusted header is still forwarded, and signed. */
+    @Test
+    void forwardsAndSignsAnotherTrustedHeader() throws Exception {
+        IkanosSpec spec = IkanosMappers.lenientYaml()
+                .readValue(forwardYaml(auth(null), "X-Request-Note"), IkanosSpec.class);
+        capability = new Capability(spec);
+        capability.start();
+
         Client client = new Client(new Context(), Protocol.HTTP);
         client.start();
         try {
-            Response response = client.handle(new Request(Method.PUT,
-                    "http://localhost:" + restPort + "/files/uploads/report.txt",
-                    new StringRepresentation("Welcome to Amazon S3.", MediaType.TEXT_PLAIN)));
+            Request request = new Request(Method.GET,
+                    "http://localhost:" + restPort + "/files/a.txt");
+            request.getHeaders().add("X-Request-Note", "quarterly");
+            Response response = client.handle(request);
             assertEquals(Status.SUCCESS_OK, response.getStatus());
         } finally {
             client.stop();
         }
 
-        assertEquals("Welcome to Amazon S3.", receivedBody.get());
-        assertEquals("/documents/uploads/report.txt", received.get().getResourceRef().getPath());
-        assertEquals(AwsSigV4Helper.UNSIGNED_PAYLOAD,
-                received.get().getHeaders().getFirstValue("x-amz-content-sha256", true));
+        assertEquals("quarterly",
+                received.get().getHeaders().getFirstValue("X-Request-Note", true));
+        assertTrue(received.get().getHeaders().getFirstValue("Authorization", true)
+                .contains("x-request-note"), "The trusted header should be signed");
         assertSignatureMatches("s3", false);
+    }
+
+    /** An x-amz-* trusted header stays allowed when the target doesn't sign with awsSigV4. */
+    @Test
+    void acceptsAnAmzTrustedHeaderWithoutAwsSigV4() throws Exception {
+        IkanosSpec spec = IkanosMappers.lenientYaml()
+                .readValue(forwardYaml(null, "x-amz-meta-owner"), IkanosSpec.class);
+
+        capability = new Capability(spec);
+        assertNotNull(capability);
+    }
+
+    /** A capability forwarding {@code /files/...} to {@code store}, trusting one header. */
+    private String forwardYaml(String authentication, String trustedHeader) throws Exception {
+        restPort = findFreePort();
+        return """
+                ikanos: "%s"
+                capability:
+                  exposes:
+                    - type: "rest"
+                      address: "localhost"
+                      port: %d
+                      namespace: "proxy"
+                      resources:
+                        - path: "/files/{{path}}"
+                          forward:
+                            targetNamespace: "store"
+                            trustedHeaders:
+                              - "%s"
+                  consumes:
+                    - type: "http"
+                      namespace: "store"
+                      baseUri: "http://localhost:%d/documents"
+                """.formatted(VersionHelper.getSchemaVersion(), restPort, trustedHeader,
+                        upstreamPort)
+                + (authentication == null ? "" : "      authentication:\n" + authentication);
+    }
+
+    /** A consumed MCP adapter signs its JSON-RPC POST, payload hash included, like HTTP. */
+    @Test
+    void signsACallToAConsumedMcpAdapter() throws Exception {
+        AwsSigV4AuthenticationSpec auth = new AwsSigV4AuthenticationSpec();
+        auth.setAccessKeyId(KEY_ID);
+        auth.setSecretAccessKey(SECRET.toCharArray());
+        auth.setRegion("us-east-1");
+        auth.setService("execute-api");
+        Client client = new Client(new Context(), Protocol.HTTP);
+        client.start();
+        try {
+            McpStreamableHttpTransport transport = new McpStreamableHttpTransport(client,
+                    "http://localhost:" + upstreamPort + "/mcp", auth);
+
+            JsonNode result = transport.call("tools/list", null,
+                    IkanosMappers.json().createObjectNode(), Map.of());
+
+            assertTrue(result.path("tools").isArray(), String.valueOf(result));
+        } finally {
+            client.stop();
+        }
+
+        assertTrue(receivedBody.get().contains("\"tools/list\""), receivedBody.get());
+        assertSignatureMatches("execute-api", true);
     }
 
     @Test
