@@ -26,6 +26,7 @@ import io.ikanos.engine.exposes.mcp.model.HandlerResult;
 import io.ikanos.engine.exposes.mcp.model.McpHeader;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPostProcessor;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPreProcessor;
+import io.ikanos.engine.util.CallerClaimMissingException;
 import io.ikanos.engine.util.OperationStepExecutor;
 import org.restlet.Context;
 
@@ -91,12 +92,27 @@ public class ResourcesReadHandler extends McpCallHandler {
             return new HandlerFailureResult(INTERNAL_ERROR,
                     McpErrors.upstreamError(idNode, e.getMessage(), e));
         } catch (OperationStepExecutor.StepFailedException e) {
+            // A claim the caller's token does not carry (#998) is the caller's, not the upstream's
+            CallerClaimMissingException missing = CallerClaimMissingException.find(e);
+            if (missing != null) {
+                return new HandlerFailureResult(INVALID_PARAMS, buildJsonRpcError(idNode,
+                        INVALID_PARAMS.getCode(), "Invalid params: " + missing.getMessage()));
+            }
             return new HandlerFailureResult(INTERNAL_ERROR, McpErrors.upstreamError(idNode,
                     "Step failed for resource '" + uri + "'", e));
         } catch (IllegalArgumentException e) {
+            if (CallerClaimMissingException.find(e) != null) {
+                return new HandlerFailureResult(INVALID_PARAMS, buildJsonRpcError(idNode,
+                        INVALID_PARAMS.getCode(), "Invalid params: " + e.getMessage()));
+            }
             Context.getCurrentLogger().log(Level.SEVERE, "Error handling resources/read", e);
             return new HandlerFailureResult(INVALID_PARAMS, buildJsonRpcError(idNode, INVALID_PARAMS.getCode(), "Invalid params: " + e.getMessage()));
         } catch (Exception e) {
+            CallerClaimMissingException missing = CallerClaimMissingException.find(e);
+            if (missing != null) {
+                return new HandlerFailureResult(INVALID_PARAMS, buildJsonRpcError(idNode,
+                        INVALID_PARAMS.getCode(), "Invalid params: " + missing.getMessage()));
+            }
             return new HandlerFailureResult(INTERNAL_ERROR,
                     McpErrors.internalError(idNode, "Error handling resources/read", e));
         }

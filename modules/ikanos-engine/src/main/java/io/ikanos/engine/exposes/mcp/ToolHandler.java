@@ -24,6 +24,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import org.restlet.Context;
 import io.modelcontextprotocol.spec.McpSchema;
+import io.ikanos.engine.exposes.CallerClaims;
 import io.ikanos.engine.exposes.ErrorReference;
 import io.ikanos.Capability;
 import io.ikanos.engine.aggregates.AggregateFlow;
@@ -31,6 +32,7 @@ import io.ikanos.engine.aggregates.FlowResult;
 import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.engine.consumes.Outcome;
 import io.ikanos.engine.observability.TelemetryBootstrap;
+import io.ikanos.engine.util.CallerClaimMissingException;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.InputParameterSpec;
@@ -222,7 +224,17 @@ public class ToolHandler {
         long startNanos = System.nanoTime();
         String status = "OK";
         try (Scope scope = span.makeCurrent()) {
-            McpSchema.CallToolResult result = doHandleToolCall(toolName, arguments);
+            McpSchema.CallToolResult result;
+            try {
+                result = doHandleToolCall(toolName, arguments);
+            } catch (Exception e) {
+                // A claim the caller's token does not carry (#998), found by a step, a flow or
+                // the tool's 'with': an error result naming it, never a protocol error
+                if (CallerClaimMissingException.find(e) == null) {
+                    throw e;
+                }
+                result = errorResult("", "Missing caller claim for tool '" + toolName + "'", e);
+            }
             if (result.isError() != null && result.isError()) {
                 status = "ERROR";
                 span.setStatus(io.opentelemetry.api.trace.StatusCode.ERROR, "tool returned error");
@@ -256,6 +268,12 @@ public class ToolHandler {
 
         // Check the arguments against their declared types before any template sees them.
         arguments = checkArgumentTypes(toolSpec, arguments);
+
+        // The caller's validated claims, for {{auth.claims...}} templates (#998), put among the
+        // arguments so the tool's 'with' can read them too. Taken from the request the transport
+        // is dispatching, never from an argument.
+        arguments = arguments != null ? new HashMap<>(arguments) : new HashMap<>();
+        CallerClaims.putInto(arguments, CallerClaims.current());
 
         // Merge arguments with tool-level 'with' parameters.
         // 'with' values are Mustache templates resolved against the tool arguments,
@@ -438,6 +456,13 @@ public class ToolHandler {
      */
     private static McpSchema.CallToolResult errorResult(String publicMessage, String logContext,
             Throwable cause) {
+        // A template read a claim the caller's token does not carry (#998): say which, whatever
+        // the step that found it, rather than report an upstream failure.
+        CallerClaimMissingException missing = CallerClaimMissingException.find(cause);
+        if (missing != null) {
+            String reference = ErrorReference.record(Level.INFO, logContext, missing);
+            return textResult(ErrorReference.withReference(missing.getMessage(), reference), true);
+        }
         String ref = ErrorReference.record(Level.WARNING, logContext, cause);
         return textResult(ErrorReference.withReference(publicMessage, ref), true);
     }

@@ -124,11 +124,150 @@ public class Resolver {
      *        {@code String.valueOf}; never applied when there are no parameters
      * @return the rendered template, or {@code null} if {@code template} is null
      */
+    /**
+     * Template root holding the caller's validated identity, for example
+     * {@code {{auth.claims.sub}}} (#998). The exposed adapters put a {@link CallerRoot} under this
+     * name, built from the token they validated, unless an input already uses the name.
+     */
+    public static final String CALLER_ROOT = "auth";
+
+    /**
+     * The reserved part of the caller root: {@code auth.claims}. Only references under it are
+     * checked; anything else named {@code auth} (an input, a step, a {@code with} key, a binding)
+     * keeps working as before #998.
+     */
+    public static final String CALLER_CLAIMS = CALLER_ROOT + ".claims";
+
+    /**
+     * Fails when {@code template} reads a caller claim ({@code {{auth.claims...}}}) that the
+     * parameters do not hold as a non-blank string, a number or a boolean, so a consumed API never
+     * receives an empty, partial or whole-object identity (#998). Checked for every template,
+     * whatever the parameter, credential or body it renders.
+     *
+     * <ul>
+     * <li>Claims are only read from the engine's {@link CallerRoot}: when an input, a step, a
+     * {@code with} key or a binding uses the name {@code auth}, or a dotted key starts with
+     * {@code auth.claims}, reading a claim fails.</li>
+     * <li>A claim is read as a single value, {@code {{auth.claims.x}}}, never through a section:
+     * not inside another section ({@code {{#x}}...{{/x}}}), where a key {@code auth} of the
+     * section's value (a client object, a step output) would be read instead, and not as a section
+     * itself ({@code {{#auth.claims...}}}), whose inner names fall back to the other parameters
+     * when the claim is missing.</li>
+     * </ul>
+     *
+     * @throws CallerClaimMissingException naming the missing references
+     * @throws IllegalArgumentException when a claim is read inside a section, or the name
+     *         {@code auth} is taken by something else than the caller root
+     */
+    public static void requireCallerValues(String template, Map<String, Object> parameters) {
+        if (template == null || !template.contains(CALLER_CLAIMS)) {
+            return;
+        }
+        CallerTags everywhere = callerTags(template, true);
+        if (everywhere.isEmpty()) {
+            return;
+        }
+        if (!everywhere.sections().isEmpty()) {
+            throw new IllegalArgumentException("A template uses '" + CALLER_CLAIMS
+                    + "' as a section, whose inner names could read other parameters. Read each"
+                    + " claim as a value, such as {{" + CALLER_CLAIMS + ".sub}}");
+        }
+        if (everywhere.size() != callerTags(template, false).size()) {
+            throw new IllegalArgumentException("A template reads '" + CALLER_CLAIMS
+                    + "' inside a section, where a value of the section could replace it."
+                    + " Read it outside any {{#...}} section");
+        }
+        if (parameters != null && (!(parameters.get(CALLER_ROOT) == null
+                || parameters.get(CALLER_ROOT) instanceof CallerRoot)
+                || parameters.keySet().stream().anyMatch(
+                        key -> key != null && key.startsWith(CALLER_CLAIMS)))) {
+            throw new IllegalArgumentException("An input, a step, a 'with' key or a binding uses"
+                    + " the name '" + CALLER_ROOT + "', so {{" + CALLER_CLAIMS + "...}} cannot read"
+                    + " the caller's validated claims. Rename it");
+        }
+        List<String> missing = everywhere.variables().stream().distinct()
+                .filter(reference -> !isClaimValue(
+                        parameters != null ? lookupVariable(reference, parameters) : null))
+                .toList();
+        if (!missing.isEmpty()) {
+            throw new CallerClaimMissingException(missing);
+        }
+    }
+
+    private static boolean isClaimValue(Object value) {
+        return value instanceof String text ? !text.isBlank()
+                : value instanceof Number || value instanceof Boolean;
+    }
+
+    private static boolean isCallerClaims(String name) {
+        String reference = name.trim();
+        return reference.equals(CALLER_CLAIMS) || reference.startsWith(CALLER_CLAIMS + ".");
+    }
+
+    /** The caller-claim variables and section names of a template. */
+    private record CallerTags(List<String> variables, List<String> sections) {
+        boolean isEmpty() {
+            return variables.isEmpty() && sections.isEmpty();
+        }
+
+        int size() {
+            return variables.size() + sections.size();
+        }
+    }
+
+    /**
+     * The tags of {@code template} that read a caller claim, in order: with
+     * {@code insideSections}, also the ones inside sections; without, only the top-level ones
+     * (a top-level section's own name included).
+     */
+    private static CallerTags callerTags(String template, boolean insideSections) {
+        List<String> variables = new java.util.ArrayList<>();
+        List<String> sections = new java.util.ArrayList<>();
+        try {
+            compileTemplate(template).visit(new Mustache.Visitor() {
+                @Override
+                public void visitText(String text) {
+                    // literal text holds no variable
+                }
+
+                @Override
+                public void visitVariable(String name) {
+                    if (isCallerClaims(name)) {
+                        variables.add(name.trim());
+                    }
+                }
+
+                @Override
+                public boolean visitInclude(String name) {
+                    return false;
+                }
+
+                @Override
+                public boolean visitSection(String name) {
+                    if (isCallerClaims(name)) {
+                        sections.add(name.trim());
+                    }
+                    return insideSections;
+                }
+
+                @Override
+                public boolean visitInvertedSection(String name) {
+                    return visitSection(name);
+                }
+            });
+        } catch (RuntimeException e) {
+            logger.debug("Template is not valid Mustache ({})", e.getClass().getSimpleName());
+            return new CallerTags(List.of(), List.of());
+        }
+        return new CallerTags(variables, sections);
+    }
+
     private static String render(String template, Map<String, Object> parameters,
             java.util.function.UnaryOperator<Object> prepare, Mustache.Formatter formatter) {
         if (template == null) {
             return template;
         }
+        requireCallerValues(template, parameters);
 
         boolean noParameters = parameters == null || parameters.isEmpty();
 
@@ -196,6 +335,7 @@ public class Resolver {
         if (template == null) {
             return null;
         }
+        requireCallerValues(template, parameters);
         java.util.regex.Matcher matcher = WHOLE_VALUE_VARIABLE.matcher(template);
         if (!matcher.matches()) {
             return resolveMustacheTemplate(template, parameters);
@@ -609,6 +749,7 @@ public class Resolver {
             return array.isEmpty() && !items.isEmpty() ? null : array;
         }
         if (data instanceof String text) {
+            requireCallerValues(text, parameters);
             java.util.regex.Matcher single = SINGLE_PLACEHOLDER.matcher(text);
             if (single.matches()) {
                 Object value = lookupPath(parameters, single.group(1));
@@ -628,6 +769,7 @@ public class Resolver {
      */
     private static String resolveJsonKey(String key, Map<String, Object> parameters,
             ObjectMapper jsonMapper) {
+        requireCallerValues(key, parameters);
         return key.contains("{{") ? renderAsJsonStringContent(key, parameters, jsonMapper) : key;
     }
 
@@ -965,6 +1107,10 @@ public class Resolver {
                 : new HashSet<>(parameters.keySet());
 
         for (InputParameterSpec spec : specs) {
+            // Before the try below, which skips a parameter it cannot resolve: a caller value
+            // that is missing fails the call instead (#998), with or without other parameters.
+            requireCallerValues(spec.getValue() != null ? spec.getValue() : spec.getTemplate(),
+                    parameters);
             try {
                 String in = spec.getIn() == null ? "body" : spec.getIn();
                 Object val = null;
@@ -1006,8 +1152,10 @@ public class Resolver {
                 if ("header".equalsIgnoreCase(in)) {
                     // A list is comma-separated, the OpenAPI "simple" style for headers
                     List<String> elements = listElements(val);
+                    // Case-insensitive, so a copy with other letter case (a forwarded trusted
+                    // header) is replaced rather than sent alongside (#998)
                     clientRequest.getHeaders().set(wireName,
-                            elements != null ? String.join(",", elements) : val.toString());
+                            elements != null ? String.join(",", elements) : val.toString(), true);
                 } else if ("query".equalsIgnoreCase(in)) {
                     String ref = clientRequest.getResourceRef().toString();
                     for (String value : queryValues(spec, val)) {
@@ -1015,6 +1163,8 @@ public class Resolver {
                     }
                     clientRequest.setResourceRef(ref);
                 }
+            } catch (CallerClaimMissingException e) {
+                throw e;
             } catch (RuntimeException e) {
                 logger.debug("Skipping parameter '{}' due to resolution error", spec.getName(), e);
             }
