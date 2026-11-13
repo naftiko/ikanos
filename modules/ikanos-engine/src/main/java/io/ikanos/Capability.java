@@ -18,7 +18,6 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -183,9 +182,8 @@ public class Capability {
                 return System.getenv(key);
             }
         };
-        Map<String, String> resolvedBinds = bindingResolver.resolve(spec.getBinds(), context);
-        // Convert Map<String, String> to Map<String, Object> for compatibility
-        this.bindings.set(new HashMap<>(resolvedBinds));
+        // Each key by name, {{KEY}}, and under its namespace, {{namespace.KEY}} (#942)
+        this.bindings.set(bindingResolver.resolveBindings(spec.getBinds(), context));
 
         // Initialize client adapters first
         List<ClientAdapter> clientList = new CopyOnWriteArrayList<>();

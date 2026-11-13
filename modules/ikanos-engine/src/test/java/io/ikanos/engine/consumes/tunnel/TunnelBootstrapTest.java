@@ -52,6 +52,23 @@ class TunnelBootstrapTest {
         assertEquals("/etc/ziti/app.json", resolved);
     }
 
+    /** #942: the bindings a capability builds offer each key flat and under its namespace. */
+    @Test
+    void resolveIdentityShouldResolveBothFormsAgainstTheCapabilityBindings() throws Exception {
+        io.ikanos.spec.util.BindingSpec bind = new io.ikanos.spec.util.BindingSpec();
+        bind.setNamespace("secrets");
+        io.ikanos.spec.util.BindingKeysSpec keys = new io.ikanos.spec.util.BindingKeysSpec();
+        keys.setKeys(Map.of("IDENT", "IDENT"));
+        bind.setKeys(keys);
+        Map<String, Object> bindings = new io.ikanos.engine.util.BindingResolver().resolveBindings(
+                java.util.List.of(bind), key -> "IDENT".equals(key) ? "/etc/ziti/app.json" : null);
+
+        assertEquals("/etc/ziti/app.json", TunnelBootstrap.resolveIdentity(
+                new ZitiTunnelConfigSpec("crm-api", "{{secrets.IDENT}}"), bindings));
+        assertEquals("/etc/ziti/app.json", TunnelBootstrap.resolveIdentity(
+                new ZitiTunnelConfigSpec("crm-api", "{{IDENT}}"), bindings));
+    }
+
     @Test
     void resolveIdentityShouldReturnNullWhenIdentityBlank() {
         ZitiTunnelConfigSpec spec = new ZitiTunnelConfigSpec("crm-api", "  ");
@@ -66,9 +83,9 @@ class TunnelBootstrapTest {
 
     @Test
     void resolveIdentityShouldThrowWhenMustacheBindingShapeIsFlat() {
-        // Flat-map mistake: the template references the "secrets" namespace, but the
-        // caller passes a flat map. Resolver leaves "{{secrets.IDENT}}" unresolved, and
-        // resolveIdentity must fail fast instead of silently propagating the literal.
+        // No binding answers the reference: here the map lacks the "secrets" namespace.
+        // Resolver leaves "{{secrets.IDENT}}" unresolved, and resolveIdentity must fail fast
+        // instead of silently propagating the literal.
         ZitiTunnelConfigSpec spec = new ZitiTunnelConfigSpec("crm-api", "{{secrets.IDENT}}");
         IllegalStateException ex = assertThrows(
                 IllegalStateException.class,
