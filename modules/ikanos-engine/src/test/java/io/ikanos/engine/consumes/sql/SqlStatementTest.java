@@ -333,4 +333,22 @@ class SqlStatementTest {
         assertTrue(SqlStatement.parse("insert into t (a) values (1) returning id")
                 .returnsRows());
     }
+
+    @Test
+    void writeOperationShouldRefuseAStatementAppendedWithoutASeparator() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> SqlStatement.parse("UPDATE orders SET status = 'SHIPPED'"
+                        + " WHERE region = 'EU' COMMIT").writeOperation());
+
+        assertTrue(e.getMessage().contains("COMMIT"), e.getMessage());
+        assertThrows(IllegalArgumentException.class, () -> SqlStatement
+                .parse("delete from orders where id = 1 drop table orders").writeOperation());
+    }
+
+    @Test
+    void parseShouldRecordAnAuthoredTerminator() {
+        assertTrue(SqlStatement.parse("merge into t using s on t.id = s.id"
+                + " when matched then update set t.n = s.n;").terminated());
+        assertFalse(SqlStatement.parse("update t set n = 0 where id = 1").terminated());
+    }
 }

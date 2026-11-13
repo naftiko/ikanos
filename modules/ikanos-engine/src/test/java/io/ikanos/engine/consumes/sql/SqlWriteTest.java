@@ -342,4 +342,44 @@ class SqlWriteTest {
         assertEquals(200, result.status());
         org.mockito.Mockito.verify(statement).setFetchSize(50);
     }
+
+    @Test
+    void buildProceduresShouldKeepTheTerminatorOfAMerge() throws Exception {
+        SqlClientSpec spec = spec("""
+                upsert:
+                  description: Upserts one order.
+                  readOnly: false
+                  statement: "merge into orders o using (values (:id)) s (id) on o.id = s.id when matched then update set status = 'SEEN';"
+                  inputParameters:
+                    id: { type: integer }
+                """);
+
+        assertTrue(SqlClientAdapter.buildProcedures(spec, SqlStatement.Dialect.STANDARD).get("upsert").jdbcSql()
+                .endsWith(";"));
+    }
+
+    @Test
+    void runWriteShouldFailWhenReadingTheGeneratedKeysFails() throws Exception {
+        SqlClientSpec spec = spec("""
+                add:
+                  description: Adds one order.
+                  readOnly: false
+                  statement: insert into orders (status, region) values ('NEW', :region)
+                  inputParameters:
+                    region: { type: string }
+                """);
+        adapter = new SqlClientAdapter(null, spec);
+        java.sql.Connection connection = org.mockito.Mockito.mock(java.sql.Connection.class);
+        java.sql.PreparedStatement statement =
+                org.mockito.Mockito.mock(java.sql.PreparedStatement.class);
+        org.mockito.Mockito.when(connection.prepareStatement(
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(statement);
+        org.mockito.Mockito.when(statement.getUpdateCount()).thenReturn(1, -1);
+        org.mockito.Mockito.when(statement.getGeneratedKeys())
+                .thenThrow(new java.sql.SQLTimeoutException("timed out reading keys"));
+
+        assertThrows(java.sql.SQLTimeoutException.class, () -> adapter.runWrite(connection,
+                SqlClientAdapter.buildProcedures(spec, SqlStatement.Dialect.STANDARD).get("add"), java.util.List.of()));
+    }
 }

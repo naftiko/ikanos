@@ -228,7 +228,10 @@ public class SqlClientAdapter extends ClientAdapter {
             inputs.add(input);
             positions.add(inputs.size());
         }
-        return new Procedure(procedure.getName(), procedure, statement, statement.jdbcSql(),
+        // SQL Server requires MERGE to end with ';': keep the one the author wrote
+        String jdbcSql = "MERGE".equals(operation) && statement.terminated()
+                ? statement.jdbcSql() + ";" : statement.jdbcSql();
+        return new Procedure(procedure.getName(), procedure, statement, jdbcSql,
                 List.copyOf(inputs), List.copyOf(positions), List.of(),
                 ConsumedOperationView.of(procedure, null, null), operation, readOnly,
                 generatedKeys);
@@ -589,12 +592,20 @@ public class SqlClientAdapter extends ClientAdapter {
                 return SqlConsumedResult.tooManyRows(procedure.view(), rowCount, max);
             }
             if (procedure.generatedKeys()) {
-                try (ResultSet keys = statement.getGeneratedKeys()) {
-                    document.set(SqlRowDocument.GENERATED_KEYS,
-                            SqlRowDocument.read(keys).get(SqlRowDocument.ROWS));
-                } catch (SQLException noKeys) {
+                // Only a driver that cannot return keys is tolerated: an error while reading
+                // them fails the call, so the write rolls back
+                ResultSet keys = null;
+                try {
+                    keys = statement.getGeneratedKeys();
+                } catch (java.sql.SQLFeatureNotSupportedException noKeys) {
                     LOGGER.log(Level.FINE, "No generated keys for SQL procedure {0}",
                             procedure.name());
+                }
+                if (keys != null) {
+                    try (ResultSet read = keys) {
+                        document.set(SqlRowDocument.GENERATED_KEYS,
+                                SqlRowDocument.read(read).get(SqlRowDocument.ROWS));
+                    }
                 }
             }
             if (statement instanceof CallableStatement call && !procedure.outs().isEmpty()) {

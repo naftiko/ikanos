@@ -99,15 +99,22 @@ final class SqlStatement {
     private final List<String> placeholders;
     private final List<String> keywords;
     private final List<Integer> depths;
+    private final boolean terminated;
 
     private SqlStatement(String sql, Dialect dialect, String jdbcSql, List<String> placeholders,
-            List<String> keywords, List<Integer> depths) {
+            List<String> keywords, List<Integer> depths, boolean terminated) {
         this.sql = sql;
         this.dialect = dialect;
         this.jdbcSql = jdbcSql;
         this.placeholders = Collections.unmodifiableList(placeholders);
         this.keywords = Collections.unmodifiableList(keywords);
         this.depths = Collections.unmodifiableList(depths);
+        this.terminated = terminated;
+    }
+
+    /** @return whether the author ended the statement with {@code ;}, which jdbcSql drops */
+    boolean terminated() {
+        return terminated;
     }
 
     /** @return the statement as authored */
@@ -156,6 +163,16 @@ final class SqlStatement {
     static final Set<String> WRITE_STARTS = Set.of("INSERT", "UPDATE", "DELETE", "MERGE");
 
     /**
+     * Keywords that start a statement of their own, never a part of one INSERT, UPDATE, DELETE or
+     * MERGE. SQL Server runs {@code UPDATE t SET a = 1 WHERE id = 1 COMMIT} as two statements, so
+     * the COMMIT would land before {@code maxAffectedRows} could roll back; a write that holds one
+     * of them is refused, on every database. A column with such a name is written quoted.
+     */
+    static final Set<String> OTHER_STATEMENT_KEYWORDS = Set.of("COMMIT", "ROLLBACK", "SAVEPOINT",
+            "DROP", "CREATE", "ALTER", "TRUNCATE", "GRANT", "REVOKE", "EXEC", "EXECUTE",
+            "SHUTDOWN", "WAITFOR", "KILL");
+
+    /**
      * Classify a statement declared {@code readOnly: false}.
      *
      * <p>It must run exactly one {@code INSERT}, {@code UPDATE}, {@code DELETE} or {@code MERGE},
@@ -181,6 +198,13 @@ final class SqlStatement {
             throw new IllegalArgumentException("a write statement must be INSERT, UPDATE, DELETE"
                     + " or MERGE (or a WITH that runs one); it starts with "
                     + (first.isEmpty() ? "nothing" : first));
+        }
+        for (String keyword : keywords) {
+            if (OTHER_STATEMENT_KEYWORDS.contains(keyword)) {
+                throw new IllegalArgumentException("a write statement runs one INSERT, UPDATE,"
+                        + " DELETE or MERGE; it also runs " + keyword
+                        + " (quote it if it names a column)");
+            }
         }
         String operation = null;
         for (int i = 0; i < keywords.size(); i++) {
@@ -390,7 +414,7 @@ final class SqlStatement {
             }
         }
         return new SqlStatement(sql, dialect, out.toString().strip(), placeholders, keywords,
-                depths);
+                depths, ended);
     }
 
     /**
