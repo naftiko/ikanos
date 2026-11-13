@@ -22,7 +22,8 @@ import static io.ikanos.engine.exposes.mcp.model.JsonRpcError.INTERNAL_ERROR;
 import static io.ikanos.engine.util.JsonRpcResponseBuilder.buildJsonRpcError;
 
 /**
- * A post-processor that appends cache data to responses.
+ * A post-processor that appends the adapter's cache hints to a result. A hint the handler already
+ * set (a resource's own {@code ttlMs} or {@code cacheScope} on {@code resources/read}) is kept.
  */
 public class CacheDataAppender implements DispatchPostProcessor {
 
@@ -30,19 +31,24 @@ public class CacheDataAppender implements DispatchPostProcessor {
     private final String cacheScope;
 
     public CacheDataAppender(Integer ttlMs, String cacheScope) {
-        this.ttlMs = Objects.requireNonNullElse(ttlMs, 0);
-        if (this.ttlMs < 0) {
-            // MCP 2026-07-28 (SEP-2549): ttlMs is an integer of zero or more
-            throw new IllegalArgumentException("MCP ttlMs must be zero or more, got " + this.ttlMs);
-        }
-        this.cacheScope = Objects.requireNonNullElse(cacheScope, "private");
+        this(new CacheHints(Objects.requireNonNullElse(ttlMs, CacheHints.DEFAULT_TTL_MS),
+                Objects.requireNonNullElse(cacheScope, CacheHints.DEFAULT_SCOPE)));
+    }
+
+    public CacheDataAppender(CacheHints hints) {
+        this.ttlMs = hints.ttlMs();
+        this.cacheScope = hints.cacheScope();
     }
 
     @Override
     public void apply(ObjectNode response) throws ProcessorException {
         if (response.get("result") instanceof ObjectNode result) {
-            result.put("ttlMs", ttlMs);
-            result.put("cacheScope", cacheScope);
+            if (!result.has("ttlMs")) {
+                result.put("ttlMs", ttlMs);
+            }
+            if (!result.has("cacheScope")) {
+                result.put("cacheScope", cacheScope);
+            }
         } else {
             throw new ProcessorException("Internal error: expected a result tag", INTERNAL_ERROR,
                     buildJsonRpcError(null, INTERNAL_ERROR.getCode(), "Internal error: expected a result tag"));
