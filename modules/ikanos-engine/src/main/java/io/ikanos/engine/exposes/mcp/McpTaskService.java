@@ -33,6 +33,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -209,7 +211,7 @@ public final class McpTaskService {
         // its inbox; without them, it waits again at once, running nothing.
         unfinished.addAll(runner.list(ExecutionStatus.SUSPENDED, RESUME_LIMIT));
         for (ExecutionRecord record : unfinished) {
-            if (!record.labels().containsKey(TASK_ID) || running.containsKey(record.executionId())
+            if (!record.labels().containsKey(TASK_ID) || isRunning(record.executionId())
                     || record.entry() == null) {
                 continue;
             }
@@ -239,20 +241,38 @@ public final class McpTaskService {
 
     private void submit(ExecutionId executionId, Callable<JsonNode> work) {
         ExecutionRequest request = ExecutionRequest.of(executionId, null);
-        Future<?> future = workers.submit(() -> {
+        AtomicReference<Future<?>> self = new AtomicReference<>();
+        FutureTask<Void> future = new FutureTask<>(() -> {
             try {
                 runner.run(request, InputRounds.interpreter(),
                         InputRounds.executor(runner, executionId, draining::get, clock, work));
             } finally {
                 lastUpdated.put(executionId, clock.instant());
-                running.remove(executionId);
+                // This worker's own entry only: a later submit may already have replaced it.
+                running.remove(executionId, self.get());
                 cleanUpIfCancelled(executionId);
             }
-        });
-        if (!future.isDone()) {
-            // Kept for tasks/cancel; a task that already ended has nothing left to interrupt.
-            running.put(executionId, future);
+        }, null);
+        self.set(future);
+        // Registered before it can run, for tasks/cancel and tasks/get: registered after, a
+        // worker that ends first would leave its finished future behind, and the task would
+        // report working forever, its answers unread.
+        running.put(executionId, future);
+        try {
+            workers.execute(future);
+        } catch (RejectedExecutionException e) {
+            running.remove(executionId, future);
+            throw e;
         }
+    }
+
+    /**
+     * Whether a worker runs, or is about to run, a task. A future cancelled before it ran never
+     * removes its own entry, so a finished future counts as no worker.
+     */
+    private boolean isRunning(ExecutionId executionId) {
+        Future<?> future = running.get(executionId);
+        return future != null && !future.isDone();
     }
 
     /**
@@ -310,7 +330,7 @@ public final class McpTaskService {
         ObjectNode node = switch (record.status()) {
             case RUNNING -> describe(taskId, record, "working");
             // Answered and resubmitted, but its worker has not picked it up yet: working.
-            case SUSPENDED -> running.containsKey(record.executionId())
+            case SUSPENDED -> isRunning(record.executionId())
                     ? describe(taskId, record, "working") : waiting(taskId, record);
             case CANCELLED -> describe(taskId, record, "cancelled");
             case COMPLETED, FAILED -> terminal(taskId, record);
@@ -362,7 +382,7 @@ public final class McpTaskService {
                 // Ended one way or another, or still running: either way, go on.
             }
         }
-        if (!running.containsKey(record.executionId()) && !draining.get()) {
+        if (!isRunning(record.executionId()) && !draining.get()) {
             Callable<JsonNode> work = workFor.apply(record.entry(),
                     runner.input(record.executionId()).map(JsonNode.class::cast).orElse(null));
             if (work != null) {

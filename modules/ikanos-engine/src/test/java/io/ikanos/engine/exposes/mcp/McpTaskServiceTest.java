@@ -41,6 +41,7 @@ import org.junit.jupiter.api.Test;
 import io.ikanos.durable.ExecutionId;
 import io.ikanos.durable.ExecutionResult;
 import io.ikanos.durable.core.JournaledRunner;
+import io.ikanos.durable.store.ExecutionRecord;
 import io.ikanos.durable.store.ExecutionStatus;
 import io.ikanos.durable.store.FaultInjectingStores;
 import io.ikanos.durable.store.Stores;
@@ -72,6 +73,32 @@ public class McpTaskServiceTest {
         assertEquals(ExecutionStatus.SUSPENDED, runner.status(round.executionId()).orElseThrow());
 
         // Swept by a process whose clock is past the request state's expiry.
+        new McpTaskService(runner, Clock.offset(Clock.systemUTC(),
+                McpRequestState.TTL.plusMinutes(1)), null).sweepUnanswered();
+
+        assertEquals(ExecutionStatus.FAILED, runner.status(round.executionId()).orElseThrow());
+    }
+
+    @Test
+    void olderSuspendedTasksShouldNotHideAnExpiredInlineCallFromTheSweep() {
+        Stores stores = MemoryStoreProvider.openStores(Clock.systemUTC());
+        JournaledRunner runner = new JournaledRunner(stores, new JsonPayloadCodec(),
+                Clock.systemUTC(), "test");
+        // More suspended tasks than one sweep examines, all older than the inline call.
+        Instant older = Instant.now().minus(Duration.ofDays(1));
+        for (int i = 0; i < InlineRounds.SWEEP_LIMIT; i++) {
+            stores.index().create(new ExecutionRecord(ExecutionId.random(), "test", "task",
+                    ExecutionStatus.SUSPENDED, older, null, Map.of("task", "t" + i)));
+        }
+        InlineRounds.Round round = new McpTaskService(runner, Clock.systemUTC(), null)
+                .inRounds("mrtr:ops/tools/call/ask", "alice", null, null, 0, null, () -> {
+                    throw new InputRequiredException(List.of(
+                            new InputRequiredException.Question(
+                                    "steps/confirm",
+                                    new OperationStepElicitSpec("confirm",
+                                            "Confirm?", Map.of("ok", Map.of("type", "boolean"))))));
+                });
+
         new McpTaskService(runner, Clock.offset(Clock.systemUTC(),
                 McpRequestState.TTL.plusMinutes(1)), null).sweepUnanswered();
 

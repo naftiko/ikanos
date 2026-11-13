@@ -188,10 +188,12 @@ public final class RestInputRequests {
             return;
         }
         if (Method.GET.equals(method)) {
-            ObjectNode questions = record.status() == ExecutionStatus.SUSPENDED
-                    ? inline.waitingOn(id) : null;
-            if (questions != null) {
-                accepted(response, handle, questions);
+            InlineRounds.Round waiting = record.status() == ExecutionStatus.SUSPENDED
+                    ? inline.waiting(id) : null;
+            if (waiting != null && waiting.questions() != null) {
+                // Sealed for the round that asked them: once the operation asked again, the
+                // handle of an earlier round would answer nothing.
+                render(waiting, principal, (ObjectNode) bound, response);
             } else {
                 inline.result(id).ifPresentOrElse(outcome -> write(outcome, response),
                         () -> gone(response));

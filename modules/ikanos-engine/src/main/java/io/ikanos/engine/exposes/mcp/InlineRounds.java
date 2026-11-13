@@ -16,6 +16,7 @@ package io.ikanos.engine.exposes.mcp;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Callable;
@@ -60,7 +61,10 @@ public final class InlineRounds {
     /** Least time between two sweeps of unanswered calls. */
     static final Duration SWEEP_INTERVAL = Duration.ofMinutes(1);
 
-    /** Most unanswered calls examined by one sweep. */
+    /**
+     * Most unanswered calls one sweep examines, counted among the inline calls old enough to have
+     * expired only: other suspended executions, such as tasks, never take a place.
+     */
     static final int SWEEP_LIMIT = 10_000;
 
     private static final ObjectMapper MAPPER = IkanosMappers.json();
@@ -214,10 +218,16 @@ public final class InlineRounds {
                         .equals(record.labels().get(PRINCIPAL)));
     }
 
-    /** The questions the call waits on, or {@code null} when it does not wait. */
-    public ObjectNode waitingOn(ExecutionId executionId) {
+    /**
+     * The round the call waits on now: its questions, which are {@code null} when it does not
+     * wait, the round that asked them, and the expiry of that round, so a state issued again for
+     * them answers that round and expires with it.
+     */
+    public Round waiting(ExecutionId executionId) {
         ExecutionView view = runner.view(executionId);
-        return InputRounds.questions(view, InputRounds.lastRound(view));
+        int last = InputRounds.lastRound(view);
+        return new Round(null, InputRounds.questions(view, last), executionId, last,
+                askedAt(executionId, view).plus(McpRequestState.TTL));
     }
 
     /** The recorded result of a completed call, if any. */
@@ -253,12 +263,19 @@ public final class InlineRounds {
         }
         lastSweep = now;
         Instant cutoff = now.minus(McpRequestState.TTL);
-        for (ExecutionRecord record : runner.list(ExecutionStatus.SUSPENDED, SWEEP_LIMIT)) {
-            // A round asks after the call starts: a call started after the cutoff cannot be
-            // expired, and the journal is read only for the others.
-            if (MRTR.equals(record.labels().get(KIND)) && record.createdAt().isBefore(cutoff)
-                    && InputRounds.askedAt(runner.view(record.executionId()))
-                            .orElse(record.createdAt()).isBefore(cutoff)) {
+        // Filtered before the limit: older suspended tasks or sub-runs, however many, cannot hide
+        // an expired call. Listed oldest first, and a round asks after the call starts: from the
+        // first execution started after the cutoff, none can be expired.
+        List<ExecutionRecord> candidates = runner.list(ExecutionStatus.SUSPENDED, Integer.MAX_VALUE)
+                .stream()
+                .takeWhile(record -> record.createdAt().isBefore(cutoff))
+                .filter(record -> MRTR.equals(record.labels().get(KIND)))
+                .limit(SWEEP_LIMIT)
+                .toList();
+        for (ExecutionRecord record : candidates) {
+            // The journal is read only for the calls started before the cutoff.
+            if (InputRounds.askedAt(runner.view(record.executionId()))
+                    .orElse(record.createdAt()).isBefore(cutoff)) {
                 runner.fail(record.executionId(), new Failure(EXPIRED,
                         "The call's questions went unanswered past its state's expiry"));
                 try {
