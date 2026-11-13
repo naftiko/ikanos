@@ -105,7 +105,9 @@ class DurabilitySchemaValidationTest {
             "{ mode: memory, retention: PT12H }",
             "{ mode: memory, retention: P1DT2H30M }",
             "{ mode: memory, retention: PT0.5S }",
-            "{ mode: local, store: { type: h2, path: ./data/durable } }"})
+            "{ mode: local, store: { type: h2, path: ./data/durable } }",
+            "{ mode: local, store: { path: ./data/durable } }",
+            "{ mode: memory, store: { type: memory } }"})
     void schemaShouldAcceptDurability(String durability) throws Exception {
         List<Error> errors = validateDurability(durability);
         assertTrue(errors.isEmpty(), "Expected no errors for " + durability + ", got: " + errors);
@@ -115,6 +117,8 @@ class DurabilitySchemaValidationTest {
     @ValueSource(strings = {
             "{ mode: distributed }",
             "{ mode: local, store: { type: jdbc, url: jdbc-url } }",
+            "{ mode: local, store: { type: jdbc, path: ./data/durable } }",
+            "{ mode: local, store: { type: postgres, path: ./data/durable } }",
             "{ mode: memory, retention: 7D }",
             "{ mode: memory, retention: P }",
             "{ mode: memory, retention: PT }",
