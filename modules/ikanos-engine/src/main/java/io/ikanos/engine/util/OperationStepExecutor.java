@@ -1068,16 +1068,16 @@ public class OperationStepExecutor {
          * @return the upstream HTTP status, a Restlet connector error code (1000-1099) when the
          *         connection failed, or 0 when no response was received
          */
+        public int getStatusCode() {
+            return statusCode;
+        }
+
         /**
          * @return the body of the upstream HTTP error, or {@code null}; for MCP tools only, never
          *         for a REST answer or a log line
          */
         public String getUpstreamBody() {
             return upstreamBody;
-        }
-
-        public int getStatusCode() {
-            return statusCode;
         }
     }
 
