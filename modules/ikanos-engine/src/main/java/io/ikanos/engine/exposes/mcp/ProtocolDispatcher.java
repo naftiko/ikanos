@@ -17,8 +17,10 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
+import io.ikanos.engine.exposes.AccessControl;
 import io.ikanos.engine.exposes.mcp.handler.McpCallHandler;
 import io.ikanos.engine.exposes.mcp.handler.McpCallHandlersFactory;
+import io.ikanos.engine.exposes.mcp.handler.ToolsCallHandler;
 import io.ikanos.engine.exposes.mcp.model.DispatchResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerFailureResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerSuccessResult;
@@ -43,6 +45,9 @@ import static io.ikanos.engine.exposes.mcp.model.JsonRpcError.INVALID_REQUEST;
 import static io.ikanos.engine.exposes.mcp.model.JsonRpcError.METHOD_NOT_FOUND;
 import static io.ikanos.engine.util.JsonRpcResponseBuilder.buildJsonRpcError;
 import static org.restlet.Context.getCurrentLogger;
+import io.ikanos.spec.exposes.AuthorizationSpec;
+import io.ikanos.spec.exposes.mcp.McpServerSpec;
+import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
 import io.ikanos.spec.util.IkanosMappers;
 
 /**
@@ -70,6 +75,7 @@ public class ProtocolDispatcher {
     private final Map<String, McpCallHandler> mcpHandlers = new HashMap<>();
     private final String capabilityName;
     private final AgentIdentityResolver identityResolver;
+    private final McpServerSpec serverSpec;
 
     /**
      * Writes {@link #SUPPORTED_PROTOCOL_VERSIONS} into {@code node} as a JSON array named
@@ -93,6 +99,7 @@ public class ProtocolDispatcher {
     public ProtocolDispatcher(McpServerAdapter adapter) {
         this.mapper = IkanosMappers.json();
         this.capabilityName = resolveCapabilityName(adapter);
+        this.serverSpec = adapter.getMcpServerSpec();
         this.identityResolver = new AgentIdentityResolver(
                 adapter.getMcpServerSpec() != null ? adapter.getMcpServerSpec().getTrust() : null);
         for (McpCallHandler handler : McpCallHandlersFactory.createAll(adapter)) {
@@ -235,6 +242,26 @@ public class ProtocolDispatcher {
             TelemetryBootstrap.clearMdc();
             TelemetryBootstrap.endSpan(span);
         }
+    }
+
+    /**
+     * Returns the scopes or claims the caller's token must carry for this JSON-RPC request
+     * (#999): for a {@code tools/call} of a tool that declares {@code authorization}, the tool's;
+     * otherwise the adapter's. Only the HTTP transport enforces it, as stdio carries no token.
+     *
+     * @param request the parsed JSON-RPC request
+     * @return the requirement, or {@code null} when none applies
+     */
+    AuthorizationSpec requirementFor(JsonNode request) {
+        if (serverSpec == null) {
+            return null;
+        }
+        McpServerToolSpec tool = null;
+        if (request != null
+                && ToolsCallHandler.METHOD_NAME.equals(request.path("method").asString(""))) {
+            tool = serverSpec.getTools().get(request.path("params").path("name").asString(""));
+        }
+        return AccessControl.effective(serverSpec, tool);
     }
 
     /**

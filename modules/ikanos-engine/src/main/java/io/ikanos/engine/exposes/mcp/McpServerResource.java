@@ -16,6 +16,7 @@ package io.ikanos.engine.exposes.mcp;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
+import io.ikanos.engine.exposes.AccessControl;
 import io.ikanos.engine.exposes.mcp.handler.LegacyInitializeHandler;
 import io.ikanos.engine.exposes.mcp.handler.McpCallHandler;
 import io.ikanos.engine.exposes.mcp.model.DispatchResult;
@@ -81,6 +82,14 @@ public class McpServerResource extends ServerResource {
             if (error.isPresent()) {
                 setStatusCode(HEADER_MISMATCH);
                 return toJsonRepresentation(mapper, buildJsonRpcError(root.get("id"), HEADER_MISMATCH.getCode(), error.get()));
+            }
+
+            // Refuse a token that lacks the tool's (or adapter's) scopes or claims before
+            // dispatching: the OAuth2 restlet in front turns the denial into a 403 with an
+            // insufficient_scope challenge, so the client can step up its authorization (#999).
+            if (!AccessControl.enforce(dispatcher.requirementFor(root), getRequest(),
+                    getResponse())) {
+                return new StringRepresentation("Forbidden", MediaType.TEXT_PLAIN);
             }
 
             // Extract W3C trace context (params._meta takes precedence over the inbound HTTP

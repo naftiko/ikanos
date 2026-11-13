@@ -41,6 +41,7 @@ import io.ikanos.spec.consumes.http.BasicAuthenticationSpec;
 import io.ikanos.spec.consumes.http.BearerAuthenticationSpec;
 import io.ikanos.spec.consumes.http.DigestAuthenticationSpec;
 import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
+import io.ikanos.spec.exposes.AuthorizationSpec;
 import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
 import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
@@ -433,24 +434,64 @@ public class OasExportBuilderTest {
     }
 
     @Test
-    void buildShouldIncludeScopesInSecurityRequirementForOauth2() {
+    void buildShouldNotRequireRecognizedScopesWhenAdapterDeclaresNoAuthorization() {
+        // #999: authentication.scopes only lists the scopes the adapter recognizes
         IkanosSpec spec = minimalSpec("Test", null);
-        RestServerSpec rest = getRestServer(spec);
+        RestServerSpec rest = oauth2Rest(spec);
         addResource(rest, resourceWithOperation("/pets", "pets",
                 "GET", "list-pets", null));
-        OAuth2AuthenticationSpec oauth2 = new OAuth2AuthenticationSpec();
-        oauth2.setTokenEndpoint("https://auth.example.com/oauth/token");
-        oauth2.setScopes(List.of("read:pets", "write:pets"));
-        rest.setAuthentication(oauth2);
 
         OasExportResult result = builder.build(spec, null);
 
-        List<String> requiredScopes =
-                result.getOpenApi().getSecurity().get(0).get("oauth2Auth");
-        assertNotNull(requiredScopes);
-        assertEquals(2, requiredScopes.size());
-        assertTrue(requiredScopes.contains("read:pets"));
-        assertTrue(requiredScopes.contains("write:pets"));
+        assertEquals(List.of(), result.getOpenApi().getSecurity().get(0).get("oauth2Auth"));
+    }
+
+    @Test
+    void buildShouldRequireAdapterAuthorizationScopesInDocumentSecurity() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = oauth2Rest(spec);
+        rest.setAuthorization(new AuthorizationSpec(List.of("read:pets"), null));
+        addResource(rest, resourceWithOperation("/pets", "pets",
+                "GET", "list-pets", null));
+
+        OasExportResult result = builder.build(spec, null);
+
+        assertEquals(List.of("read:pets"),
+                result.getOpenApi().getSecurity().get(0).get("oauth2Auth"));
+        assertNull(result.getOpenApi().getPaths().get("/pets").getGet().getSecurity(),
+                "An operation that inherits the adapter's authorization needs no security of its own");
+    }
+
+    @Test
+    void buildShouldSetOperationSecurityFromItsResourceAuthorization() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = oauth2Rest(spec);
+        RestServerResourceSpec pets = resourceWithOperation("/pets", "pets",
+                "GET", "list-pets", null);
+        pets.setAuthorization(new AuthorizationSpec(List.of("read:pets"), null));
+        addResource(rest, pets);
+
+        OasExportResult result = builder.build(spec, null);
+
+        assertEquals(List.of("read:pets"), result.getOpenApi().getPaths().get("/pets").getGet()
+                .getSecurity().get(0).get("oauth2Auth"));
+    }
+
+    @Test
+    void buildShouldSetOperationSecurityFromItsOwnAuthorizationOverItsResource() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = oauth2Rest(spec);
+        RestServerResourceSpec pets = resourceWithOperation("/pets", "pets",
+                "POST", "add-pet", null);
+        pets.setAuthorization(new AuthorizationSpec(List.of("read:pets"), null));
+        firstOp(pets).setAuthorization(new AuthorizationSpec(List.of("write:pets"),
+                Map.of("roles", List.of("editor"))));
+        addResource(rest, pets);
+
+        OasExportResult result = builder.build(spec, null);
+
+        assertEquals(List.of("write:pets"), result.getOpenApi().getPaths().get("/pets")
+                .getPost().getSecurity().get(0).get("oauth2Auth"));
     }
 
     // ── Edge cases ──
@@ -1081,6 +1122,16 @@ public class OasExportBuilderTest {
     }
 
     /** Add a resource to a RestServerSpec using the Map API. */
+    /** The REST adapter of the spec, authenticated with OAuth 2.1 and two recognized scopes. */
+    private RestServerSpec oauth2Rest(IkanosSpec spec) {
+        RestServerSpec rest = getRestServer(spec);
+        OAuth2AuthenticationSpec oauth2 = new OAuth2AuthenticationSpec();
+        oauth2.setTokenEndpoint("https://auth.example.com/oauth/token");
+        oauth2.setScopes(List.of("read:pets", "write:pets"));
+        rest.setAuthentication(oauth2);
+        return rest;
+    }
+
     private static void addResource(RestServerSpec rest, RestServerResourceSpec resource) {
         rest.getResources().put(resource.getName(), resource);
     }

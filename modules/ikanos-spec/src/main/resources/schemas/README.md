@@ -312,6 +312,7 @@ API exposition configuration.
 | **address** | `string` | Server address. Can be a hostname, IPv4, or IPv6 address. |
 | **port** | `integer` | **REQUIRED**. Port number. MUST be between 1 and 65535. |
 | **authentication** | `Authentication` | Authentication configuration. |
+| **authorization** | `Authorization` | What the caller's validated token must carry to make any call to this adapter, unless a resource or operation declares its own. Needs `authentication: oauth2`. See [3.17.7](#3177-authorization). |
 | **namespace** | `string` | **REQUIRED**. Unique identifier for this exposed API. |
 | **resources** | `ExposedResource[]` | **REQUIRED**. List of exposed resources. |
 
@@ -330,6 +331,7 @@ An exposed resource with **operations** and/or **forward** configuration.
 | **inputParameters** | `ExposedInputParameter[]` | Input parameters attached to the resource. |
 | **operations** | `ExposedOperation[]` | Operations available on this resource. |
 | **forward** | `ForwardConfig` | Forwarding configuration to a consumed namespace. |
+| **authorization** | `Authorization` | What the caller's validated token must carry to make any call to this resource, forwarded calls included, unless an operation declares its own. Replaces the adapter's. |
 
 #### 3.6.3 Rules
 
@@ -617,6 +619,7 @@ All fields available on ExposedOperation:
 | **steps** | `OperationStep[]` | **Orchestrated mode only. REQUIRED** (at least 1 step). Sequence of calls to consumed operations. |
 | **outputParameters** (orchestrated) | `OrchestratedOutputParameter[]` | **Orchestrated mode**. Output parameters with name and type. |
 | **mappings** | `StepOutputMapping[]` | **Orchestrated mode only**. Maps step outputs to the operation's output parameters at the operation level. |
+| **authorization** | `Authorization` | What the caller's validated token must carry to call this operation. Replaces the resource's and the adapter's. Exported to OpenAPI as the operation's `security`. |
 
 #### 3.10.2 Modes (oneOf)
 
@@ -1330,7 +1333,7 @@ with:
 
 ### 3.17 Authentication Object
 
-Defines authentication configuration. Four types are supported: basic, apikey, bearer, and digest.
+Defines authentication configuration. Five types are supported: basic, apikey, bearer, digest, and oauth2. `oauth2` is for exposed adapters only.
 
 #### 3.17.1 Basic Authentication
 
@@ -1416,7 +1419,35 @@ authentication:
   password: "secret_password"
 ```
 
-#### 3.17.5 Rules
+#### 3.17.5 OAuth 2.1 Resource Server
+
+For exposed adapters only. The adapter acts as an OAuth 2.1 resource server: it validates the bearer access token (a JWT) that an external authorization server issued to the caller. On an MCP adapter, it also serves the OAuth Protected Resource Metadata (RFC 9728) that MCP clients use to find the authorization server.
+
+**Fixed Fields:**
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **type** | `string` | **REQUIRED**. MUST be `"oauth2"`. |
+| **authorizationServerUri** | `string` | **REQUIRED**. Issuer URI of the authorization server. The token's `iss` claim must match it, and its metadata (`/.well-known/oauth-authorization-server`, else `/.well-known/openid-configuration`) gives the keys used to check the token's signature. |
+| **resource** | `string` | **REQUIRED**. Canonical URI of this server (RFC 8707). The token's `aud` claim must contain it, unless `audience` is set. |
+| **scopes** | `string[]` | Scopes this server recognizes, advertised in Protected Resource Metadata (`scopes_supported`) and in the OpenAPI export. A token does not need them to be accepted: use [`authorization`](#3177-authorization) to require scopes or claims. |
+| **audience** | `string` | Expected `aud` claim, when it differs from `resource`. |
+| **tokenEndpoint** | `string` | Token endpoint of the authorization server, used as the `tokenUrl` of the OpenAPI export. |
+| **tokenValidation** | `string` | `jwks` (default): check the token's signature with the authorization server's public keys. `introspection` (RFC 7662) is not supported yet: every token is refused. |
+
+A request without a valid token gets `401` with a `WWW-Authenticate: Bearer` challenge. A valid token that does not meet an `authorization` block gets `403` with `error="insufficient_scope"`.
+
+**Example:**
+
+```yaml
+authentication:
+  type: oauth2
+  authorizationServerUri: "https://idp.example.org/realms/app"
+  resource: "https://app.example.org/api"
+  scopes: [records.read, records.write]
+```
+
+#### 3.17.6 Rules
 
 - Only one authentication type can be used per authentication object.
 - On a consumed adapter (`http` or `mcp`), only `basic`, `apikey`, `bearer` and `digest` are allowed: `oauth2` is for exposed adapters only.
@@ -1424,6 +1455,50 @@ authentication:
 - Authentication can be specified at multiple levels (exposes, consumes) with inner levels overriding outer levels.
 - On an exposed adapter, a bearer `token`, or an apikey `key` or `value`, stops the capability from starting when it resolves to an empty value, or when any of its variables is unbound, misspelled or bound to an empty value (so `"sk-{{API_KEY}}"` with an empty `API_KEY` is refused too). The error names the variables, never their values. To expose an adapter without a credential, remove its `authentication` block.
 - On a consumed adapter, a credential that uses a variable with no value (unbound, misspelled, or bound to an empty value) is never sent: the call fails with an error naming the variable, and a warning names it when the capability loads.
+
+#### 3.17.7 Authorization
+
+`authorization` pairs with the adapter's `authentication`: authentication checks who the caller is, and authorization checks what the caller's validated token must carry (scopes, roles, groups) to make this call. It is set per REST adapter, resource or operation, or per MCP adapter or tool, and needs `authentication: oauth2`, which validates the token once for every request. It is not the OAuth or MCP authorization flow, which `authentication: oauth2` sets up. A call whose token does not meet it gets `403` with `WWW-Authenticate: Bearer error="insufficient_scope", scope="..."` (RFC 6750 §3.1), before any upstream request.
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **scopes** | `string[]` | Scopes the token must all carry, read from its `scope` claim (space-separated) and its `scp` claim (a string or an array). Each one must be listed in `authentication.scopes`. |
+| **claims** | `Map<string, string[]>` | For each claim name, the values it may hold: the claim must hold one of them, or contain one when it is an array (`roles`, `groups`). A dotted name that is not a claim of its own is a path into nested claims, such as `realm_access.roles`. |
+
+Rules:
+
+- At least one of `scopes` or `claims` is required, and every listed scope and claim must be met.
+- The nearest level wins and replaces the broader ones: operation, then resource, then REST adapter; tool, then MCP adapter. On an MCP adapter, `authorization` applies to every request, except a `tools/call` for a tool that declares its own. `tools/list` lists every tool to every caller.
+- `authorization` needs `authentication: oauth2`, and is not allowed on the MCP stdio transport. The capability does not start otherwise, or when a required scope is missing from `authentication.scopes`.
+- `authentication.scopes` only lists the scopes the adapter recognizes, advertised in Protected Resource Metadata and the OpenAPI export. A token does not need them to be accepted. Up to 1.0.0-beta9 every listed scope was required on every call: add `authorization` to keep that behavior.
+
+```yaml
+exposes:
+  - type: rest
+    namespace: app
+    port: 8080
+    authentication:
+      type: oauth2
+      authorizationServerUri: "https://idp.example.org/realms/app"
+      resource: "https://app.example.org/api"
+      scopes: [records.read, records.write]
+    resources:
+      records:
+        path: /records/{{id}}
+        authorization:
+          scopes: [records.read]          # inherited by every operation below
+        operations:
+          get-record:
+            method: GET
+            call: domain.get-record
+          update-record:
+            method: PUT
+            authorization:                     # replaces the resource's authorization
+              scopes: [records.write]
+              claims:
+                roles: [editor, admin]
+            call: domain.update-record
+```
 
 ---
 

@@ -22,6 +22,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import tools.jackson.databind.annotation.JsonDeserialize;
 
 import io.ikanos.spec.ResourceSpec;
+import io.ikanos.spec.exposes.AuthorizationSpec;
 
 /**
  * API Resource Specification Element.
@@ -38,6 +39,8 @@ public class RestServerResourceSpec extends ResourceSpec {
             Collections.synchronizedMap(new LinkedHashMap<>());
 
     private final AtomicReference<RestServerForwardSpec> forward = new AtomicReference<>();
+
+    private final AtomicReference<AuthorizationSpec> authorization = new AtomicReference<>();
 
     public RestServerResourceSpec() {
         this(null, null, null, null, null);
@@ -70,4 +73,17 @@ public class RestServerResourceSpec extends ResourceSpec {
 
     public RestServerForwardSpec getForward() { return forward.get(); }
     public void setForward(RestServerForwardSpec forward) { this.forward.set(forward); }
+
+    /**
+     * @return the scopes or claims a call must carry ({@code authorization}), or {@code null} when
+     *         this level declares none.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public AuthorizationSpec getAuthorization() {
+        return authorization.get();
+    }
+
+    public void setAuthorization(AuthorizationSpec authorization) {
+        this.authorization.set(authorization);
+    }
 }

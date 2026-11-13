@@ -18,6 +18,7 @@ import org.restlet.routing.Router;
 import org.restlet.routing.TemplateRoute;
 import org.restlet.routing.Variable;
 import io.ikanos.Capability;
+import io.ikanos.engine.exposes.AccessControl;
 import io.ikanos.engine.exposes.ServerAdapter;
 import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
@@ -32,6 +33,7 @@ public class RestServerAdapter extends ServerAdapter {
 
     public RestServerAdapter(Capability capability, RestServerSpec serverSpec) {
         super(capability, serverSpec);
+        AccessControl.validate(serverSpec, false, AccessControl.declaredIn(serverSpec));
         this.router = new Router();
 
         for (RestServerResourceSpec res : getRestServerSpec().getResources().values()) {

@@ -38,7 +38,9 @@ import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import io.ikanos.engine.exposes.AccessControl;
 import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
+import io.ikanos.spec.exposes.AuthorizationSpec;
 import io.ikanos.spec.util.IkanosMappers;
 
 /**
@@ -133,8 +135,16 @@ class McpOAuth2RestletTest {
 
     @Test
     void forbiddenShouldIncludeResourceMetadataInWwwAuthenticate() throws Exception {
-        OAuth2AuthenticationSpec spec = specWithScopes();
-        McpOAuth2Restlet restlet = buildRestlet(spec);
+        // #999: a tool's authorization refuses the token, and the MCP restlet builds the challenge
+        AuthorizationSpec requirement =
+                new AuthorizationSpec(List.of("tools:execute"), null);
+        Restlet guarded = new Restlet() {
+            @Override
+            public void handle(Request request, Response response) {
+                AccessControl.enforce(requirement, request, response);
+            }
+        };
+        McpOAuth2Restlet restlet = new McpOAuth2Restlet(specWithScopes(), guarded, jwkSet);
 
         String token = signedJwt(new JWTClaimsSet.Builder()
                 .issuer("https://auth.example.com")
@@ -152,6 +162,7 @@ class McpOAuth2RestletTest {
         String rawValue = response.getChallengeRequests().get(0).getRawValue();
         assertTrue(rawValue.contains("resource_metadata="));
         assertTrue(rawValue.contains("insufficient_scope"));
+        assertTrue(rawValue.contains("scope=\"tools:execute\""), rawValue);
     }
 
     @Test

@@ -1156,7 +1156,11 @@
         },
         "authentication": {
           "$ref": "#/$defs/Authentication",
-          "description": "Authentication required on incoming requests to this REST adapter. Protects all resources and operations under this adapter. Supports `basic`, `apikey`, `bearer`, `digest`, and `oauth2` (JWT/introspection)."
+          "description": "Authentication required on incoming requests to this REST adapter. Protects all resources and operations under this adapter. Supports `basic`, `apikey`, `bearer`, `digest`, and `oauth2` (JWT/introspection). With `oauth2`, `authorization` says what the caller's validated token must carry to make a call, per adapter, resource or operation."
+        },
+        "authorization": {
+          "$ref": "#/$defs/Authorization",
+          "description": "What the caller's validated token must carry to make any call to this adapter: scopes, or claims such as roles and groups. A resource or operation that declares its own `authorization` replaces it. Needs `authentication: oauth2`, which validates the token."
         },
         "maxBinarySize": {
           "$ref": "#/$defs/BinarySize",
@@ -1183,6 +1187,11 @@
         "type",
         "port",
         "namespace"
+      ],
+      "allOf": [
+        {
+          "$ref": "#/$defs/AuthorizationNeedsOAuth2"
+        }
       ],
       "additionalProperties": false
     },
@@ -1245,7 +1254,11 @@
         },
         "authentication": {
           "$ref": "#/$defs/Authentication",
-          "description": "Authentication required on incoming MCP requests. Applied at the transport level; all tools, resources, and prompts under this adapter are protected. Use `oauth2` for standards-compliant MCP authorization servers."
+          "description": "Authentication required on incoming MCP requests. Applied at the transport level; all tools, resources, and prompts under this adapter are protected. Use `oauth2` for standards-compliant MCP authorization servers; with it, `authorization` says what the caller's validated token must carry to make a call, per adapter or tool."
+        },
+        "authorization": {
+          "$ref": "#/$defs/Authorization",
+          "description": "What the caller's validated token must carry to make any MCP request to this adapter: scopes, or claims such as roles and groups. A tool that declares its own `authorization` replaces it for its `tools/call`. Needs `authentication: oauth2`, which validates the token. Not allowed with `transport: stdio`."
         },
         "trust": {
           "$ref": "#/$defs/McpTrust",
@@ -1329,6 +1342,11 @@
                 "required": [
                   "trust"
                 ]
+              },
+              {
+                "required": [
+                  "authorization"
+                ]
               }
             ]
           }
@@ -1395,9 +1413,37 @@
               "authentication"
             ]
           }
+        },
+        {
+          "$ref": "#/$defs/AuthorizationNeedsOAuth2"
         }
       ],
       "additionalProperties": false
+    },
+    "AuthorizationNeedsOAuth2": {
+      "$comment": "An adapter-level `authorization` reads the claims of a validated OAuth 2.1 token, so the adapter must use `authentication: oauth2`. The engine and the ruleset (`ikanos-authorization-oauth2`) check the same for nested `authorization`.",
+      "if": {
+        "required": [
+          "authorization"
+        ]
+      },
+      "then": {
+        "properties": {
+          "authentication": {
+            "properties": {
+              "type": {
+                "const": "oauth2"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          }
+        },
+        "required": [
+          "authentication"
+        ]
+      }
     },
     "McpTrust": {
       "type": "object",
@@ -1535,6 +1581,10 @@
         },
         "ui": {
           "$ref": "#/$defs/McpToolUi"
+        },
+        "authorization": {
+          "$ref": "#/$defs/Authorization",
+          "description": "What the caller's validated token must carry to call this tool (`tools/call`): scopes, or claims such as roles and groups. Replaces the adapter's `authorization`. The tool stays listed in `tools/list` for every caller; a call whose token does not meet it gets `403` with `insufficient_scope` and the required scopes, so the client can ask its authorization server for a token that carries them. Needs `authentication: oauth2` on the adapter."
         },
         "outputParameters": true
       },
@@ -2384,6 +2434,10 @@
         },
         "forward": {
           "$ref": "#/$defs/ForwardConfig"
+        },
+        "authorization": {
+          "$ref": "#/$defs/Authorization",
+          "description": "What the caller's validated token must carry to make any call to this resource, forwarded calls included: scopes, or claims such as roles and groups. Replaces the adapter's `authorization`; an operation that declares its own replaces it in turn. Needs `authentication: oauth2` on the adapter."
         }
       },
       "required": [
@@ -2543,6 +2597,10 @@
             "mediaType"
           ],
           "additionalProperties": false
+        },
+        "authorization": {
+          "$ref": "#/$defs/Authorization",
+          "description": "What the caller's validated token must carry to call this operation: scopes, or claims such as roles and groups. Replaces the `authorization` of its resource and adapter. Its scopes are exported to OpenAPI as the operation's `security` requirement. Needs `authentication: oauth2` on the adapter."
         }
       },
       "required": [
@@ -3524,7 +3582,7 @@
           "items": {
             "type": "string"
           },
-          "description": "Scopes this resource server recognizes."
+          "description": "Scopes this resource server recognizes. They are advertised in Protected Resource Metadata (`scopes_supported`) and in the OpenAPI export, but a token does not need them to be accepted: what a call needs is set with `authorization` on the adapter, a resource, an operation or a tool, and every scope used there must be listed here."
         },
         "audience": {
           "type": "string",
@@ -3550,6 +3608,40 @@
         "authorizationServerUri",
         "resource"
       ],
+      "additionalProperties": false
+    },
+    "Authorization": {
+      "type": "object",
+      "description": "What the caller's validated token must carry to make a call to this adapter, resource, operation or tool: authentication (`oauth2`) checks who the caller is, and `authorization` checks what the token must carry (scopes, roles, groups) to make this call. It is not the OAuth or MCP authorization flow, which `authentication: oauth2` sets up. Checked after authentication and before any upstream call: a token that does not meet it gets `403` with `WWW-Authenticate: Bearer error=\"insufficient_scope\"` (RFC 6750 §3.1). Only allowed when the adapter uses `authentication: oauth2` over HTTP. The nearest level wins: a tool's `authorization` replaces its MCP adapter's, an operation's replaces its resource's, and a resource's replaces its REST adapter's. On an MCP adapter, `authorization` applies to every request, except a `tools/call` for a tool that declares its own.",
+      "properties": {
+        "scopes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true,
+          "description": "Scopes the token must all carry, read from its `scope` claim (space-separated) and its `scp` claim (a string or an array). Each one must be listed in the adapter's `authentication.scopes`."
+        },
+        "claims": {
+          "type": "object",
+          "propertyNames": {
+            "minLength": 1
+          },
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "minProperties": 1,
+          "description": "Claims the token must carry, keyed by claim name, each with the values it may hold: the claim must hold at least one of them, or contain one when it is an array (for example `roles` or `groups`). A name with dots that is not a claim of its own is read as a path into nested claims, such as `realm_access.roles`. Every listed claim must be met."
+        }
+      },
+      "minProperties": 1,
       "additionalProperties": false
     },
     "ExposesControl": {
