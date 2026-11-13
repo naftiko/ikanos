@@ -25,13 +25,19 @@ import java.util.logging.Level;
 import org.restlet.Context;
 import org.restlet.Request;
 import org.restlet.Response;
+import org.restlet.data.CacheDirective;
 import org.restlet.data.ChallengeRequest;
 import org.restlet.data.ChallengeScheme;
 import org.restlet.data.Dimension;
 import org.restlet.data.Header;
 import org.restlet.data.Reference;
+import org.restlet.data.Status;
 import org.restlet.engine.header.HeaderConstants;
 import org.restlet.representation.Representation;
+import io.ikanos.spec.IkanosSpec;
+import io.ikanos.spec.exposes.ServerSpec;
+import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
+import io.ikanos.spec.exposes.rest.RestServerSpec;
 
 /**
  * Relays an upstream response's headers to the caller in REST forward mode (#1002).
@@ -58,7 +64,7 @@ public final class ForwardResponseHeaders {
 
     /** Standard headers relayed by default: response properties and entity headers. */
     static final Set<String> RELAYED_BY_DEFAULT = Set.of("location", "retry-after",
-            "cache-control", "vary", "allow", "www-authenticate", "accept-ranges", "age",
+            "cache-control", "vary", "allow", "www-authenticate", "accept-ranges", "age", "date",
             "content-type", "content-encoding", "content-language", "content-location",
             "content-disposition", "content-range", "content-md5", "etag", "last-modified",
             "expires");
@@ -66,10 +72,10 @@ public final class ForwardResponseHeaders {
     /**
      * The other headers Restlet models as properties: its server connector refuses them as raw
      * headers, and the engine does not relay them (the server sets its own {@code Server},
-     * {@code Date} and {@code Via}, {@code Warning} is obsolete (RFC 9111), CORS belongs to the
+     * {@code Via}, {@code Warning} is obsolete (RFC 9111), CORS belongs to the
      * exposed adapter, and the rest are request headers).
      */
-    static final Set<String> NOT_RELAYABLE = Set.of("server", "date", "via", "warning",
+    static final Set<String> NOT_RELAYABLE = Set.of("server", "via", "warning",
             "set-cookie2", "authentication-info", "access-control-allow-credentials",
             "access-control-allow-headers", "access-control-allow-methods",
             "access-control-allow-origin", "access-control-expose-headers",
@@ -117,6 +123,45 @@ public final class ForwardResponseHeaders {
                         + "relay.");
             }
         }
+    }
+
+    /**
+     * Checks the {@code trustedResponseHeaders} of every forward-mode REST resource of a spec,
+     * without loading it, for {@code ikanos validate}. The same check runs when the capability
+     * loads.
+     *
+     * @param spec the capability spec, may be null
+     * @return one message per resource whose list is refused, in declaration order
+     */
+    public static List<String> findErrors(IkanosSpec spec) {
+        List<String> errors = new ArrayList<>();
+        if (spec == null) {
+            return errors;
+        }
+        List<ServerSpec> servers = new ArrayList<>();
+        if (spec.getExposes() != null) {
+            servers.addAll(spec.getExposes());
+        }
+        if (spec.getCapability() != null && spec.getCapability().getExposes() != null) {
+            servers.addAll(spec.getCapability().getExposes());
+        }
+        for (ServerSpec server : servers) {
+            if (!(server instanceof RestServerSpec rest) || rest.getResources() == null) {
+                continue;
+            }
+            for (RestServerResourceSpec resource : rest.getResources().values()) {
+                if (resource.getForward() == null) {
+                    continue;
+                }
+                try {
+                    validate(resource.getForward().getTrustedResponseHeaders(), "REST resource '"
+                            + resource.getPath() + "' in '" + rest.getNamespace() + "'");
+                } catch (IllegalArgumentException e) {
+                    errors.add(e.getMessage());
+                }
+            }
+        }
+        return errors;
     }
 
     /**
@@ -194,6 +239,14 @@ public final class ForwardResponseHeaders {
         if (!nominated.contains("age")) {
             to.setAge(from.getAge());
         }
+        // The upstream's Date is the one its Expires and Age are relative to (RFC 9111 section
+        // 4.2): the server connector only writes its own when none is set
+        if (!nominated.contains("date") && from.getDate() != null) {
+            to.setDate(from.getDate());
+        }
+        if (Status.REDIRECTION_NOT_MODIFIED.equals(from.getStatus())) {
+            keepExpiresOfNotModified(from, to, nominated);
+        }
 
         if (trustedResponseHeaders == null) {
             return;
@@ -217,6 +270,31 @@ public final class ForwardResponseHeaders {
                 }
             }
         }
+    }
+
+    /**
+     * Keeps the freshness an upstream {@code 304} gives through {@code Expires}. Restlet's server
+     * connector writes only {@code ETag} and {@code Content-Location} from the entity of a
+     * {@code 304}, so a cache refreshing its stored response (RFC 9111 section 4.3.4) would never
+     * see the new {@code Expires}. When the answer has no {@code max-age}, the same lifetime is
+     * sent as {@code max-age}: {@code Expires} minus the upstream's {@code Date}, or minus now
+     * when it has none, and at least 0.
+     */
+    static void keepExpiresOfNotModified(Response from, Response to, Set<String> nominated) {
+        Representation entity = from.getEntity();
+        if (nominated.contains("expires") || nominated.contains("cache-control")
+                || entity == null || entity.getExpirationDate() == null) {
+            return;
+        }
+        for (CacheDirective directive : to.getCacheDirectives()) {
+            if (HeaderConstants.CACHE_MAX_AGE.equalsIgnoreCase(directive.getName())) {
+                return;
+            }
+        }
+        long now = from.getDate() != null ? from.getDate().getTime() : System.currentTimeMillis();
+        long seconds = (entity.getExpirationDate().getTime() - now) / 1000;
+        to.getCacheDirectives().add(CacheDirective
+                .maxAge((int) Math.max(0, Math.min(seconds, Integer.MAX_VALUE))));
     }
 
     /**
@@ -348,6 +426,9 @@ public final class ForwardResponseHeaders {
      * dropped. A client can read a scheme-qualified reference without an authority as relative
      * to the gateway (RFC 3986 section 5.2.2, non-strict), outside the exposed resource.</li>
      * <li>A value or base URI that cannot be parsed: dropped.</li>
+     * <li>Under a resource without {@code {{path}}}, which forwards to the base URI only, a value
+     * below the base URI: dropped, since no exposed path routes to it. A value equal to the base
+     * URI is rewritten to the exposed path.</li>
      * <li>A value whose rewritten path would start with {@code //}, which only happens under a
      * resource exposed at the root, such as {@code http://upstream/v1//evil.example/x}: dropped.
      * The caller would read it as a scheme-relative reference to another host.</li>
@@ -409,7 +490,13 @@ public final class ForwardResponseHeaders {
         if (exposed == null) {
             return null;
         }
-        String rewritten = exposed + path.substring(basePath.length());
+        String suffix = path.substring(basePath.length());
+        if (!incoming.getAttributes().containsKey("path") && !suffix.isEmpty()) {
+            // A resource without {{path}} forwards to the base URI only and routes no sub-path,
+            // so a location below the base URI has no exposed counterpart
+            return null;
+        }
+        String rewritten = exposed + suffix;
         if (rewritten.isEmpty()) {
             rewritten = "/";
         }
