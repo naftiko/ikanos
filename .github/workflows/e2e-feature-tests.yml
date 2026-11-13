@@ -27,6 +27,35 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # ── Extension directory ──────────────────────────────────────────────────
+      # Every jar in /app/lib must join the class path, so that an operator can
+      # add a JDBC driver without rebuilding Ikanos (#1050). An entrypoint back on
+      # -jar, in shell form or with a moved jar would drop it silently. The check
+      # runs on this commit's image, built here unless an earlier step built it.
+      - name: Check that a jar in /app/lib joins the class path
+        run: |
+          IMAGE="ikanos-e2e:${GITHUB_SHA}"
+          docker image inspect "$IMAGE" > /dev/null 2>&1 \
+            || docker build -f deployment/Dockerfile -t "$IMAGE" .
+
+          LIB_DIR="$(mktemp -d)"
+          python3 -c 'import sys, zipfile; zipfile.ZipFile(sys.argv[1], "w").writestr("META-INF/MANIFEST.MF", "Manifest-Version: 1.0\n")' \
+            "${LIB_DIR}/ikanos-e2e-extension.jar"
+
+          # -XshowSettings:properties prints java.class.path one entry per line:
+          # keep the property line and its indented continuation lines.
+          OUTPUT="$(docker run --rm \
+            -v "${LIB_DIR}:/app/lib:ro" \
+            -e JDK_JAVA_OPTIONS=-XshowSettings:properties \
+            "$IMAGE" --version 2>&1)" || { echo "$OUTPUT"; exit 1; }
+          CLASS_PATH="$(echo "$OUTPUT" | awk '
+            /^ *java\.class\.path = / { found = 1; print; next }
+            found && / = / { found = 0 }
+            found { print }')"
+          echo "$CLASS_PATH"
+          echo "$CLASS_PATH" | grep -q '/app/lib/ikanos-e2e-extension\.jar' \
+            || { echo "::error::The jar mounted in /app/lib is not on java.class.path"; echo "$OUTPUT"; exit 1; }
+
       # ── Tooling ──────────────────────────────────────────────────────────────
       # jq is pre-installed on ubuntu-latest; no extra tooling needed.
       # run.sh scripts use only bash, curl, jq, and docker.
