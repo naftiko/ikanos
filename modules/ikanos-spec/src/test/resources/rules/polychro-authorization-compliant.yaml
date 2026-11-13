@@ -14,6 +14,7 @@ info:
 capability:
   aggregates:
     - namespace: "records"
+      display: "Records"
       flows:
         read-record:
           description: "Reads a record."

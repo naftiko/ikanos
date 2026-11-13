@@ -21,6 +21,7 @@ binds:
 capability:
   aggregates:
     - namespace: "records"
+      display: "Records"
       flows:
         update-record:
           description: "Updates a record."
