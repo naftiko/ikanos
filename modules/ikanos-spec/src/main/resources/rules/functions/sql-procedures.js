@@ -106,13 +106,15 @@ function checkPositions(namespace, name, procedure, path, dialect, results) {
       claim("out", key, position);
     }
   }
-  const highest = Math.max(0, ...taken.keys());
-  for (let position = 1; position <= highest; position++) {
+  // Report the first gap only, as the engine does: one typo such as position
+  // 100000 must not produce a diagnostic per missing position.
+  for (let position = 1; position <= taken.size; position++) {
     if (!taken.has(position)) {
       results.push({
         message: where + " has no parameter at position " + position + "; positions must be contiguous from 1.",
         path: [...path, "storedProcedure"],
       });
+      break;
     }
   }
 }
