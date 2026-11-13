@@ -242,7 +242,8 @@ public final class StandardRequestHeaders {
      * property the connector writes it from and replaces any value set before. {@code Cookie} is
      * the exception: a cookie set by an earlier source (an {@code apikey}, another input) is
      * replaced by a cookie of the same name in {@code value}, matched case-sensitively, while the
-     * cookies of {@code value} are all kept, in order. Any other header is set as a raw header.
+     * cookies of {@code value} are all kept, in order. Any other header is set as a raw header,
+     * replacing every copy set before, whatever its letter case.
      *
      * @throws IllegalArgumentException when {@code value} is not a valid value of the standard
      *         header {@code name}, or only part of it can be parsed. The request is left unchanged
@@ -253,7 +254,8 @@ public final class StandardRequestHeaders {
     public static void set(Request request, String name, String value) {
         BiConsumer<Request, String> setter = SETTERS.get(name);
         if (setter == null) {
-            request.getHeaders().set(name, value);
+            // Case-insensitive: a client copy in other letter case is replaced, not sent alongside
+            request.getHeaders().set(name, value, true);
             return;
         }
         try {

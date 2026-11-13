@@ -223,6 +223,8 @@ public final class ConsumedAuthentication {
                     + Resolver.describeNamespaceVariables(namespaces)
                     + ". The credential is not sent.");
         }
+        // A caller claim the token does not carry is the caller's, not a configuration error (#998)
+        Resolver.requireCallerValues(template, parameters);
         List<String> empty = Resolver.emptyVariables(template, parameters);
         if (!empty.isEmpty()) {
             throw new IllegalArgumentException("Missing or empty template parameters in the "
