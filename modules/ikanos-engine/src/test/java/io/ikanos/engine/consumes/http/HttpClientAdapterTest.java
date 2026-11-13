@@ -648,6 +648,64 @@ public class HttpClientAdapterTest {
                 new HashMap<>(Map.of("ct", "application/json"))));
     }
 
+    @Test
+    public void prepareShouldKeepTheEncodedBodyMediaTypeWhenAStaticAdapterContentTypeIsSet()
+            throws Exception {
+        String yaml = """
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - type: http
+                      namespace: api
+                      baseUri: "https://probe.example/v1"
+                      inputParameters:
+                        Content-Type:
+                          in: header
+                          value: "application/json"
+                      resources:
+                        files:
+                          path: "/files"
+                          operations:
+                            upload:
+                              method: POST
+                              body:
+                                type: multipartForm
+                                data:
+                                  - name: note
+                                    value: hello
+                            form:
+                              method: POST
+                              body:
+                                type: formUrlEncoded
+                                data:
+                                  a: b
+                            create:
+                              method: POST
+                              body:
+                                type: xml
+                                data: "<a/>"
+                """.formatted(VersionHelper.getSchemaVersion());
+        IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                (HttpClientSpec) spec.getCapability().getConsumes().get(0));
+
+        MediaType multipart = adapter.prepare("upload", new HashMap<>()).getRequest()
+                .getEntity().getMediaType();
+        MediaType form = adapter.prepare("form", new HashMap<>()).getRequest().getEntity()
+                .getMediaType();
+        MediaType xml = adapter.prepare("create", new HashMap<>()).getRequest().getEntity()
+                .getMediaType();
+
+        assertTrue(multipart.equals(MediaType.MULTIPART_FORM_DATA, true)
+                && multipart.getParameters().getFirstValue("boundary") != null,
+                "#1001: a static adapter Content-Type must not replace the multipart media type, "
+                        + "got " + multipart);
+        assertTrue(form.equals(MediaType.APPLICATION_WWW_FORM, true), "#1001: got " + form);
+        assertTrue(xml.equals(MediaType.APPLICATION_JSON, true),
+                "an adapter Content-Type still describes a body the engine does not encode, got "
+                        + xml);
+    }
+
     private HttpClientAdapter pagesAdapter() {
         HttpClientSpec spec = new HttpClientSpec("notion", "https://api.example.com/v1", null);
         HttpClientResourceSpec resource = new HttpClientResourceSpec("/pages/{{page_id}}",

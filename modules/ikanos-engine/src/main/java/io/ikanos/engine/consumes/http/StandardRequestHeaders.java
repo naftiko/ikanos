@@ -98,6 +98,13 @@ public final class StandardRequestHeaders {
      */
     static final String PENDING_CONTENT_TYPE = "io.ikanos.engine.pendingContentType";
 
+    /**
+     * Request attribute set when the engine encoded the body ({@code multipartForm},
+     * {@code formUrlEncoded}): its media type, with the multipart boundary, is then never replaced
+     * by a {@code Content-Type} input, whichever step sets it (#1001).
+     */
+    static final String ENCODED_BODY = "io.ikanos.engine.encodedBody";
+
     /** A media type: {@code type/subtype}, then optional parameters. */
     private static final java.util.regex.Pattern MEDIA_TYPE = java.util.regex.Pattern
             .compile("[!#$%&'*+.^_`|~0-9A-Za-z-]+/[!#$%&'*+.^_`|~0-9A-Za-z-]+\\s*(;.*)?");
@@ -367,11 +374,13 @@ public final class StandardRequestHeaders {
 
     /**
      * Applies to the body of {@code request} the {@code Content-Type} a header input set before
-     * the body existed. Without a body there is nothing to describe, so nothing is sent.
+     * the body existed. Without a body there is nothing to describe, so nothing is sent, and a
+     * body the engine encoded (see {@link #ENCODED_BODY}) keeps its own media type.
      */
     public static void applyContentType(Request request) {
         Object pending = request.getAttributes().get(PENDING_CONTENT_TYPE);
-        if (pending instanceof ContentType contentType && request.getEntity() != null) {
+        if (pending instanceof ContentType contentType && request.getEntity() != null
+                && !Boolean.TRUE.equals(request.getAttributes().get(ENCODED_BODY))) {
             request.getEntity().setMediaType(contentType.getMediaType());
             if (contentType.getCharacterSet() != null) {
                 request.getEntity().setCharacterSet(contentType.getCharacterSet());
