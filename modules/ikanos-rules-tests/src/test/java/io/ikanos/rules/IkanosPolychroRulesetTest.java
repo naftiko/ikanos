@@ -818,6 +818,15 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
+    public void sqlWriteExposureRuleShouldFollowStepsRefsResourcesAndFlows() {
+        ProcessResult result = lintFixtureAtSeverity(
+            "rules/spectral-sql-write-exposure-indirect.yaml", "warn");
+        assertEquals(4, findings(result, "ikanos-sql-write-exposure"),
+            "Expected ikanos-sql-write-exposure on the step, the ref, the resource and the safe"
+                + " flow." + System.lineSeparator() + result.output());
+    }
+
+    @Test
     public void sqlRulesShouldNotFireForBoundCredentialsAndMatchedReadStatements() {
         LintResult result = lintFixtureAtSeverity("rules/polychro-sql-consumes-compliant.yaml",
             "info");
