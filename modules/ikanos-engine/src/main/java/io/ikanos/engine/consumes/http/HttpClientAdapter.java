@@ -359,7 +359,12 @@ public class HttpClientAdapter extends ClientAdapter {
         // the adapter or the resource still describes the bodies of other operations
         if (!encodesBody(clientOp.getBody())) {
             StandardRequestHeaders.applyContentType(clientRequest);
-        } else if (declaresContentType(clientOp.getInputParameters())
+        } else {
+            // Also kept when a later step, such as an apikey header, sets a Content-Type
+            clientRequest.getAttributes().put(StandardRequestHeaders.ENCODED_BODY, Boolean.TRUE);
+        }
+        if (encodesBody(clientOp.getBody())
+                && declaresContentType(clientOp.getInputParameters())
                 && clientRequest.getAttributes().get(
                         StandardRequestHeaders.PENDING_CONTENT_TYPE) instanceof ContentType input
                 && !describesEncodedBody(clientOp.getBody(), input.getMediaType())) {
