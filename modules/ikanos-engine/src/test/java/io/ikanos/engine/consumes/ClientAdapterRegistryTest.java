@@ -103,6 +103,7 @@ class ClientAdapterRegistryTest {
     void registryShouldRegisterBuiltInsFirst() {
         ClientAdapterRegistry registry = new ClientAdapterRegistry(List.of(factory("other")));
 
-        assertEquals(List.of("http", "mcp", "other"), List.copyOf(registry.registeredTypes()));
+        assertEquals(List.of("http", "mcp", "sql", "other"),
+                List.copyOf(registry.registeredTypes()));
     }
 }

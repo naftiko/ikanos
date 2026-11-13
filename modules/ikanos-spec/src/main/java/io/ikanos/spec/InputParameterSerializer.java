@@ -74,6 +74,14 @@ public class InputParameterSerializer extends ValueSerializer<InputParameterSpec
             node.put("wireName", spec.getWireName());
         }
 
+        if (spec.getPlaceholder() != null) {
+            node.put("placeholder", spec.getPlaceholder());
+        }
+
+        if (spec.getSqlType() != null) {
+            node.put("sqlType", spec.getSqlType());
+        }
+
         if (spec.getStyle() != null) {
             node.put("style", spec.getStyle());
         }

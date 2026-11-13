@@ -1,0 +1,60 @@
+# Spectral fixture — consumed SQL rules MUST NOT FIRE:
+#   bound credentials, read statements (with a leading comment, a CTE, a cast,
+#   a placeholder used twice and a colon inside a string literal), and every
+#   input used through its placeholder or its key.
+ikanos: "1.0.0-beta10"
+info:
+  display: "Consumed SQL rules — compliant"
+  description: "Fixture that satisfies every consumed SQL Polychro rule."
+binds:
+  - namespace: erp-db
+    description: "ERP database connection."
+    location: "file:///./shared/secrets.yaml"
+    keys:
+      JDBC_URL: "erp-jdbc-url"
+      DB_USER: "erp-db-user"
+      DB_PASSWORD: "erp-db-password"
+capability:
+  consumes:
+    - type: sql
+      namespace: erp
+      description: "ERP database."
+      connection:
+        url: "{{JDBC_URL}}"
+        username: "{{DB_USER}}"
+        password: "{{DB_PASSWORD}}"
+      procedures:
+        get-customer:
+          description: One customer by id.
+          statement: |
+            -- one customer
+            select id, name, 'a:b' as tag from customers
+            where id = :customerId or legacy_id = :customerId
+          inputParameters:
+            customer-id: { type: string, placeholder: customerId }
+          outputParameters:
+            name: { type: string, value: "$.rows[0].name" }
+        changed-since:
+          description: Customers changed since a time.
+          statement: |
+            with recent as (
+              select id from customers where updated_at >= :since::timestamp
+            )
+            select * from recent
+          inputParameters:
+            since: { type: string, sqlType: TIMESTAMP }
+          outputParameters:
+            customers: { type: array, value: "$.rows" }
+  exposes:
+    - type: mcp
+      namespace: erp-mcp
+      port: 3001
+      tools:
+        get-customer:
+          description: One customer by id.
+          hints: { readOnly: true }
+          call: erp.get-customer
+        changed-since:
+          description: Customers changed since a time.
+          hints: { readOnly: true }
+          call: erp.changed-since
