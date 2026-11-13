@@ -1,0 +1,61 @@
+# Spectral fixture — SQL write procedures reached indirectly.
+# MUST FIRE ikanos-sql-write-exposure (warn) four times:
+#   - an MCP tool claiming readOnly that reaches the write through a step
+#   - an MCP tool claiming readOnly that reaches it through `ref` to a flow
+#       that calls another flow
+#   - an MCP resource that reaches it
+#   - the safe flow `archive-safely`, which reaches it through `orders.settle`
+# MUST NOT FIRE on the flow `settle`, which is not declared safe.
+ikanos: "1.0.0-beta10"
+info:
+  display: "Consumed SQL rules — writes reached indirectly"
+  description: "Fixture where SQL writes are reached through steps, ref, resources and flows."
+capability:
+  consumes:
+    - type: sql
+      namespace: erp
+      description: "ERP database."
+      connection:
+        url: "{{JDBC_URL}}"
+        username: "{{DB_USER}}"
+        password: "{{DB_PASSWORD}}"
+      procedures:
+        mark-shipped:
+          description: Marks one paid order as shipped.
+          readOnly: false
+          statement: update orders set status = 'SHIPPED' where id = :id and status = 'PAID'
+          inputParameters:
+            id: { type: string }
+          outputParameters:
+            updated: { type: number, value: "$.rowCount" }
+  aggregates:
+    - namespace: orders
+      flows:
+        settle:
+          description: Settles one order.
+          call: erp.mark-shipped
+        archive-safely:
+          description: Claims to be safe, but settles an order.
+          semantics: { safe: true }
+          call: orders.settle
+  exposes:
+    - type: mcp
+      namespace: erp-mcp
+      port: 3001
+      tools:
+        ship-in-steps:
+          description: Ships an order in a step.
+          hints: { readOnly: true }
+          steps:
+            ship:
+              type: call
+              call: erp.mark-shipped
+        archive:
+          description: Archives an order through a flow.
+          hints: { readOnly: true }
+          ref: orders.archive-safely
+      resources:
+        shipped-order:
+          description: Reading this ships the order.
+          uri: "erp://orders/shipped"
+          call: erp.mark-shipped
