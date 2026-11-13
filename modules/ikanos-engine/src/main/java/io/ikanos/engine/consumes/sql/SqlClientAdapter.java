@@ -133,6 +133,13 @@ public class SqlClientAdapter extends ClientAdapter {
             }
             procedure.getInputParameters()
                     .forEach(input -> SqlBind.targetType(input, where));
+            java.util.Set<String> declared = new java.util.HashSet<>();
+            for (InputParameterSpec input : procedure.getInputParameters()) {
+                if (!declared.add(placeholderOf(input))) {
+                    throw new IllegalArgumentException(where + " declares placeholder ':"
+                            + placeholderOf(input) + "' on two inputs");
+                }
+            }
             for (String placeholder : statement.placeholders()) {
                 if (inputFor(procedure, placeholder) == null) {
                     throw new IllegalArgumentException(where + " uses placeholder ':"

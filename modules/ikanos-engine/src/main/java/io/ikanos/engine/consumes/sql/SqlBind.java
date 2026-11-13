@@ -57,7 +57,11 @@ record SqlBind(Object value, Integer jdbcType) {
         JDBCType target = targetType(input, where);
         Object value = unwrap(raw);
         if (value == null) {
-            return new SqlBind(null, target != null ? target.getVendorTypeNumber() : null);
+            // a string input without sqlType is still typed: PostgreSQL cannot infer the type
+            // of :name in ":name is null"
+            Integer nullType = target != null ? target.getVendorTypeNumber()
+                    : "string".equals(input.getType()) ? Integer.valueOf(Types.VARCHAR) : null;
+            return new SqlBind(null, nullType);
         }
         if (value instanceof Collection<?> || value instanceof Map<?, ?>) {
             throw new IllegalArgumentException("Input '" + input.getName() + "' of SQL procedure "

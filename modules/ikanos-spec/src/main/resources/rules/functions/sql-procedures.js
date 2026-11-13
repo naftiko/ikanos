@@ -55,6 +55,7 @@ function dialectOf(adapter) {
     nestedComments: name === "postgresql" || name === "sqlserver" || name === "jtds",
     brackets: name === "sqlserver" || name === "jtds" || name === "sqlite",
     mysql: name === "mysql" || name === "mariadb",
+    sqlite: name === "sqlite",
   };
 }
 
@@ -67,6 +68,13 @@ function checkPlaceholders(namespace, name, procedure, path, dialect, results) {
       isObject(input) && typeof input.placeholder === "string" && input.placeholder !== ""
         ? input.placeholder
         : key;
+    if (byPlaceholder.has(placeholder)) {
+      results.push({
+        message: "SQL procedure '" + namespace + "." + name + "' declares placeholder ':" + placeholder + "' on two inputs ('" + byPlaceholder.get(placeholder) + "' and '" + key + "').",
+        path: [...path, "inputParameters", key],
+      });
+      continue;
+    }
     byPlaceholder.set(placeholder, key);
   }
   const where = "SQL procedure '" + namespace + "." + name + "'";
@@ -96,8 +104,8 @@ function placeholders(sql, dialect = {}) {
   while (i < n) {
     const c = sql[i];
     if (startsLineComment(sql, i, dialect.mysql)) {
-      const end = sql.indexOf("\n", i);
-      i = end < 0 ? n : end;
+      const end = dialect.sqlite ? sql.indexOf("\n", i) : sql.slice(i).search(/[\r\n]/);
+      i = end < 0 ? n : dialect.sqlite ? end : i + end;
     } else if (c === "/" && sql[i + 1] === "*") {
       i = endOfBlockComment(sql, i, dialect.nestedComments);
     } else if (c === "[" && dialect.brackets) {

@@ -200,8 +200,7 @@ final class SqlStatement {
                         "statement holds more than one SQL statement; declare one per procedure");
             }
             if (startsLineComment(sql, i, mysql)) {
-                int end = sql.indexOf('\n', i);
-                end = end < 0 ? n : end;
+                int end = endOfLineComment(sql, i, dialect != Dialect.SQLITE);
                 out.append(sql, i, end);
                 i = end;
             } else if (c == '/' && i + 1 < n && sql.charAt(i + 1) == '*') {
@@ -258,6 +257,10 @@ final class SqlStatement {
                 keywords.add(sql.substring(i, end).toUpperCase(Locale.ROOT));
                 out.append(sql, i, end);
                 i = end;
+            } else if (c == '?' && dialect == Dialect.POSTGRESQL) {
+                // a JSONB operator (?, ?|, ?&): pgjdbc reads a lone ? as a bind marker
+                out.append("??");
+                i++;
             } else {
                 out.append(c);
                 i++;
@@ -293,6 +296,20 @@ final class SqlStatement {
     /** @return whether the comment at {@code i} is MySQL's {@code /*!} or MariaDB's {@code /*M!} */
     private static boolean executableComment(String sql, int i) {
         return sql.startsWith("/*!", i) || sql.regionMatches(true, i, "/*M!", 0, 4);
+    }
+
+    /**
+     * @return the index of the line end that closes the comment at {@code i}: a line feed, or
+     *     also a carriage return where the database ends a comment there
+     */
+    private static int endOfLineComment(String sql, int i, boolean carriageReturn) {
+        for (int j = i; j < sql.length(); j++) {
+            char c = sql.charAt(j);
+            if (c == '\n' || (carriageReturn && c == '\r')) {
+                return j;
+            }
+        }
+        return sql.length();
     }
 
     private static boolean startsComment(String sql, int i, boolean mysql) {

@@ -220,4 +220,24 @@ class SqlStatementTest {
         assertNull(SqlStatement.parse("select /*+ MAX_EXECUTION_TIME(1000) */ id /* note */"
                 + " from t", SqlStatement.Dialect.MYSQL).nonReadKeyword());
     }
+
+    @Test
+    void parseShouldEndALineCommentAtACarriageReturn() {
+        assertEquals("DROP", SqlStatement.parse("SELECT 1 -- note\r DROP TABLE customers",
+                SqlStatement.Dialect.SQLSERVER).nonReadKeyword());
+        assertEquals(List.of("id"), SqlStatement.parse("select 1 -- note\r where id = :id",
+                SqlStatement.Dialect.POSTGRESQL).placeholders());
+        assertEquals(List.of(), SqlStatement.parse("select 1 -- note\r :x",
+                SqlStatement.Dialect.SQLITE).placeholders());
+    }
+
+    @Test
+    void parseShouldEscapePostgresqlQuestionMarkOperators() {
+        SqlStatement statement = SqlStatement.parse(
+                "select id from t where payload ? 'k' and tags ?| array['a'] and id = :id",
+                SqlStatement.Dialect.POSTGRESQL);
+
+        assertEquals("select id from t where payload ?? 'k' and tags ??| array['a'] and id = ?",
+                statement.jdbcSql());
+    }
 }

@@ -47,7 +47,10 @@ final class SqlRowDocument {
     static final String ROWS = "rows";
     static final String ROW_COUNT = "rowCount";
 
-    private static final ObjectMapper JSON = IkanosMappers.json();
+    /** Reads JSON columns; decimals inside them keep their precision, as NUMERIC columns do. */
+    private static final ObjectMapper JSON = IkanosMappers.jsonBuilder()
+            .enable(tools.jackson.databind.DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+            .build();
     private static final JsonNodeFactory NODES = JSON.getNodeFactory();
 
     private SqlRowDocument() {
@@ -101,6 +104,12 @@ final class SqlRowDocument {
                 return rs.wasNull() ? NODES.nullNode() : NODES.booleanNode(value);
             }
             case Types.TINYINT, Types.SMALLINT, Types.INTEGER, Types.BIGINT -> {
+                if (type == Types.BIGINT && !meta.isSigned(c)) {
+                    // MySQL BIGINT UNSIGNED can exceed Long.MAX_VALUE
+                    BigDecimal value = rs.getBigDecimal(c);
+                    return value == null ? NODES.nullNode()
+                            : NODES.numberNode(value.toBigIntegerExact());
+                }
                 long value = rs.getLong(c);
                 return rs.wasNull() ? NODES.nullNode() : NODES.numberNode(value);
             }
