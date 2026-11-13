@@ -47,7 +47,7 @@ For the full feature list see [Features](https://shipyard.naftiko.io/ikanos/late
 
 ## New in 1.0 Beta 10
 
-- **Durable execution.** Choose a durability mode on the Control port: `none` (the default, unchanged), `memory`, or `local` (embedded H2). Under `local`, a task that is interrupted resumes after a restart from its last completed step, so a write is not made twice.
+- **Durable execution.** Choose a durability mode on the Control port: `none` (the default, unchanged), `memory`, or `local` (embedded H2). Under `local`, a task that is interrupted resumes after a restart from its last completed step, so a completed write is not made twice. A write still in flight when the process stops runs again on restart.
 - **Questions to the caller.** An `elicit` step asks the caller for input over MCP, through `tasks/update` for tasks, or over REST with a `202 Accepted` and an answer URL. Questions from upstream MCP servers pass through.
 - **Breaking:** a capability declares its bindings under `capability.binds` only. See the [release notes](https://github.com/naftiko/ikanos/releases) for the migration and the full list of changes.
 
