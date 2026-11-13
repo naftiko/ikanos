@@ -245,6 +245,43 @@ class McpServerToolSpecTest {
         assertFalse(spec.hasMockOutputParameters());
     }
 
+    @Test
+    void hasMockOutputParametersShouldStayTrueThroughAYamlRoundTripWhenMapOutputsAreNested() {
+        // An import deep-copies the tool through YAML. An object output carries its static values
+        // on its properties, not on itself, so only the map form marks this tool as a mock.
+        McpServerToolSpec original = readTool("""
+                description: "Mock ship"
+                outputParameters:
+                  ship:
+                    type: "object"
+                    properties:
+                      name:
+                        type: "string"
+                        value: "Northwind"
+                """);
+        tools.jackson.databind.ObjectMapper yaml = io.ikanos.spec.util.IkanosMappers.yaml();
+
+        McpServerToolSpec copy = yaml.readValue(yaml.writeValueAsBytes(original),
+                McpServerToolSpec.class);
+
+        assertTrue(original.hasMockOutputParameters());
+        assertTrue(copy.hasMockOutputParameters());
+        assertEquals("ship", copy.getOutputParameters().get(0).getName());
+    }
+
+    @Test
+    void outputParametersShouldBeWrittenAsAnArrayWhenTheyWereReadAsAnArray() {
+        McpServerToolSpec spec = readTool("""
+                description: "Mapped"
+                outputParameters:
+                  - type: "string"
+                    mapping: "$.message"
+                """);
+        tools.jackson.databind.ObjectMapper json = io.ikanos.spec.util.IkanosMappers.json();
+
+        assertTrue(json.valueToTree(spec).get("outputParameters").isArray());
+    }
+
     private static McpServerToolSpec readTool(String yaml) {
         return io.ikanos.spec.util.IkanosMappers.lenientYaml().readValue(yaml,
                 McpServerToolSpec.class);

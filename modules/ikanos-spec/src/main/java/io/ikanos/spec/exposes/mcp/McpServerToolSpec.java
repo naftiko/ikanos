@@ -21,7 +21,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import tools.jackson.databind.annotation.JsonDeserialize;
 
 import io.ikanos.spec.InputParameterMapDeserializer;
@@ -141,10 +143,35 @@ public class McpServerToolSpec {
     }
 
     public java.util.List<StepOutputMappingSpec> getMappings() { return mappings; }
+    @JsonIgnore
     public List<OutputParameterSpec> getOutputParameters() {
         return outputParameters;
     }
 
+    /**
+     * The output parameters in the form they were written: a map keyed by name for the map form,
+     * otherwise the array. An import deep-copies the tool through YAML, and the form tells a mock
+     * tool apart from one whose call is inferred ({@link #hasMockOutputParameters()}), so the copy
+     * must keep it.
+     *
+     * @return the map or the list to write as {@code outputParameters}
+     */
+    @JsonProperty("outputParameters")
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    Object getOutputParametersAsWritten() {
+        if (!outputParametersKeyed.get()) {
+            return outputParameters;
+        }
+        Map<String, OutputParameterSpec> keyed = new LinkedHashMap<>();
+        for (OutputParameterSpec param : outputParameters) {
+            if (param.getName() == null || keyed.putIfAbsent(param.getName(), param) != null) {
+                return outputParameters;
+            }
+        }
+        return keyed;
+    }
+
+    @JsonProperty("outputParameters")
     @JsonDeserialize(using = io.ikanos.spec.OutputParameterListOrMapDeserializer.class)
     public void setOutputParameters(List<OutputParameterSpec> params) {
         outputParameters.clear();
