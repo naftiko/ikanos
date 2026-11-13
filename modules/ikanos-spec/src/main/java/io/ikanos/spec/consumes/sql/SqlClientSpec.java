@@ -17,6 +17,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import tools.jackson.databind.ValueDeserializer;
 import tools.jackson.databind.annotation.JsonDeserialize;
@@ -39,9 +40,16 @@ public class SqlClientSpec extends ClientSpec {
     /** Value of {@code type} for this spec. */
     public static final String TYPE = "sql";
 
+    /** {@code discovery: verify} — check the connection and every procedure at start. */
+    public static final String DISCOVERY_VERIFY = "verify";
+
+    /** {@code discovery: off} — no start-up connection. */
+    public static final String DISCOVERY_OFF = OFF;
+
     private final AtomicReference<String> description = new AtomicReference<>();
     private final AtomicReference<SqlConnectionSpec> connection = new AtomicReference<>();
     private final AtomicReference<SqlPoolSpec> pool = new AtomicReference<>();
+    private final AtomicReference<String> discovery = new AtomicReference<>(DISCOVERY_VERIFY);
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonDeserialize(using = SqlProcedureMapDeserializer.class)
@@ -83,6 +91,21 @@ public class SqlClientSpec extends ClientSpec {
 
     public void setPool(SqlPoolSpec pool) {
         this.pool.set(pool);
+    }
+
+    /** @return {@code verify} (default) or {@code off} */
+    public String getDiscovery() {
+        return discovery.get();
+    }
+
+    public void setDiscovery(String discovery) {
+        this.discovery.set(normalizeOff(discovery, DISCOVERY_VERIFY));
+    }
+
+    /** @return {@code true} when the adapter must check the database at start */
+    @JsonIgnore
+    public boolean isDiscoveryVerify() {
+        return !DISCOVERY_OFF.equalsIgnoreCase(getDiscovery());
     }
 
     /** @return declared procedures keyed by procedure name */
