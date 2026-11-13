@@ -415,6 +415,42 @@ public class ForwardResponseHeadersTest {
         assertNull(relayed.getEntity().getLocationRef());
     }
 
+    @ParameterizedTest
+    @CsvSource({
+            "http://upstream:9090/v1//evil.example/x, http://upstream:9090/v1",
+            "/v1//evil.example/x, http://upstream:9090/v1",
+            ".//evil.example/x, http://upstream:9090/v1",
+            "http://upstream:9090/v1//, http://upstream:9090/v1",
+            "http://upstream:9090//evil.example/x, http://upstream:9090"})
+    public void relayedLocationShouldDropALocationThatWouldBeSchemeRelativeUnderTheRootRoute(
+            String raw, String baseUri) {
+        assertNull(ForwardResponseHeaders.relayedLocation(raw, baseUri + "/items", baseUri,
+                incoming("http://localhost:8080/items", "items")), raw);
+    }
+
+    @Test
+    public void relayedLocationShouldKeepEmptyPathSegmentsAfterTheFirstUnderTheRootRoute() {
+        assertEquals("/items//42", ForwardResponseHeaders.relayedLocation(
+                BASE_URI + "/items//42", BASE_URI + "/items", BASE_URI,
+                incoming("http://localhost:8080/items", "items")));
+    }
+
+    @Test
+    public void relayShouldDropASchemeRelativeLocationAndContentLocationUnderTheRootRoute() {
+        Response from = upstreamResponse();
+        from.getHeaders().add("Location", BASE_URI + "//evil.example/x");
+        from.getHeaders().add("Content-Location", BASE_URI + "//evil.example/x");
+        StringRepresentation entity = new StringRepresentation("{}");
+        entity.setLocationRef(BASE_URI + "//evil.example/x");
+        from.setEntity(entity);
+
+        Response relayed = relayed(from, List.of(),
+                incoming("http://localhost:8080/items", "items"));
+
+        assertNull(relayed.getLocationRef());
+        assertNull(relayed.getEntity().getLocationRef());
+    }
+
     @Test
     public void relayedLocationShouldDropALocationUnderBaseUriWhenTheExposedPathIsUnknown() {
         assertNull(ForwardResponseHeaders.relayedLocation(BASE_URI + "/items/42",
