@@ -469,7 +469,9 @@ rules:
     then:
       function: pattern
       functionOptions:
-        notMatch: "/(^|[?&;:(,])\\s*(password|pwd)\\s*=(?!\\s*\\{\\{)|\\/\\/[^\\/@?;]*:[^\\/@?;{]+@|:thin:[^@\\/:{]+\\/[^@{]+@/i"
+        # No /.../i literal: Polychro compiles the pattern as written, so letters
+        # match in either case through character classes
+        notMatch: "(^|[?&;:(,])\\s*([Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Pp][Ww][Dd])\\s*=(?!\\s*\\{\\{)|//[^/@?;]*:[^/@?;{]+@|:[Tt][Hh][Ii][Nn]:[^@/:{]+/[^@{]+@"
 
   ikanos-sql-statement-read-only:
     message: "A SQL procedure `statement` must read: start with SELECT, WITH or VALUES."
@@ -486,7 +488,9 @@ rules:
     then:
       function: pattern
       functionOptions:
-        match: "/^(\\s|\\(|--[^\\n]*\\n|#[^\\n]*\\n|\\/\\*[\\s\\S]*?\\*\\/)*(select|with|values)\\b/i"
+        # No /.../i literal: Polychro compiles the pattern as written, so letters
+        # match in either case through character classes
+        match: "^(\\s|\\(|--[^\\n]*\\n|#[^\\n]*\\n|/\\*[\\s\\S]*?\\*/)*([Ss][Ee][Ll][Ee][Cc][Tt]|[Ww][Ii][Tt][Hh]|[Vv][Aa][Ll][Uu][Ee][Ss])\\b"
 
   ikanos-sql-placeholders-bound:
     message: "{{error}}"
