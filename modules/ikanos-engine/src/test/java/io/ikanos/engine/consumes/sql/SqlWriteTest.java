@@ -453,4 +453,26 @@ class SqlWriteTest {
         org.mockito.Mockito.verify(pool).evictConnection(connection);
         org.mockito.Mockito.verify(connection, org.mockito.Mockito.never()).commit();
     }
+
+    @Test
+    void runWriteShouldFailACappedWriteWhoseDriverReportsNoRowCount() throws Exception {
+        SqlClientSpec spec = spec(SHIP_REGION);
+        adapter = new SqlClientAdapter(null, spec);
+        java.sql.Connection connection = org.mockito.Mockito.mock(java.sql.Connection.class);
+        java.sql.PreparedStatement statement =
+                org.mockito.Mockito.mock(java.sql.PreparedStatement.class);
+        org.mockito.Mockito.when(connection.prepareStatement(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(statement);
+        // SQL Server under SET NOCOUNT ON: no result set and no update count
+        org.mockito.Mockito.when(statement.getUpdateCount()).thenReturn(-1);
+
+        ConsumedResult result = adapter.runWrite(connection,
+                SqlClientAdapter.buildProcedures(spec, SqlStatement.Dialect.STANDARD)
+                        .get("ship-region"), java.util.List.of());
+
+        assertFalse(result.isSuccessful());
+        assertEquals(502, result.status());
+        assertTrue(result.failureCause().getMessage().contains("maxAffectedRows"),
+                result.failureCause().getMessage());
+    }
 }
