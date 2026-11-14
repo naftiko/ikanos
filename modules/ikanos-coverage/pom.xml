@@ -42,6 +42,12 @@
             <artifactId>ikanos-tunnel-ziti</artifactId>
             <version>${project.version}</version>
         </dependency>
+
+        <dependency>
+            <groupId>io.ikanos</groupId>
+            <artifactId>ikanos-tool-search</artifactId>
+            <version>${project.version}</version>
+        </dependency>
     </dependencies>
 
     <build>

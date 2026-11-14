@@ -64,10 +64,12 @@ flowchart BT
     engine[ikanos-engine]
     cli[ikanos-cli]
     ziti[ikanos-tunnel-ziti]
+    search[ikanos-tool-search]
     engine --> spec
     cli --> engine
     cli --> spec
     ziti --> engine
+    search --> engine
 ```
 
 | Module | What it owns |
@@ -76,6 +78,7 @@ flowchart BT
 | `modules/ikanos-engine` | The runtime. Loads a spec, builds the adapters, runs requests, and handles telemetry. Usable as a library (see [Extension points](#extension-points)). |
 | `modules/ikanos-cli` | The `ikanos` command (Picocli, `io.ikanos.cli`): `serve`, `validate`, the import/export and scaffolding commands, and the clients of the control port. It builds the shaded `ikanos.jar`, which the jlink package (jar plus a trimmed JRE, installed by `docs/install.sh` and `docs/install.ps1`) and the Docker image both run. |
 | `modules/ikanos-tunnel-ziti` | An optional OpenZiti implementation of the reverse-tunnel SPI. It is discovered with `ServiceLoader` when the jar is on the classpath. |
+| `modules/ikanos-tool-search` | An optional Apache Lucene implementation of the MCP tool search SPI (`ToolSearchIndexFactory`, in `io.ikanos.engine.exposes.mcp.search`): an in-memory BM25 index over an endpoint's tools. It is discovered with `ServiceLoader` when the jar is on the classpath; neither the engine nor the CLI depends on it, so `ikanos.jar` carries no Lucene. Its `-all` jar bundles Lucene for the image's `/app/lib`. |
 | `modules/ikanos-docs` | No code. This document, the tutorial capabilities (`tutorial/`), demos, and test documentation. |
 | `modules/ikanos-coverage` | No code. Aggregates JaCoCo coverage across modules for the quality gate. |
 
@@ -365,9 +368,10 @@ Metrics (`EngineMetrics`) are exposed in Prometheus format by the control port, 
 | A new **step type** | An `OperationStep*Spec` in `ikanos-spec` (like `OperationStepCallSpec`) and a case in `OperationStepExecutor.executeSteps`. |
 | A new **data format** | A `ConversionFormat` value and a converter in `Converter`. |
 | A new **tunnel transport** | Implement `Tunnel` in its own module and register it in `META-INF/services/io.ikanos.engine.consumes.tunnel.Tunnel`, like `ikanos-tunnel-ziti`. |
+| A new **MCP tool search** implementation | Implement `ToolSearchIndexFactory` in its own module and register it in `META-INF/services/io.ikanos.engine.exposes.mcp.search.ToolSearchIndexFactory`, like `ikanos-tool-search`. The engine takes the first provider it finds. |
 | Custom Java logic, when **embedding** the engine | `Capability.builder()` with a `StepHandler` registered by step name. The handler replaces the step of that name. |
 
-**Extension directory.** The Docker image runs `java -cp "/app/ikanos.jar:/app/lib/*" io.ikanos.Cli`, not `java -jar`, so every jar in `/app/lib` joins the class path. An image built `FROM` the Ikanos image adds a JDBC driver, or a module registered through `META-INF/services`, by copying its jar there, with the jars of any runtime dependency that `ikanos.jar` does not already bundle; nothing in the engine changes. `ikanos-tunnel-ziti`, for example, is not shaded: it also needs the OpenZiti SDK (`org.openziti:ziti` and its own runtime dependencies), which the image does not contain. The launchers that `docs/install.sh` and `docs/install.ps1` write still run `java -jar`, which ignores every other class-path entry, so the installed `ikanos` command has no extension directory; running `java -cp "ikanos.jar:lib/*" io.ikanos.Cli` (`;` on Windows) by hand gives the same behaviour as the image.
+**Extension directory.** The Docker image runs `java -cp "/app/ikanos.jar:/app/lib/*" io.ikanos.Cli`, not `java -jar`, so every jar in `/app/lib` joins the class path. An image built `FROM` the Ikanos image adds a JDBC driver, or a module registered through `META-INF/services`, by copying its jar there, with the jars of any runtime dependency that `ikanos.jar` does not already bundle; nothing in the engine changes. `ikanos-tunnel-ziti`, for example, is not shaded: it also needs the OpenZiti SDK (`org.openziti:ziti` and its own runtime dependencies), which the image does not contain. `ikanos-tool-search` instead publishes an `-all` jar that includes Lucene, so that one file is enough. The launchers that `docs/install.sh` and `docs/install.ps1` write still run `java -jar`, which ignores every other class-path entry, so the installed `ikanos` command has no extension directory; running `java -cp "ikanos.jar:lib/*" io.ikanos.Cli` (`;` on Windows) by hand gives the same behaviour as the image.
 
 **Embedding in a Spring Boot 4.1 application: pin `json-path` `3.0.0`.** Output mappings (`Converter.jsonPathExtract`) use the `Jackson3JsonNodeJsonProvider` and `Jackson3MappingProvider` classes, which only exist in `com.jayway.jsonpath:json-path` `3.0.0` and later. Spring Boot 4.1's dependency management sets `json-path` to `2.10.0` and wins over the engine's transitive version, so every tool, operation or flow with a `mapping:` fails at runtime with `NoClassDefFoundError: com/jayway/jsonpath/spi/json/Jackson3JsonNodeJsonProvider`. Building the capability still succeeds; the first call fails. Applications that embed the engine on Spring Boot 4.1 must pin the version:
 
