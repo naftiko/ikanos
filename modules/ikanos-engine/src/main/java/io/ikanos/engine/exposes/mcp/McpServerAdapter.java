@@ -15,6 +15,8 @@ package io.ikanos.engine.exposes.mcp;
 
 import io.ikanos.Capability;
 import io.ikanos.engine.exposes.ServerAdapter;
+import io.ikanos.engine.exposes.mcp.search.ToolSearchCatalog;
+import io.ikanos.engine.exposes.mcp.search.ToolSearchProviders;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
 import io.ikanos.spec.exposes.mcp.McpServerResourceSpec;
@@ -62,6 +64,7 @@ public class McpServerAdapter extends ServerAdapter {
     private final List<McpSchema.Tool> tools;
     private final Map<String, String> toolLabels;
     private final Map<String, List<String>> toolTags;
+    private final ToolSearchCatalog toolSearchCatalog;
     private final ResourceHandler resourceHandler;
     private final PromptHandler promptHandler;
     private final SkillHandler skillHandler;
@@ -94,6 +97,11 @@ public class McpServerAdapter extends ServerAdapter {
             }
             this.toolTags.put(toolSpec.getName(), List.copyOf(toolSpec.getTags()));
         }
+
+        // Tool search: validated here, so a bad toolSearch block fails the load. The index itself
+        // is only built on the first search, by the provider found on the classpath, if any.
+        this.toolSearchCatalog = new ToolSearchCatalog(serverSpec, tools, toolLabels, toolTags,
+                ToolSearchProviders.find());
 
         // Create the resource handler (transport-agnostic)
         this.resourceHandler = new ResourceHandler(capability, serverSpec.getResources(),
@@ -240,6 +248,11 @@ public class McpServerAdapter extends ServerAdapter {
      */
     public Map<String, List<String>> getToolTags() {
         return toolTags;
+    }
+
+    /** @return this endpoint's tool search: its modes, meta-tools, pinned tools and index */
+    public ToolSearchCatalog getToolSearchCatalog() {
+        return toolSearchCatalog;
     }
 
     public Map<String, String> getToolLabels() {
