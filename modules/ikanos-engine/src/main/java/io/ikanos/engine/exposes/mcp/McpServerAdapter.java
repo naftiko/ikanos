@@ -191,6 +191,8 @@ public class McpServerAdapter extends ServerAdapter {
      * Initialize the stdio transport (stdin/stdout JSON-RPC).
      */
     private void initStdioTransport() {
+        // stdio has no authentication chain: refuse awsSigV4 here, as buildServerChain does
+        refuseAwsSigV4();
         ProtocolDispatcher dispatcher = new ProtocolDispatcher(this);
         this.stdioHandler.set(new StdioJsonRpcHandler(dispatcher));
     }

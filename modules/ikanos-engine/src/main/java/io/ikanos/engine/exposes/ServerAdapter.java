@@ -195,12 +195,7 @@ public abstract class ServerAdapter extends Adapter {
             return next;
         }
 
-        if ("awsSigV4".equals(authentication.getType())) {
-            // It signs the calls a capability makes; verifying them on an exposed adapter is not
-            // supported, so refuse it at start rather than fail every request (#954).
-            throw new IllegalArgumentException("awsSigV4 authentication of " + describe()
-                    + " is not supported: it only signs the calls to a consumed adapter.");
-        }
+        refuseAwsSigV4();
 
         if ("oauth2".equals(authentication.getType())
                 && authentication instanceof OAuth2AuthenticationSpec oauth2) {
@@ -218,11 +213,30 @@ public abstract class ServerAdapter extends Adapter {
         return new ServerAuthenticationRestlet(authentication, next, getCapability().getBindings());
     }
 
-    /** How errors name this adapter, such as "the rest adapter 'shop' on port 8080". */
+    /**
+     * Refuses an {@code awsSigV4} authentication on this exposed adapter. It signs the calls a
+     * capability makes; verifying them on an exposed adapter is not supported, so refuse it at
+     * start rather than fail every request, or ignore it on a transport that has no
+     * authentication chain, such as MCP stdio (#954).
+     */
+    protected void refuseAwsSigV4() {
+        AuthenticationSpec authentication = getSpec().getAuthentication();
+        if (authentication != null && "awsSigV4".equals(authentication.getType())) {
+            throw new IllegalArgumentException("awsSigV4 authentication of " + describe()
+                    + " is not supported: it only signs the calls to a consumed adapter.");
+        }
+    }
+
+    /**
+     * How errors name this adapter, such as "the rest adapter 'shop' on port 8080", or "the mcp
+     * adapter 'tools'" when it has no port (stdio).
+     */
     String describe() {
         String namespace = getSpec().getNamespace();
+        int port = getSpec().getPort();
         return "the " + getSpec().getType() + " adapter"
-                + (namespace != null ? " '" + namespace + "'" : "") + " on port " + getSpec().getPort();
+                + (namespace != null ? " '" + namespace + "'" : "")
+                + (port > 0 ? " on port " + port : "");
     }
 
     /**
