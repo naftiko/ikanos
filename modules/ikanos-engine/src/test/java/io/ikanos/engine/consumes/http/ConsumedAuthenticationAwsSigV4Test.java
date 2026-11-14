@@ -26,7 +26,9 @@ import org.junit.jupiter.api.Test;
 import org.restlet.Request;
 import org.restlet.data.ChallengeResponse;
 import org.restlet.data.Method;
+import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.consumes.http.AwsSigV4AuthenticationSpec;
+import io.ikanos.spec.consumes.http.HttpClientSpec;
 
 /**
  * How {@link ConsumedAuthentication} turns an {@code awsSigV4} authentication into the challenge
@@ -41,6 +43,13 @@ class ConsumedAuthenticationAwsSigV4Test {
         spec.setAccessKeyId("{{secrets.S3_ACCESS_KEY_ID}}");
         spec.setSecretAccessKey("{{secrets.S3_SECRET_ACCESS_KEY}}".toCharArray());
         spec.setRegion(region);
+        return spec;
+    }
+
+    private static IkanosSpec capability(AwsSigV4AuthenticationSpec authentication) {
+        IkanosSpec spec = new IkanosSpec();
+        spec.getConsumes().add(new HttpClientSpec("store", "http://minio.example/documents",
+                authentication));
         return spec;
     }
 
@@ -124,5 +133,12 @@ class ConsumedAuthenticationAwsSigV4Test {
                 List.copyOf(ConsumedAuthentication.credentials(spec, "store").keySet()));
         assertFalse(ConsumedAuthentication.canRender(spec, BOUND),
                 "An unbound region should keep the credential from being rendered");
+    }
+
+    /** #957 review: awsSigV4 is a type the engine sends, so a capability with it loads. */
+    @Test
+    void isAcceptedWhenTheCapabilityLoads() {
+        assertEquals(List.of(),
+                ConsumedAuthentication.findUnsupported(capability(spec("us-east-1"))));
     }
 }
