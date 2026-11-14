@@ -111,9 +111,16 @@ class FreshnessTest {
         assertThat(parse(null, null, null, null)).isEqualTo(Freshness.UNKNOWN);
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"max-age=soon", "max-age=-1", "max-age", "s-maxage=-1"})
+    void parseShouldTreatAnInvalidMaxAgeAsStale(String cacheControl) {
+        assertThat(parse(cacheControl, null, null, null).ttlMs()).isZero();
+    }
+
     @Test
-    void parseShouldIgnoreAnInvalidMaxAge() {
-        assertThat(parse("max-age=soon", null, null, null).ttlMs()).isNull();
+    void parseShouldNotFallBackToExpiresWhenMaxAgeIsInvalid() {
+        assertThat(parse("max-age=-1", "Thu, 12 Nov 2026 11:00:00 GMT", DATE, null).ttlMs())
+                .isZero();
     }
 
     @Test
@@ -206,6 +213,14 @@ class FreshnessTest {
         Freshness freshness = Freshness.parse("max-age=300", null, null, "290", NOW - 15_000L, NOW);
 
         assertThat(freshness.ttlMs()).isZero();
+    }
+
+    @Test
+    void parseShouldDeductTheResponseDelayWhenAgeIsAbsent() {
+        // RFC 9111 4.2.3: corrected_age_value = age_value (0 without Age) + response_delay
+        Freshness freshness = Freshness.parse("max-age=60", null, null, null, NOW - 10_000L, NOW);
+
+        assertThat(freshness.ttlMs()).isEqualTo(50_000L);
     }
 
     @Test

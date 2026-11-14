@@ -37,7 +37,8 @@ public record Freshness(Long ttlMs, boolean privateOnly) {
      * Read freshness from raw response header values.
      *
      * <ul>
-     * <li>{@code no-store} and {@code no-cache} give 0.</li>
+     * <li>{@code no-store} and {@code no-cache} give 0, and so does an invalid {@code max-age} or
+     * {@code s-maxage} such as {@code -1} (§4.2.1: invalid freshness means stale).</li>
      * <li>The lifetime is {@code max-age}, or {@code s-maxage} when it is shorter (the result may
      * be served by a shared cache, so the more conservative one applies), else {@code Expires}
      * minus {@code Date} (or now when {@code Date} is absent). An {@code Expires} that cannot be
@@ -90,9 +91,9 @@ public record Freshness(Long ttlMs, boolean privateOnly) {
             switch (name) {
                 case "no-store", "no-cache" -> noCache = true;
                 case "private" -> privateOnly = true;
-                case "max-age" -> maxAge = maxAge != null ? maxAge : seconds(value(directive));
+                case "max-age" -> maxAge = maxAge != null ? maxAge : lifetime(value(directive));
                 case "s-maxage" -> sharedMaxAge =
-                        sharedMaxAge != null ? sharedMaxAge : seconds(value(directive));
+                        sharedMaxAge != null ? sharedMaxAge : lifetime(value(directive));
                 default -> {
                     // other directives do not change freshness
                 }
@@ -115,10 +116,11 @@ public record Freshness(Long ttlMs, boolean privateOnly) {
             return new Freshness(null, privateOnly);
         }
         // §4.2.3: the current age is at least the time since the upstream's Date, even when Age
-        // is absent or smaller (a clock ahead of ours gives no negative age)
+        // is absent or smaller (a clock ahead of ours gives no negative age); an absent Age counts
+        // as 0, so the response delay is still deducted
         Long ageMillis = seconds(age);
         long elapsed = dateAt != null ? Math.max(0L, responseMillis - dateAt) : 0L;
-        long correctedAge = ageMillis == null ? 0L
+        long correctedAge = ageMillis == null ? responseDelay
                 : ageMillis > Long.MAX_VALUE - responseDelay ? Long.MAX_VALUE
                         : ageMillis + responseDelay;
         long currentAge = Math.max(correctedAge, elapsed);
@@ -189,6 +191,16 @@ public record Freshness(Long ttlMs, boolean privateOnly) {
     private static String value(String directive) {
         int equals = directive.indexOf('=');
         return equals < 0 ? null : directive.substring(equals + 1).trim();
+    }
+
+    /**
+     * A {@code max-age} or {@code s-maxage} value as milliseconds; 0 when it is missing or invalid
+     * ({@code -1}, {@code soon}), since invalid freshness information means stale (RFC 9111
+     * 4.2.1).
+     */
+    private static Long lifetime(String value) {
+        Long millis = seconds(value);
+        return millis != null ? millis : 0L;
     }
 
     /**
