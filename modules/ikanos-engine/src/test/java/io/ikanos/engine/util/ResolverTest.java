@@ -312,6 +312,27 @@ public class ResolverTest {
       }
 
       @Test
+      void resolveInputParameterFromRequestShouldRejectTrailingJsonAfterAnObjectQueryParameter() {
+        // {"flag":"NO"} {"status":"active"}: only the first document would reach the operation
+        Request request = new Request(Method.GET, "https://example.com/ships?filter="
+            + "%7B%22flag%22%3A%22NO%22%7D%20%7B%22status%22%3A%22active%22%7D");
+
+        assertThrows(IllegalArgumentException.class, () -> Resolver
+            .resolveInputParameterFromRequest(queryInput("filter", "object"), request, null,
+                MAPPER));
+      }
+
+      @Test
+      void resolveInputParameterFromRequestShouldRejectTextAfterAnObjectQueryParameter() {
+        Request request = new Request(Method.GET,
+            "https://example.com/ships?filter=%7B%22flag%22%3A%22NO%22%7Dxyz");
+
+        assertThrows(IllegalArgumentException.class, () -> Resolver
+            .resolveInputParameterFromRequest(queryInput("filter", "object"), request, null,
+                MAPPER));
+      }
+
+      @Test
       void resolveInputParameterFromRequestShouldRejectAQuotedJsonStringForAnObjectQueryParameter() {
         Request request = new Request(Method.GET, "https://example.com/ships?filter=%22NO%22");
 
