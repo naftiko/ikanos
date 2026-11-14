@@ -82,7 +82,8 @@ class McpCacheHintsIntegrationTest {
     }
 
     @Test
-    void adapterShouldFailToStartWhenAResourceTtlIsNegative() throws Exception {
+    void aNegativeResourceTtlShouldStartWithAWarningNamingTheResource() throws Exception {
+        // SEP-2549: a negative ttlMs is treated as 0, on a resource as on the adapter
         String yaml = """
                 ikanos: "%s"
                 capability:
@@ -108,8 +109,13 @@ class McpCacheHintsIntegrationTest {
                 """.formatted(IKANOS, tempDir.toUri());
         IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
 
-        assertThatThrownBy(() -> new Capability(spec))
-                .hasStackTraceContaining("MCP resource 'guide': MCP ttlMs must be zero or more");
+        try (LogCapture logs = new LogCapture()) {
+            new Capability(spec);
+
+            assertThat(logs.messages()).anySatisfy(message -> assertThat(message)
+                    .contains("bad-ttl").contains("resource 'guide'").contains("ttlMs -1")
+                    .contains("sending 0"));
+        }
     }
 
     @Test
