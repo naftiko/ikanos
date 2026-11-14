@@ -83,7 +83,8 @@ public class ExportOpenApiCommand implements Callable<Integer> {
             }
 
             // Expand the shared definitions the way the engine does at load time (#1000), so the
-            // exported contract is the inline equivalent: no set or schema reference survives.
+            // exported contract is the inline equivalent: no set or schema reference survives, and
+            // a ref operation exports the inputs its flow takes from input parameter sets (#1039).
             DefinitionsExpander.Result definitions = DefinitionsExpander.expandAll(IkanosSpec);
             for (String warning : definitions.warnings()) {
                 System.err.println("Warning: " + warning);

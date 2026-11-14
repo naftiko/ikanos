@@ -29,6 +29,7 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.SpecVersion;
+import io.swagger.v3.oas.models.parameters.Parameter;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.ikanos.spec.CapabilitySpec;
 import io.ikanos.spec.InfoSpec;
@@ -1491,6 +1492,207 @@ public class OasExportBuilderTest {
 
         assertNotNull(result.getOpenApi().getPaths().get("/crew/{ship-id}"),
                 result.getOpenApi().getPaths().keySet().toString());
+    }
+
+    // ── Inputs inherited from an aggregate flow (#1039) ──
+
+    /** The Reusable Definitions design's §6.2 example, plus a search and a create operation. */
+    private static final String REF_CAPABILITY = """
+            ikanos: "%s"
+            capability:
+              aggregates:
+                - namespace: fleet
+                  flows:
+                    get-ship:
+                      inputParameters:
+                        imo:
+                          type: string
+                          required: true
+                          description: IMO number of the ship
+                    search-ships:
+                      inputParameters:
+                        flag:
+                          type: string
+                    register-ship:
+                      inputParameters:
+                        imo:
+                          type: string
+                          required: true
+                        name:
+                          type: string
+              exposes:
+                - type: rest
+                  port: 8080
+                  namespace: fleet-api
+                  resources:
+                    ship:
+                      path: "/ships/{imo}"
+                      operations:
+                        get:
+                          method: GET
+                          ref: fleet.get-ship
+                    ships:
+                      path: /ships
+                      operations:
+                        search:
+                          method: GET
+                          ref: fleet.search-ships
+                        register:
+                          method: POST
+                          ref: fleet.register-ship
+                    own:
+                      path: /own
+                      operations:
+                        get:
+                          method: GET
+                          ref: fleet.get-ship
+                          inputParameters:
+                            code:
+                              in: query
+                              type: string
+            """.formatted(VersionHelper.getSchemaVersion());
+
+    private OpenAPI exportRefCapability() {
+        IkanosSpec spec = IkanosMappers.lenientYaml().readValue(REF_CAPABILITY, IkanosSpec.class);
+        return builder.build(spec, null).getOpenApi();
+    }
+
+    @Test
+    void buildShouldExportAFlowInputNamedInThePathAsARequiredPathParameter() {
+        Operation op = exportRefCapability().getPaths().get("/ships/{imo}").getGet();
+
+        assertNotNull(op.getParameters(), "the §6.2 example must export the flow's imo");
+        assertEquals(1, op.getParameters().size());
+        assertEquals("imo", op.getParameters().get(0).getName());
+        assertEquals("path", op.getParameters().get(0).getIn());
+        assertTrue(op.getParameters().get(0).getRequired());
+        assertEquals("IMO number of the ship", op.getParameters().get(0).getDescription());
+    }
+
+    @Test
+    void buildShouldExportAnOptionalFlowInputAsAnOptionalQueryParameterForGet() {
+        Operation op = exportRefCapability().getPaths().get("/ships").getGet();
+
+        assertEquals(1, op.getParameters().size());
+        assertEquals("flag", op.getParameters().get(0).getName());
+        assertEquals("query", op.getParameters().get(0).getIn());
+        assertFalse(op.getParameters().get(0).getRequired(),
+                "a flow input is optional unless it declares required: true");
+    }
+
+    @Test
+    void buildShouldExportFlowInputsAsJsonBodyMembersForPost() {
+        Operation op = exportRefCapability().getPaths().get("/ships").getPost();
+
+        assertNull(op.getParameters());
+        @SuppressWarnings("rawtypes")
+        io.swagger.v3.oas.models.media.Schema body =
+                op.getRequestBody().getContent().get("application/json").getSchema();
+        assertEquals(List.of("imo", "name"), List.copyOf(body.getProperties().keySet()));
+        assertEquals(List.of("imo"), body.getRequired());
+    }
+
+    @Test
+    void buildShouldExportOnlyTheOperationsOwnInputsWhenItDeclaresSome() {
+        Operation op = exportRefCapability().getPaths().get("/own").getGet();
+
+        assertEquals(1, op.getParameters().size());
+        assertEquals("code", op.getParameters().get(0).getName());
+    }
+
+    @Test
+    void buildInputSchemaShouldGiveAnArrayItsItems() {
+        InputParameterSpec ids = input("ids", "array");
+        ids.setItems(input(null, "string"));
+
+        io.swagger.v3.oas.models.media.Schema<?> schema = builder.buildInputSchema(ids);
+
+        assertEquals("array", schema.getType());
+        assertEquals("string", schema.getItems().getType());
+    }
+
+    @Test
+    void buildInputSchemaShouldKeepIntegerTypeAndBounds() {
+        InputParameterSpec limit = input("limit", "integer");
+        limit.setMinimum(1);
+        limit.setMaximum(100);
+
+        io.swagger.v3.oas.models.media.Schema<?> schema = builder.buildInputSchema(limit);
+
+        assertEquals("integer", schema.getType());
+        assertEquals(0, new java.math.BigDecimal("1").compareTo(schema.getMinimum()));
+        assertEquals(0, new java.math.BigDecimal("100").compareTo(schema.getMaximum()));
+    }
+
+    @Test
+    void buildInputSchemaShouldKeepEnumAndFormat() {
+        InputParameterSpec status = input("status", "string");
+        status.getEnumeration().addAll(List.of("active", "laid-up"));
+        InputParameterSpec since = input("since", "string");
+        since.setFormat("date");
+
+        assertEquals(List.of("active", "laid-up"), builder.buildInputSchema(status).getEnum());
+        assertEquals("date", builder.buildInputSchema(since).getFormat());
+    }
+
+    @Test
+    void buildInputSchemaShouldKeepObjectPropertiesAndRequiredNames() {
+        InputParameterSpec filter = input("filter", "object");
+        filter.getProperties().add(input("flag", "string"));
+        filter.getProperties().add(input("tonnage", "number"));
+        filter.getRequired().add("flag");
+        filter.setAdditionalProperties(false);
+
+        io.swagger.v3.oas.models.media.Schema<?> schema = builder.buildInputSchema(filter);
+
+        assertEquals(List.of("flag", "tonnage"), List.copyOf(schema.getProperties().keySet()));
+        assertEquals("number", schema.getProperties().get("tonnage").getType());
+        assertEquals(List.of("flag"), schema.getRequired());
+        assertEquals(Boolean.FALSE, schema.getAdditionalProperties());
+    }
+
+    @Test
+    void buildInputSchemaShouldTypeNumericAndBooleanEnumValues() {
+        InputParameterSpec level = input("level", "integer");
+        level.getEnumeration().addAll(List.of("1", "2"));
+        InputParameterSpec ratio = input("ratio", "number");
+        ratio.getEnumeration().add("0.5");
+        InputParameterSpec active = input("active", "boolean");
+        active.getEnumeration().add("true");
+
+        assertEquals(List.of(java.math.BigInteger.ONE, java.math.BigInteger.TWO),
+                builder.buildInputSchema(level).getEnum());
+        assertEquals(List.of(new java.math.BigDecimal("0.5")),
+                builder.buildInputSchema(ratio).getEnum());
+        assertEquals(List.of(Boolean.TRUE), builder.buildInputSchema(active).getEnum());
+    }
+
+    private static InputParameterSpec input(String name, String type) {
+        InputParameterSpec input = new InputParameterSpec();
+        input.setName(name);
+        input.setType(type);
+        return input;
+    }
+
+    @Test
+    void buildShouldWarnWhenTheFlowOfARefOperationIsNotDeclaredInline() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerResourceSpec resource = resourceWithOperation("/ships/{{imo}}", "ship",
+                "GET", "get-ship", null);
+        firstOp(resource).setRef("fleet.get-ship");
+        addResource(getRestServer(spec), resource);
+
+        OasExportResult result = builder.build(spec, null);
+
+        // No flow input; only the required string path parameter every variable gets (#978)
+        List<Parameter> params =
+                result.getOpenApi().getPaths().get("/ships/{imo}").getGet().getParameters();
+        assertEquals(1, params.size());
+        assertEquals("imo", params.get(0).getName());
+        assertEquals("path", params.get(0).getIn());
+        assertEquals("string", params.get(0).getSchema().getType());
+        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("fleet.get-ship")),
+                result.getWarnings().toString());
     }
 
     // ── Utility methods ──

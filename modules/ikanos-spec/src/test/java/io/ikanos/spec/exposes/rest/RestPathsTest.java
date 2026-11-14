@@ -15,6 +15,8 @@ package io.ikanos.spec.exposes.rest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class RestPathsTest {
@@ -33,5 +35,17 @@ class RestPathsTest {
     @Test
     void toUriTemplateShouldReturnNullForANullPath() {
         assertNull(RestPaths.toUriTemplate(null));
+    }
+
+    @Test
+    void placeholdersShouldListTheNamesOfBothFormsInOrder() {
+        assertEquals(List.of("fleet-id", "imo", "crew_id"), List.copyOf(
+                RestPaths.placeholders("/fleets/{{fleet-id}}/ships/{imo}/crew/{{crew_id}}")));
+    }
+
+    @Test
+    void placeholdersShouldBeEmptyForAPathWithoutPlaceholders() {
+        assertTrue(RestPaths.placeholders("/ships").isEmpty());
+        assertTrue(RestPaths.placeholders(null).isEmpty());
     }
 }

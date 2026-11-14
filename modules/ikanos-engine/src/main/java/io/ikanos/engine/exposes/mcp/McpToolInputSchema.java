@@ -73,11 +73,7 @@ final class McpToolInputSchema {
             property.put("description", param.getDescription());
         }
         if (!param.getEnumeration().isEmpty()) {
-            List<Object> values = new ArrayList<>();
-            for (String value : param.getEnumeration()) {
-                values.add(InputDefaults.typedEnumValue(type, value));
-            }
-            property.put("enum", values);
+            property.put("enum", param.typedEnumeration());
         }
         if (!param.getExamples().isEmpty()) {
             List<Object> values = new ArrayList<>();
