@@ -1,0 +1,86 @@
+# Labeled queries for the offline MCP tool search benchmark (ToolSearchBenchmarkTest).
+#
+# Each entry is a task phrased the way a model asks search-tools for help, and the tool of the
+# 40-tool operations catalog (mcp/mcp-tool-catalog-capability.yaml) that serves it. Queries are
+# paraphrases: they avoid copying the tool name or description, so lexical retrieval is not
+# flattered. Destructive tools are pinned in deferred mode and never searched, so they are not
+# targets here.
+queries:
+  - query: "what is the status of INC-1042"
+    expected: get-incident
+  - query: "show me the timeline and owner of an outage ticket"
+    expected: get-incident
+  - query: "which incidents are still unresolved"
+    expected: list-open-incidents
+  - query: "open a new incident for the checkout service and wake up whoever is on call"
+    expected: create-incident
+  - query: "stop the pager from escalating this incident"
+    expected: acknowledge-incident
+  - query: "close the incident, the fix is deployed"
+    expected: resolve-incident
+  - query: "write an update in the incident log"
+    expected: add-incident-note
+  - query: "how many replicas are ready for each deployment in the payments namespace"
+    expected: list-deployments
+  - query: "is the rollout of the api deployment finished"
+    expected: get-deployment-status
+  - query: "bounce the web deployment"
+    expected: restart-deployment
+  - query: "restart pods of the worker deployment"
+    expected: restart-deployment
+  - query: "add more replicas to handle the traffic spike"
+    expected: scale-deployment
+  - query: "go back to the previous version of the deployment"
+    expected: rollback-deployment
+  - query: "which pods keep restarting"
+    expected: list-pods
+  - query: "tail the output of a container"
+    expected: get-pod-logs
+  - query: "grep logs across all services for timeout errors in the last hour"
+    expected: search-logs
+  - query: "how many 500 errors is the checkout service returning"
+    expected: get-error-rate
+  - query: "p99 response time of the search service"
+    expected: get-latency-percentiles
+  - query: "what alerts are firing right now"
+    expected: list-alerts
+  - query: "mute this noisy alert for two hours"
+    expected: silence-alert
+  - query: "who is the on call engineer for the platform team"
+    expected: get-on-call
+  - query: "send a page to alice about the database"
+    expected: page-engineer
+  - query: "let bob take the on call shift tonight"
+    expected: override-on-call
+  - query: "which feature flags are turned on in production"
+    expected: list-feature-flags
+  - query: "disable the new-checkout flag in staging"
+    expected: toggle-feature-flag
+  - query: "look up the account of jane@example.com"
+    expected: get-customer
+  - query: "has this customer paid their bills"
+    expected: list-customer-invoices
+  - query: "give the customer their money back for the last invoice"
+    expected: issue-refund
+  - query: "open a support case for a customer"
+    expected: create-ticket
+  - query: "what support requests is the billing team working on"
+    expected: list-tickets
+  - query: "mark the support ticket as done"
+    expected: close-ticket
+  - query: "did the CI pass on the main branch"
+    expected: get-build-status
+  - query: "rerun the failed pipeline"
+    expected: retry-build
+  - query: "what versions of the api service were shipped recently"
+    expected: list-releases
+  - query: "publish version 2.4.0 of the api"
+    expected: create-release
+  - query: "who can access the production database"
+    expected: list-access-grants
+  - query: "what does the public status page say"
+    expected: get-status-page
+  - query: "tell customers we are investigating degraded performance"
+    expected: post-status-update
+  - query: "take a snapshot of the orders database now"
+    expected: run-database-backup
