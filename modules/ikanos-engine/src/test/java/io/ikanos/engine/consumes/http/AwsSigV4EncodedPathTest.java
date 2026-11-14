@@ -31,26 +31,26 @@ class AwsSigV4EncodedPathTest {
     }
 
     @Test
-    void sendsADotDotSlashValueAsOneEncodedSegment() {
+    void encodeMarkedValuesShouldSendADotDotSlashValueAsOneSegment() {
         assertEquals("/bucket/public/..%2Fprivate%2Fpayroll.csv",
                 sentPath("../private/payroll.csv"));
     }
 
     @Test
-    void signsTheLiteralKeyForS3WithoutResolvingTheDotDot() {
+    void getCanonicalUriShouldSignTheLiteralKeyWhenTheServiceIsS3() {
         assertEquals("/bucket/public/../private/payroll.csv",
                 AwsSigV4Helper.getCanonicalUri(sentPath("../private/payroll.csv"), false));
     }
 
     @Test
-    void signsTheEncodedSegmentForTheOtherServicesWithoutResolvingIt() {
+    void getCanonicalUriShouldSignTheEncodedSegmentWhenTheServiceIsNotS3() {
         assertEquals("/bucket/public/..%252Fprivate%252Fpayroll.csv",
                 AwsSigV4Helper.getCanonicalUri(sentPath("../private/payroll.csv"), true));
     }
 
     /** An already-encoded slash in the value is encoded again, so it never becomes a separator. */
     @Test
-    void sendsAnEncodedSlashInAValueAsData() {
+    void encodeMarkedValuesShouldKeepAnEncodedSlashAsDataWhenInAValue() {
         assertEquals("/bucket/public/..%252Fprivate", sentPath("..%2Fprivate"));
         assertEquals("/bucket/public/..%252Fprivate",
                 AwsSigV4Helper.getCanonicalUri(sentPath("..%2Fprivate"), false));
