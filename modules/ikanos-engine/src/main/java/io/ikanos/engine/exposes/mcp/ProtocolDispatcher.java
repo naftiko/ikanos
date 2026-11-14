@@ -279,6 +279,8 @@ public class ProtocolDispatcher {
                                 INVALID_REQUEST.getCode(), "Invalid Request: " + e.getMessage()),
                                 INVALID_REQUEST);
             }
+            // The variant on every server span shows the fleet mix and per-variant cost.
+            span.setAttribute(TelemetryBootstrap.ATTR_TOOL_SEARCH_VARIANT, context.mode().value());
             // State bound to the caller (requestState, tasks) reads the owner from here. It
             // comes from the authentication, not from the audit identity, which trust may turn off.
             String owner = AgentIdentityResolver.ownerOf(namespace, httpRequest, identity);
