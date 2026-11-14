@@ -169,8 +169,7 @@ public class Resolver {
      *         {@code auth} is taken by something else than the caller root
      */
     public static void requireCallerValues(String template, Map<String, Object> parameters) {
-        if (template == null || !(template.contains(CALLER_CLAIMS)
-                || template.contains(CALLER_ROOT) && template.contains(CLAIMS))) {
+        if (!mayReadCallerClaims(template)) {
             return;
         }
         if (readsClaimsRelativeToRoot(template)) {
@@ -214,6 +213,38 @@ public class Resolver {
     private static final String CLAIMS = "claims";
 
     /**
+     * Whether {@code template} may read a caller claim: it names both {@link #CALLER_ROOT} and
+     * {@code claims}, however it reaches them, such as {@code {{auth.claims.sub}}},
+     * {@code {{auth.this.claims.sub}}} or a section over the root. A template that does not is
+     * never checked by {@link #requireCallerValues}.
+     *
+     * @param template the template, may be null
+     * @return {@code true} when the template may read a caller claim
+     */
+    public static boolean mayReadCallerClaims(String template) {
+        return template != null && template.contains(CALLER_ROOT) && template.contains(CLAIMS);
+    }
+
+    /**
+     * The name JMustache reads for {@code name}: trimmed, without the {@code this} steps it skips
+     * anywhere in a dotted name, so {@code this.auth.claims.sub} and {@code auth.this.claims.sub}
+     * both read {@code auth.claims.sub}.
+     */
+    private static String canonicalName(String name) {
+        String reference = name.trim();
+        if (!reference.contains(THIS)) {
+            return reference;
+        }
+        return java.util.Arrays.stream(reference.split("\\.", -1))
+                .filter(step -> !THIS.equals(step.trim()))
+                .map(String::trim)
+                .collect(java.util.stream.Collectors.joining("."));
+    }
+
+    /** The name JMustache reads as the current context, also as a step of a dotted name. */
+    private static final String THIS = "this";
+
+    /**
      * Whether template parameters hold nothing but the caller root: no input, step or binding.
      * The guards that omit a parameter or reject a template with nothing to substitute apply
      * then, as they did before the root was added to every authenticated call (#998).
@@ -250,7 +281,7 @@ public class Resolver {
 
                 @Override
                 public boolean visitSection(String name) {
-                    found[0] |= CALLER_ROOT.equals(name.trim());
+                    found[0] |= CALLER_ROOT.equals(canonicalName(name));
                     found[1] |= isClaimsReference(name);
                     return true;
                 }
@@ -268,7 +299,7 @@ public class Resolver {
     }
 
     private static boolean isClaimsReference(String name) {
-        String reference = name.trim();
+        String reference = canonicalName(name);
         return reference.equals(CLAIMS) || reference.startsWith(CLAIMS + ".");
     }
 
@@ -278,7 +309,7 @@ public class Resolver {
     }
 
     private static boolean isCallerClaims(String name) {
-        String reference = name.trim();
+        String reference = canonicalName(name);
         return reference.equals(CALLER_CLAIMS) || reference.startsWith(CALLER_CLAIMS + ".");
     }
 
@@ -311,7 +342,7 @@ public class Resolver {
                 @Override
                 public void visitVariable(String name) {
                     if (isCallerClaims(name)) {
-                        variables.add(name.trim());
+                        variables.add(canonicalName(name));
                     }
                 }
 
@@ -323,7 +354,7 @@ public class Resolver {
                 @Override
                 public boolean visitSection(String name) {
                     if (isCallerClaims(name)) {
-                        sections.add(name.trim());
+                        sections.add(canonicalName(name));
                     }
                     return insideSections;
                 }

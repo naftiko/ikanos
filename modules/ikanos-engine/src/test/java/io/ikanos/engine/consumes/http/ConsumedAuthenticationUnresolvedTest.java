@@ -40,6 +40,21 @@ class ConsumedAuthenticationUnresolvedTest {
     private static final String TARGET = "https://api.example.com/items";
 
     @Test
+    void apiKeyHeaderReadingTheCallerThroughThisShouldReplaceTheClientCopy() {
+        Request request = new Request(Method.GET, TARGET);
+        request.getHeaders().add("x-api-user", "mallory");
+        Map<String, Object> parameters = new java.util.HashMap<>();
+        parameters.put(io.ikanos.engine.util.Resolver.CALLER_ROOT,
+                new io.ikanos.engine.util.CallerRoot(Map.of("claims", Map.of("sub", "alice"))));
+
+        ConsumedAuthentication.apply(apiKey("X-Api-User", "{{auth.this.claims.sub}}", "header"),
+                null, request, TARGET, parameters);
+
+        assertEquals("alice", request.getHeaders().getValues("X-Api-User", ",", true),
+                "#998: the caller's identity replaces the client copy, not added beside it");
+    }
+
+    @Test
     void bearerTokenWithMisspelledVariableShouldNotBeSent() {
         Request request = request();
 
