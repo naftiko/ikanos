@@ -1368,7 +1368,7 @@
         },
         "cacheScope": {
           "$ref": "#/$defs/CacheScope",
-          "description": "Returned as `cacheScope` alongside `ttlMs`. `public`: the result holds no user-specific data, so a shared gateway or proxy may serve it to any caller. `private`: a shared cache must not serve it to a different caller. On `resources/read`, a resource's own `cacheScope` takes precedence. Default: `private`."
+          "description": "Returned as `cacheScope` alongside `ttlMs`. `public`: the result holds no user-specific data, so a shared gateway or proxy may serve it to any caller. `private`: a shared cache must not serve it to a different caller. `auto`: the engine decides at startup, `private` when this adapter authenticates its callers (`authentication`) or identifies them (`trust` other than `none`), `public` otherwise; the chosen scope and its reason are logged at debug level. On `resources/read`, a resource's own `cacheScope` takes precedence. Default: `private`."
         },
         "authentication": {
           "$ref": "#/$defs/Authentication",
@@ -2240,7 +2240,7 @@
         },
         "cacheScope": {
           "$ref": "#/$defs/CacheScope",
-          "description": "Returned as `cacheScope` on `resources/read` of this resource. Overrides the adapter's `cacheScope`. Lists keep the adapter's value."
+          "description": "Returned as `cacheScope` on `resources/read` of this resource. Overrides the adapter's `cacheScope`. `auto` follows the adapter's rule: `private` when the adapter has `authentication` or a `trust` other than `none`, `public` otherwise. Lists keep the adapter's value."
         }
       },
       "required": [
