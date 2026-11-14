@@ -258,7 +258,7 @@ public class AwsSigV4IntegrationTest {
         start(auth(null));
 
         ConsumedResult result =
-                call("get-object", Map.of("key", "reports/2026 Q3.pdf", "prefix", "a/b c"));
+                call("get-object", Map.of("key", "2026 Q3.pdf", "prefix", "a/b c"));
 
         assertTrue(result.isSuccessful(), "status " + result.status());
         assertEquals(AwsSigV4Helper.EMPTY_PAYLOAD_HASH,
