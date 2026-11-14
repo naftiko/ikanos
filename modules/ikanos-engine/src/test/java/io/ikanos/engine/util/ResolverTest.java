@@ -1759,6 +1759,28 @@ public class ResolverTest {
     }
 
     @Test
+    void requireCallerValuesShouldCheckClaimsReadThroughThis() {
+        Map<String, Object> parameters = callerParameters(Map.of("email", "a@b.c"));
+        parameters.put("claims", Map.of("sub", "mallory"));
+
+        // JMustache skips 'this' anywhere in a dotted name: each still reads the caller's claims
+        assertThrows(IllegalArgumentException.class,
+                () -> Resolver.resolveMustacheTemplate("{{#auth}}{{this.claims.sub}}{{/auth}}",
+                        parameters),
+                "#998: a claim read relative to the root must be refused, through 'this' too");
+        assertThrows(IllegalArgumentException.class,
+                () -> Resolver.resolveMustacheTemplate("{{#this.auth}}{{claims.sub}}{{/this.auth}}",
+                        parameters));
+        assertThrows(CallerClaimMissingException.class,
+                () -> Resolver.resolveMustacheTemplate("{{auth.this.claims.sub}}", parameters),
+                "#998: a missing claim must never render empty");
+        assertThrows(CallerClaimMissingException.class,
+                () -> Resolver.resolveMustacheTemplate("{{this.auth.claims.sub}}", parameters));
+        assertEquals("a@b.c",
+                Resolver.resolveMustacheTemplate("{{auth.this.claims.email}}", parameters));
+    }
+
+    @Test
     void requireCallerValuesShouldRefuseClaimsReadRelativeToAClientObjectNamedAuth() {
         Map<String, Object> parameters = new HashMap<>();
         parameters.put(Resolver.CALLER_ROOT, Map.of("claims", Map.of("sub", "admin")));
