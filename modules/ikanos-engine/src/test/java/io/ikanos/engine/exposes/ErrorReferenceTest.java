@@ -22,6 +22,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.logging.Level;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
+import org.restlet.Request;
+import org.restlet.data.Method;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanContext;
 import io.opentelemetry.api.trace.TraceFlags;
@@ -60,6 +62,30 @@ public class ErrorReferenceTest {
 
             assertTrue(UUID_PATTERN.matcher(id).matches(), id);
         }
+    }
+
+    @Test
+    public void recordShouldUseTheTraceIdRememberedOnTheRequest() {
+        Request request = new Request(Method.GET, "http://localhost/orders");
+        ErrorReference.rememberTrace(request, Span.wrap(nonNull(SpanContext.create(
+                "0af7651916cd43dd8448eb211c80319c", "b7ad6b7169203331",
+                nonNull(TraceFlags.getSampled()), nonNull(TraceState.getDefault())))));
+
+        String id = ErrorReference.record(Level.WARNING, "Something failed",
+                new IllegalStateException(SENSITIVE_DETAIL), request);
+
+        assertEquals("0af7651916cd43dd8448eb211c80319c", id);
+    }
+
+    @Test
+    public void recordShouldFallBackToAUuidWhenTheRememberedSpanIsInvalid() {
+        Request request = new Request(Method.GET, "http://localhost/orders");
+        ErrorReference.rememberTrace(request, Span.wrap(nonNull(SpanContext.getInvalid())));
+
+        String id = ErrorReference.record(Level.WARNING, "Something failed",
+                new IllegalStateException(SENSITIVE_DETAIL), request);
+
+        assertTrue(UUID_PATTERN.matcher(id).matches(), id);
     }
 
     @Test

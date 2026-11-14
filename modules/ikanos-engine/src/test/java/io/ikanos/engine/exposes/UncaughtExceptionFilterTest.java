@@ -13,6 +13,7 @@
  */
 package io.ikanos.engine.exposes;
 
+import static io.ikanos.engine.observability.OtelNullSafety.nonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -23,6 +24,10 @@ import org.restlet.Restlet;
 import org.restlet.data.MediaType;
 import org.restlet.data.Method;
 import org.restlet.data.Status;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanContext;
+import io.opentelemetry.api.trace.TraceFlags;
+import io.opentelemetry.api.trace.TraceState;
 
 /**
  * Unit tests for {@link UncaughtExceptionFilter} (issue #897).
@@ -41,6 +46,26 @@ class UncaughtExceptionFilterTest {
         assertTrue(body.startsWith(UncaughtExceptionFilter.PUBLIC_MESSAGE), body);
         assertTrue(body.contains("(reference: "), "the caller should get a reference: " + body);
         assertFalse(body.contains(SECRET_DETAIL), "the exception detail must not leak: " + body);
+    }
+
+    @Test
+    void handleShouldReferToTheTraceOfAFailedRequestWhoseSpanHasEnded() throws Exception {
+        String traceId = "0af7651916cd43dd8448eb211c80319c";
+        Span span = Span.wrap(nonNull(SpanContext.create(traceId, "b7ad6b7169203331",
+                nonNull(TraceFlags.getSampled()), nonNull(TraceState.getDefault()))));
+        Restlet traced = new Restlet() {
+            @Override
+            public void handle(Request request, Response response) {
+                // Like ResourceRestlet: the span's scope closes before the filter catches
+                ErrorReference.rememberTrace(request, span);
+                throw new IllegalStateException(SECRET_DETAIL);
+            }
+        };
+
+        Response response = handle(new UncaughtExceptionFilter(traced));
+
+        assertTrue(response.getEntity().getText().contains("(reference: " + traceId + ")"),
+                "the reference should find the request's trace");
     }
 
     @Test
