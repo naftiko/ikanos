@@ -171,10 +171,11 @@ class DefinitionsDeserializationTest {
     }
 
     @Test
-    void writeValueShouldKeepAnUnmodeledKeyBesideAnOutputSchemaAcrossARoundTrip()
+    void writeValueShouldKeepEveryKeyBesideAnOutputSchemaAcrossARoundTrip()
             throws Exception {
-        // An output takes no key beside `schema:`. One the class does not model, such as
-        // `format`, is kept apart so that the expander rejects it, also after an import copy.
+        // An output takes no key beside `schema:`. Every key declared there, including one the
+        // class does not model (`format`) or whose value it ignores (an `enum` that is not a
+        // list), is kept as declared so that the expander rejects it, also after an import copy.
         AggregateSpec aggregate = yaml.readValue("""
                 display: "Ships"
                 namespace: ships
@@ -190,7 +191,7 @@ class DefinitionsDeserializationTest {
                       - target: flagship
                         value: "$.ship"
                     outputParameters:
-                      flagship: { schema: ship, format: date }
+                      flagship: { schema: ship, format: date, enum: ignored }
                 """, AggregateSpec.class);
 
         AggregateSpec copy = yaml.readValue(yaml.writeValueAsBytes(aggregate),
@@ -199,10 +200,10 @@ class DefinitionsDeserializationTest {
         for (AggregateSpec spec : List.of(aggregate, copy)) {
             OutputParameterSpec flagship = spec.getFlows().get("get-ship")
                     .getOutputParameters().get(0);
-            assertEquals(List.of("format"),
-                    List.copyOf(flagship.getUnmodeledSchemaSiblings().keySet()));
-            assertEquals("date",
-                    flagship.getUnmodeledSchemaSiblings().get("format").asString());
+            assertEquals(List.of("format", "enum"),
+                    List.copyOf(flagship.getSchemaSiblings().keySet()));
+            assertEquals("date", flagship.getSchemaSiblings().get("format").asString());
+            assertEquals("ignored", flagship.getSchemaSiblings().get("enum").asString());
         }
     }
 
