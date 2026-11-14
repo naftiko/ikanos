@@ -21,6 +21,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.restlet.Context;
+import org.slf4j.LoggerFactory;
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
@@ -63,6 +67,26 @@ class McpCacheHintsIntegrationTest {
         JsonNode result = dispatch(auto, method, JSON.createObjectNode());
 
         assertThat(result.path("cacheScope").asString()).isEqualTo("public");
+    }
+
+    @Test
+    void startupShouldLogTheChosenScopeAndWhyForListsAndEachResource() throws Exception {
+        Logger logger = (Logger) LoggerFactory.getLogger(Context.getCurrentLogger().getName());
+        Level previous = logger.getLevel();
+        logger.setLevel(Level.DEBUG);
+        try (LogCapture logs = new LogCapture()) {
+            adapter("cacheScope: auto");
+
+            assertThat(logs.messages()).contains(
+                    "MCP adapter cache-hints lists: cacheScope public"
+                            + " (auto: the result does not depend on the caller)",
+                    "MCP adapter cache-hints resource guide: cacheScope public"
+                            + " (auto: the result does not depend on the caller)",
+                    "MCP adapter cache-hints resource notes: cacheScope private"
+                            + " (declared private)");
+        } finally {
+            logger.setLevel(previous);
+        }
     }
 
     @Test
