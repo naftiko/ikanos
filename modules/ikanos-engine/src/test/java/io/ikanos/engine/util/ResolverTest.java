@@ -681,8 +681,18 @@ public class ResolverTest {
       public void appendQueryParameterShouldEncodeTheNameAndTheValue() {
         assertEquals("http://api/x?api_key=a%2Bb%26c%3Dd",
             Resolver.appendQueryParameter("http://api/x", "api_key", "a+b&c=d"));
-        assertEquals("http://api/x?p=1&a+b=%3D",
+        assertEquals("http://api/x?p=1&a%20b=%3D",
             Resolver.appendQueryParameter("http://api/x?p=1", "a b", "="));
+      }
+
+      /**
+       * #957 review: the RFC 3986 query encoding lives in appendQueryParameter, so a query-placed
+       * API key gets it too: a space as %20, never +, which an AWS SigV4 signer and S3 read alike.
+       */
+      @Test
+      public void appendQueryParameterShouldEncodeASpaceAsPercent20() {
+        assertEquals("http://api/x?api%20key=a%20b%2Bc",
+            Resolver.appendQueryParameter("http://api/x", "api key", "a b+c"));
       }
 
       @Test
