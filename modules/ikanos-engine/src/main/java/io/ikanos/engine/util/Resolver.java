@@ -1101,6 +1101,12 @@ public class Resolver {
                 }
                 resolved.add(new ResolvedInputParameter(spec, val));
             } catch (RuntimeException e) {
+                if (pathOverride) {
+                    // An override that cannot be recorded (an immutable call parameter map) would
+                    // leave the caller's value in the path: fail rather than call another resource
+                    throw new IllegalArgumentException("Cannot apply path parameter '"
+                            + spec.getName() + "'", e);
+                }
                 logger.debug("Skipping parameter '{}' due to resolution error", spec.getName(), e);
             }
         }
