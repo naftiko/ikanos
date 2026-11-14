@@ -32,6 +32,7 @@ import io.ikanos.spec.CapabilitySpec;
 import io.ikanos.spec.DefinitionsSpec;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.InputParameterSpec;
+import io.ikanos.spec.OutputParameterListOrMapDeserializer;
 import io.ikanos.spec.OutputParameterSpec;
 import io.ikanos.spec.aggregates.AggregateFlowSpec;
 import io.ikanos.spec.aggregates.AggregateSpec;
@@ -238,8 +239,17 @@ public final class DefinitionsExpander {
                 tool.setInputParameterSets(List.of());
             }
             boolean orchestrated = tool.getSteps() != null && !tool.getSteps().isEmpty();
-            tool.setOutputParameters(expandOutputs(location, orchestrated,
-                    tool.getOutputParameters()));
+            List<OutputParameterSpec> outputs = expandOutputs(location, orchestrated,
+                    tool.getOutputParameters());
+            if (tool.isOutputParametersKeyed()) {
+                // The map form marks a mock tool: keep it, or call inference treats the mock as
+                // a tool to infer a call for.
+                List<OutputParameterSpec> keyed =
+                        new OutputParameterListOrMapDeserializer.KeyedList();
+                keyed.addAll(outputs);
+                outputs = keyed;
+            }
+            tool.setOutputParameters(outputs);
         }
 
         void expandFlow(AggregateFlowSpec flow) {

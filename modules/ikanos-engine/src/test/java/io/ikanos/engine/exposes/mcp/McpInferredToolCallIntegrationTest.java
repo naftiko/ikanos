@@ -15,6 +15,7 @@ package io.ikanos.engine.exposes.mcp;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.net.ServerSocket;
@@ -83,6 +84,49 @@ public class McpInferredToolCallIntegrationTest {
         McpServerSpec mcp = (McpServerSpec) capability.getSpec().getCapability().getExposes()
                 .get(0);
         assertEquals("catalog.get-item", mcp.getTools().get("get-item").getCall().getOperation());
+    }
+
+    @Test
+    public void newCapabilityShouldKeepANestedMapMockAMockWhenAnOperationHasItsName()
+            throws Exception {
+        // Definitions are expanded before calls are inferred: the expansion must keep the map
+        // form, the only mark of a mock whose static values sit on nested properties.
+        String yaml = """
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - type: "http"
+                      namespace: "catalog"
+                      baseUri: "http://localhost:%d"
+                      resources:
+                        item:
+                          path: "/items/{{item-id}}"
+                          operations:
+                            get-item:
+                              method: "GET"
+                  exposes:
+                    - type: "mcp"
+                      port: 0
+                      namespace: "tools"
+                      tools:
+                        get-item:
+                          description: "A mock item"
+                          outputParameters:
+                            item:
+                              type: "object"
+                              properties:
+                                name:
+                                  type: "string"
+                                  value: "Widget"
+                """.formatted(IKANOS, findFreePort());
+        IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
+
+        Capability capability = new Capability(spec);
+
+        McpServerSpec mcp = (McpServerSpec) capability.getSpec().getCapability().getExposes()
+                .get(0);
+        assertNull(mcp.getTools().get("get-item").getCall());
+        assertTrue(mcp.getTools().get("get-item").hasMockOutputParameters());
     }
 
     @Test
