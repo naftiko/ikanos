@@ -31,7 +31,6 @@ functionsDir: ./functions
 functions:
   - unique-namespaces
   - aggregate-semantics-consistency
-  - aggregate-function-unique
   - control-port-validation
   - script-defaults-required
   - standalone-no-imports
@@ -838,29 +837,16 @@ rules:
       Without a namespace, an aggregate cannot be referenced by an import
       directive from another file. Applies to standalone source files
       (root-level 'aggregates' array) and to inline entries under
-      'capability.aggregates' that declare 'functions' (i.e. local
+      'capability.aggregates' that declare 'flows' (i.e. local
       definitions, not import entries — which have 'from' instead).
     severity: error
     recommended: true
     given:
       - "$.aggregates[*]"
-      - "$.capability.aggregates[?(@.functions)]"
+      - "$.capability.aggregates[?(@.flows)]"
     then:
       field: "namespace"
       function: truthy
-
-  ikanos-aggregates-unique-function-name:
-    message: "Aggregate function names must be unique within the same aggregate."
-    description: >
-      Duplicate function names within a single aggregate would cause ambiguous
-      'call' and 'ref' resolution. Applies to both standalone and capability documents.
-    severity: error
-    recommended: true
-    given:
-      - "$.aggregates[*].functions"
-      - "$.capability.aggregates[*].functions"
-    then:
-      function: aggregate-function-unique
 
   # Reverse Tunnel (blueprint: reverse-tunnel-private-network.md, Phase 1)
 

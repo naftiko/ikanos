@@ -269,17 +269,10 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
-    public void aggregateFunctionUniqueRuleShouldFireWhenTwoFunctionsShareAName() {
-        assertRuleFires("imports/aggregate-duplicate-function-name.yaml",
-            "ikanos-aggregates-unique-function-name");
-    }
-
-    @Test
-    public void aggregateFunctionUniqueRuleShouldReportTheNameOfTheDuplicate() {
-        // #1069: the function read Polychro's missing context and fell back to the array.
-        assertReportsAt("imports/aggregate-duplicate-function-name.yaml",
-            "ikanos-aggregates-unique-function-name",
-            "$.capability.aggregates[0].functions[1].name");
+    public void aggregatesNamespaceRequiredRuleShouldNotFireForCapabilityAggregateImport() {
+        LintResult result = lintFixture("imports/capability-aggregates-import-entry.yaml");
+        assertFalse(result.output().contains("ikanos-aggregates-namespace-required"),
+            "Expected no namespace error on an aggregate import entry.\n" + result.output());
     }
 
     // ────────────────────────────────────────────────────────────────

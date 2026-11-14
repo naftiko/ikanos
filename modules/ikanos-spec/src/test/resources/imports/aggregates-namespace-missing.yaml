@@ -3,12 +3,9 @@
 ikanos: "1.0.0-beta10"
 
 aggregates:
-  - label: Weather Service
+  - display: Weather Service
     # missing: namespace
-    functions:
-      - name: get-forecast
+    flows:
+      get-forecast:
         description: Get weather forecast
         call: weather-api.get-forecast
-        outputParameters:
-          - type: string
-            mapping: $.forecast
