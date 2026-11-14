@@ -13,7 +13,10 @@
  */
 package io.ikanos.spec;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.annotation.JsonDeserialize;
 import tools.jackson.databind.annotation.JsonSerialize;
 import io.ikanos.spec.util.StructureSpec;
@@ -35,6 +38,14 @@ public class OutputParameterSpec extends StructureSpec<OutputParameterSpec> {
      * as-is instead of resolving via mapping from an external API response.
      */
     private volatile String value;
+
+    /**
+     * Keys declared beside {@code schema:} that this class does not model (such as
+     * {@code format}), with their values. The deserializer would otherwise drop them, so the
+     * definitions expander could not reject them: an output takes no other key beside
+     * {@code schema:}. The serializer writes them back, so a copy is still rejected.
+     */
+    private final Map<String, JsonNode> unmodeledSchemaSiblings = new LinkedHashMap<>();
 
     public OutputParameterSpec() {
         super();
@@ -80,4 +91,11 @@ public class OutputParameterSpec extends StructureSpec<OutputParameterSpec> {
         this.value = value;
     }
 
+    /**
+     * @return the keys declared beside {@code schema:} that this class does not model, with
+     *         their values, in declaration order; empty when there are none
+     */
+    public Map<String, JsonNode> getUnmodeledSchemaSiblings() {
+        return unmodeledSchemaSiblings;
+    }
 }

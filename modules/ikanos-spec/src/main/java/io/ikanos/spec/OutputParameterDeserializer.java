@@ -13,6 +13,7 @@
  */
 package io.ikanos.spec;
 
+import java.util.Set;
 import tools.jackson.core.JsonParser;
 import tools.jackson.databind.DeserializationContext;
 import tools.jackson.databind.JsonNode;
@@ -23,6 +24,15 @@ import tools.jackson.databind.ValueDeserializer;
  * properties, items, and values in a polymorphic manner.
  */
 public class OutputParameterDeserializer extends ValueDeserializer<OutputParameterSpec> {
+
+    /**
+     * The keys this deserializer reads. Any other key beside {@code schema:} is kept apart, so
+     * that the definitions expander rejects it instead of it being silently dropped.
+     */
+    static final Set<String> MODELED_KEYS = Set.of("name", "type", "mapping", "value", "const",
+            "selector", "description", "schema", "$ref", "items", "values", "properties",
+            "required", "enum", "precision", "scale", "maxLength", "contentEncoding",
+            "contentCompression", "contentMediaType");
 
     @Override
     public OutputParameterSpec deserialize(JsonParser p, DeserializationContext ctxt) {
@@ -80,6 +90,12 @@ public class OutputParameterDeserializer extends ValueDeserializer<OutputParamet
         // name, with `schema:`.
         if (node.has("schema")) {
             spec.setSchema(node.get("schema").asString());
+            for (var field : node.properties()) {
+                if (!MODELED_KEYS.contains(field.getKey())) {
+                    spec.getUnmodeledSchemaSiblings().put(field.getKey(),
+                            field.getValue().deepCopy());
+                }
+            }
         }
         if (node.has("$ref")) {
             spec.setJsonSchemaRef(node.get("$ref").asString());
