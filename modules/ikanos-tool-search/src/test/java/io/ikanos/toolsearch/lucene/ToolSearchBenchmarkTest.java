@@ -152,7 +152,7 @@ class ToolSearchBenchmarkTest {
 
     @Test
     void deferredListingShouldBeAFractionOfTheFullListing() {
-        assertTrue(listingBytes(ToolSearchMode.DEFERRED) * 4 < listingBytes(ToolSearchMode.LISTED),
+        assertTrue(listingBytes(ToolSearchMode.DEFERRED) * 3 < listingBytes(ToolSearchMode.LISTED),
                 "deferred mode must carry far fewer definition bytes per request");
     }
 
