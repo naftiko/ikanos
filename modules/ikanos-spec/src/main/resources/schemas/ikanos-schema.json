@@ -2652,8 +2652,16 @@
           "properties": {
             "outputParameters": {
               "type": "object",
+              "description": "Mock outputs, keyed by name. Each one is a scalar MockOutputParameter, or nests objects and arrays like the list form, with a `value` on each leaf.",
               "additionalProperties": {
-                "$ref": "#/$defs/MockOutputParameter"
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/MockOutputParameter"
+                  },
+                  {
+                    "$ref": "#/$defs/MappedOutputParameter"
+                  }
+                ]
               },
               "minProperties": 1
             }
