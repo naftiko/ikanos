@@ -5,8 +5,11 @@
 #       REST `list-deals` (public scope inherited from its adapter, body input),
 #       the authenticated MCP adapter and its resource `orders`,
 #       the MCP adapter that identifies its callers with `trust: forwarded`
-#   - ikanos-cache-ttl-from-upstream-no-effect, three times: a static resource, a
-#       resource with steps, and a resource calling an MCP consumed adapter
+#   - ikanos-cache-ttl-from-upstream-no-effect, five times: a static resource, a
+#       resource with steps, and a resource calling an MCP consumed adapter, then
+#       the same static and steps shapes on `static-mcp`, an authenticated public
+#       adapter with no ttlMs: there ttlFromUpstream caches nothing, so its public
+#       scopes give no caller-dependent warning
 ikanos: "1.0.0-beta10"
 info:
   display: "Cache hint violations"
@@ -145,3 +148,35 @@ capability:
             msg:
               type: "string"
               value: "hi"
+    - type: "mcp"
+      port: 8086
+      namespace: "static-mcp"
+      description: "Authenticated, public, no ttlMs: ttlFromUpstream has no effect."
+      cacheScope: "public"
+      authentication:
+        type: "bearer"
+        token: "{{MCP_TOKEN}}"
+      tools:
+        hello:
+          description: "Say hello."
+          outputParameters:
+            msg:
+              type: "string"
+              value: "hi"
+      resources:
+        guide:
+          display: "Guide"
+          uri: "docs://guide"
+          description: "Static guide."
+          cacheScope: "public"
+          location: "file:///srv/guide"
+          ttlFromUpstream: true
+        summary:
+          display: "Summary"
+          uri: "data://summary"
+          description: "Composed from steps, scope inherited from the adapter."
+          ttlFromUpstream: true
+          steps:
+            items:
+              type: "call"
+              call: "shop.list-items"
