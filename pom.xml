@@ -84,6 +84,14 @@
           wants it adds ikanos-tunnel-ziti as a runtime dependency of ikanos-cli.
         -->
         <module>modules/ikanos-tunnel-ziti</module>
+        <!--
+          ikanos-tool-search follows the same rule: a reactor module that implements the MCP
+          tool search SPI (ToolSearchIndexFactory) with Apache Lucene, found at runtime with
+          java.util.ServiceLoader. Neither ikanos-engine nor ikanos-cli depends on it, so
+          ikanos.jar and the Docker image carry no Lucene. An operator adds its -all jar to
+          the image's /app/lib; an embedding application adds it as a dependency.
+        -->
+        <module>modules/ikanos-tool-search</module>
     </modules>
 
     <properties>
@@ -108,6 +116,7 @@
         <!-- Polychro runs ikanos-rules.yml in the ruleset tests; same version as the CI lint job -->
         <polychro.version>1.0.0-beta7</polychro.version>
         <openziti.version>0.33.1</openziti.version>
+        <lucene.version>10.6.0</lucene.version>
         <bouncycastle.version>1.85</bouncycastle.version>
         <!--
           The H2 version of the local durability mode. Pinned: the H2 store records it in each
@@ -206,6 +215,16 @@
                 <groupId>org.openziti</groupId>
                 <artifactId>ziti</artifactId>
                 <version>${openziti.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.lucene</groupId>
+                <artifactId>lucene-core</artifactId>
+                <version>${lucene.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.lucene</groupId>
+                <artifactId>lucene-analysis-common</artifactId>
+                <version>${lucene.version}</version>
             </dependency>
 
             <!-- BouncyCastle is pulled transitively by GraalPy (1.78.1) and OpenZiti (1.83) -->
