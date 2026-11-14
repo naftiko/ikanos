@@ -68,10 +68,12 @@ public abstract class ServerAdapter extends Adapter {
 
     /**
      * Initialize the Restlet HTTP server. Subclasses call this after building their router/chain.
+     * An exception that escapes the chain gets a {@code 500} instead of leaving the client
+     * waiting (issue #897).
      */
     protected void initServer(String address, int port, Restlet handler) {
         this.server = createServer(address, port, requestsInProgressLimit);
-        this.server.setNext(handler);
+        this.server.setNext(new UncaughtExceptionFilter(handler));
         this.handler = handler;
     }
 

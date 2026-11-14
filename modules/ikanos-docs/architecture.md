@@ -239,6 +239,8 @@ Every adapter keeps internal detail out of its responses: an unexpected failure 
 - **REST**: a bad input becomes `400`, a failed upstream call (`StepFailedException`) `502`, any other failure `500`, with a plain-text body (`ResourceRestlet.sendError`).
 - **Both, before any work**: a token that does not meet an `authorization` block gets `403` with an `insufficient_scope` challenge (see [Authorization](#exposes-the-server-adapters)).
 
+Whatever the adapter, an exception that escapes its handler chain gets a `500` with the same generic message and reference (`UncaughtExceptionFilter`). The filter wraps the whole chain, authentication included: `ServerAdapter.initServer` puts it in front of a dedicated listener, and `ServerHost` in front of each virtual host of a shared one. Without it, the connector logged the exception but never committed the response, so the client waited until it gave up (#897).
+
 **An upstream error gets the same answer in every mode.** When a consumed call answers an HTTP error, or no HTTP answer at all, a single `call:`, `steps:` and a `ref:` to an aggregate flow answer the same way within each adapter (#879); only `2xx` counts as success (`OperationStepExecutor.failIfUnsuccessful`, the rule of a call step):
 
 - **REST**: `502` "An upstream call failed (reference: …)". The upstream status, and the connection failure if any, are logged under the reference; the upstream body is never returned. `ResourceRestlet` applies `failIfUnsuccessful` to a single call and to the last result of a flow, so `call:` and `ref:` no longer pass the upstream status and body through.
