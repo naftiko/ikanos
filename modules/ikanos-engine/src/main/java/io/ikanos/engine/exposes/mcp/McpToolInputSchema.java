@@ -79,6 +79,13 @@ final class McpToolInputSchema {
             }
             property.put("enum", values);
         }
+        if (!param.getExamples().isEmpty()) {
+            List<Object> values = new ArrayList<>();
+            for (String value : param.getExamples()) {
+                values.add(InputDefaults.typedEnumValue(type, value));
+            }
+            property.put("examples", values);
+        }
         if (param.getFormat() != null) {
             property.put("format", param.getFormat());
         }

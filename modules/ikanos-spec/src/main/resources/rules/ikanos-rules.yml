@@ -48,6 +48,7 @@ functions:
   - definitions
   - durability
   - exposes-authorization
+  - mcp-tool-input-examples
 
 rules:
 
@@ -514,6 +515,22 @@ rules:
     then:
       field: "tags"
       function: truthy
+
+  ikanos-mcp-tool-input-examples:
+    message: "{{error}}"
+    description: >
+      An MCP tool input's `examples` are advertised to models as JSON Schema
+      `examples` in the tool's inputSchema, so a wrong example teaches the model
+      to send a wrong argument. Each example must be a valid value of its input:
+      a number for `number`, an integer for `integer`, `true` or `false` for
+      `boolean`, and one of the `enum` values when the input declares them. An
+      object or array input takes no examples of its own: give them on its
+      `properties` or `items`.
+    severity: warn
+    recommended: true
+    given: "$"
+    then:
+      function: mcp-tool-input-examples
 
   ikanos-mcp-consumes-endpoint-https:
     message: "A consumed MCP `endpoint` must use `https://` unless it targets localhost."

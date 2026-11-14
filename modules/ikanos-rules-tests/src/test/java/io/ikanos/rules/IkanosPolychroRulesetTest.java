@@ -527,6 +527,29 @@ public class IkanosPolychroRulesetTest {
     }
 
     // ────────────────────────────────────────────────────────────────
+    // MCP tool input examples
+    // ────────────────────────────────────────────────────────────────
+
+    @Test
+    public void mcpToolInputExamplesRuleShouldFireForEachInvalidExample() {
+        ProcessResult result = lintFixtureAtSeverity(
+            "rules/spectral-mcp-tool-input-examples-violations.yaml", "info");
+        long findings = result.output().lines()
+            .filter(line -> line.contains("ikanos-mcp-tool-input-examples")).count();
+        assertEquals(4, findings,
+            "Expected one finding per invalid example (enum, number, boolean, object).\n"
+                + result.output());
+    }
+
+    @Test
+    public void mcpToolInputExamplesRuleShouldNotFireForValidExamples() {
+        ProcessResult result = lintFixtureAtSeverity(
+            "rules/spectral-mcp-tool-input-examples-compliant.yaml", "info");
+        assertTrue(!result.output().contains("ikanos-mcp-tool-input-examples"),
+            "Expected no example findings for valid examples.\n" + result.output());
+    }
+
+    // ────────────────────────────────────────────────────────────────
     // Agent Skills over MCP rules (SEP-2640)
     // ────────────────────────────────────────────────────────────────
 
