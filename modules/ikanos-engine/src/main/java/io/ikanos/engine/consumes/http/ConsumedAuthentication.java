@@ -280,8 +280,9 @@ public final class ConsumedAuthentication {
 
     /**
      * Lists the consumed adapters whose credential {@link #apply} can never send: a type it doesn't
-     * handle, such as {@code oauth2} or a type written with another case (#842), or an
-     * {@code apikey} without a {@code key} or a {@code value} (#964). The schema refuses both, but
+     * handle, such as {@code oauth2} or a type written with another case (#842), an
+     * {@code apikey} without a {@code key} or a {@code value} (#964), or an {@code awsSigV4}
+     * without an {@code accessKeyId}, a {@code secretAccessKey} or a {@code region} (#954). The schema refuses both, but
      * the engine loads a capability without checking the schema, and code can build a spec. The
      * capability refuses to load with one, rather than failing every call to that upstream.
      *
@@ -317,6 +318,13 @@ public final class ConsumedAuthentication {
                             + "': an apikey credential needs a key and a value, and this one has "
                             + missing);
                 }
+            } else if (authentication instanceof AwsSigV4AuthenticationSpec sigV4) {
+                String missing = missing(sigV4);
+                if (missing != null) {
+                    errors.add("consumes '" + client.getNamespace()
+                            + "': an awsSigV4 credential needs an accessKeyId, a secretAccessKey"
+                            + " and a region, and this one has " + missing);
+                }
             }
         }
         return errors;
@@ -333,6 +341,28 @@ public final class ConsumedAuthentication {
             return key + " and " + value;
         }
         return key != null ? key : value;
+    }
+
+    /**
+     * What an awsSigV4 credential lacks to sign a request, such as "no region" or "an empty
+     * accessKeyId and no secretAccessKey", or null when it has all three. The signer can't sign
+     * without them, so the capability refuses to load rather than fail every call (#957 review).
+     */
+    private static String missing(AwsSigV4AuthenticationSpec sigV4) {
+        char[] secret = sigV4.getSecretAccessKey();
+        List<String> lacks = new ArrayList<>();
+        for (String lack : new String[] {lacking(sigV4.getAccessKeyId(), "accessKeyId"),
+                lacking(secret == null ? null : new String(secret), "secretAccessKey"),
+                lacking(sigV4.getRegion(), "region")}) {
+            if (lack != null) {
+                lacks.add(lack);
+            }
+        }
+        if (lacks.isEmpty()) {
+            return null;
+        }
+        String last = lacks.remove(lacks.size() - 1);
+        return lacks.isEmpty() ? last : String.join(", ", lacks) + " and " + last;
     }
 
     /** "no key" when absent, "an empty key" when blank, or null when it has text. */

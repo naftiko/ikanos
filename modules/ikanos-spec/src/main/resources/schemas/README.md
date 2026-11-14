@@ -1432,6 +1432,8 @@ AWS Signature Version 4 (SigV4), for the calls to Amazon S3, the other AWS servi
 | **sessionToken** | `string` | Session token of temporary credentials (AWS STS), sent in `X-Amz-Security-Token`. |
 | **unsignedPayload** | `boolean` | S3 only: send `UNSIGNED-PAYLOAD` instead of the SHA-256 hash of the body. |
 
+A missing or blank `accessKeyId`, `secretAccessKey` or `region` stops the capability from loading, even when the schema is not checked.
+
 The engine adds `X-Amz-Date`, and for S3 `X-Amz-Content-Sha256`, then signs every request header except the hop-by-hop ones, `Content-Length` and `User-Agent`. A body that can't be read twice, such as one passed through by `forward`, is sent as `UNSIGNED-PAYLOAD` to S3 and refused for the other services, which require its hash. A body is sent with its `Content-Length`, a forwarded one with the caller's, since S3 and MinIO refuse a chunked body that isn't aws-chunked; a caller that sends its body chunked, with no `Content-Length`, can't upload to them through `forward`.
 
 A `forward` to an adapter that signs with `awsSigV4` can't list an `x-amz-*` header in `trustedHeaders`: the capability fails to start. AWS reads several of them as part of the operation (`x-amz-copy-source`, `x-amz-acl`, `x-amz-grant-*`, `x-amz-website-redirect-location`…), and a forwarded one would be signed with the capability's key, so a caller could copy, expose or redirect objects outside the forwarded prefix. It also keeps the engine's own `X-Amz-Date`, `X-Amz-Security-Token` and `X-Amz-Content-Sha256`.

@@ -23,6 +23,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.restlet.Request;
 import org.restlet.data.ChallengeResponse;
 import org.restlet.data.Method;
@@ -140,5 +142,33 @@ class ConsumedAuthenticationAwsSigV4Test {
     void isAcceptedWhenTheCapabilityLoads() {
         assertEquals(List.of(),
                 ConsumedAuthentication.findUnsupported(capability(spec("us-east-1"))));
+    }
+
+    /**
+     * #957 review: like an incomplete apikey (#1004), a missing or blank accessKeyId,
+     * secretAccessKey or region is refused when the capability loads, not on every call, since
+     * the engine doesn't run the schema.
+     */
+    @ParameterizedTest(name = "accessKeyId \"{0}\", secretAccessKey \"{1}\", region \"{2}\"")
+    @CsvSource(value = {"| {{S}} | us-east-1 | no accessKeyId",
+            "{{A}} | | us-east-1 | no secretAccessKey",
+            "{{A}} | {{S}} | | no region",
+            "'  ' | {{S}} | us-east-1 | an empty accessKeyId",
+            "{{A}} | '' | us-east-1 | an empty secretAccessKey",
+            "{{A}} | {{S}} | ' ' | an empty region",
+            "| | | no accessKeyId, no secretAccessKey and no region"}, delimiter = '|')
+    void isRefusedWhenTheCapabilityLoadsWithoutAKeyASecretOrARegion(String accessKeyId,
+            String secretAccessKey, String region, String lacks) {
+        AwsSigV4AuthenticationSpec spec = new AwsSigV4AuthenticationSpec();
+        spec.setAccessKeyId(accessKeyId);
+        spec.setSecretAccessKey(secretAccessKey == null ? null : secretAccessKey.toCharArray());
+        spec.setRegion(region);
+
+        List<String> errors = ConsumedAuthentication.findUnsupported(capability(spec));
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).startsWith("consumes 'store': an awsSigV4 credential"),
+                errors.get(0));
+        assertTrue(errors.get(0).endsWith("this one has " + lacks), errors.get(0));
     }
 }
