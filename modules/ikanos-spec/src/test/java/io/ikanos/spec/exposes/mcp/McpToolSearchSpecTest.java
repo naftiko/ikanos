@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.InputStream;
 import java.util.List;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import com.networknt.schema.Error;
 import com.networknt.schema.Schema;
@@ -100,6 +101,17 @@ class McpToolSearchSpecTest {
                   callToolName: run_tool
                 """);
         assertTrue(errors.isEmpty(), "Expected no errors, got: " + errors);
+    }
+
+    @Test
+    @DisplayName("The shipped example capability-mcp-tool-search.yml validates")
+    void schemaShouldAcceptTheShippedToolSearchCapability() throws Exception {
+        try (InputStream in = getClass().getClassLoader()
+                .getResourceAsStream("schemas/examples/capability-mcp-tool-search.yml")) {
+            assertNotNull(in, "the shipped example must be on the classpath");
+            List<Error> errors = schema.validate(YAML.readTree(in));
+            assertTrue(errors.isEmpty(), "Expected no errors, got: " + errors);
+        }
     }
 
     @Test
