@@ -47,6 +47,22 @@ public final class IdentityValues {
     }
 
     /**
+     * Like {@link #sanitize}, but without trimming: a value with leading or trailing whitespace
+     * is rejected rather than shortened, so a signed value such as {@code " alice"} can never be
+     * passed on as another principal's {@code alice} (#998).
+     *
+     * @return {@code value} unchanged, or {@code null} when it is empty, too long, or contains a
+     *         character outside {@link #PATTERN} (whitespace and control characters included)
+     */
+    public static String strict(String value) {
+        if (value == null || value.isEmpty() || value.length() > MAX_LENGTH
+                || !PATTERN.matcher(value).matches()) {
+            return null;
+        }
+        return value;
+    }
+
+    /**
      * @return why {@code value} cannot be used, or {@code null} when it can, or when it is absent
      *         or blank (nothing was sent, so there is nothing to report).
      */

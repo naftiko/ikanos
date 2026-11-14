@@ -426,7 +426,8 @@ public class HttpClientAdapter extends ClientAdapter {
      */
     static void rejectUnresolved(String where, String template,
             Map<String, Object> parameters) {
-        if (parameters != null && !parameters.isEmpty()) {
+        // The caller root alone is no input: the template is still checked (#998)
+        if (!Resolver.hasNoInputs(parameters)) {
             return;
         }
         rejectMissing(where, template, parameters);

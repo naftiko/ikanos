@@ -36,10 +36,12 @@ import io.ikanos.engine.util.Resolver;
  * <p>Each claim value is reduced to text a consumed API can receive in a header, a query or a
  * body: a string, number or boolean as is; a date ({@code exp}, {@code iat}) as seconds since the
  * epoch; an array of them joined with commas; an object as a
- * nested map, so {@code {{auth.claims.realm_access.roles}}} works. A value outside
- * {@link IdentityValues} (too long, or with characters that could split a header or a list) is
- * left out, so a template that reads it fails the call ({@code CallerClaimMissingException})
- * instead of sending it.</p>
+ * nested map, so {@code {{auth.claims.realm_access.roles}}} works. A claim whose name holds dots,
+ * such as {@code tenant.id} or {@code https://example.com/roles}, is also placed at that path, so
+ * a template reads it as an identity header does ({@link #claim}): the claim of that exact name
+ * first. A value outside {@link IdentityValues#strict} (too long, surrounded by whitespace, or
+ * with characters that could split a header or a list) is left out, so a template that reads it
+ * fails the call ({@code CallerClaimMissingException}) instead of sending it.</p>
  */
 public final class CallerClaims {
 
@@ -143,7 +145,50 @@ public final class CallerClaims {
                     view.put(name, text);
                 }
             });
+            // A template reads {{auth.claims.tenant.id}} as a path: place each dotted claim at
+            // its path too, over a nested claim of the same path, as claim(...) reads it first
+            new ArrayList<>(view.entrySet()).forEach(entry -> {
+                if (entry.getKey() != null && entry.getKey().contains(".")) {
+                    placeAtPath(view, entry.getKey().split("\\.", -1), entry.getValue());
+                }
+            });
         }
+        return unmodifiable(view);
+    }
+
+    /**
+     * Puts {@code value} at {@code path} in {@code view}, unless a step of the path is a value
+     * rather than an object, or empty: the claim is then only read by its exact name.
+     */
+    @SuppressWarnings("unchecked")
+    private static void placeAtPath(Map<String, Object> view, String[] path, Object value) {
+        for (String step : path) {
+            if (step.isEmpty()) {
+                return;
+            }
+        }
+        Map<String, Object> current = view;
+        for (int i = 0; i < path.length - 1; i++) {
+            Object next = current.get(path[i]);
+            if (next == null) {
+                next = new LinkedHashMap<String, Object>();
+                current.put(path[i], next);
+            } else if (!(next instanceof Map)) {
+                return;
+            }
+            current = (Map<String, Object>) next;
+        }
+        String last = path[path.length - 1];
+        if (!(current.get(last) instanceof Map)) {
+            current.put(last, value);
+        }
+    }
+
+    /** @return {@code view} and its nested maps, unmodifiable */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> unmodifiable(Map<String, Object> view) {
+        view.replaceAll((name, value) -> value instanceof Map<?, ?> nested
+                ? unmodifiable((Map<String, Object>) nested) : value);
         return Collections.unmodifiableMap(view);
     }
 
@@ -159,17 +204,24 @@ public final class CallerClaims {
             return value;
         }
         if (value instanceof String || value instanceof Number) {
-            return IdentityValues.sanitize(String.valueOf(value));
+            return IdentityValues.strict(String.valueOf(value));
         }
         if (value instanceof Map<?, ?> nested) {
-            return view((Map<String, Object>) nested);
+            Map<String, Object> view = new LinkedHashMap<>();
+            ((Map<String, Object>) nested).forEach((name, element) -> {
+                Object text = text(element);
+                if (text != null) {
+                    view.put(name, text);
+                }
+            });
+            return view;
         }
         if (value instanceof Collection<?> values) {
             List<String> elements = new ArrayList<>();
             for (Object element : values) {
                 boolean scalar = element instanceof String || element instanceof Number
                         || element instanceof Boolean;
-                String text = scalar ? IdentityValues.sanitize(String.valueOf(element)) : null;
+                String text = scalar ? IdentityValues.strict(String.valueOf(element)) : null;
                 if (text == null) {
                     return null;
                 }

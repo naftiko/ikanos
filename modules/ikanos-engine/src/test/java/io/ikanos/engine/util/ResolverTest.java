@@ -1740,4 +1740,64 @@ public class ResolverTest {
         assertEquals("id=42;tenant=", Resolver.resolveMustacheTemplate(
                 "id={{id}};tenant={{tenant}}", callerParameters(Map.of("sub", "alice"))));
     }
+
+    @Test
+    void requireCallerValuesShouldRefuseClaimsReadRelativeToASectionOverTheRoot() {
+        Map<String, Object> parameters = callerParameters(Map.of("email", "a@b.c"));
+        parameters.put("claims", Map.of("sub", "mallory"));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> Resolver.resolveMustacheTemplate("{{#auth}}{{claims.sub}}{{/auth}}",
+                        parameters),
+                "#998: the missing claim would fall back to the client's 'claims.sub'");
+        assertThrows(IllegalArgumentException.class,
+                () -> Resolver.resolveMustacheTemplate(
+                        "{{#auth}}{{#claims}}{{sub}}{{/claims}}{{/auth}}", parameters));
+        assertThrows(IllegalArgumentException.class,
+                () -> Resolver.resolveJsonData(Map.of("owner", "{{#auth}}{{claims.email}}{{/auth}}"),
+                        parameters));
+    }
+
+    @Test
+    void requireCallerValuesShouldRefuseClaimsReadRelativeToAClientObjectNamedAuth() {
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put(Resolver.CALLER_ROOT, Map.of("claims", Map.of("sub", "admin")));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> Resolver.resolveMustacheTemplate("{{#auth}}{{claims.sub}}{{/auth}}",
+                        parameters),
+                "#998: a client object named auth must never be read as the caller's claims");
+    }
+
+    @Test
+    void resolveInputParametersToRequestShouldOmitAnUnresolvedHeaderWithOnlyTheCallerRoot() {
+        InputParameterSpec header = new InputParameterSpec();
+        header.setName("X-Tenant");
+        header.setIn("header");
+        header.setValue("tenant-{{tenant}}");
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put(Resolver.CALLER_ROOT, new CallerRoot(Map.of("claims", Map.of("sub", "a"))));
+        Request request = new Request(Method.GET, "http://api.example.com/records");
+
+        Resolver.resolveInputParametersToRequest(request, List.of(header), parameters);
+
+        assertNull(request.getHeaders().getFirstValue("X-Tenant"),
+                "#998: the caller root is no input, so the header is omitted as before");
+    }
+
+    @Test
+    void resolveInputParametersToRequestShouldSendAClaimWithOnlyTheCallerRoot() {
+        InputParameterSpec header = new InputParameterSpec();
+        header.setName("X-User-Id");
+        header.setIn("header");
+        header.setValue("user-{{auth.claims.sub}}");
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put(Resolver.CALLER_ROOT,
+                new CallerRoot(Map.of("claims", Map.of("sub", "alice"))));
+        Request request = new Request(Method.GET, "http://api.example.com/records");
+
+        Resolver.resolveInputParametersToRequest(request, List.of(header), parameters);
+
+        assertEquals("user-alice", request.getHeaders().getFirstValue("X-User-Id"));
+    }
 }

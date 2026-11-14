@@ -178,4 +178,35 @@ class CallerClaimsTest {
         assertNull(CallerClaims.current());
     }
 
+    @Test
+    void ofShouldLeaveOutAValueWithSurroundingWhitespaceRatherThanTrimIt() {
+        Map<String, Object> root = rootOf(new JWTClaimsSet.Builder().subject(" alice")
+                .claim("email", "alice@example.com\r\n")
+                .claim("roles", List.of("editor", " admin")).build());
+
+        assertNull(CallerClaims.claim(root, "sub"),
+                "#998: a signed ' alice' must not be passed on as another principal's 'alice'");
+        assertNull(CallerClaims.claim(root, "email"));
+        assertNull(CallerClaims.claim(root, "roles"));
+    }
+
+    @Test
+    void templatesShouldReadADottedClaimAsAnIdentityHeaderDoes() {
+        Map<String, Object> parameters = new HashMap<>();
+        Map<String, Object> root = rootOf(new JWTClaimsSet.Builder().claim("tenant.id", "acme")
+                .claim("https://example.com/role", "editor")
+                .claim("org", Map.of("id", "nested")).claim("org.id", "exact").build());
+        CallerClaims.putInto(parameters, root);
+
+        assertEquals("acme", CallerClaims.claim(root, "tenant.id"));
+        assertEquals("acme", Resolver.resolveJsonData(
+                Map.of("tenant", "{{auth.claims.tenant.id}}"), parameters).get("tenant")
+                .asString(), "#998: a structured body reads a dotted claim by its exact name");
+        assertEquals("acme/editor", Resolver.resolveMustacheTemplate(
+                "{{auth.claims.tenant.id}}/{{auth.claims.https://example.com/role}}",
+                parameters));
+        assertEquals(CallerClaims.claim(root, "org.id"),
+                Resolver.resolveMustacheTemplate("{{auth.claims.org.id}}", parameters),
+                "#998: the claim of that exact name is read first, as for an identity header");
+    }
 }
