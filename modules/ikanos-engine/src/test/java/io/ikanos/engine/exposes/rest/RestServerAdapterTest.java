@@ -19,9 +19,13 @@ import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.VersionHelper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import java.util.HashMap;
+import java.util.Map;
 import org.restlet.Restlet;
+import org.restlet.routing.TemplateRoute;
 import org.restlet.security.ChallengeAuthenticator;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.ikanos.spec.util.IkanosMappers;
 
@@ -83,6 +87,37 @@ public class RestServerAdapterTest {
 
         Restlet chain = adapter.getServer().getNext();
         assertTrue(chain instanceof ChallengeAuthenticator);
+    }
+
+    @Test
+    public void hyphenatedPathParameterShouldBeRoutedAsAUriTemplateVariable() throws Exception {
+        RestServerAdapter adapter = adapterFromYaml("""
+                ikanos: "%s"
+                capability:
+                  exposes:
+                    - type: "rest"
+                      address: "localhost"
+                      port: 0
+                      namespace: "api"
+                      resources:
+                        - path: "/crew/{{crew-id}}"
+                          inputParameters:
+                            - name: "crew-id"
+                              in: "path"
+                              type: "string"
+                          operations:
+                            - method: "GET"
+                              name: "get-crew"
+                  consumes: []
+                """.formatted(schemaVersion));
+
+        TemplateRoute route = (TemplateRoute) adapter.getRouter().getRoutes().get(0);
+        Map<String, Object> variables = new HashMap<>();
+
+        assertEquals("/crew/{crew-id}", route.getTemplate().getPattern(),
+                "#978: the router converts a hyphenated name, as the OpenAPI export does");
+        assertTrue(route.getTemplate().parse("/crew/c-42", variables) > 0);
+        assertEquals("c-42", variables.get("crew-id"));
     }
 
     private static RestServerAdapter adapterFromYaml(String yaml) throws Exception {

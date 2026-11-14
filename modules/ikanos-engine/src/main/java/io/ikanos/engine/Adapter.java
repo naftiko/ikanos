@@ -23,13 +23,15 @@ public abstract class Adapter {
     public abstract void stop() throws Exception;
         
     /**
-     * Converts a Mustache template to a URI template.
+     * Converts a Mustache template to a URI template. A variable name follows the parameter key
+     * pattern, hyphens included, as the OpenAPI export converts it, so {@code /crew/{{crew-id}}}
+     * is routed as {@code /crew/{crew-id}} (#978).
      *
      * @param mustacheTemplate the Mustache template
      * @return the URI template
      */
     public static String toUriTemplate(String mustacheTemplate) {
-        return mustacheTemplate.replaceAll("\\{\\{(\\w+)\\}\\}", "{$1}");
+        return mustacheTemplate.replaceAll("\\{\\{([\\w-]+)\\}\\}", "{$1}");
     }
 
 }

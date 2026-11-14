@@ -222,6 +222,11 @@ public class HttpClientAdapter extends ClientAdapter {
         if (clientOp == null) {
             return null;
         }
+        // A null map acts as an empty one, so that declared values (a path default, a value a
+        // later template uses) are kept for the URI and the body (#978)
+        if (parameters == null) {
+            parameters = new HashMap<>();
+        }
 
         // The operator's environment values replace any caller value of the same name before the
         // URI is resolved, not after (GHSA-23xc-9c84-r6qv)
@@ -236,11 +241,10 @@ public class HttpClientAdapter extends ClientAdapter {
                 clientOp.getInputParameters());
 
         Set<InputParameterSpec> replaced = replacedInputParameters(declared);
-        boolean noCallParameters = parameters == null || parameters.isEmpty();
+        boolean noCallParameters = parameters.isEmpty();
         // The URI sees the call parameters and the in: path values only, so a query or header
         // parameter of the same name never changes the path (#978)
-        Map<String, Object> uriParameters =
-                parameters == null ? new HashMap<>() : new HashMap<>(parameters);
+        Map<String, Object> uriParameters = new HashMap<>(parameters);
         Map<String, Object> pathValues = new HashMap<>();
 
         // Resolve every declared parameter once, in declaration order, before the URI is
@@ -250,9 +254,6 @@ public class HttpClientAdapter extends ClientAdapter {
         List<Resolver.ResolvedInputParameter> resolved =
                 Resolver.resolveInputParameterValues(declared, parameters, replaced, pathValues);
         uriParameters.putAll(pathValues);
-        if (parameters == null && uriParameters.isEmpty()) {
-            uriParameters = null;
-        }
 
         String clientResUri = getBaseUri()
                 + clientOp.getParentResource().getPath();

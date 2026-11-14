@@ -760,6 +760,43 @@ public class HttpClientAdapterTest {
     }
 
     @Test
+    public void prepareShouldUseBroaderPathValueAsDefaultWhenTheParametersAreNull()
+            throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                replacedPathValueSpec());
+
+        Request request = adapter.prepare("get-pet", null).getRequest();
+
+        assertEquals("https://api.example.com/v1/pets/default",
+                request.getResourceRef().toString(),
+                "#978: null parameters act as an empty map, so a path default still applies");
+    }
+
+    @Test
+    public void prepareShouldFailWhenAPathOverrideCannotBeRecorded() throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                consumedSpec("""
+                        resources:
+                          pets:
+                            path: "/pets/{{id}}"
+                            inputParameters:
+                              id:
+                                in: path
+                                value: "7"
+                            operations:
+                              get-pet:
+                                method: GET
+                        """));
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> adapter.prepare("get-pet", Map.of("id", "42")));
+
+        assertEquals("Cannot apply path parameter 'id'", error.getMessage(),
+                "#978: an override that cannot be applied must not leave the caller's value in"
+                        + " the path");
+    }
+
+    @Test
     public void prepareShouldResolveAPathValueTemplateOnlyOnce() throws Exception {
         HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
                 consumedSpec("""
