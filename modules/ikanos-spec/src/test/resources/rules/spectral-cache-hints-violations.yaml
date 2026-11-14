@@ -1,9 +1,10 @@
 # Spectral fixture — cache hint rules MUST FIRE (#1022):
-#   - ikanos-cache-public-caller-dependent, five times:
+#   - ikanos-cache-public-caller-dependent, six times:
 #       REST `list-items` (own public scope, authenticated adapter),
 #       REST `list-offers` (own public scope, header input),
 #       REST `list-deals` (public scope inherited from its adapter, body input),
-#       the authenticated MCP adapter and its resource `orders`
+#       the authenticated MCP adapter and its resource `orders`,
+#       the MCP adapter that identifies its callers with `trust: forwarded`
 #   - ikanos-cache-ttl-from-upstream-no-effect, three times: a static resource, a
 #       resource with steps, and a resource calling an MCP consumed adapter
 ikanos: "1.0.0-beta10"
@@ -127,3 +128,20 @@ capability:
           description: "Read through an MCP upstream."
           ttlFromUpstream: true
           call: "tools-upstream.lookup"
+    - type: "mcp"
+      port: 8085
+      namespace: "gateway-mcp"
+      description: "MCP server behind an identity-forwarding gateway."
+      ttlMs: 60000
+      cacheScope: "public"
+      trust:
+        mode: "forwarded"
+        agentIdentityHeader: "X-Agent-Id"
+        trustedNetworks: ["10.20.0.0/16"]
+      tools:
+        hello:
+          description: "Say hello to the caller."
+          outputParameters:
+            msg:
+              type: "string"
+              value: "hi"

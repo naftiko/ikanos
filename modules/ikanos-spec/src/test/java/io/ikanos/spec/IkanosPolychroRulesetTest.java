@@ -595,7 +595,7 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void cachePublicCallerDependentRuleShouldWarnOnEachCallerDependentPublicScope() {
-        assertEquals(5, countFindings("rules/spectral-cache-hints-violations.yaml",
+        assertEquals(6, countFindings("rules/spectral-cache-hints-violations.yaml",
             "ikanos-cache-public-caller-dependent"));
     }
 
