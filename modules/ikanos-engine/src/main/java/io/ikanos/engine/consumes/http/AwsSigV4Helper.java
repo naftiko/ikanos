@@ -182,9 +182,11 @@ class AwsSigV4Helper extends AuthenticatorHelper {
     /**
      * Registers this helper with the Restlet {@link Engine} singleton, once per JVM. {@link
      * Engine#findHelper} is the idempotency check, as in {@link
-     * ApiKeyAuthorizationHeaderHelper#ensureRegistered()}.
+     * ApiKeyAuthorizationHeaderHelper#ensureRegistered()}. Synchronized like {@link
+     * IkanosHttpClientHelper#ensureRegistered()}, so that two first calls on different threads
+     * can't both see it missing and register it twice.
      */
-    static void ensureRegistered() {
+    static synchronized void ensureRegistered() {
         Engine engine = Engine.getInstance();
         if (engine.findHelper(SCHEME, true, false) == null) {
             engine.getRegisteredAuthenticators().add(new AwsSigV4Helper());

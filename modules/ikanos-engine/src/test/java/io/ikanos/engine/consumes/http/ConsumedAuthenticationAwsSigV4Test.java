@@ -20,8 +20,16 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import org.restlet.engine.Engine;
+import org.restlet.engine.security.AuthenticatorHelper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -170,5 +178,40 @@ class ConsumedAuthenticationAwsSigV4Test {
         assertTrue(errors.get(0).startsWith("consumes 'store': an awsSigV4 credential"),
                 errors.get(0));
         assertTrue(errors.get(0).endsWith("this one has " + lacks), errors.get(0));
+    }
+
+    /**
+     * Copilot on #957: two first calls on different threads must not both register the helper.
+     * Each round removes it, then releases the threads together.
+     */
+    @Test
+    void registersTheHelperOnceWhenCalledConcurrently() throws Exception {
+        List<AuthenticatorHelper> registered = Engine.getInstance().getRegisteredAuthenticators();
+        int threads = 16;
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        try {
+            for (int round = 0; round < 50; round++) {
+                registered.removeIf(AwsSigV4Helper.class::isInstance);
+                CountDownLatch start = new CountDownLatch(1);
+                List<Future<?>> calls = new ArrayList<>();
+                for (int t = 0; t < threads; t++) {
+                    calls.add(pool.submit(() -> {
+                        start.await();
+                        AwsSigV4Helper.ensureRegistered();
+                        return null;
+                    }));
+                }
+                start.countDown();
+                for (Future<?> call : calls) {
+                    call.get(10, TimeUnit.SECONDS);
+                }
+                assertEquals(1, registered.stream().filter(AwsSigV4Helper.class::isInstance)
+                        .count(), "round " + round);
+            }
+        } finally {
+            pool.shutdownNow();
+            registered.removeIf(AwsSigV4Helper.class::isInstance);
+            AwsSigV4Helper.ensureRegistered();
+        }
     }
 }
