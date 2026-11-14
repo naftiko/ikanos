@@ -768,13 +768,13 @@ public final class DefinitionsExpander {
             }
             if (source.getSchema() != null) {
                 if (!expandable(source.getSchema())) {
-                    return copy(source);
+                    return source.copy();
                 }
                 InputParameterSpec resolved = instantiate(source.getSchema());
                 applyUseSite(source, resolved);
                 return resolved;
             }
-            InputParameterSpec node = copyNode(source);
+            InputParameterSpec node = source.copyNode();
             node.setItems(instantiateNode(source.getItems()));
             node.setValues(instantiateNode(source.getValues()));
             for (InputParameterSpec property : source.getProperties()) {
@@ -1101,53 +1101,5 @@ public final class DefinitionsExpander {
     static boolean isObjectWithProperties(StructureSpec<?> param) {
         return param != null && "object".equals(param.getType())
                 && !param.getProperties().isEmpty();
-    }
-
-    /** Deep copy of an input declaration, so that every use of a definition owns its copy. */
-    static InputParameterSpec copy(InputParameterSpec source) {
-        if (source == null) {
-            return null;
-        }
-        InputParameterSpec copy = copyNode(source);
-        copy.setItems(copy(source.getItems()));
-        copy.setValues(copy(source.getValues()));
-        for (InputParameterSpec property : source.getProperties()) {
-            copy.getProperties().add(copy(property));
-        }
-        return copy;
-    }
-
-    /** Copy of an input declaration, without its {@code items}, {@code values} and properties. */
-    static InputParameterSpec copyNode(InputParameterSpec source) {
-        InputParameterSpec copy = new InputParameterSpec();
-        copy.setName(source.getName());
-        copy.setType(source.getType());
-        copy.setDescription(source.getDescription());
-        copy.setSchema(source.getSchema());
-        copy.setJsonSchemaRef(source.getJsonSchemaRef());
-        copy.setIn(source.getIn());
-        copy.setTemplate(source.getTemplate());
-        copy.setDeclaredRequired(source.getDeclaredRequired());
-        copy.setValue(source.getValue());
-        copy.setWireName(source.getWireName());
-        copy.setStyle(source.getStyle());
-        copy.setExplode(source.getExplode());
-        copy.setFormat(source.getFormat());
-        copy.setMinimum(source.getMinimum());
-        copy.setMaximum(source.getMaximum());
-        copy.setAdditionalProperties(source.getAdditionalProperties());
-        copy.setConstant(source.getConstant());
-        copy.setSelector(source.getSelector());
-        copy.setMaxLength(source.getMaxLength());
-        copy.setPrecision(source.getPrecision());
-        copy.setScale(source.getScale());
-        copy.setContentEncoding(source.getContentEncoding());
-        copy.setContentCompression(source.getContentCompression());
-        copy.setContentMediaType(source.getContentMediaType());
-        copy.getRequired().addAll(source.getRequired());
-        copy.getEnumeration().addAll(source.getEnumeration());
-        copy.getExamples().addAll(source.getExamples());
-        copy.getTuple().addAll(source.getTuple());
-        return copy;
     }
 }

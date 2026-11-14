@@ -32,7 +32,9 @@ import io.ikanos.engine.observability.OtelRestletBridge;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.engine.util.Resolver;
+import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.OutputParameterSpec;
+import io.ikanos.spec.aggregates.RefInputs;
 import io.ikanos.spec.exposes.rest.RestServerForwardSpec;
 import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
 import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
@@ -43,6 +45,8 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.NullNode;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -61,12 +65,43 @@ public class ResourceRestlet extends Restlet {
     private final RestServerResourceSpec resourceSpec;
     private final OperationStepExecutor stepExecutor;
 
+    /**
+     * For each {@code ref} operation that declares no inputs, nor its resource, the flow inputs
+     * it accepts, placed in the request (#1039). Operations that inherit none are absent.
+     */
+    private final Map<RestServerOperationSpec, List<InputParameterSpec>> inheritedInputs;
+
     public ResourceRestlet(Capability capability, RestServerSpec serverSpec,
             RestServerResourceSpec resourceSpec) {
         this.capability = capability;
         this.serverSpec = serverSpec;
         this.resourceSpec = resourceSpec;
         this.stepExecutor = new OperationStepExecutor(capability, serverSpec.getNamespace());
+        this.inheritedInputs = resolveInheritedInputs(capability, resourceSpec);
+    }
+
+    private static Map<RestServerOperationSpec, List<InputParameterSpec>> resolveInheritedInputs(
+            Capability capability, RestServerResourceSpec resourceSpec) {
+        Map<RestServerOperationSpec, List<InputParameterSpec>> inherited = new HashMap<>();
+        for (RestServerOperationSpec op : resourceSpec.getOperations().values()) {
+            List<InputParameterSpec> inputs = RefInputs.forRestOperation(resourceSpec, op,
+                    () -> capability.lookupFlow(op.getRef()).getInputParameters());
+            if (!inputs.isEmpty()) {
+                inherited.put(op, inputs);
+            }
+        }
+        return Map.copyOf(inherited);
+    }
+
+    /**
+     * Return the flow inputs a {@code ref} operation inherits, placed in the request: none when
+     * the operation does not use {@code ref}, or when it or its resource declares inputs.
+     *
+     * @param serverOp the operation
+     * @return the inherited inputs, never null
+     */
+    List<InputParameterSpec> getInheritedInputs(RestServerOperationSpec serverOp) {
+        return serverOp != null ? inheritedInputs.getOrDefault(serverOp, List.of()) : List.of();
     }
 
     @Override
@@ -128,12 +163,14 @@ public class ResourceRestlet extends Restlet {
 
             if (serverOp.getMethod().equals(request.getMethod().getName())) {
 
-                // Build request-scoped input parameter map (resource + operation). A value that
-                // does not match its declared type is the caller's error.
+                // Build request-scoped input parameter map (server + resource + operation, or
+                // the flow's inputs for a ref operation that declares none). A value that does
+                // not match its declared type is the caller's error.
                 Map<String, Object> inputParameters;
                 try {
                     inputParameters = stepExecutor.resolveInputParametersFromRequest(request,
-                            getServerSpec(), getResourceSpec(), serverOp);
+                            getServerSpec(), getResourceSpec(), serverOp,
+                            getInheritedInputs(serverOp));
                 } catch (IllegalArgumentException e) {
                     sendError(response, Status.CLIENT_ERROR_BAD_REQUEST,
                             "Error resolving request parameters",

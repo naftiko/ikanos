@@ -104,6 +104,57 @@ public class ExportOpenApiCommandTest {
         assertTrue(content.contains("\"openapi\""));
     }
 
+    /**
+     * A REST operation with {@code ref} and no inputs exports its flow's inputs (#1039), including
+     * those the flow takes from an input parameter set of its aggregate.
+     */
+    @Test
+    void exportShouldDeclareTheFlowInputsOfARefOperationIncludingThoseFromSets()
+            throws Exception {
+        Path capFile = tempDir.resolve("capability.yml");
+        Files.writeString(capFile, """
+                ikanos: "%s"
+                info:
+                  display: "Fleet"
+                capability:
+                  aggregates:
+                    - namespace: fleet
+                      definitions:
+                        inputParameterSets:
+                          ship-id:
+                            imo: { type: string, required: true }
+                      flows:
+                        get-ship:
+                          inputParameterSets: [ship-id]
+                          inputParameters:
+                            fields: { type: string }
+                  exposes:
+                    - type: rest
+                      port: 8080
+                      namespace: fleet-api
+                      resources:
+                        ship:
+                          path: "/ships/{{imo}}"
+                          operations:
+                            get:
+                              method: GET
+                              ref: fleet.get-ship
+                """.formatted(IKANOS));
+        Path output = tempDir.resolve("openapi.yaml");
+
+        int exitCode = new CommandLine(new Cli()).execute("export", "openapi",
+                capFile.toString(), "-o", output.toString());
+
+        assertEquals(0, exitCode);
+        JsonNode parameters = IkanosMappers.lenientYaml().readTree(Files.readString(output))
+                .path("paths").path("/ships/{imo}").path("get").path("parameters");
+        assertEquals(2, parameters.size(), parameters.toString());
+        assertEquals("imo", parameters.get(0).path("name").asString());
+        assertEquals("path", parameters.get(0).path("in").asString());
+        assertEquals("fields", parameters.get(1).path("name").asString());
+        assertEquals("query", parameters.get(1).path("in").asString());
+    }
+
     @Test
     void exportShouldFailWhenCapabilityFileDoesNotExist() {
         CommandLine cmd = new CommandLine(new Cli());

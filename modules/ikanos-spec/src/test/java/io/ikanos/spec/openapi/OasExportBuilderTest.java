@@ -45,6 +45,7 @@ import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
 import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.util.IkanosMappers;
+import io.ikanos.spec.util.VersionHelper;
 import tools.jackson.databind.JsonNode;
 
 
@@ -1044,6 +1045,127 @@ public class OasExportBuilderTest {
         assertNotNull(media);
         assertEquals("string", media.getSchema().getType());
         assertEquals("binary", media.getSchema().getFormat());
+    }
+
+    // ── Inputs inherited from an aggregate flow (#1039) ──
+
+    /** The Reusable Definitions design's §6.2 example, plus a search and a create operation. */
+    private static final String REF_CAPABILITY = """
+            ikanos: "%s"
+            capability:
+              aggregates:
+                - namespace: fleet
+                  flows:
+                    get-ship:
+                      inputParameters:
+                        imo:
+                          type: string
+                          required: true
+                          description: IMO number of the ship
+                    search-ships:
+                      inputParameters:
+                        flag:
+                          type: string
+                    register-ship:
+                      inputParameters:
+                        imo:
+                          type: string
+                          required: true
+                        name:
+                          type: string
+              exposes:
+                - type: rest
+                  port: 8080
+                  namespace: fleet-api
+                  resources:
+                    ship:
+                      path: "/ships/{imo}"
+                      operations:
+                        get:
+                          method: GET
+                          ref: fleet.get-ship
+                    ships:
+                      path: /ships
+                      operations:
+                        search:
+                          method: GET
+                          ref: fleet.search-ships
+                        register:
+                          method: POST
+                          ref: fleet.register-ship
+                    own:
+                      path: /own
+                      operations:
+                        get:
+                          method: GET
+                          ref: fleet.get-ship
+                          inputParameters:
+                            code:
+                              in: query
+                              type: string
+            """.formatted(VersionHelper.getSchemaVersion());
+
+    private OpenAPI exportRefCapability() {
+        IkanosSpec spec = IkanosMappers.lenientYaml().readValue(REF_CAPABILITY, IkanosSpec.class);
+        return builder.build(spec, null).getOpenApi();
+    }
+
+    @Test
+    void buildShouldExportAFlowInputNamedInThePathAsARequiredPathParameter() {
+        Operation op = exportRefCapability().getPaths().get("/ships/{imo}").getGet();
+
+        assertNotNull(op.getParameters(), "the §6.2 example must export the flow's imo");
+        assertEquals(1, op.getParameters().size());
+        assertEquals("imo", op.getParameters().get(0).getName());
+        assertEquals("path", op.getParameters().get(0).getIn());
+        assertTrue(op.getParameters().get(0).getRequired());
+        assertEquals("IMO number of the ship", op.getParameters().get(0).getDescription());
+    }
+
+    @Test
+    void buildShouldExportAnOptionalFlowInputAsAnOptionalQueryParameterForGet() {
+        Operation op = exportRefCapability().getPaths().get("/ships").getGet();
+
+        assertEquals(1, op.getParameters().size());
+        assertEquals("flag", op.getParameters().get(0).getName());
+        assertEquals("query", op.getParameters().get(0).getIn());
+        assertFalse(op.getParameters().get(0).getRequired(),
+                "a flow input is optional unless it declares required: true");
+    }
+
+    @Test
+    void buildShouldExportFlowInputsAsJsonBodyMembersForPost() {
+        Operation op = exportRefCapability().getPaths().get("/ships").getPost();
+
+        assertNull(op.getParameters());
+        @SuppressWarnings("rawtypes")
+        io.swagger.v3.oas.models.media.Schema body =
+                op.getRequestBody().getContent().get("application/json").getSchema();
+        assertEquals(List.of("imo", "name"), List.copyOf(body.getProperties().keySet()));
+        assertEquals(List.of("imo"), body.getRequired());
+    }
+
+    @Test
+    void buildShouldExportOnlyTheOperationsOwnInputsWhenItDeclaresSome() {
+        Operation op = exportRefCapability().getPaths().get("/own").getGet();
+
+        assertEquals(1, op.getParameters().size());
+        assertEquals("code", op.getParameters().get(0).getName());
+    }
+
+    @Test
+    void buildShouldWarnWhenTheFlowOfARefOperationIsNotDeclaredInline() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerResourceSpec resource = resourceWithOperation("/ships/{{imo}}", "ship",
+                "GET", "get-ship", null);
+        firstOp(resource).setRef("fleet.get-ship");
+        addResource(getRestServer(spec), resource);
+
+        OasExportResult result = builder.build(spec, null);
+
+        assertNull(result.getOpenApi().getPaths().get("/ships/{imo}").getGet().getParameters());
+        assertTrue(result.getWarnings().stream().anyMatch(w -> w.contains("fleet.get-ship")),
+                result.getWarnings().toString());
     }
 
     // ── Utility methods ──

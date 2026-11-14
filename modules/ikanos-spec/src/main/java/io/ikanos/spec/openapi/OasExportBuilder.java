@@ -42,6 +42,9 @@ import io.ikanos.spec.CapabilitySpec;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.OutputParameterSpec;
+import io.ikanos.spec.aggregates.AggregateFlowSpec;
+import io.ikanos.spec.aggregates.AggregateSpec;
+import io.ikanos.spec.aggregates.RefInputs;
 import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
 import io.ikanos.spec.consumes.http.AuthenticationSpec;
 import io.ikanos.spec.consumes.http.BasicAuthenticationSpec;
@@ -107,7 +110,7 @@ public class OasExportBuilder {
         openApi.setServers(buildServers(restServer));
 
         // Paths
-        openApi.setPaths(buildPaths(restServer, warnings));
+        openApi.setPaths(buildPaths(restServer, flowsOf(IkanosSpec.getCapability()), warnings));
 
         // Security
         buildSecurity(restServer, openApi, warnings);
@@ -170,7 +173,39 @@ public class OasExportBuilder {
         return List.of(new Server().url(url));
     }
 
+    /**
+     * The aggregate flows declared inline in a capability, keyed by their {@code ref}
+     * ({@code namespace.name}). An imported aggregate is not resolved by the export, so its flows
+     * are absent.
+     */
+    static Map<String, AggregateFlowSpec> flowsOf(CapabilitySpec capability) {
+        Map<String, AggregateFlowSpec> flows = new LinkedHashMap<>();
+        if (capability == null || capability.getAggregates() == null) {
+            return flows;
+        }
+        for (AggregateSpec aggregate : capability.getAggregates().values()) {
+            if (aggregate == null || aggregate.getFlows() == null) {
+                continue;
+            }
+            for (AggregateFlowSpec flow : aggregate.getFlows().values()) {
+                if (flow != null) {
+                    flows.putIfAbsent(aggregate.getNamespace() + "." + flow.getName(), flow);
+                }
+            }
+        }
+        return flows;
+    }
+
     Paths buildPaths(RestServerSpec restServer, List<String> warnings) {
+        return buildPaths(restServer, Map.of(), warnings);
+    }
+
+    /**
+     * @param flows the aggregate flows by {@code ref}, so that a {@code ref} operation that
+     *        declares no inputs, nor its resource, exports its flow's inputs (#1039)
+     */
+    Paths buildPaths(RestServerSpec restServer, Map<String, AggregateFlowSpec> flows,
+            List<String> warnings) {
         Paths paths = new Paths();
 
         for (RestServerResourceSpec resource : restServer.getResources().values()) {
@@ -182,7 +217,19 @@ public class OasExportBuilder {
             basePath = basePath.replaceAll("\\{\\{(\\w+)\\}\\}", "{$1}");
 
             for (RestServerOperationSpec opSpec : resource.getOperations().values()) {
-                Operation operation = buildOperation(resource, opSpec);
+                List<InputParameterSpec> inherited = RefInputs.forRestOperation(resource, opSpec,
+                        () -> {
+                            AggregateFlowSpec flow = flows.get(opSpec.getRef());
+                            if (flow == null) {
+                                warnings.add("REST operation '" + opSpec.getName()
+                                        + "' uses 'ref: " + opSpec.getRef()
+                                        + "', whose flow is not declared inline: its inputs are"
+                                        + " not exported");
+                                return List.of();
+                            }
+                            return flow.getInputParameters().values();
+                        });
+                Operation operation = buildOperation(resource, opSpec, inherited);
                 String pathKey = basePath;
 
                 PathItem pathItem = paths.get(pathKey);
@@ -202,6 +249,15 @@ public class OasExportBuilder {
     }
 
     Operation buildOperation(RestServerResourceSpec resource, RestServerOperationSpec opSpec) {
+        return buildOperation(resource, opSpec, List.of());
+    }
+
+    /**
+     * @param inherited the flow inputs a {@code ref} operation inherits, already placed
+     *        ({@link RefInputs#forRestOperation}); exported after the operation's own inputs
+     */
+    Operation buildOperation(RestServerResourceSpec resource, RestServerOperationSpec opSpec,
+            List<InputParameterSpec> inherited) {
         Operation operation = new Operation();
 
         if (opSpec.getName() != null) {
@@ -218,7 +274,9 @@ public class OasExportBuilder {
         List<Parameter> params = new ArrayList<>();
         RequestBody requestBody = null;
         List<String> bodyRequired = new ArrayList<>();
-        for (InputParameterSpec inputParam : opSpec.getInputParameters()) {
+        List<InputParameterSpec> inputs = new ArrayList<>(opSpec.getInputParameters());
+        inputs.addAll(inherited);
+        for (InputParameterSpec inputParam : inputs) {
             if ("body".equals(inputParam.getIn())) {
                 if (requestBody == null) {
                     requestBody = new RequestBody();

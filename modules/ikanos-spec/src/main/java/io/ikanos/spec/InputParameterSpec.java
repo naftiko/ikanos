@@ -209,4 +209,59 @@ public class InputParameterSpec extends StructureSpec<InputParameterSpec> {
         this.additionalProperties = additionalProperties;
     }
 
+    /**
+     * Deep copy of this declaration, so that the copy can be changed without changing the
+     * original: every use of a shared definition owns its copy, and a REST operation places the
+     * inputs it inherits from its flow without changing the flow.
+     *
+     * @return the copy, with copies of its {@code items}, {@code values} and properties
+     */
+    public InputParameterSpec copy() {
+        InputParameterSpec copy = copyNode();
+        copy.setItems(getItems() != null ? getItems().copy() : null);
+        copy.setValues(getValues() != null ? getValues().copy() : null);
+        for (InputParameterSpec property : getProperties()) {
+            copy.getProperties().add(property.copy());
+        }
+        return copy;
+    }
+
+    /**
+     * Copy of this declaration without its {@code items}, {@code values} and properties.
+     *
+     * @return the copy
+     */
+    public InputParameterSpec copyNode() {
+        InputParameterSpec copy = new InputParameterSpec();
+        copy.setName(getName());
+        copy.setType(getType());
+        copy.setDescription(getDescription());
+        copy.setSchema(getSchema());
+        copy.setJsonSchemaRef(getJsonSchemaRef());
+        copy.setIn(getIn());
+        copy.setTemplate(getTemplate());
+        copy.setDeclaredRequired(getDeclaredRequired());
+        copy.setValue(getValue());
+        copy.setWireName(getWireName());
+        copy.setStyle(getStyle());
+        copy.setExplode(getExplode());
+        copy.setFormat(getFormat());
+        copy.setMinimum(getMinimum());
+        copy.setMaximum(getMaximum());
+        copy.setAdditionalProperties(getAdditionalProperties());
+        copy.setConstant(getConstant());
+        copy.setSelector(getSelector());
+        copy.setMaxLength(getMaxLength());
+        copy.setPrecision(getPrecision());
+        copy.setScale(getScale());
+        copy.setContentEncoding(getContentEncoding());
+        copy.setContentCompression(getContentCompression());
+        copy.setContentMediaType(getContentMediaType());
+        copy.getRequired().addAll(getRequired());
+        copy.getEnumeration().addAll(getEnumeration());
+        copy.getExamples().addAll(getExamples());
+        copy.getTuple().addAll(getTuple());
+        return copy;
+    }
+
 }

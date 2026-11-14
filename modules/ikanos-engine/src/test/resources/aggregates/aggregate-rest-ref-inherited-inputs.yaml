@@ -1,0 +1,92 @@
+ikanos: 1.0.0-beta10
+info:
+  display: REST ref inherits flow inputs
+  description: REST operations that use ref and declare no inputs accept their flow's inputs (#1039)
+  tags:
+  - Test
+  - Aggregate
+  created: '2026-11-13'
+  modified: '2026-11-13'
+capability:
+  aggregates:
+  - display: Fleet
+    namespace: fleet
+    flows:
+      get-ship:
+        description: Get a ship by IMO number.
+        inputParameters:
+          imo:
+            type: string
+            required: true
+            description: IMO number of the ship
+        outputParameters:
+          imo:
+            type: string
+            value: "{{imo}}"
+      search-ships:
+        description: Search ships by flag.
+        inputParameters:
+          flag:
+            type: string
+            description: Flag state
+        outputParameters:
+          flag:
+            type: string
+            value: "{{flag}}"
+      register-ship:
+        description: Register a ship.
+        inputParameters:
+          imo:
+            type: string
+            required: true
+            description: IMO number of the ship
+          name:
+            type: string
+            description: Name of the ship
+        outputParameters:
+          imo:
+            type: string
+            value: "{{imo}}"
+          name:
+            type: string
+            value: "{{name}}"
+  exposes:
+  - type: rest
+    address: localhost
+    port: 9212
+    namespace: fleet-api
+    resources:
+      # The Reusable Definitions design's §6.2 example: no input, the flow's imo is in the path
+      ship:
+        path: "/ships/{imo}"
+        operations:
+          get:
+            method: GET
+            ref: fleet.get-ship
+      vessel:
+        path: "/vessels/{{imo}}"
+        operations:
+          get:
+            method: GET
+            ref: fleet.get-ship
+      ships:
+        path: /ships
+        operations:
+          search:
+            method: GET
+            ref: fleet.search-ships
+          register:
+            method: POST
+            ref: fleet.register-ship
+      # Own inputs replace the flow's: imo is read from the header, not from the query string
+      own:
+        path: /own
+        operations:
+          get:
+            method: GET
+            ref: fleet.get-ship
+            inputParameters:
+              imo:
+                in: header
+                type: string
+                description: IMO number of the ship
