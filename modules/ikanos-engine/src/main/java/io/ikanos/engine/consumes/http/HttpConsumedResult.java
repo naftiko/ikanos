@@ -153,23 +153,27 @@ public class HttpConsumedResult implements ConsumedResult, RestletBackedResult {
     /**
      * Freshness from the upstream's {@code Cache-Control}, {@code Expires}, {@code Date} and
      * {@code Age} headers, read raw so that {@link Freshness#parse} sees exactly what the upstream
-     * sent (an invalid {@code Expires} such as {@code 0} included). Only a successful (2xx) answer
-     * has any. As RFC 9111 4.2.3 computes the current age, {@code Age} is corrected by the time
-     * from sending the request to getting the response (the HTTP client may download the whole
-     * body in that time), and the freshness is then aged by the time spent since (the resident
-     * time, such as reading a body the client streams), so a caller that asks after reading the
-     * body gets only what is left.
+     * sent (an invalid {@code Expires} such as {@code 0} included). A non-2xx answer gets a TTL of
+     * 0, whatever its headers say, so that a transient error is never reused; its {@code private}
+     * still narrows the scope. As RFC 9111 4.2.3 computes the current age, {@code Age} is corrected
+     * by the time from sending the request to getting the response (the HTTP client may download
+     * the whole body in that time), and the freshness is then aged by the time spent since (the
+     * resident time, such as reading a body the client streams), so a caller that asks after
+     * reading the body gets only what is left.
      */
     @Override
     public Freshness freshness() {
-        if (response == null || !isSuccessful()) {
+        if (response == null) {
             return Freshness.UNKNOWN;
         }
         Series<Header> headers = response.getHeaders();
-        return Freshness.parse(headers.getValues("Cache-Control", ",", true),
+        Freshness upstream = Freshness.parse(headers.getValues("Cache-Control", ",", true),
                 headers.getFirstValue("Expires", true), headers.getFirstValue("Date", true),
-                headers.getFirstValue("Age", true), sentAt, receivedAt)
-                .agedBy(System.currentTimeMillis() - receivedAt);
+                headers.getFirstValue("Age", true), sentAt, receivedAt);
+        if (!isSuccessful()) {
+            return new Freshness(0L, upstream.privateOnly());
+        }
+        return upstream.agedBy(System.currentTimeMillis() - receivedAt);
     }
 
     @Override

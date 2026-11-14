@@ -71,6 +71,9 @@ class McpCacheTtlFromUpstreamTest {
         IkanosSpec spec = IkanosMappers.lenientYaml()
                 .readValue(capability(port, slowUpstream.getLocalPort()), IkanosSpec.class);
         adapter = (McpServerAdapter) new Capability(spec).getServerAdapters().get(0);
+        // the first call warms up the HTTP client; the time a request takes is deducted from the
+        // freshness, so a cold first call would shorten the TTL a test measures
+        read("data://plain");
     }
 
     @AfterAll
@@ -121,6 +124,12 @@ class McpCacheTtlFromUpstreamTest {
     @Test
     void readShouldFallBackToTheResourceTtlWhenTheUpstreamGivesNoFreshness() {
         assertThat(read("data://plain").path("ttlMs").asInt(-1)).isEqualTo(5_000);
+    }
+
+    @Test
+    void readShouldGiveZeroWhenTheUpstreamAnswersWithAnError() {
+        // a 503 marked no-store must not be reused for the resource's fallback ttlMs
+        assertThat(read("data://failing").path("ttlMs").asInt(-1)).isZero();
     }
 
     @Test
@@ -198,6 +207,13 @@ class McpCacheTtlFromUpstreamTest {
                         call: api.plain
                         ttlFromUpstream: true
                         ttlMs: 5000
+                      failing:
+                        display: "Failing"
+                        uri: "data://failing"
+                        description: "503 with no-store"
+                        call: api.failing
+                        ttlFromUpstream: true
+                        ttlMs: 5000
                       opted-out:
                         display: "Opted out"
                         uri: "data://opted-out"
@@ -238,6 +254,11 @@ class McpCacheTtlFromUpstreamTest {
                         operations:
                           plain:
                             method: GET
+                      failing:
+                        path: "/failing"
+                        operations:
+                          failing:
+                            method: GET
                   - type: http
                     namespace: slowapi
                     baseUri: "http://localhost:%d/v1"
@@ -264,10 +285,22 @@ class McpCacheTtlFromUpstreamTest {
                 router.attach("/v1/expiring", answer(List.of(), 600_000L));
                 router.attach("/v1/aged", aged());
                 router.attach("/v1/plain", answer(List.of(), null));
+                router.attach("/v1/failing", failing());
                 return router;
             }
         });
         return component;
+    }
+
+    static Restlet failing() {
+        Restlet volatileAnswer = answer(List.of(CacheDirective.noStore()), null);
+        return new Restlet() {
+            @Override
+            public void handle(Request request, Response response) {
+                volatileAnswer.handle(request, response);
+                response.setStatus(Status.SERVER_ERROR_SERVICE_UNAVAILABLE);
+            }
+        };
     }
 
     static Restlet aged() {
