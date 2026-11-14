@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.ikanos.spec.util.IkanosMappers;
+import io.ikanos.spec.util.VersionHelper;
 
 class ProtocolDispatcherCoverageTest {
 
@@ -191,8 +192,7 @@ class ProtocolDispatcherCoverageTest {
      */
     @Test
     void requirementForShouldFindANamelessRefToolByItsFlowName() throws Exception {
-        String yaml = """
-                ikanos: 1.0.0-beta10
+        String yaml = "ikanos: " + VersionHelper.getSchemaVersion() + "\n" + """
                 info:
                   display: Nameless ref tool
                   description: A legacy list tool without a name
