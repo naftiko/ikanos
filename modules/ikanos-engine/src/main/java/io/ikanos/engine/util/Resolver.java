@@ -23,6 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tools.jackson.core.JacksonException;
 import org.restlet.Request;
+import org.restlet.data.Form;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
@@ -1007,7 +1008,8 @@ public class Resolver {
                 case "query": {
                     if (request.getResourceRef() != null
                             && request.getResourceRef().getQueryAsForm() != null) {
-                        return request.getResourceRef().getQueryAsForm().getFirstValue(name);
+                        return queryValue(spec, request.getResourceRef().getQueryAsForm(),
+                                mapper);
                     }
                     return null;
                 }
@@ -1072,6 +1074,37 @@ public class Resolver {
             logger.debug("Input parameter resolution failed, returning null", e);
             return null;
         }
+    }
+
+    /**
+     * Read a query input as its declared type, the way the OpenAPI export describes it
+     * (#1078): an object, or an array of objects, is one JSON value
+     * ({@link InputParameterSpec#isJsonInQuery}); another array takes every value of a repeated
+     * parameter ({@code ?ids=A&ids=B}, OpenAPI's default form style); any other type takes the
+     * first value.
+     *
+     * @return the value, or {@code null} when the parameter is absent, or when a JSON value does
+     *         not parse
+     */
+    static Object queryValue(InputParameterSpec spec, Form query, ObjectMapper mapper) {
+        String name = spec.getName();
+        if (spec.isJsonInQuery()) {
+            String text = query.getFirstValue(name);
+            if (text == null) {
+                return null;
+            }
+            try {
+                return mapper.convertValue(mapper.readTree(text), Object.class);
+            } catch (JacksonException e) {
+                logger.debug("Query parameter is not valid JSON, treating it as absent", e);
+                return null;
+            }
+        }
+        if ("array".equalsIgnoreCase(spec.getType())) {
+            String[] values = query.getValuesArray(name);
+            return values.length == 0 ? null : List.of(values);
+        }
+        return query.getFirstValue(name);
     }
 
 

@@ -259,4 +259,17 @@ public class InputParameterSpec extends StructureSpec<InputParameterSpec> {
         this.defaultValue = defaultValue;
     }
 
+    /**
+     * Whether a query value of this parameter is a JSON document: an {@code object}, or an
+     * {@code array} of objects, has no form encoding that the REST adapter reads, so it is sent
+     * as JSON in one query parameter ({@code ?filter={"flag":"NO"}}) and the OpenAPI export
+     * declares it with {@code content: application/json}.
+     *
+     * @return {@code true} for an object or an array of objects
+     */
+    public boolean isJsonInQuery() {
+        return "object".equalsIgnoreCase(getType()) || ("array".equalsIgnoreCase(getType())
+                && getItems() != null && "object".equalsIgnoreCase(getItems().getType()));
+    }
+
 }

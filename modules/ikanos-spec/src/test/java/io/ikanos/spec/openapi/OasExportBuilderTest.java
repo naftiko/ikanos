@@ -1445,6 +1445,54 @@ public class OasExportBuilderTest {
         assertEquals("binary", media.getSchema().getFormat());
     }
 
+    // ── Input types ──
+
+    private io.swagger.v3.oas.models.parameters.Parameter exportQueryParameter(String type) {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerResourceSpec resource = resourceWithOperation("/ships", "ships",
+                "GET", "search", null);
+        InputParameterSpec param = new InputParameterSpec();
+        param.setName("p");
+        param.setIn("query");
+        param.setType(type);
+        firstOp(resource).setInputParameters(Map.of("p", param));
+        addResource(getRestServer(spec), resource);
+        return builder.build(spec, null).getOpenApi().getPaths().get("/ships").getGet()
+                .getParameters().get(0);
+    }
+
+    @Test
+    void buildShouldExportAnIntegerParameterAsInteger() {
+        assertEquals("integer", exportQueryParameter("integer").getSchema().getType());
+    }
+
+    @Test
+    void buildShouldGiveAnArrayParameterItsItems() {
+        assertNotNull(exportQueryParameter("array").getSchema().getItems(),
+                "OpenAPI 3.0 requires items on an array");
+    }
+
+    @Test
+    void buildShouldExportAnObjectQueryParameterAsJsonContent() {
+        io.swagger.v3.oas.models.parameters.Parameter parameter = exportQueryParameter("object");
+
+        assertNull(parameter.getSchema());
+        assertEquals("object",
+                parameter.getContent().get("application/json").getSchema().getType());
+    }
+
+    @Test
+    void buildShouldConvertAHyphenatedPathPlaceholder() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        addResource(getRestServer(spec), resourceWithOperation("/crew/{{ship-id}}", "crew",
+                "GET", "list-crew", null));
+
+        OasExportResult result = builder.build(spec, null);
+
+        assertNotNull(result.getOpenApi().getPaths().get("/crew/{ship-id}"),
+                result.getOpenApi().getPaths().keySet().toString());
+    }
+
     // ── Utility methods ──
 
     private IkanosSpec minimalSpec(String display, String description) {
