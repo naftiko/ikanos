@@ -45,7 +45,8 @@ import io.ikanos.spec.consumes.mcp.McpClientSpec;
 public final class ConsumedAuthentication {
 
     /** The types {@link #apply} sends, written as the schema writes them. */
-    static final Set<String> SUPPORTED_TYPES = Set.of("apikey", "basic", "bearer", "digest");
+    static final Set<String> SUPPORTED_TYPES = Set.of("apikey", "awsSigV4", "basic", "bearer",
+            "digest");
 
     private ConsumedAuthentication() {
     }
@@ -173,7 +174,7 @@ public final class ConsumedAuthentication {
     static ChallengeResponse awsSigV4(AwsSigV4AuthenticationSpec sigV4,
             Map<String, Object> parameters) {
         String accessKeyId = render(sigV4.getAccessKeyId(), parameters, "awsSigV4 access key ID");
-        String secret = render(passwordOrEmpty(sigV4.getSecretAccessKey()), parameters,
+        String secret = render(Secrets.password(sigV4.getSecretAccessKey()), parameters,
                 "awsSigV4 secret access key");
         String region = render(sigV4.getRegion(), parameters, "awsSigV4 region");
         if (isBlank(accessKeyId) || isBlank(secret) || isBlank(region)) {
@@ -349,6 +350,6 @@ public final class ConsumedAuthentication {
 
     private static String unsupported(String type) {
         return "Unsupported consumed authentication type '" + type
-                + "': the engine can send apikey, basic, bearer or digest credentials";
+                + "': the engine can send apikey, awsSigV4, basic, bearer or digest credentials";
     }
 }
