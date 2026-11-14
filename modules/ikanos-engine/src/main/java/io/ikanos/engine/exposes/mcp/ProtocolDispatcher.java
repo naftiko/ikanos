@@ -23,6 +23,7 @@ import io.ikanos.engine.exposes.mcp.model.DispatchResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerFailureResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerSuccessResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerResult;
+import io.ikanos.engine.exposes.mcp.model.McpRequestContext;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPostProcessor;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPreProcessor;
 import io.ikanos.engine.observability.McpMetaTraceContextBridge;
@@ -132,6 +133,19 @@ public class ProtocolDispatcher {
      *         no body for a notification.
      */
     public DispatchResult dispatch(JsonNode request) {
+        return dispatch(request, McpRequestContext.DEFAULT);
+    }
+
+    /**
+     * Dispatch a JSON-RPC request with what the request asks of the endpoint beyond its body,
+     * such as a tag filter on the endpoint URL. Behaves as {@link #dispatch(JsonNode)} otherwise.
+     *
+     * @param request the parsed JSON-RPC request.
+     * @param context the request's context, handed to the method handler.
+     * @return the JSON-RPC response envelope + rpcError wrapped in a {@link DispatchResult}, with
+     *         no body for a notification.
+     */
+    public DispatchResult dispatch(JsonNode request, McpRequestContext context) {
         if (request == null) {
             return new DispatchResult(buildJsonRpcError(null, INVALID_REQUEST.getCode(),
                     "Invalid Request: request body is missing"), INVALID_REQUEST);
@@ -150,7 +164,7 @@ public class ProtocolDispatcher {
                     preProcessor.apply(request);
                 }
 
-                HandlerResult result = callHandler.handle(request);
+                HandlerResult result = callHandler.handle(request, context);
 
                 switch (result) {
                     case HandlerFailureResult failureResult -> {
@@ -234,7 +248,8 @@ public class ProtocolDispatcher {
             // State bound to the caller (requestState, tasks) reads the owner from here. It
             // comes from the authentication, not from the audit identity, which trust may turn off.
             String owner = AgentIdentityResolver.ownerOf(namespace, httpRequest, identity);
-            return McpCallContext.as(owner, () -> dispatch(request));
+            return McpCallContext.as(owner,
+                    () -> dispatch(request, McpRequestContext.from(httpRequest)));
         } catch (Exception e) {
             TelemetryBootstrap.recordError(span, e);
             throw e;
