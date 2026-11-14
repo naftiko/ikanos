@@ -739,6 +739,50 @@
       ],
       "unevaluatedProperties": false
     },
+    "NestedMockOutputParameter": {
+      "description": "Mock output of a REST operation in map form (no call or steps): a scalar MockOutputParameter, or an object or array that nests mock outputs, with a `value` on each scalar leaf.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/MockOutputParameter"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "object"
+            },
+            "properties": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/NestedMockOutputParameter"
+              },
+              "minProperties": 1
+            }
+          },
+          "required": [
+            "type",
+            "properties"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "array"
+            },
+            "items": {
+              "$ref": "#/$defs/NestedMockOutputParameter"
+            }
+          },
+          "required": [
+            "type",
+            "items"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
     "Hostname": {
       "type": "string",
       "description": "Valid hostname",
@@ -1103,6 +1147,20 @@
               },
               "minProperties": 1
             }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "call"
+                ]
+              },
+              {
+                "required": [
+                  "steps"
+                ]
+              }
+            ]
           }
         }
       ],
@@ -1618,6 +1676,20 @@
               },
               "minProperties": 1
             }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "call"
+                ]
+              },
+              {
+                "required": [
+                  "steps"
+                ]
+              }
+            ]
           }
         }
       ],
@@ -2586,10 +2658,16 @@
         {
           "properties": {
             "outputParameters": {
+              "type": "array",
               "items": {
                 "$ref": "#/$defs/MappedOutputParameter"
               }
             }
+          },
+          "not": {
+            "required": [
+              "steps"
+            ]
           }
         },
         {
@@ -2610,6 +2688,35 @@
           "required": [
             "ref"
           ]
+        },
+        {
+          "required": [
+            "outputParameters"
+          ],
+          "properties": {
+            "outputParameters": {
+              "type": "object",
+              "description": "Mock outputs, keyed by name.",
+              "additionalProperties": {
+                "$ref": "#/$defs/NestedMockOutputParameter"
+              },
+              "minProperties": 1
+            }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "call"
+                ]
+              },
+              {
+                "required": [
+                  "steps"
+                ]
+              }
+            ]
+          }
         }
       ],
       "additionalProperties": false
@@ -2869,36 +2976,6 @@
           "responseBinary"
         ]
       },
-      "anyOf": [
-        {
-          "properties": {
-            "outputParameters": {
-              "items": {
-                "$ref": "#/$defs/MappedOutputParameter"
-              }
-            }
-          }
-        },
-        {
-          "required": [
-            "steps"
-          ],
-          "properties": {
-            "mappings": true,
-            "outputParameters": {
-              "type": "object",
-              "additionalProperties": {
-                "$ref": "#/$defs/OrchestratedOutputParameterInline"
-              }
-            }
-          }
-        },
-        {
-          "required": [
-            "ref"
-          ]
-        }
-      ],
       "additionalProperties": false
     },
     "ConsumesMcp": {
