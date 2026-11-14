@@ -148,7 +148,9 @@ public final class ConsumedAuthentication {
                 } else {
                     // A header, also when placement is omitted, as the schema says (#840). A
                     // standard header (Authorization #698, Cookie, …) is set through the
-                    // property Restlet writes it from, or it would be dropped (#1001).
+                    // property Restlet writes it from, or it would be dropped (#1001). It
+                    // replaces every client copy, whatever its case, such as one forwarded through
+                    // trustedHeaders: the value may carry the caller's identity (#998)
                     StandardRequestHeaders.set(clientRequest, key, value);
                 }
                 break;

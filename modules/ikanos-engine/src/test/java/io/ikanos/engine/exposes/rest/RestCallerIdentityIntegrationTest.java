@@ -146,6 +146,11 @@ public class RestCallerIdentityIntegrationTest {
                               X-User-Email:
                                 claim: "email"
                                 ifMissing: "omit"
+                        keyed:
+                          path: "/keyed/{{path}}"
+                          forward:
+                            targetNamespace: "keyed"
+                            trustedHeaders: ["X-Api-User"]
                   consumes:
                     - type: "http"
                       namespace: "domain"
@@ -167,8 +172,17 @@ public class RestCallerIdentityIntegrationTest {
                     - type: "http"
                       namespace: "files"
                       baseUri: "http://127.0.0.1:%d/files"
+                    - type: "http"
+                      namespace: "keyed"
+                      baseUri: "http://127.0.0.1:%d/keyed"
+                      authentication:
+                        type: "apikey"
+                        key: "X-Api-User"
+                        value: "{{auth.claims.sub}}"
+                        placement: "header"
                 """.formatted(VersionHelper.getSchemaVersion(), port, issuer, port,
-                upstream.getAddress().getPort(), upstream.getAddress().getPort());
+                upstream.getAddress().getPort(), upstream.getAddress().getPort(),
+                upstream.getAddress().getPort());
         IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
         adapter = new Capability(spec).getServerAdapters().get(0);
         adapter.start();
@@ -282,5 +296,15 @@ public class RestCallerIdentityIntegrationTest {
         try (ServerSocket socket = new ServerSocket(0)) {
             return socket.getLocalPort();
         }
+    }
+
+    @Test
+    public void forwardShouldReplaceATrustedClientCopyOfAClaimBackedApiKey() throws Exception {
+        HttpResponse<String> response = get("/keyed/report.pdf",
+                token(new JWTClaimsSet.Builder().subject("alice")), "x-api-user", "mallory");
+
+        assertEquals(200, response.statusCode(), response.body());
+        assertEquals("alice", upstreamRequests.get(0).get("X-Api-User"),
+                "#998: the claim-backed credential replaces the client's copy, not added to it");
     }
 }
