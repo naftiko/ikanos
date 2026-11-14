@@ -545,6 +545,40 @@ class DefinitionsExpanderTest {
     }
 
     @Test
+    void expandAllShouldReportASetEntryDefaultThatNoToolEmits() throws Exception {
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    page-size: { type: integer, description: "Rows." }
+                  inputParameterSets:
+                    unused:
+                      size: { type: integer, description: "Size.", default: "200" }
+                    replaced:
+                      order: { type: string, description: "Order.", enum: [a, d], default: z }
+                      rows: { schema: page-size, description: "Rows.", default: "20" }
+                      top: { schema: page-size, description: "Top.", default: 20 }
+                """, """
+                list-a:
+                  description: "List A."
+                  inputParameterSets: [replaced]
+                  inputParameters:
+                    - { name: order, type: string, description: "Order." }
+                    - { name: rows, type: integer, description: "Rows." }
+                  call: erp.list-a
+                """);
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+
+        assertEquals(List.of(
+                "MCP adapter 'tools', input parameter set 'unused', input 'size': default"
+                        + " does not match type 'integer'.",
+                "MCP adapter 'tools', input parameter set 'replaced', input 'order': default"
+                        + " is not one of the enum values.",
+                "MCP adapter 'tools', input parameter set 'replaced', input 'rows': default"
+                        + " does not match type 'integer'."), result.errors());
+    }
+
+    @Test
     void expandAllShouldGiveASchemaTheDefaultOfItsUse() throws Exception {
         IkanosSpec spec = mcp("""
                 definitions:
