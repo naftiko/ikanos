@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=ruleset-schema.json
 # Ikanos Polychro Ruleset v0.6
 #
-# A Spectral ruleset adapted to the Ikanos Specification v0.6.
+# The Polychro ruleset of the Ikanos Specification.
 #
 # IMPORTANT:
 # - This ruleset intentionally avoids duplicating constraints already enforced
@@ -11,7 +11,10 @@
 #   `consumes`, `exposes`, `aggregates`, `binds`), and import directives.
 #
 # Usage:
-#   npx @stoplight/spectral-cli lint my-capability.yml --ruleset ikanos-rules.yml
+#   polychro lint --schema ikanos-schema.json --ruleset ikanos-rules.yml my-capability.yml
+#
+# Custom functions (functions/*.js) are called as `function(input, options)`; the
+# `path` of each result is relative to the node the rule targets.
 #
 # Rules are organized into six categories:
 #   1. Structure & consistency      — validate cross-object constraints not covered by schema
@@ -449,12 +452,20 @@ rules:
       to render.
     severity: warn
     recommended: true
+    # Every tool is targeted and the condition is in the schema: `tools` is a map, and
+    # Polychro applies a JSONPath filter (`[?(...)]`) to array elements only. On a map,
+    # it tests the map itself, so `tools[?(@.ui)]` selected nothing.
     given:
-      - "$.capability.exposes[?(@.type == 'mcp')].tools[?(@.ui)]"
-      - "$.exposes[?(@.type == 'mcp')].tools[?(@.ui)]"
+      - "$.capability.exposes[?(@.type == 'mcp')].tools.*"
+      - "$.exposes[?(@.type == 'mcp')].tools.*"
     then:
-      field: "outputParameters"
-      function: truthy
+      function: schema
+      functionOptions:
+        schema:
+          if:
+            required: ["ui"]
+          then:
+            required: ["outputParameters"]
 
   ikanos-mcp-ui-connect-domains-empty:
     message: "This MCP Apps view declares `csp.connectDomains`, so it can reach origins outside the capability."

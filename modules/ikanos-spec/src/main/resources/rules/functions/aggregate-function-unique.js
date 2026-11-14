@@ -1,5 +1,5 @@
 /**
- * Spectral custom function: aggregate-function-unique
+ * Polychro rule function: aggregate-function-unique
  *
  * Enforces that function names within a single aggregate's 'functions' array
  * are unique. Duplicate function names would cause ambiguous 'call' and 'ref'
@@ -9,7 +9,7 @@
  *   - $.aggregates[*].functions
  *   - $.capability.aggregates[*].functions
  */
-export default function aggregateFunctionUnique(targetVal, _opts, context) {
+export default function aggregateFunctionUnique(targetVal) {
   if (!Array.isArray(targetVal)) {
     return;
   }
@@ -35,7 +35,8 @@ export default function aggregateFunctionUnique(targetVal, _opts, context) {
           " (first seen at index " +
           prior +
           ").",
-        path: [...context.path, i, "name"],
+        // Relative to the functions array the rule targets: Polychro resolves it from there.
+        path: [i, "name"],
       });
     } else {
       seen.set(name, i);
