@@ -52,6 +52,19 @@ class FreshnessTest {
     }
 
     @Test
+    void parseShouldNotLetSMaxAgeOutlastExpires() {
+        assertThat(parse("s-maxage=600", "Thu, 12 Nov 2026 10:01:00 GMT", DATE, null).ttlMs())
+                .isEqualTo(60_000L);
+    }
+
+    @Test
+    void parseShouldIgnoreSMaxAgeOnAPrivateAnswer() {
+        assertThat(parse("private, s-maxage=600", "Thu, 12 Nov 2026 10:01:00 GMT", DATE, null)
+                .ttlMs()).isEqualTo(60_000L);
+        assertThat(parse("private, s-maxage=600", null, null, null).ttlMs()).isNull();
+    }
+
+    @Test
     void parseShouldUseSMaxAgeAlone() {
         assertThat(parse("s-maxage=120", null, null, null).ttlMs()).isEqualTo(120_000L);
     }
