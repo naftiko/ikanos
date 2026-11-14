@@ -281,9 +281,24 @@ public class ProtocolDispatcher {
         McpServerToolSpec tool = null;
         if (request != null
                 && ToolsCallHandler.METHOD_NAME.equals(request.path("method").asString(""))) {
-            tool = serverSpec.getTools().get(request.path("params").path("name").asString(""));
+            tool = toolNamed(request.path("params").path("name").asString(""));
         }
         return AccessControl.effective(serverSpec, tool);
+    }
+
+    /**
+     * The tool a {@code tools/call} runs, found by its name as {@link ToolHandler} registers it,
+     * not by its map key: a legacy list tool without a name gets a generated key, and a tool with
+     * a {@code ref} only gets its name from the aggregate flow.
+     */
+    private McpServerToolSpec toolNamed(String name) {
+        McpServerToolSpec found = null;
+        for (McpServerToolSpec tool : serverSpec.getTools().values()) {
+            if (tool != null && name.equals(tool.getName())) {
+                found = tool; // the last one wins, as in ToolHandler's registry
+            }
+        }
+        return found;
     }
 
     /**
