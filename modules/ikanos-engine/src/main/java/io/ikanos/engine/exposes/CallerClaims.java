@@ -138,11 +138,14 @@ public final class CallerClaims {
     /** The claims as templates read them: see the class description. */
     static Map<String, Object> view(Map<String, Object> claims) {
         Map<String, Object> view = new LinkedHashMap<>();
+        List<String> rejected = new ArrayList<>();
         if (claims != null) {
             claims.forEach((name, value) -> {
                 Object text = text(value);
                 if (text != null) {
                     view.put(name, text);
+                } else if (name != null && name.contains(".")) {
+                    rejected.add(name);
                 }
             });
             // A template reads {{auth.claims.tenant.id}} as a path: place each dotted claim at
@@ -152,8 +155,23 @@ public final class CallerClaims {
                     placeAtPath(view, entry.getKey().split("\\.", -1), entry.getValue());
                 }
             });
+            // A dotted claim left out still hides its path, so a nested claim never stands in for
+            // it: reading it fails, or omits the identity header, as the exact name would
+            rejected.forEach(name -> removeAtPath(view, name.split("\\.", -1)));
         }
         return unmodifiable(view);
+    }
+
+    /** Removes the value at {@code path} in {@code view}, if any. */
+    private static void removeAtPath(Map<String, Object> view, String[] path) {
+        Map<?, ?> current = view;
+        for (int i = 0; i < path.length - 1; i++) {
+            if (!(current.get(path[i]) instanceof Map<?, ?> next)) {
+                return;
+            }
+            current = next;
+        }
+        current.remove(path[path.length - 1]);
     }
 
     /**

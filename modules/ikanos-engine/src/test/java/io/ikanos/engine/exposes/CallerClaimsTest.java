@@ -224,4 +224,19 @@ class CallerClaimsTest {
                 "{{auth.claims.https://example.com/profile.address.country}}", parameters),
                 "#998: a dotted claim and its path share nested objects, frozen once each");
     }
+
+    @Test
+    void ofShouldNotLetANestedClaimStandInForARejectedDottedClaim() {
+        Map<String, Object> root = rootOf(new JWTClaimsSet.Builder()
+                .claim("profile.id", " invalid-user")
+                .claim("profile", Map.of("id", "nested-user")).build());
+        Map<String, Object> parameters = new HashMap<>();
+        CallerClaims.putInto(parameters, root);
+
+        assertNull(CallerClaims.claim(root, "profile.id"),
+                "#998: an identity header must not send the nested claim instead");
+        assertThrows(io.ikanos.engine.util.CallerClaimMissingException.class,
+                () -> Resolver.resolveMustacheTemplate("{{auth.claims.profile.id}}", parameters),
+                "#998: a template must not send the nested claim instead");
+    }
 }
