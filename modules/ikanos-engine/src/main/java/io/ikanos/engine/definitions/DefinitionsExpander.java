@@ -28,6 +28,7 @@ import java.util.regex.Pattern;
 
 import org.restlet.Context;
 
+import io.ikanos.engine.util.InputDefaults;
 import io.ikanos.spec.CapabilitySpec;
 import io.ikanos.spec.DefinitionsSpec;
 import io.ikanos.spec.IkanosSpec;
@@ -277,7 +278,9 @@ public final class DefinitionsExpander {
         void finish() {
             for (Map.Entry<String, Map<String, InputParameterSpec>> set : sets.entrySet()) {
                 for (InputParameterSpec param : set.getValue().values()) {
-                    checkContent(param, setLocation(set.getKey(), param.getName()), true);
+                    String location = setLocation(set.getKey(), param.getName());
+                    checkContent(param, location, true);
+                    checkDefault(param, location);
                 }
             }
             for (String name : schemas.keySet()) {
@@ -294,6 +297,22 @@ public final class DefinitionsExpander {
                     warnings.add(owner + " declares the schema '" + name + "', which no "
                             + unitKind + " uses.");
                 }
+            }
+        }
+
+        /**
+         * Check the default of a set entry against the type and enum it resolves to, through its
+         * {@code schema:} reference if any, where the set declares it: an entry that no unit
+         * emits (its set is unused, or every unit replaces it) is never checked on a tool or
+         * flow input, and its default must not wait for its first use either.
+         */
+        private void checkDefault(InputParameterSpec param, String location) {
+            if (param == null || param.getDefaultValue() == null) {
+                return;
+            }
+            String error = InputDefaults.defaultError(param.getDefaultValue(), target(param));
+            if (error != null) {
+                errors.add(location + ": " + error + ".");
             }
         }
 
