@@ -59,7 +59,7 @@ public class RestServerAdapterTest {
                   consumes: []
                 """.formatted(schemaVersion));
 
-        Restlet chain = adapter.getServer().getNext();
+        Restlet chain = adapter.getHandler();
         assertTrue(chain instanceof ChallengeAuthenticator);
     }
 
@@ -85,7 +85,7 @@ public class RestServerAdapterTest {
                   consumes: []
                 """.formatted(schemaVersion));
 
-        Restlet chain = adapter.getServer().getNext();
+        Restlet chain = adapter.getHandler();
         assertTrue(chain instanceof ChallengeAuthenticator);
     }
 
