@@ -17,6 +17,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
+import io.ikanos.engine.exposes.mcp.McpToolJson;
 import io.ikanos.engine.exposes.mcp.model.HandlerSuccessResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerResult;
 import io.ikanos.engine.exposes.mcp.model.McpHeader;
@@ -48,54 +49,7 @@ public class ToolsListHandler extends McpCallHandler {
         Map<String, String> labels = adapter.getToolLabels();
 
         for (McpSchema.Tool tool : adapter.getTools()) {
-            ObjectNode toolNode = MAPPER.createObjectNode();
-            toolNode.put("name", tool.name());
-
-            String title = labels.get(tool.name());
-            if (title != null) {
-                toolNode.put("title", title);
-            }
-
-            if (tool.description() != null) {
-                toolNode.put("description", tool.description());
-            }
-
-            if (tool.inputSchema() != null) {
-                toolNode.set("inputSchema", MAPPER.valueToTree(tool.inputSchema()));
-            }
-
-            if (tool.outputSchema() != null) {
-                toolNode.set("outputSchema", MAPPER.valueToTree(tool.outputSchema()));
-            }
-
-            if (tool.annotations() != null) {
-                ObjectNode annotationsNode = MAPPER.createObjectNode();
-                McpSchema.ToolAnnotations ann = tool.annotations();
-                if (ann.title() != null) {
-                    annotationsNode.put("title", ann.title());
-                }
-                if (ann.readOnlyHint() != null) {
-                    annotationsNode.put("readOnlyHint", ann.readOnlyHint());
-                }
-                if (ann.destructiveHint() != null) {
-                    annotationsNode.put("destructiveHint", ann.destructiveHint());
-                }
-                if (ann.idempotentHint() != null) {
-                    annotationsNode.put("idempotentHint", ann.idempotentHint());
-                }
-                if (ann.openWorldHint() != null) {
-                    annotationsNode.put("openWorldHint", ann.openWorldHint());
-                }
-                if (!annotationsNode.isEmpty()) {
-                    toolNode.set("annotations", annotationsNode);
-                }
-            }
-
-            if (tool.meta() != null && !tool.meta().isEmpty()) {
-                toolNode.set("_meta", MAPPER.valueToTree(tool.meta()));
-            }
-
-            toolsArray.add(toolNode);
+            toolsArray.add(McpToolJson.write(tool, labels, MAPPER));
         }
 
         result.put("resultType", "complete");
