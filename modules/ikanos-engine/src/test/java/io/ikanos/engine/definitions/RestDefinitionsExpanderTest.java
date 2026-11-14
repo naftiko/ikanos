@@ -372,6 +372,47 @@ class RestDefinitionsExpanderTest {
     }
 
     @Test
+    void expandAllShouldRejectAnUnmodeledKeyBesideASchemaInAnOrchestratedRestOutput()
+            throws Exception {
+        // `format` is not a field of an output: the deserializer used to drop it, so the
+        // output was accepted. It is kept apart now, and rejected like any other key.
+        IkanosSpec spec = rest("""
+                definitions:
+                  schemas:
+                    crew-member:
+                      type: object
+                      properties:
+                        fullName: { type: string }
+                """, """
+                crew:
+                  path: "/crew"
+                  operations:
+                    get-lead:
+                      method: GET
+                      steps:
+                        lead:
+                          type: call
+                          call: registry.get-lead
+                      mappings:
+                        - target: lead
+                          value: "$.lead"
+                      outputParameters:
+                        lead: { schema: crew-member, format: date }
+                        crew:
+                          type: array
+                          items: { schema: crew-member, pattern: "^x" }
+                """);
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+
+        assertTrue(result.errors().contains("REST adapter 'api', resource 'crew', operation"
+                + " 'get-lead', output 'lead': 'schema: crew-member' takes no other key in an"
+                + " output, found [format]."), result.errors().toString());
+        assertTrue(result.errors().stream().anyMatch(e -> e.contains("found [pattern]")),
+                result.errors().toString());
+    }
+
+    @Test
     void expandAllShouldWarnAboutADefinitionNoResourceOrOperationUses() throws Exception {
         IkanosSpec spec = rest("""
                 definitions:
