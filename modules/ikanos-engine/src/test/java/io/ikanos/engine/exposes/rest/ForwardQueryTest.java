@@ -86,6 +86,24 @@ public class ForwardQueryTest {
     }
 
     @Test
+    void appendedQueryShouldReturnWhatTheAdapterAppended() {
+        assertEquals("api-version=2&a+b=c",
+                ResourceRestlet.appendedQuery("http://h/v1/items",
+                        "http://h/v1/items?api-version=2&a+b=c"));
+        assertEquals("api-version=2", ResourceRestlet.appendedQuery("http://h/v1/items?key=k",
+                "http://h/v1/items?key=k&api-version=2"));
+        assertEquals("", ResourceRestlet.appendedQuery("http://h/v1/items", "http://h/v1/items"));
+    }
+
+    @Test
+    void queryNamesShouldReturnTheDecodedNames() {
+        assertEquals(Set.of("api-version", "a b"),
+                ResourceRestlet.queryNames("api-version=2&a+b=c"));
+        assertEquals(Set.of(), ResourceRestlet.queryNames(""));
+        assertEquals(Set.of(), ResourceRestlet.queryNames(null));
+    }
+
+    @Test
     void baseUriQueryNamesShouldReturnTheDecodedNamesOfTheBaseUriQuery() {
         assertEquals(Set.of("key", "api_version", "flag"),
                 ResourceRestlet.baseUriQueryNames("http://h/v1?key=k&api%5Fversion=2&flag"));

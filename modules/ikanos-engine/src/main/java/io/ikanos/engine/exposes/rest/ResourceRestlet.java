@@ -38,7 +38,6 @@ import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.engine.util.Resolver;
 import io.ikanos.engine.util.Secrets;
-import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.OutputParameterSpec;
 import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
 import io.ikanos.spec.consumes.http.AuthenticationSpec;
@@ -55,7 +54,6 @@ import java.io.IOException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -719,11 +717,12 @@ public class ResourceRestlet extends Restlet {
                         // The caller's query, filtered with the same inputs and bindings that
                         // authentication renders the consumed API key name with, goes before
                         // the adapter's own query parameters
+                        String resolvedRef = clientRequest.getResourceRef().toString();
                         String query = filterForwardedQuery(request.getResourceRef().getQuery(),
-                                forwardExcludedQueryNames(httpAdapter, parameters));
+                                forwardExcludedQueryNames(httpAdapter, parameters,
+                                        appendedQuery(baseRef, resolvedRef)));
                         clientRequest.setResourceRef(withCallerQuery(httpAdapter.getBaseUri(),
-                                normalizedPath, baseRef,
-                                clientRequest.getResourceRef().toString(), query));
+                                normalizedPath, baseRef, resolvedRef, query));
 
                         // Set any authentication needed on the client request
                         Response clientResponse = new Response(clientRequest);
@@ -832,43 +831,45 @@ public class ResourceRestlet extends Restlet {
         if (callerQuery == null || callerQuery.isEmpty()) {
             return resolvedRef;
         }
-        String adapterQuery = resolvedRef.startsWith(baseRef)
-                && resolvedRef.length() > baseRef.length()
-                ? resolvedRef.substring(baseRef.length() + 1) : "";
+        String adapterQuery = appendedQuery(baseRef, resolvedRef);
         return forwardTargetRef(baseUri, normalizedPath,
                 adapterQuery.isEmpty() ? callerQuery : callerQuery + '&' + adapterQuery);
+    }
+
+    /**
+     * The query that the adapter's query input parameters appended to {@code baseRef}.
+     *
+     * @param resolvedRef {@code baseRef} with the adapter's query parameters appended
+     * @return that query, empty when no parameter was appended
+     */
+    static String appendedQuery(String baseRef, String resolvedRef) {
+        return resolvedRef.startsWith(baseRef) && resolvedRef.length() > baseRef.length()
+                ? resolvedRef.substring(baseRef.length() + 1) : "";
     }
 
     /**
      * Names of the query parameters a forwarded request must not take from the caller: the
      * exposed adapter's API key when its placement is {@code query}, which must not reach the
      * upstream, and the parameters the consumed adapter sets itself, the names in the query of its
-     * {@code baseUri} (percent-decoded), its {@code in: query} input parameters (by wire name) and
-     * its API key when its placement is {@code query}, which the caller must not repeat or
-     * override. The exposed API key name is rendered with the capability bindings; the consumed
-     * one with the resolved adapter inputs and the bindings, as authentication renders it.
+     * {@code baseUri}, the names its {@code in: query} input parameters actually sent (an input
+     * that resolved to no value sends nothing, so the caller's value of that name is kept) and its
+     * API key when its placement is {@code query}, which the caller must not repeat or override.
+     * The exposed API key name is rendered with the capability bindings; the consumed one with the
+     * resolved adapter inputs and the bindings, as authentication renders it.
      *
      * @param parameters the adapter's resolved input parameters
+     * @param adapterQuery the query the adapter's input parameters appended, as
+     *        {@link #appendedQuery} returns it
      */
     Set<String> forwardExcludedQueryNames(HttpClientAdapter httpAdapter,
-            Map<String, Object> parameters) {
+            Map<String, Object> parameters, String adapterQuery) {
         Map<String, Object> bindings = getCapability().getBindings() != null
                 ? getCapability().getBindings() : Map.of();
         Set<String> names = new HashSet<>(baseUriQueryNames(httpAdapter.getBaseUri()));
+        names.addAll(queryNames(adapterQuery));
         addQueryApiKeyName(getServerSpec().getAuthentication(), bindings, names);
         addQueryApiKeyName(httpAdapter.getHttpClientSpec().getAuthentication(),
                 ConsumedAuthentication.withBindings(parameters, bindings), names);
-
-        List<InputParameterSpec> inputParameters =
-                httpAdapter.getHttpClientSpec().getInputParameters();
-        if (inputParameters != null) {
-            for (InputParameterSpec spec : inputParameters) {
-                if ("query".equalsIgnoreCase(spec.getIn())) {
-                    names.add(spec.getWireName() != null && !spec.getWireName().isBlank()
-                            ? spec.getWireName() : spec.getName());
-                }
-            }
-        }
         return names;
     }
 
@@ -880,12 +881,22 @@ public class ResourceRestlet extends Restlet {
      * @return the names, empty when the base URI is null or has no query
      */
     static Set<String> baseUriQueryNames(String baseUri) {
-        Set<String> names = new HashSet<>();
         int queryStart = baseUri == null ? -1 : baseUri.indexOf('?');
-        if (queryStart < 0) {
+        return queryStart < 0 ? new HashSet<>() : queryNames(baseUri.substring(queryStart + 1));
+    }
+
+    /**
+     * Names of the pairs of a raw query string, percent-decoded the way
+     * {@link #filterForwardedQuery} decodes the caller's names.
+     *
+     * @return the names, empty when the query is null or empty
+     */
+    static Set<String> queryNames(String rawQuery) {
+        Set<String> names = new HashSet<>();
+        if (rawQuery == null || rawQuery.isEmpty()) {
             return names;
         }
-        for (String pair : baseUri.substring(queryStart + 1).split("&")) {
+        for (String pair : rawQuery.split("&")) {
             int equals = pair.indexOf('=');
             String rawName = equals < 0 ? pair : pair.substring(0, equals);
             if (!rawName.isEmpty()) {
