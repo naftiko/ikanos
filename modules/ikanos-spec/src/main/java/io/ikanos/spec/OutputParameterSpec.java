@@ -40,12 +40,13 @@ public class OutputParameterSpec extends StructureSpec<OutputParameterSpec> {
     private volatile String value;
 
     /**
-     * Keys declared beside {@code schema:} that this class does not model (such as
-     * {@code format}), with their values. The deserializer would otherwise drop them, so the
-     * definitions expander could not reject them: an output takes no other key beside
-     * {@code schema:}. The serializer writes them back, so a copy is still rejected.
+     * Every key declared beside {@code schema:} (other than {@code name} and {@code $ref}),
+     * with its value as declared. The deserializer drops a key it does not model (such as
+     * {@code format}) and a value it ignores (such as an {@code enum} that is not a list), so
+     * the definitions expander could not reject them otherwise: an output takes no other key
+     * beside {@code schema:}. The serializer writes them back, so a copy is still rejected.
      */
-    private final Map<String, JsonNode> unmodeledSchemaSiblings = new LinkedHashMap<>();
+    private final Map<String, JsonNode> schemaSiblings = new LinkedHashMap<>();
 
     public OutputParameterSpec() {
         super();
@@ -92,10 +93,11 @@ public class OutputParameterSpec extends StructureSpec<OutputParameterSpec> {
     }
 
     /**
-     * @return the keys declared beside {@code schema:} that this class does not model, with
-     *         their values, in declaration order; empty when there are none
+     * @return the keys declared beside {@code schema:}, other than {@code name} and
+     *         {@code $ref}, with their values as declared, in declaration order; empty when
+     *         there are none
      */
-    public Map<String, JsonNode> getUnmodeledSchemaSiblings() {
-        return unmodeledSchemaSiblings;
+    public Map<String, JsonNode> getSchemaSiblings() {
+        return schemaSiblings;
     }
 }
