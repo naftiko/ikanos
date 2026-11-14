@@ -1136,6 +1136,20 @@
               },
               "minProperties": 1
             }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "call"
+                ]
+              },
+              {
+                "required": [
+                  "steps"
+                ]
+              }
+            ]
           }
         }
       ],
@@ -1672,6 +1686,20 @@
               },
               "minProperties": 1
             }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "call"
+                ]
+              },
+              {
+                "required": [
+                  "steps"
+                ]
+              }
+            ]
           }
         }
       ],
@@ -2640,10 +2668,16 @@
         {
           "properties": {
             "outputParameters": {
+              "type": "array",
               "items": {
                 "$ref": "#/$defs/MappedOutputParameter"
               }
             }
+          },
+          "not": {
+            "required": [
+              "steps"
+            ]
           }
         },
         {
@@ -2664,6 +2698,34 @@
           "required": [
             "ref"
           ]
+        },
+        {
+          "required": [
+            "outputParameters"
+          ],
+          "properties": {
+            "outputParameters": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/MockOutputParameter"
+              },
+              "minProperties": 1
+            }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "call"
+                ]
+              },
+              {
+                "required": [
+                  "steps"
+                ]
+              }
+            ]
+          }
         }
       ],
       "additionalProperties": false
@@ -2931,36 +2993,6 @@
           "responseBinary"
         ]
       },
-      "anyOf": [
-        {
-          "properties": {
-            "outputParameters": {
-              "items": {
-                "$ref": "#/$defs/MappedOutputParameter"
-              }
-            }
-          }
-        },
-        {
-          "required": [
-            "steps"
-          ],
-          "properties": {
-            "mappings": true,
-            "outputParameters": {
-              "type": "object",
-              "additionalProperties": {
-                "$ref": "#/$defs/OrchestratedOutputParameterInline"
-              }
-            }
-          }
-        },
-        {
-          "required": [
-            "ref"
-          ]
-        }
-      ],
       "additionalProperties": false
     },
     "ConsumesMcp": {
