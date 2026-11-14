@@ -16,6 +16,7 @@ package io.ikanos.engine.exposes.mcp;
 import static org.assertj.core.api.Assertions.assertThat;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -42,13 +43,20 @@ class McpCacheHintsIntegrationTest {
     @TempDir
     static Path tempDir;
 
+    private static RecordingUpstream upstream;
     private static McpServerAdapter configured;
     private static McpServerAdapter unset;
 
     @BeforeAll
     static void buildAdapters() throws Exception {
+        upstream = new RecordingUpstream();
         configured = adapter("ttlMs: 60000\n    cacheScope: public");
         unset = adapter("");
+    }
+
+    @AfterAll
+    static void stopUpstream() throws Exception {
+        upstream.close();
     }
 
     @ParameterizedTest
@@ -82,6 +90,18 @@ class McpCacheHintsIntegrationTest {
     }
 
     @Test
+    void templatedResourceReadShouldUseItsPrivateScopeUnderAPublicServer() throws Exception {
+        ObjectNode params = JSON.createObjectNode().put("uri", "data://users/42");
+
+        JsonNode result = dispatch(configured, "resources/read", params);
+
+        assertThat(result.path("contents").get(0).path("uri").asString())
+                .isEqualTo("data://users/42");
+        assertThat(result.path("ttlMs").asInt(-1)).isEqualTo(60000);
+        assertThat(result.path("cacheScope").asString()).isEqualTo("private");
+    }
+
+    @Test
     void adapterShouldFailToStartWhenAResourceTtlIsNegative() throws Exception {
         String yaml = """
                 ikanos: "%s"
@@ -109,7 +129,7 @@ class McpCacheHintsIntegrationTest {
         IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
 
         assertThatThrownBy(() -> new Capability(spec))
-                .hasStackTraceContaining("ttlMs must be zero or more");
+                .hasStackTraceContaining("MCP resource 'guide': MCP ttlMs must be zero or more");
     }
 
     @Test
@@ -221,6 +241,7 @@ class McpCacheHintsIntegrationTest {
                         call: upstream.get-user
                         with:
                           id: "{{userId}}"
+                        cacheScope: private
                     prompts:
                       greet:
                         description: "Greet someone"
@@ -234,14 +255,15 @@ class McpCacheHintsIntegrationTest {
                   consumes:
                   - type: http
                     namespace: upstream
-                    baseUri: "http://localhost:1"
+                    baseUri: "%s"
                     resources:
                       users:
-                        path: "users/{{id}}"
+                        path: "/users/{{id}}"
                         operations:
                           get-user:
                             method: GET
-                """.formatted(IKANOS, cacheLines, docs.toUri(), notes.toUri(), news.toUri());
+                """.formatted(IKANOS, cacheLines, docs.toUri(), notes.toUri(), news.toUri(),
+                        upstream.baseUri());
         IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
         return (McpServerAdapter) new Capability(spec).getServerAdapters().get(0);
     }
