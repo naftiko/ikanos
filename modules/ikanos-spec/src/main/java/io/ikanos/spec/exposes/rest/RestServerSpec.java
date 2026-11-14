@@ -76,8 +76,9 @@ public class RestServerSpec extends ServerSpec {
     public void setDefinitions(DefinitionsSpec definitions) { this.definitions.set(definitions); }
 
     /**
-     * @return how long, in milliseconds, a {@code GET} or {@code HEAD} answer stays fresh, sent as
-     *         {@code Cache-Control}; {@code null} sends no {@code Cache-Control}
+     * @return how long, in milliseconds, a successful {@code GET} answer of an operation stays
+     *         fresh, sent as {@code Cache-Control}, unless the operation sets its own
+     *         {@code ttlMs}; {@code null} sends no {@code Cache-Control}
      */
     public Integer getTtlMs() { return ttlMs; }
     public void setTtlMs(Integer ttlMs) { this.ttlMs = ttlMs; }

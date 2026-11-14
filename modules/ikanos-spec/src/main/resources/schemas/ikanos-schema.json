@@ -2674,7 +2674,7 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 2147483647,
-          "description": "Overrides the adapter's `ttlMs` for this operation. Only `GET` answers get `Cache-Control`."
+          "description": "Overrides the adapter's `ttlMs` for this operation: when set, it replaces the adapter's value (`0` sends `no-store` even when the adapter sets a positive TTL); when unset, the adapter's applies. Only successful `GET` answers get `Cache-Control`; no operation answers `HEAD`."
         },
         "cacheScope": {
           "$ref": "#/$defs/CacheScope",
