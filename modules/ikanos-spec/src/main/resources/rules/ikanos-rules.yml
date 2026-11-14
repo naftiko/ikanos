@@ -981,10 +981,12 @@ rules:
     description: >
       A `cacheScope: public` lets a shared cache serve a result to any caller. When
       the adapter authenticates its callers (or, for MCP, identifies them through
-      `trust`), or a REST `GET` operation that sends `Cache-Control` reads an input
-      from outside the URL (a header, or the body), the result may depend on who is
-      calling. It can be intended, for a public catalogue behind authentication, so
-      this is a warning; `auto` derives the safe scope.
+      `trust`), or a REST `GET` operation reads an input from outside the URL (a
+      header, or the body) that has no literal `value`, the result may depend on who
+      is calling. Only results that can be cached are reported: a positive `ttlMs`
+      (MCP's default is 0, REST sends no `Cache-Control` without one) or, on an MCP
+      resource, `ttlFromUpstream`. It can be intended, for a public catalogue behind
+      authentication, so this is a warning; `auto` derives the safe scope.
     severity: warn
     recommended: true
     given: "$"
