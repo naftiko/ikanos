@@ -1,7 +1,8 @@
 # Spectral fixture — cache hint rules MUST NOT FIRE (#1022): the same shapes as
 # spectral-cache-hints-violations.yaml, with scopes left to auto or private, public
-# only where nothing depends on the caller or nothing is sent, and ttlFromUpstream
-# only on a single HTTP call.
+# only where nothing depends on the caller (`trust: none`, an input with a literal
+# `value`) or nothing is cached (no REST ttlMs, MCP's default ttlMs of 0), and
+# ttlFromUpstream only on a single HTTP call.
 ikanos: "1.0.0-beta10"
 info:
   display: "Cache hints compliant"
@@ -109,3 +110,52 @@ capability:
           description: "Rates from one HTTP call."
           ttlFromUpstream: true
           call: "shop.list-items"
+    - type: "rest"
+      port: 8084
+      namespace: "fixed-tenant-rest"
+      ttlMs: 60000
+      cacheScope: "public"
+      resources:
+        offers:
+          path: "/fixed-offers"
+          description: "A header input with a literal value never reads the request."
+          operations:
+            list-fixed-offers:
+              method: "GET"
+              description: "List offers for a fixed tenant."
+              inputParameters:
+                tenant:
+                  in: "header"
+                  type: "string"
+                  value: "acme"
+              call: "shop.list-items"
+    - type: "mcp"
+      port: 8085
+      namespace: "open-mcp"
+      description: "MCP server that records no agent identity."
+      ttlMs: 60000
+      cacheScope: "public"
+      trust:
+        mode: "none"
+      tools:
+        hello:
+          description: "Say hello."
+          outputParameters:
+            msg:
+              type: "string"
+              value: "hi"
+    - type: "mcp"
+      port: 8086
+      namespace: "uncached-mcp"
+      description: "Authenticated, but no ttlMs: MCP's default of 0 caches nothing."
+      cacheScope: "public"
+      authentication:
+        type: "bearer"
+        token: "{{MCP_TOKEN}}"
+      tools:
+        hello:
+          description: "Say hello."
+          outputParameters:
+            msg:
+              type: "string"
+              value: "hi"
