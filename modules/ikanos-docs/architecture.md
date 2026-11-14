@@ -190,9 +190,10 @@ sequenceDiagram
     Client->>Chain: POST (JSON-RPC body + Mcp-* headers)
     Chain->>Res: authenticated request
     Res->>Res: check required headers match the body
-    Res->>Disp: dispatchWithTracing(body)
+    Res->>Disp: dispatchWithTracing(body, request)
     Disp->>Disp: entry span, trace context from _meta or traceparent
-    Disp->>H: pre-processors (protocol version), then handle()
+    Disp->>Disp: request context from the URL query (McpRequestContext)
+    Disp->>H: pre-processors (protocol version), then handle(body, context)
     H->>Tool: handleToolCall(name, arguments)
     Tool->>Tool: keep only the declared arguments
     Tool->>Tool: fill absent or null optional inputs from their default<br/>(InputDefaults.apply)
@@ -223,6 +224,8 @@ What this path shows about the MCP adapter:
 
 - **Transport and protocol are separate.** In the MCP adapter, `McpServerResource` holds everything specific to HTTP (header checks, HTTP status codes, content types), and `ProtocolDispatcher` holds the MCP protocol, shared with the stdio transport (`StdioJsonRpcHandler`). A protocol change belongs in the dispatcher or a handler, never in a transport.
 - **One handler per JSON-RPC method.** Each method has its own `McpCallHandler` subclass in `exposes.mcp.handler`, built once per adapter by `McpCallHandlersFactory`, which is the list of supported methods. Each handler declares the MCP headers it requires, its pre-processors and its post-processors (`exposes.mcp.processor`).
+- **Per-request context from the endpoint URL.** MCP 2026-07-28 is stateless, so a client that wants a different view of the endpoint states it on every request, on the URL its operator configured. `ProtocolDispatcher.dispatchWithTracing` reads the query string once into a `McpRequestContext` and passes it to `McpCallHandler.handle(body, context)`; handlers that ignore it keep the default, which calls `handle(body)`. On stdio there is no URL, so every request gets `McpRequestContext.DEFAULT`. Today the context carries the `tools/list` tag filter (`?tags=a,b`): `ToolsListHandler` keeps the tools that carry any of those tags. The filter limits discovery, not access: `tools/call` still resolves a tool it left out.
+- **One serialiser for tool definitions.** `McpToolJson.write` writes every tool definition a client receives, so their bytes, which clients cache as part of the prompt prefix, cannot drift. `ToolsListHandlerGoldenTest` guards them.
 - **Extensions.** `server/discover` advertises every extension in one `capabilities.extensions` object: MCP Apps (`McpAppsMetadata`) when a tool links a `ui://` view, Skills (`SkillHandler`) when the adapter declares skills. Skills is advertised with `directoryRead: true`. The Skills methods (`skills/list`, `skills/get`, `resources/directory/read`) are only registered when the adapter serves skills, so a server without skills answers them with `method not found`. Tasks (SEP-2663, `RequestClientCapabilities.TASKS_EXTENSION`) are advertised, and `tasks/get`, `tasks/cancel` and `tasks/update` registered, only when the capability runs in a durable mode and at least one tool's flow declares `semantics.interaction.mode: task`.
 - **Protocol versions.** The supported versions are defined in one place, `ProtocolDispatcher.SUPPORTED_PROTOCOL_VERSIONS` (at the time of writing, 2026-07-28 only). A request with an unsupported version, including a legacy `initialize` (`LegacyInitializeHandler`), gets an explicit `UnsupportedProtocolVersionError` that names the supported versions.
 - **Notifications.** A notification, a request object with `"jsonrpc":"2.0"`, a string `method` and no `id`, gets no response, as JSON-RPC requires: `ProtocolDispatcher.dispatch` returns no body, which `McpServerResource` answers with `202 Accepted` once the headers are valid, and `StdioJsonRpcHandler` with nothing. A notification is never executed, even for a method that has a handler; any other message without an `id`, such as a batch array or an object whose `jsonrpc` is missing or not `"2.0"`, still gets an error.

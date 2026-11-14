@@ -21,6 +21,7 @@ import io.ikanos.engine.exposes.mcp.McpToolJson;
 import io.ikanos.engine.exposes.mcp.model.HandlerSuccessResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerResult;
 import io.ikanos.engine.exposes.mcp.model.McpHeader;
+import io.ikanos.engine.exposes.mcp.model.McpRequestContext;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPostProcessor;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPreProcessor;
 import io.ikanos.engine.exposes.mcp.model.McpResultType;
@@ -45,12 +46,25 @@ public class ToolsListHandler extends McpCallHandler {
 
     @Override
     public HandlerResult handle(JsonNode requestBody) {
+        return handle(requestBody, McpRequestContext.DEFAULT);
+    }
+
+    /**
+     * Lists the tools in authored order, keeping only those that carry one of the context's tags
+     * when the request sets a tag filter. The filter limits discovery, not access: a tool left
+     * out here can still be called by name.
+     */
+    @Override
+    public HandlerResult handle(JsonNode requestBody, McpRequestContext context) {
         ObjectNode result = MAPPER.createObjectNode();
         ArrayNode toolsArray = result.putArray("tools");
         Map<String, String> labels = adapter.getToolLabels();
+        Map<String, List<String>> tags = adapter.getToolTags();
 
         for (McpSchema.Tool tool : adapter.getTools()) {
-            toolsArray.add(McpToolJson.write(tool, labels, MAPPER));
+            if (context.acceptsTags(tags.getOrDefault(tool.name(), List.of()))) {
+                toolsArray.add(McpToolJson.write(tool, labels, MAPPER));
+            }
         }
 
         result.put(McpResultType.FIELD, McpResultType.COMPLETE.wireValue());
