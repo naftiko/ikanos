@@ -617,6 +617,7 @@ All fields available on ExposedOperation:
 | **steps** | `OperationStep[]` | **Orchestrated mode only. REQUIRED** (at least 1 step). Sequence of calls to consumed operations. |
 | **outputParameters** (orchestrated) | `OrchestratedOutputParameter[]` | **Orchestrated mode**. Output parameters with name and type. |
 | **mappings** | `StepOutputMapping[]` | **Orchestrated mode only**. Maps step outputs to the operation's output parameters at the operation level. |
+| **ref** | `string` | Reference to an aggregate flow (`{aggregate-namespace}.{flow-name}`), which runs instead of `call` or `steps`. See 3.10.3 for the inputs it accepts. |
 
 #### 3.10.2 Modes (oneOf)
 
@@ -642,6 +643,7 @@ All fields available on ExposedOperation:
 - In simple mode, `call` MUST follow the format `{namespace}.{operationId}` and reference a valid consumed operation.
 - In orchestrated mode, the `steps` array MUST contain at least one entry. Each step references a consumed operation using `{namespace}.{operationName}`.
 - The `method` field is always required regardless of mode.
+- An operation with `ref` that declares no `inputParameters`, on a resource that declares none either, accepts its flow's inputs, as an MCP tool with `ref` does. A flow input has no `in`, so it is placed by name: an input named by a placeholder of the resource path (`/ships/{{imo}}`) is a path parameter, the others are query parameters for `GET` and `DELETE` (an `array` input takes every value of a repeated parameter, `?ids=A&ids=B`; an `object` input, or an array of objects, is one JSON value, `?filter={"flag":"NO"}`), and members of the JSON body for `POST`, `PUT` and `PATCH`. A flow input stays optional unless it declares `required: true`; a path parameter is always required. When the operation or its resource declares inputs, they replace the flow's. The OpenAPI export declares the same parameters.
 
 #### 3.10.4 ExposedOperation Object Examples
 

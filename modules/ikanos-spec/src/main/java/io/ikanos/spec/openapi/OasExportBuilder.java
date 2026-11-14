@@ -13,6 +13,7 @@
  */
 package io.ikanos.spec.openapi;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -42,12 +43,16 @@ import io.ikanos.spec.CapabilitySpec;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.OutputParameterSpec;
+import io.ikanos.spec.aggregates.AggregateFlowSpec;
+import io.ikanos.spec.aggregates.AggregateSpec;
+import io.ikanos.spec.aggregates.RefInputs;
 import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
 import io.ikanos.spec.consumes.http.AuthenticationSpec;
 import io.ikanos.spec.consumes.http.BasicAuthenticationSpec;
 import io.ikanos.spec.consumes.http.BearerAuthenticationSpec;
 import io.ikanos.spec.consumes.http.DigestAuthenticationSpec;
 import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
+import io.ikanos.spec.exposes.rest.RestPaths;
 import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
 import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
@@ -107,7 +112,7 @@ public class OasExportBuilder {
         openApi.setServers(buildServers(restServer));
 
         // Paths
-        openApi.setPaths(buildPaths(restServer, warnings));
+        openApi.setPaths(buildPaths(restServer, flowsOf(IkanosSpec.getCapability()), warnings));
 
         // Security
         buildSecurity(restServer, openApi, warnings);
@@ -170,7 +175,39 @@ public class OasExportBuilder {
         return List.of(new Server().url(url));
     }
 
+    /**
+     * The aggregate flows declared inline in a capability, keyed by their {@code ref}
+     * ({@code namespace.name}). An imported aggregate is not resolved by the export, so its flows
+     * are absent.
+     */
+    static Map<String, AggregateFlowSpec> flowsOf(CapabilitySpec capability) {
+        Map<String, AggregateFlowSpec> flows = new LinkedHashMap<>();
+        if (capability == null || capability.getAggregates() == null) {
+            return flows;
+        }
+        for (AggregateSpec aggregate : capability.getAggregates().values()) {
+            if (aggregate == null || aggregate.getFlows() == null) {
+                continue;
+            }
+            for (AggregateFlowSpec flow : aggregate.getFlows().values()) {
+                if (flow != null) {
+                    flows.putIfAbsent(aggregate.getNamespace() + "." + flow.getName(), flow);
+                }
+            }
+        }
+        return flows;
+    }
+
     Paths buildPaths(RestServerSpec restServer, List<String> warnings) {
+        return buildPaths(restServer, Map.of(), warnings);
+    }
+
+    /**
+     * @param flows the aggregate flows by {@code ref}, so that a {@code ref} operation that
+     *        declares no inputs, nor its resource, exports its flow's inputs (#1039)
+     */
+    Paths buildPaths(RestServerSpec restServer, Map<String, AggregateFlowSpec> flows,
+            List<String> warnings) {
         Paths paths = new Paths();
 
         for (RestServerResourceSpec resource : restServer.getResources().values()) {
@@ -179,10 +216,22 @@ public class OasExportBuilder {
             basePath = "/" + resource.getName();
             }
             // Convert Mustache segments {{var}} to OpenAPI format {var}
-            basePath = basePath.replaceAll("\\{\\{(\\w+)\\}\\}", "{$1}");
+            basePath = RestPaths.toUriTemplate(basePath);
 
             for (RestServerOperationSpec opSpec : resource.getOperations().values()) {
-                Operation operation = buildOperation(resource, opSpec);
+                List<InputParameterSpec> inherited = RefInputs.forRestOperation(resource, opSpec,
+                        () -> {
+                            AggregateFlowSpec flow = flows.get(opSpec.getRef());
+                            if (flow == null) {
+                                warnings.add("REST operation '" + opSpec.getName()
+                                        + "' uses 'ref: " + opSpec.getRef()
+                                        + "', whose flow is not declared inline: its inputs are"
+                                        + " not exported");
+                                return List.of();
+                            }
+                            return flow.getInputParameters().values();
+                        });
+                Operation operation = buildOperation(resource, opSpec, inherited);
                 String pathKey = basePath;
 
                 PathItem pathItem = paths.get(pathKey);
@@ -202,6 +251,15 @@ public class OasExportBuilder {
     }
 
     Operation buildOperation(RestServerResourceSpec resource, RestServerOperationSpec opSpec) {
+        return buildOperation(resource, opSpec, List.of());
+    }
+
+    /**
+     * @param inherited the flow inputs a {@code ref} operation inherits, already placed
+     *        ({@link RefInputs#forRestOperation}); exported after the operation's own inputs
+     */
+    Operation buildOperation(RestServerResourceSpec resource, RestServerOperationSpec opSpec,
+            List<InputParameterSpec> inherited) {
         Operation operation = new Operation();
 
         if (opSpec.getName() != null) {
@@ -218,7 +276,9 @@ public class OasExportBuilder {
         List<Parameter> params = new ArrayList<>();
         RequestBody requestBody = null;
         List<String> bodyRequired = new ArrayList<>();
-        for (InputParameterSpec inputParam : opSpec.getInputParameters()) {
+        List<InputParameterSpec> inputs = new ArrayList<>(opSpec.getInputParameters());
+        inputs.addAll(inherited);
+        for (InputParameterSpec inputParam : inputs) {
             if ("body".equals(inputParam.getIn())) {
                 if (requestBody == null) {
                     requestBody = new RequestBody();
@@ -242,7 +302,13 @@ public class OasExportBuilder {
                 param.setIn(inputParam.getIn() != null ? inputParam.getIn() : "query");
                 param.setRequired(
                         inputParam.isRequiredOrDefault(REST_PARAMETER_REQUIRED_BY_DEFAULT));
-                param.setSchema(buildInputSchema(inputParam));
+                if ("query".equals(param.getIn()) && inputParam.isJsonInQuery()) {
+                    // One JSON value, as the adapter reads it, not form-encoded members
+                    param.setContent(new Content().addMediaType("application/json",
+                            new MediaType().schema(buildInputSchema(inputParam))));
+                } else {
+                    param.setSchema(buildInputSchema(inputParam));
+                }
                 if (inputParam.getDescription() != null) {
                     param.setDescription(inputParam.getDescription());
                 }
@@ -344,11 +410,49 @@ public class OasExportBuilder {
         return schema;
     }
 
+    /**
+     * The schema of an input parameter, with the JSON Schema subset an input can declare (an
+     * aggregate flow input, which a {@code ref} operation inherits, declares the most): type,
+     * {@code items}, {@code properties} and their {@code required} names,
+     * {@code additionalProperties}, {@code enum}, {@code format}, {@code minimum} and
+     * {@code maximum}. An array always gets {@code items}, which OpenAPI 3.0 requires.
+     */
+    @SuppressWarnings({"rawtypes", "unchecked"})
     Schema<?> buildInputSchema(InputParameterSpec inputParam) {
-        Schema<?> schema = new Schema<>();
-        setSchemaType(schema, mapIkanosTypeToOas(inputParam.getType()));
+        Schema schema = new Schema<>();
+        String type = mapIkanosTypeToOas(inputParam.getType());
+        setSchemaType(schema, type);
         if (inputParam.getDescription() != null) {
             schema.setDescription(inputParam.getDescription());
+        }
+        if ("array".equals(type)) {
+            schema.setItems(inputParam.getItems() != null
+                    ? buildInputSchema(inputParam.getItems()) : new Schema<>());
+        }
+        if (!inputParam.getProperties().isEmpty()) {
+            Map<String, Schema> properties = new LinkedHashMap<>();
+            for (InputParameterSpec property : inputParam.getProperties()) {
+                properties.put(property.getName(), buildInputSchema(property));
+            }
+            schema.setProperties(properties);
+        }
+        if (!inputParam.getRequired().isEmpty()) {
+            schema.setRequired(new ArrayList<>(inputParam.getRequired()));
+        }
+        if (inputParam.getAdditionalProperties() != null) {
+            schema.setAdditionalProperties(inputParam.getAdditionalProperties());
+        }
+        if (!inputParam.getEnumeration().isEmpty()) {
+            schema.setEnum(inputParam.typedEnumeration());
+        }
+        if (inputParam.getFormat() != null) {
+            schema.setFormat(inputParam.getFormat());
+        }
+        if (inputParam.getMinimum() != null) {
+            schema.setMinimum(new BigDecimal(inputParam.getMinimum().toString()));
+        }
+        if (inputParam.getMaximum() != null) {
+            schema.setMaximum(new BigDecimal(inputParam.getMaximum().toString()));
         }
         return schema;
     }
@@ -505,6 +609,7 @@ public class OasExportBuilder {
             return "string";
         }
         return switch (ikanosType) {
+            case "integer" -> "integer";
             case "number" -> "number";
             case "boolean" -> "boolean";
             case "array" -> "array";

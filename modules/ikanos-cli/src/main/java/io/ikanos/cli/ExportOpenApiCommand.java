@@ -20,6 +20,7 @@ import java.nio.file.Paths;
 import java.util.concurrent.Callable;
 import tools.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.models.SpecVersion;
+import io.ikanos.engine.definitions.DefinitionsExpander;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.openapi.OasExportBuilder;
 import io.ikanos.spec.openapi.OasExportResult;
@@ -78,6 +79,19 @@ public class ExportOpenApiCommand implements Callable<Integer> {
                 specVersion = SpecVersion.V30;
             } else {
                 System.err.println("Error: Unsupported spec version '" + specVersionOption + "'. Supported versions: 3.0, 3.1");
+                return 1;
+            }
+
+            // Expand the shared definitions the way the engine does at load time, so that a ref
+            // operation exports the inputs its flow takes from input parameter sets (#1039).
+            DefinitionsExpander.Result definitions = DefinitionsExpander.expandAll(IkanosSpec);
+            for (String warning : definitions.warnings()) {
+                System.err.println("Warning: " + warning);
+            }
+            if (!definitions.errors().isEmpty()) {
+                for (String error : definitions.errors()) {
+                    System.err.println("Error: Invalid definitions: " + error);
+                }
                 return 1;
             }
 

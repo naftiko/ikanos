@@ -13,6 +13,8 @@
  */
 package io.ikanos.engine;
 
+import io.ikanos.spec.exposes.rest.RestPaths;
+
 /**
  * Abstract Adapter class defining the basic lifecycle methods
  */
@@ -23,13 +25,14 @@ public abstract class Adapter {
     public abstract void stop() throws Exception;
         
     /**
-     * Converts a Mustache template to a URI template.
+     * Converts a Mustache template to a URI template, with the placeholder rule the OpenAPI
+     * export and the inputs of a {@code ref} operation use too ({@link RestPaths}).
      *
      * @param mustacheTemplate the Mustache template
      * @return the URI template
      */
     public static String toUriTemplate(String mustacheTemplate) {
-        return mustacheTemplate.replaceAll("\\{\\{(\\w+)\\}\\}", "{$1}");
+        return RestPaths.toUriTemplate(mustacheTemplate);
     }
 
 }

@@ -34,6 +34,7 @@ import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.InputParameterSpec;
+import io.ikanos.spec.aggregates.RefInputs;
 import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.context.Scope;
@@ -118,11 +119,8 @@ public class ToolHandler {
     }
 
     private List<InputParameterSpec> resolveInputParameters(McpServerToolSpec tool) {
-        List<InputParameterSpec> params = tool.getInputParameters();
-        if ((params == null || params.isEmpty()) && tool.getRef() != null) {
-            params = capability.lookupFlow(tool.getRef()).getInputParameters();
-        }
-        return params != null ? params : List.of();
+        return RefInputs.ownOrFlow(tool.getInputParameters(), tool.getRef(),
+                () -> capability.lookupFlow(tool.getRef()).getInputParameters());
     }
 
     /**
@@ -255,7 +253,7 @@ public class ToolHandler {
         arguments = declaredArguments(toolName, arguments);
 
         // Check the arguments against their declared types before any template sees them.
-        arguments = checkArgumentTypes(toolSpec, arguments);
+        arguments = checkArgumentTypes(toolName, arguments);
 
         // Merge arguments with tool-level 'with' parameters.
         // 'with' values are Mustache templates resolved against the tool arguments,
@@ -363,13 +361,10 @@ public class ToolHandler {
      *         {@code string}
      * @throws IllegalArgumentException when an argument does not match its declared type
      */
-    private Map<String, Object> checkArgumentTypes(McpServerToolSpec toolSpec,
+    private Map<String, Object> checkArgumentTypes(String toolName,
             Map<String, Object> arguments) {
-        List<InputParameterSpec> declared = toolSpec.getInputParameters();
-        if ((declared == null || declared.isEmpty()) && toolSpec.getRef() != null) {
-            declared = capability.lookupFlow(toolSpec.getRef()).getInputParameters();
-        }
-        if (arguments == null || declared == null || declared.isEmpty()) {
+        List<InputParameterSpec> declared = getInputParameters(toolName);
+        if (arguments == null || declared.isEmpty()) {
             return arguments;
         }
         Map<String, Object> checked = new HashMap<>(arguments);

@@ -102,6 +102,19 @@ public class OperationStepExecutor {
     public Map<String, Object> resolveInputParametersFromRequest(Request request,
             RestServerSpec serverSpec, RestServerResourceSpec resourceSpec,
             RestServerOperationSpec serverOp) {
+        return resolveInputParametersFromRequest(request, serverSpec, resourceSpec, serverOp,
+                List.of());
+    }
+
+    /**
+     * Same as {@link #resolveInputParametersFromRequest(Request, RestServerSpec,
+     * RestServerResourceSpec, RestServerOperationSpec)}, plus the inputs a {@code ref} operation
+     * inherits from its aggregate flow, already placed in the request
+     * ({@link io.ikanos.spec.aggregates.RefInputs#forRestOperation}). They are resolved last.
+     */
+    public Map<String, Object> resolveInputParametersFromRequest(Request request,
+            RestServerSpec serverSpec, RestServerResourceSpec resourceSpec,
+            RestServerOperationSpec serverOp, List<InputParameterSpec> inheritedInputs) {
         Map<String, Object> params = new HashMap<>();
         JsonNode tmpRoot = null;
 
@@ -141,6 +154,17 @@ public class OperationStepExecutor {
         // Operation-level input parameters override resource-level
         if (serverOp != null && serverOp.getInputParameters() != null) {
             for (InputParameterSpec spec : serverOp.getInputParameters()) {
+                Object v = Resolver.resolveInputParameterFromRequest(spec, request, root, mapper);
+                if (v != null) {
+                    params.put(spec.getName(), v);
+                }
+            }
+        }
+
+        // Inputs inherited from the aggregate flow, when the operation and its resource declare
+        // none (#1039)
+        if (inheritedInputs != null) {
+            for (InputParameterSpec spec : inheritedInputs) {
                 Object v = Resolver.resolveInputParameterFromRequest(spec, request, root, mapper);
                 if (v != null) {
                     params.put(spec.getName(), v);
