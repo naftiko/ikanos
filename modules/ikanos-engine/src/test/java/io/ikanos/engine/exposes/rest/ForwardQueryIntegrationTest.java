@@ -237,6 +237,25 @@ public class ForwardQueryIntegrationTest {
     }
 
     @Test
+    void forwardShouldKeepACallerParameterThatTheAdapterDeclaresButSendsNoValueFor()
+            throws Exception {
+        startCapability("", """
+                      inputParameters:
+                        - name: "limit"
+                          in: "query"
+                        - name: "api-version"
+                          in: "query"
+                          value: "2"
+                """);
+
+        Response response = get("/proxy/items?limit=5&api-version=1");
+
+        assertEquals(Status.SUCCESS_OK, response.getStatus());
+        // The adapter sends no limit, so the caller's is kept; it sends its own api-version
+        assertEquals("limit=5&api-version=2", receivedQuery.get());
+    }
+
+    @Test
     void forwardShouldDropTheConsumedApiKeyWhoseNameAnAdapterInputSets() throws Exception {
         startCapability("", """
                       authentication:
