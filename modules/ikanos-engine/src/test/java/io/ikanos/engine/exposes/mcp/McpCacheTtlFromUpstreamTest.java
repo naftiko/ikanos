@@ -78,8 +78,16 @@ class McpCacheTtlFromUpstreamTest {
 
     @AfterAll
     static void stop() throws Exception {
-        upstream.stop();
-        slowUpstream.close();
+        try {
+            // releases the consumed HTTP clients the reads started on demand
+            adapter.getCapability().stop();
+        } finally {
+            try {
+                upstream.stop();
+            } finally {
+                slowUpstream.close();
+            }
+        }
     }
 
     @Test
