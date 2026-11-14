@@ -15,9 +15,12 @@ package io.ikanos.engine.exposes.mcp.model;
 
 import java.util.Arrays;
 import java.util.LinkedHashSet;
+import java.util.Objects;
 import java.util.Set;
 import org.restlet.Request;
 import org.restlet.data.Form;
+import io.ikanos.engine.exposes.mcp.search.ToolSearchCatalog;
+import io.ikanos.engine.exposes.mcp.search.ToolSearchMode;
 
 /**
  * What one MCP request asks of the endpoint beyond its JSON-RPC body.
@@ -25,36 +28,59 @@ import org.restlet.data.Form;
  * <p>MCP 2026-07-28 is stateless, so a client that wants a different view of the endpoint states
  * it on every request. The endpoint URL is the one place every MCP client lets its operator set
  * once, so these options are read from the URL's query string. On stdio there is no URL, and
- * every request gets {@link #DEFAULT}.</p>
+ * every request gets the endpoint defaults.</p>
  *
  * @param tagFilter the tags a listed tool must carry at least one of; empty means no filter
+ * @param mode how tools are advertised to this request
  */
-public record McpRequestContext(Set<String> tagFilter) {
+public record McpRequestContext(Set<String> tagFilter, ToolSearchMode mode) {
 
     /** The query parameter that filters {@code tools/list} by tag, e.g. {@code ?tags=a,b}. */
     public static final String TAGS_PARAMETER = "tags";
 
-    /** The context of a request that asks for nothing: every tool is listed. */
-    public static final McpRequestContext DEFAULT = new McpRequestContext(Set.of());
+    /** The query parameter that selects the tool search mode, {@code listed} or {@code deferred}. */
+    public static final String TOOL_SEARCH_PARAMETER = "toolSearch";
+
+    /** A request that asks for nothing, on an endpoint without tool search: every tool is listed. */
+    public static final McpRequestContext DEFAULT =
+            new McpRequestContext(Set.of(), ToolSearchMode.LISTED);
 
     public McpRequestContext {
         tagFilter = Set.copyOf(tagFilter);
+        Objects.requireNonNull(mode, "mode");
+    }
+
+    /**
+     * The context of a request that sets nothing on the URL, such as every stdio request.
+     *
+     * @param catalog the endpoint's tool search
+     * @return no tag filter, and the endpoint's default mode
+     */
+    public static McpRequestContext of(ToolSearchCatalog catalog) {
+        return catalog == null || catalog.defaultMode() == ToolSearchMode.LISTED ? DEFAULT
+                : new McpRequestContext(Set.of(), catalog.defaultMode());
     }
 
     /**
      * Reads the context from an HTTP request's query string.
      *
      * @param request the inbound request, or {@code null} on stdio
-     * @return the context; {@link #DEFAULT} when the request sets nothing
+     * @param catalog the endpoint's tool search, which resolves the requested mode
+     * @return the context
+     * @throws IllegalArgumentException when the request selects an unknown tool search mode
      */
-    public static McpRequestContext from(Request request) {
+    public static McpRequestContext from(Request request, ToolSearchCatalog catalog) {
         if (request == null || request.getResourceRef() == null
                 || !request.getResourceRef().hasQuery()) {
-            return DEFAULT;
+            return of(catalog);
         }
         Form query = request.getResourceRef().getQueryAsForm();
         Set<String> tags = parseTags(query.getFirstValue(TAGS_PARAMETER));
-        return tags.isEmpty() ? DEFAULT : new McpRequestContext(tags);
+        String requested = query.getFirstValue(TOOL_SEARCH_PARAMETER);
+        ToolSearchMode mode = catalog != null ? catalog.resolveMode(requested)
+                : ToolSearchMode.LISTED;
+        return tags.isEmpty() && mode == ToolSearchMode.LISTED ? DEFAULT
+                : new McpRequestContext(tags, mode);
     }
 
     /**

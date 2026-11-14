@@ -24,6 +24,7 @@ import io.ikanos.engine.exposes.mcp.model.HandlerFailureResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerSuccessResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerResult;
 import io.ikanos.engine.exposes.mcp.model.McpRequestContext;
+import io.ikanos.engine.exposes.mcp.search.ToolSearchCatalog;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPostProcessor;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPreProcessor;
 import io.ikanos.engine.observability.McpMetaTraceContextBridge;
@@ -71,6 +72,7 @@ public class ProtocolDispatcher {
     private final Map<String, McpCallHandler> mcpHandlers = new HashMap<>();
     private final String capabilityName;
     private final AgentIdentityResolver identityResolver;
+    private final ToolSearchCatalog toolSearchCatalog;
 
     /**
      * Writes {@link #SUPPORTED_PROTOCOL_VERSIONS} into {@code node} as a JSON array named
@@ -94,6 +96,7 @@ public class ProtocolDispatcher {
     public ProtocolDispatcher(McpServerAdapter adapter) {
         this.mapper = IkanosMappers.json();
         this.capabilityName = resolveCapabilityName(adapter);
+        this.toolSearchCatalog = adapter.getToolSearchCatalog();
         this.identityResolver = new AgentIdentityResolver(
                 adapter.getMcpServerSpec() != null ? adapter.getMcpServerSpec().getTrust() : null);
         for (McpCallHandler handler : McpCallHandlersFactory.createAll(adapter)) {
@@ -129,7 +132,7 @@ public class ProtocolDispatcher {
      *         no body for a notification.
      */
     public DispatchResult dispatch(JsonNode request) {
-        return dispatch(request, McpRequestContext.DEFAULT);
+        return dispatch(request, McpRequestContext.of(toolSearchCatalog));
     }
 
     /**
@@ -241,7 +244,18 @@ public class ProtocolDispatcher {
             identityResolver.resolve(httpRequest).ifPresent(identity ->
                     TelemetryBootstrap.recordAgentIdentity(span, identity.id(), identity.source(),
                             identity.actor()));
-            return dispatch(request, McpRequestContext.from(httpRequest));
+            McpRequestContext context;
+            try {
+                context = McpRequestContext.from(httpRequest, toolSearchCatalog);
+            } catch (IllegalArgumentException e) {
+                // An unknown ?toolSearch= value is a client configuration error: say so loudly
+                // rather than silently listing every tool. A notification still gets no answer.
+                return isNotification(request) ? new DispatchResult((ObjectNode) null)
+                        : new DispatchResult(buildJsonRpcError(request.get("id"),
+                                INVALID_REQUEST.getCode(), "Invalid Request: " + e.getMessage()),
+                                INVALID_REQUEST);
+            }
+            return dispatch(request, context);
         } catch (Exception e) {
             TelemetryBootstrap.recordError(span, e);
             throw e;
