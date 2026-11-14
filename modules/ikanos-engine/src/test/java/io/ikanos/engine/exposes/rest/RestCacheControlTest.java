@@ -27,6 +27,7 @@ import org.restlet.data.Method;
 import org.restlet.data.Status;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
+import io.ikanos.spec.consumes.http.BasicAuthenticationSpec;
 import io.ikanos.spec.consumes.http.BearerAuthenticationSpec;
 import io.ikanos.spec.exposes.rest.RestServerForwardSpec;
 import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
@@ -43,6 +44,57 @@ class RestCacheControlTest {
 
         assertThat(cacheControl(response)).isEqualTo("public, max-age=60");
         assertThat(response.getDimensions()).doesNotContain(Dimension.AUTHORIZATION);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"bearer", "basic"})
+    void applyShouldVaryOnAuthorizationWhenAnAuthenticatedAdapterAnswersPublic(String type) {
+        // A shared cache keyed on the URL alone would serve it to callers without credentials
+        RestServerSpec server = server(60_000, "public");
+        server.setAuthentication("bearer".equals(type)
+                ? new BearerAuthenticationSpec("{{TOKEN}}")
+                : new BasicAuthenticationSpec("user", "{{PASSWORD}}".toCharArray()));
+
+        Response response = apply(Method.GET, Status.SUCCESS_OK, server, resource(),
+                new RestServerOperationSpec());
+
+        assertThat(cacheControl(response)).isEqualTo("public, max-age=60");
+        assertThat(response.getDimensions()).contains(Dimension.AUTHORIZATION);
+    }
+
+    @Test
+    void applyShouldSendNothingOnAHead() {
+        // The operation method enum has no HEAD, so no operation answers one
+        Response response = apply(Method.HEAD, Status.SUCCESS_OK, server(60_000, "public"),
+                resource(), new RestServerOperationSpec());
+
+        assertThat(response.getCacheDirectives()).isEmpty();
+    }
+
+    @Test
+    void scopeDecisionShouldKeepAutoPublicWhenAnInputOutsideTheUrlHasALiteralValue() {
+        // A literal value never reads the request, so it cannot depend on the caller
+        InputParameterSpec tenant = new InputParameterSpec("tenant", "string", "header", null);
+        tenant.setValue("acme");
+        RestServerOperationSpec operation = new RestServerOperationSpec();
+        operation.setInputParameters(Map.of("tenant", tenant));
+
+        assertThat(RestCacheControl.scopeDecision(server(1_000, "auto"), resource(), operation)
+                .scope()).isEqualTo("public");
+        assertThat(apply(Method.GET, Status.SUCCESS_OK, server(60_000, "public"), resource(),
+                operation).getDimensions()).doesNotContain(Dimension.UNSPECIFIED);
+    }
+
+    @Test
+    void scopeDecisionShouldMakeAutoPrivateWhenABodyInputHasAJsonPathValue() {
+        // A JSONPath value is read from the request body
+        InputParameterSpec tenant = new InputParameterSpec("tenant", "string", "body", null);
+        tenant.setValue("$.tenant");
+        RestServerOperationSpec operation = new RestServerOperationSpec();
+        operation.setInputParameters(Map.of("tenant", tenant));
+
+        assertThat(RestCacheControl.scopeDecision(server(1_000, "auto"), resource(), operation)
+                .scope()).isEqualTo("private");
     }
 
     @Test
