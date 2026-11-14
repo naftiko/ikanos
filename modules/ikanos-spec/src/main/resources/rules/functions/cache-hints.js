@@ -10,7 +10,7 @@
  *   depend on the caller and can be cached. MCP: the adapter authenticates its
  *   callers or identifies them through `trust`, and the results get a positive
  *   `ttlMs` (MCP's default is 0) or the resource reads it from its upstream
- *   (`ttlFromUpstream`). REST: on a `GET` operation that sends `Cache-Control`
+ *   (`ttlFromUpstream`, where it has an effect). REST: on a `GET` operation that sends `Cache-Control`
  *   (a positive `ttlMs` on the operation or the adapter), the adapter authenticates
  *   its callers or an input is read from outside the URL (`in: header`, or the
  *   body, where an input without `in` is read), unless the input has a literal
@@ -51,7 +51,7 @@ function scan(exposes, basePath, check, context, results) {
       if (adapter.type === "rest") {
         restCallerDependent(adapter, path, results);
       } else if (adapter.type === "mcp") {
-        mcpCallerDependent(adapter, path, results);
+        mcpCallerDependent(adapter, path, context, results);
       }
     } else if (check === "ttl-from-upstream-no-effect" && adapter.type === "mcp") {
       mcpTtlFromUpstream(adapter, path, context, results);
@@ -92,7 +92,7 @@ function restCallerDependent(adapter, path, results) {
   }
 }
 
-function mcpCallerDependent(adapter, path, results) {
+function mcpCallerDependent(adapter, path, context, results) {
   const trustMode = adapter.trust && adapter.trust.mode;
   const identified = trustMode && trustMode !== "none";
   if (!adapter.authentication && !identified) {
@@ -104,7 +104,8 @@ function mcpCallerDependent(adapter, path, results) {
   const resources = entries(adapter.resources);
   // The adapter's scope covers lists (with its ttlMs) and the resources that set no scope
   const adapterScopeCached = adapter.ttlMs > 0 || resources.some(([, resource]) =>
-    resource && resource.cacheScope === undefined && mcpResourceCached(adapter, resource));
+    resource && resource.cacheScope === undefined
+      && mcpResourceCached(adapter, resource, context));
   if (adapter.cacheScope === "public" && adapterScopeCached) {
     results.push({
       message: "MCP adapter results are cacheScope public, but " + why
@@ -113,7 +114,8 @@ function mcpCallerDependent(adapter, path, results) {
     });
   }
   for (const [key, resource] of resources) {
-    if (resource && resource.cacheScope === "public" && mcpResourceCached(adapter, resource)) {
+    if (resource && resource.cacheScope === "public"
+      && mcpResourceCached(adapter, resource, context)) {
       results.push({
         message: "MCP resource '" + key + "' is cacheScope public, but " + why
           + ". Check that no result depends on the caller, or use auto.",
@@ -125,11 +127,13 @@ function mcpCallerDependent(adapter, path, results) {
 
 /**
  * Whether reads of an MCP resource can be cached: a positive `ttlMs` (its own, else
- * the adapter's; MCP's default is 0), or a TTL read from its upstream.
+ * the adapter's; MCP's default is 0), or a TTL read from its upstream, when
+ * `ttlFromUpstream` has an effect there.
  */
-function mcpResourceCached(adapter, resource) {
+function mcpResourceCached(adapter, resource, context) {
   const ttlMs = resource.ttlMs !== undefined ? resource.ttlMs : adapter.ttlMs;
-  return ttlMs > 0 || resource.ttlFromUpstream === true;
+  return ttlMs > 0
+    || (resource.ttlFromUpstream === true && !ttlFromUpstreamNoEffect(resource, context));
 }
 
 function mcpTtlFromUpstream(adapter, path, context, results) {
@@ -137,14 +141,7 @@ function mcpTtlFromUpstream(adapter, path, context, results) {
     if (!resource || resource.ttlFromUpstream !== true) {
       continue;
     }
-    let reason = null;
-    if (resource.location) {
-      reason = "a static resource has no upstream";
-    } else if (resource.steps) {
-      reason = "with steps, no single upstream answer speaks for the result";
-    } else if (typeof resource.call === "string") {
-      reason = callTargetReason(resource.call, context);
-    }
+    const reason = ttlFromUpstreamNoEffect(resource, context);
     if (reason) {
       results.push({
         message: "ttlFromUpstream has no effect on MCP resource '" + key + "': " + reason
@@ -153,6 +150,17 @@ function mcpTtlFromUpstream(adapter, path, context, results) {
       });
     }
   }
+}
+
+/** Why `ttlFromUpstream` has no effect on an MCP resource, or null when it can. */
+function ttlFromUpstreamNoEffect(resource, context) {
+  if (resource.location) {
+    return "a static resource has no upstream";
+  }
+  if (resource.steps) {
+    return "with steps, no single upstream answer speaks for the result";
+  }
+  return typeof resource.call === "string" ? callTargetReason(resource.call, context) : null;
 }
 
 /** Why a `namespace.operation` call yields no upstream freshness, or null when it can. */
