@@ -46,6 +46,9 @@ public class EngineMetrics {
     private final LongUpDownCounter capabilityActive;
     private final LongUpDownCounter requestInProgress;
     private final LongCounter requestRejected;
+    private final LongCounter toolSearchTotal;
+    private final DoubleHistogram toolSearchDuration;
+    private final LongCounter toolSearchCalls;
 
     EngineMetrics(Meter meter, boolean enabled) {
         this.enabled = enabled;
@@ -88,6 +91,49 @@ public class EngineMetrics {
                 .setDescription("Requests refused with a 503 because the adapter was working on "
                         + "its maximum number of requests")
                 .build();
+
+        this.toolSearchTotal = meter.counterBuilder("ikanos.mcp.tool_search.total")
+                .setDescription("MCP tool searches, by outcome: hit (at least one tool), miss "
+                        + "(no tool) or error (input error or search unavailable)")
+                .build();
+
+        this.toolSearchDuration = meter.histogramBuilder("ikanos.mcp.tool_search.duration.seconds")
+                .setDescription("Duration of MCP tool searches in seconds")
+                .setUnit("s")
+                .build();
+
+        this.toolSearchCalls = meter.counterBuilder("ikanos.mcp.tool_search.calls.total")
+                .setDescription("Tools called through the call meta-tool of deferred mode; "
+                        + "compared with ikanos.mcp.tool_search.total, the share of searches "
+                        + "that led to a call")
+                .build();
+    }
+
+    /**
+     * Record one MCP tool search.
+     *
+     * @param namespace the MCP endpoint namespace
+     * @param outcome {@code hit}, {@code miss} or {@code error}
+     * @param durationSec the search duration in seconds
+     */
+    public void recordToolSearch(String namespace, String outcome, double durationSec) {
+        if (!enabled) return;
+        Attributes attrs = nonNull(Attributes.of(
+                nonNullStringKey(TelemetryBootstrap.ATTR_NAMESPACE), nonNull(namespace),
+                stringKey("outcome"), nonNull(outcome)));
+        toolSearchTotal.add(1, attrs);
+        toolSearchDuration.record(durationSec, attrs);
+    }
+
+    /**
+     * Record one tool call made through the call meta-tool of deferred mode.
+     *
+     * @param namespace the MCP endpoint namespace
+     */
+    public void recordToolSearchCall(String namespace) {
+        if (!enabled) return;
+        toolSearchCalls.add(1, nonNull(Attributes.of(
+                nonNullStringKey(TelemetryBootstrap.ATTR_NAMESPACE), nonNull(namespace))));
     }
 
     /**
