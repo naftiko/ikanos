@@ -277,7 +277,11 @@
         },
         "style": {
           "type": "string",
-          "enum": ["form", "spaceDelimited", "pipeDelimited"],
+          "enum": [
+            "form",
+            "spaceDelimited",
+            "pipeDelimited"
+          ],
           "default": "form",
           "description": "How a list value is serialized in a query parameter, as in OpenAPI. `form` repeats the parameter or joins with commas (see `explode`); `spaceDelimited` and `pipeDelimited` join the elements with a space or `|`. Scalars are not affected."
         },
@@ -2661,7 +2665,7 @@
         },
         "authentication": {
           "$ref": "#/$defs/ConsumedAuthentication",
-          "description": "Authentication applied to every request of this adapter. Can be overridden at operation level. Supports `basic`, `apikey`, `bearer` and `digest`."
+          "description": "Authentication applied to every request of this adapter. Can be overridden at operation level. Supports `basic`, `apikey`, `bearer`, `digest` and `awsSigV4`."
         },
         "tunnel": {
           "$ref": "#/$defs/TunnelConfig",
@@ -3290,7 +3294,9 @@
         },
         "encoding": {
           "type": "string",
-          "enum": ["base64"],
+          "enum": [
+            "base64"
+          ],
           "description": "How `value` is encoded. With `base64`, the part is sent as the decoded bytes of the rendered `value`, so a binary file can be passed as a base64 string. Without it, `value` is sent as UTF-8 text."
         }
       },
@@ -3369,7 +3375,7 @@
       "additionalProperties": false
     },
     "Authentication": {
-      "description": "Authentication strategy applied to incoming request validation (on `Exposes*`); consumed adapters use `ConsumedAuthentication`, without `oauth2`. Choose the variant matching how the adapter's clients authenticate:\n- `basic` \u2014 HTTP Basic (username + password)\n- `apikey` \u2014 API key in header or query string\n- `bearer` \u2014 Static Bearer token\n- `digest` \u2014 HTTP Digest (username + password)\n- `oauth2` \u2014 OAuth 2.1 resource server (JWT validation or token introspection)",
+      "description": "Authentication strategy applied to incoming request validation (on `Exposes*`); consumed adapters use `ConsumedAuthentication`, without `oauth2` and with `awsSigV4`. Choose the variant matching how the adapter's clients authenticate:\n- `basic` \u2014 HTTP Basic (username + password)\n- `apikey` \u2014 API key in header or query string\n- `bearer` \u2014 Static Bearer token\n- `digest` \u2014 HTTP Digest (username + password)\n- `oauth2` \u2014 OAuth 2.1 resource server (JWT validation or token introspection)",
       "oneOf": [
         {
           "$ref": "#/$defs/AuthBasic"
@@ -3389,7 +3395,7 @@
       ]
     },
     "ConsumedAuthentication": {
-      "description": "Credential sent on every request to a consumed API (on `ConsumesHttp` and `ConsumesMcp`): `basic`, `apikey`, `bearer` or `digest`, the types the engine can send. `oauth2` is for exposed adapters only.",
+      "description": "Credential sent on every request to a consumed API (on `ConsumesHttp` and `ConsumesMcp`): `basic`, `apikey`, `bearer`, `digest` or `awsSigV4` (AWS Signature Version 4, which only applies to outgoing requests), the types the engine can send. `oauth2` is for exposed adapters only.",
       "oneOf": [
         {
           "$ref": "#/$defs/AuthBasic"
@@ -3402,8 +3408,52 @@
         },
         {
           "$ref": "#/$defs/AuthDigest"
+        },
+        {
+          "$ref": "#/$defs/AuthAwsSigV4"
         }
       ]
+    },
+    "AuthAwsSigV4": {
+      "type": "object",
+      "description": "AWS Signature Version 4 authentication, for the calls to Amazon S3, the other AWS services and the S3-compatible object stores (MinIO, Ceph, Cloudflare R2\u2026). Each request is signed with HMAC-SHA256 from the secret access key, the date, the region and the service, and sent with `X-Amz-Date` (and `X-Amz-Content-Sha256` for S3) in the `Authorization` header. Consumed adapters only. Bind the access keys from secrets (e.g. `{{secrets.S3_SECRET_ACCESS_KEY}}`); never hardcode them.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "awsSigV4"
+        },
+        "accessKeyId": {
+          "type": "string",
+          "description": "Access key ID. Bind it from secrets."
+        },
+        "secretAccessKey": {
+          "type": "string",
+          "description": "Secret access key. Bind it from secrets; never hardcode it."
+        },
+        "sessionToken": {
+          "type": "string",
+          "description": "Session token of temporary credentials (AWS STS), sent in `X-Amz-Security-Token`. Bind it from secrets."
+        },
+        "region": {
+          "type": "string",
+          "description": "Region signed into the request, e.g. `us-east-1`. For MinIO, the region it is configured with (`us-east-1` by default)."
+        },
+        "service": {
+          "type": "string",
+          "description": "Service name signed into the request, `s3` by default (e.g. `execute-api`, `dynamodb`)."
+        },
+        "unsignedPayload": {
+          "type": "boolean",
+          "description": "S3 only: send `UNSIGNED-PAYLOAD` instead of the SHA-256 hash of the body. A body that can't be read twice, such as one passed through by `forward`, is always sent unsigned to S3, and refused for the other services."
+        }
+      },
+      "required": [
+        "type",
+        "accessKeyId",
+        "secretAccessKey",
+        "region"
+      ],
+      "additionalProperties": false
     },
     "AuthBasic": {
       "type": "object",

@@ -1330,7 +1330,7 @@ with:
 
 ### 3.17 Authentication Object
 
-Defines authentication configuration. Four types are supported: basic, apikey, bearer, and digest.
+Defines authentication configuration. Six types are supported: basic, apikey, bearer, digest, oauth2 and, on consumed adapters only, awsSigV4.
 
 #### 3.17.1 Basic Authentication
 
@@ -1416,10 +1416,42 @@ authentication:
   password: "secret_password"
 ```
 
-#### 3.17.5 Rules
+#### 3.17.5 AWS Signature Version 4 Authentication
+
+AWS Signature Version 4 (SigV4), for the calls to Amazon S3, the other AWS services and the S3-compatible object stores (MinIO, Ceph, Cloudflare R2…). Each request is signed with HMAC-SHA256 from the secret access key, the date, the region and the service. **Consumed adapters only** (`ConsumesHttp`, `ConsumesMcp`): an exposed adapter declaring it fails to start.
+
+**Fixed Fields:**
+
+| Field Name | Type | Description |
+| --- | --- | --- |
+| **type** | `string` | **REQUIRED**. MUST be `"awsSigV4"`. |
+| **accessKeyId** | `string` | **REQUIRED**. Access key ID. |
+| **secretAccessKey** | `string` | **REQUIRED**. Secret access key. |
+| **region** | `string` | **REQUIRED**. Region signed into the request, e.g. `us-east-1` (MinIO's default). |
+| **service** | `string` | Service name signed into the request. Defaults to `s3`. |
+| **sessionToken** | `string` | Session token of temporary credentials (AWS STS), sent in `X-Amz-Security-Token`. |
+| **unsignedPayload** | `boolean` | S3 only: send `UNSIGNED-PAYLOAD` instead of the SHA-256 hash of the body. |
+
+A missing or blank `accessKeyId`, `secretAccessKey` or `region` stops the capability from loading, even when the schema is not checked.
+
+The engine adds `X-Amz-Date`, and for S3 `X-Amz-Content-Sha256`, then signs every request header except the hop-by-hop ones, `Content-Length` and `User-Agent`. A body that can't be read twice, such as one passed through by `forward`, is sent as `UNSIGNED-PAYLOAD` to S3 and refused for the other services, which require its hash. A body is sent with its `Content-Length`, a forwarded one with the caller's, since S3 and MinIO refuse a chunked body that isn't aws-chunked; a caller that sends its body chunked, with no `Content-Length`, can't upload to them through `forward`.
+
+A `forward` to an adapter that signs with `awsSigV4` can't list an `x-amz-*` header in `trustedHeaders`: the capability fails to start. AWS reads several of them as part of the operation (`x-amz-copy-source`, `x-amz-acl`, `x-amz-grant-*`, `x-amz-website-redirect-location`…), and a forwarded one would be signed with the capability's key, so a caller could copy, expose or redirect objects outside the forwarded prefix. It also keeps the engine's own `X-Amz-Date`, `X-Amz-Security-Token` and `X-Amz-Content-Sha256`.
+
+**Example:**
+
+```yaml
+authentication:
+  type: awsSigV4
+  accessKeyId: "{{secrets.S3_ACCESS_KEY_ID}}"
+  secretAccessKey: "{{secrets.S3_SECRET_ACCESS_KEY}}"
+  region: us-east-1
+```
+
+#### 3.17.6 Rules
 
 - Only one authentication type can be used per authentication object.
-- On a consumed adapter (`http` or `mcp`), only `basic`, `apikey`, `bearer` and `digest` are allowed: `oauth2` is for exposed adapters only.
+- On a consumed adapter (`http` or `mcp`), only `basic`, `apikey`, `bearer`, `digest` and `awsSigV4` are allowed: `oauth2` is for exposed adapters only, and `awsSigV4` for consumed adapters only.
 - The `type` field determines which additional fields are required or allowed.
 - Authentication can be specified at multiple levels (exposes, consumes) with inner levels overriding outer levels.
 - On an exposed adapter, a bearer `token`, or an apikey `key` or `value`, stops the capability from starting when it resolves to an empty value, or when any of its variables is unbound, misspelled or bound to an empty value (so `"sk-{{API_KEY}}"` with an empty `API_KEY` is refused too). The error names the variables, never their values. To expose an adapter without a credential, remove its `authentication` block.
@@ -1448,6 +1480,7 @@ Defines forwarding configuration for an exposed resource to pass requests throug
 - Header names in `trustedHeaders` are case-insensitive (following HTTP header conventions).
 - Only headers listed in `trustedHeaders` will be forwarded to the consumed source.
 - This includes `Authorization`: the caller's credential reaches the consumed source only when `Authorization` is listed. When the target adapter declares `authentication`, its own credential is sent instead.
+- When the target adapter signs with `awsSigV4`, `trustedHeaders` MUST NOT list an `x-amz-*` header (see §3.17.5): the capability fails to start.
 - No additional properties are allowed.
 
 #### 3.18.3 ForwardConfig Object Example

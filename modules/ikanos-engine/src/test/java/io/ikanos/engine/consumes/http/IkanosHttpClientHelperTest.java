@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import org.eclipse.jetty.http.HttpHeader;
 import org.eclipse.jetty.client.HttpClient;
 import org.eclipse.jetty.client.WWWAuthenticationProtocolHandler;
 import org.junit.jupiter.api.Test;
@@ -27,6 +28,8 @@ import org.restlet.Client;
 import org.restlet.Context;
 import org.restlet.data.Protocol;
 import org.restlet.engine.Engine;
+import org.restlet.representation.Representation;
+import org.restlet.representation.StringRepresentation;
 
 class IkanosHttpClientHelperTest {
 
@@ -85,5 +88,43 @@ class IkanosHttpClientHelperTest {
     @Test
     void removeUnusedProtocolHandlersShouldIgnoreAMissingClient() {
         assertDoesNotThrow(() -> IkanosHttpClientHelper.removeUnusedProtocolHandlers(null));
+    }
+
+    // #954: a body of known size is sent with Content-Length, since S3 and MinIO refuse an
+    // unsized body that isn't aws-chunked; any other body is left to Jetty, which sends it chunked.
+
+    private static String contentLengthSent(Representation entity) {
+        org.eclipse.jetty.client.Request jettyRequest =
+                new HttpClient().newRequest("http://localhost/");
+        IkanosHttpClientHelper.setContentLength(jettyRequest, entity);
+        return jettyRequest.getHeaders().get(HttpHeader.CONTENT_LENGTH);
+    }
+
+    @Test
+    void setContentLengthShouldSendTheSizeWhenItIsKnown() {
+        assertEquals("5", contentLengthSent(new StringRepresentation("hello")));
+    }
+
+    @Test
+    void setContentLengthShouldLeaveAnUnknownSizeChunked() {
+        Representation entity = new StringRepresentation("hello");
+        entity.setSize(Representation.UNKNOWN_SIZE);
+
+        assertNull(contentLengthSent(entity));
+    }
+
+    @Test
+    void setContentLengthShouldLeaveAnUnavailableEntityAlone() {
+        Representation entity = new StringRepresentation("hello");
+        entity.setAvailable(false);
+
+        assertNull(contentLengthSent(entity));
+    }
+
+    @Test
+    void setContentLengthShouldIgnoreAMissingEntityOrRequest() {
+        assertNull(contentLengthSent(null));
+        assertDoesNotThrow(() -> IkanosHttpClientHelper.setContentLength(null,
+                new StringRepresentation("hello")));
     }
 }

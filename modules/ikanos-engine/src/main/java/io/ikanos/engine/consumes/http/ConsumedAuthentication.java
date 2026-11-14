@@ -28,6 +28,7 @@ import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.consumes.ClientSpec;
 import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
 import io.ikanos.spec.consumes.http.AuthenticationSpec;
+import io.ikanos.spec.consumes.http.AwsSigV4AuthenticationSpec;
 import io.ikanos.spec.consumes.http.BasicAuthenticationSpec;
 import io.ikanos.spec.consumes.http.BearerAuthenticationSpec;
 import io.ikanos.spec.consumes.http.DigestAuthenticationSpec;
@@ -44,7 +45,8 @@ import io.ikanos.spec.consumes.mcp.McpClientSpec;
 public final class ConsumedAuthentication {
 
     /** The types {@link #apply} sends, written as the schema writes them. */
-    static final Set<String> SUPPORTED_TYPES = Set.of("apikey", "basic", "bearer", "digest");
+    static final Set<String> SUPPORTED_TYPES = Set.of("apikey", "awsSigV4", "basic", "bearer",
+            "digest");
 
     private ConsumedAuthentication() {
     }
@@ -154,9 +156,52 @@ public final class ConsumedAuthentication {
                 }
                 break;
 
+            case "awsSigV4":
+                clientRequest.setChallengeResponse(
+                        awsSigV4((AwsSigV4AuthenticationSpec) authenticationSpec, parameters));
+                break;
+
             default:
                 throw new IllegalArgumentException(unsupported(type));
         }
+    }
+
+    /**
+     * The challenge response signing a request with AWS Signature Version 4 (#954). The signature
+     * itself is computed by {@link AwsSigV4Helper} when the client connector writes the
+     * {@code Authorization} header, after every other header, from the final request.
+     */
+    static ChallengeResponse awsSigV4(AwsSigV4AuthenticationSpec sigV4,
+            Map<String, Object> parameters) {
+        String accessKeyId = render(sigV4.getAccessKeyId(), parameters, "awsSigV4 access key ID");
+        String secret = render(Secrets.password(sigV4.getSecretAccessKey()), parameters,
+                "awsSigV4 secret access key");
+        String region = render(sigV4.getRegion(), parameters, "awsSigV4 region");
+        if (isBlank(accessKeyId) || isBlank(secret) || isBlank(region)) {
+            throw new IllegalArgumentException("awsSigV4 authentication needs an accessKeyId, a "
+                    + "secretAccessKey and a region. The request is not sent.");
+        }
+
+        AwsSigV4Helper.ensureRegistered();
+        ChallengeResponse challengeResponse =
+                new ChallengeResponse(AwsSigV4Helper.SCHEME, accessKeyId, secret);
+        challengeResponse.getParameters().add(AwsSigV4Helper.PARAM_REGION, region);
+        if (sigV4.getService() != null) {
+            challengeResponse.getParameters().add(AwsSigV4Helper.PARAM_SERVICE,
+                    render(sigV4.getService(), parameters, "awsSigV4 service"));
+        }
+        if (sigV4.getSessionToken() != null) {
+            challengeResponse.getParameters().add(AwsSigV4Helper.PARAM_SESSION_TOKEN,
+                    render(sigV4.getSessionToken(), parameters, "awsSigV4 session token"));
+        }
+        if (Boolean.TRUE.equals(sigV4.getUnsignedPayload())) {
+            challengeResponse.getParameters().add(AwsSigV4Helper.PARAM_UNSIGNED_PAYLOAD, "true");
+        }
+        return challengeResponse;
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     /**
@@ -202,6 +247,17 @@ public final class ConsumedAuthentication {
         } else if (authentication instanceof ApiKeyAuthenticationSpec apiKey) {
             credentials.put(where + " key", apiKey.getKey());
             credentials.put(where + " value", apiKey.getValue());
+        } else if (authentication instanceof AwsSigV4AuthenticationSpec sigV4) {
+            credentials.put(where + " access key ID", sigV4.getAccessKeyId());
+            credentials.put(where + " secret access key",
+                    passwordOrNull(sigV4.getSecretAccessKey()));
+            credentials.put(where + " region", sigV4.getRegion());
+            if (sigV4.getService() != null) {
+                credentials.put(where + " service", sigV4.getService());
+            }
+            if (sigV4.getSessionToken() != null) {
+                credentials.put(where + " session token", sigV4.getSessionToken());
+            }
         }
         return credentials;
     }
@@ -224,8 +280,9 @@ public final class ConsumedAuthentication {
 
     /**
      * Lists the consumed adapters whose credential {@link #apply} can never send: a type it doesn't
-     * handle, such as {@code oauth2} or a type written with another case (#842), or an
-     * {@code apikey} without a {@code key} or a {@code value} (#964). The schema refuses both, but
+     * handle, such as {@code oauth2} or a type written with another case (#842), an
+     * {@code apikey} without a {@code key} or a {@code value} (#964), or an {@code awsSigV4}
+     * without an {@code accessKeyId}, a {@code secretAccessKey} or a {@code region} (#954). The schema refuses both, but
      * the engine loads a capability without checking the schema, and code can build a spec. The
      * capability refuses to load with one, rather than failing every call to that upstream.
      *
@@ -261,6 +318,13 @@ public final class ConsumedAuthentication {
                             + "': an apikey credential needs a key and a value, and this one has "
                             + missing);
                 }
+            } else if (authentication instanceof AwsSigV4AuthenticationSpec sigV4) {
+                String missing = missing(sigV4);
+                if (missing != null) {
+                    errors.add("consumes '" + client.getNamespace()
+                            + "': an awsSigV4 credential needs an accessKeyId, a secretAccessKey"
+                            + " and a region, and this one has " + missing);
+                }
             }
         }
         return errors;
@@ -279,6 +343,28 @@ public final class ConsumedAuthentication {
         return key != null ? key : value;
     }
 
+    /**
+     * What an awsSigV4 credential lacks to sign a request, such as "no region" or "an empty
+     * accessKeyId and no secretAccessKey", or null when it has all three. The signer can't sign
+     * without them, so the capability refuses to load rather than fail every call (#957 review).
+     */
+    private static String missing(AwsSigV4AuthenticationSpec sigV4) {
+        char[] secret = sigV4.getSecretAccessKey();
+        List<String> lacks = new ArrayList<>();
+        for (String lack : new String[] {lacking(sigV4.getAccessKeyId(), "accessKeyId"),
+                lacking(secret == null ? null : new String(secret), "secretAccessKey"),
+                lacking(sigV4.getRegion(), "region")}) {
+            if (lack != null) {
+                lacks.add(lack);
+            }
+        }
+        if (lacks.isEmpty()) {
+            return null;
+        }
+        String last = lacks.remove(lacks.size() - 1);
+        return lacks.isEmpty() ? last : String.join(", ", lacks) + " and " + last;
+    }
+
     /** "no key" when absent, "an empty key" when blank, or null when it has text. */
     private static String lacking(String text, String what) {
         if (text == null) {
@@ -294,6 +380,6 @@ public final class ConsumedAuthentication {
 
     private static String unsupported(String type) {
         return "Unsupported consumed authentication type '" + type
-                + "': the engine can send apikey, basic, bearer or digest credentials";
+                + "': the engine can send apikey, awsSigV4, basic, bearer or digest credentials";
     }
 }

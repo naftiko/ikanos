@@ -26,6 +26,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 )
 @JsonSubTypes({
     @JsonSubTypes.Type(value = ApiKeyAuthenticationSpec.class, name = "apikey"),
+    @JsonSubTypes.Type(value = AwsSigV4AuthenticationSpec.class, name = "awsSigV4"),
     @JsonSubTypes.Type(value = BasicAuthenticationSpec.class, name = "basic"),
     @JsonSubTypes.Type(value = BearerAuthenticationSpec.class, name = "bearer"),
     @JsonSubTypes.Type(value = DigestAuthenticationSpec.class, name = "digest"),

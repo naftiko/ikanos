@@ -1022,10 +1022,10 @@ public class Resolver {
     }
 
     /**
-     * Appends one query parameter to a URL, with its name and value URL-encoded (UTF-8, a space
-     * as {@code +}), after {@code ?} or {@code &} as the URL needs. Every consumed query parameter
-     * goes through here, an API key placed in the query included (#841), so a value with
-     * {@code +}, {@code &}, {@code =} or {@code #} reaches the API unchanged.
+     * Appends one query parameter to a URL, with its name and value percent-encoded as RFC 3986
+     * does ({@link #encodeQueryComponent}), after {@code ?} or {@code &} as the URL needs. Every
+     * consumed query parameter goes through here, an API key placed in the query included (#841),
+     * so a value with {@code +}, {@code &}, {@code =} or {@code #} reaches the API unchanged.
      *
      * @param ref the URL, which may already have a query
      * @param name the parameter name, not encoded
@@ -1034,8 +1034,19 @@ public class Resolver {
      */
     public static String appendQueryParameter(String ref, String name, String value) {
         return ref + (ref.contains("?") ? '&' : '?')
-                + java.net.URLEncoder.encode(name, java.nio.charset.StandardCharsets.UTF_8) + '='
-                + java.net.URLEncoder.encode(value, java.nio.charset.StandardCharsets.UTF_8);
+                + encodeQueryComponent(name) + '=' + encodeQueryComponent(value);
+    }
+
+    /**
+     * Percent-encodes a query parameter name or value as RFC 3986 does: a space is sent as
+     * {@code %20}, never {@code +}, and a literal {@code +} as {@code %2B}. A {@code +} for a space
+     * is a form-encoding convention that servers read differently: an AWS SigV4 signer reads it as
+     * a literal plus sign while MinIO and S3 read it as a space, so the signature would not match
+     * (#954).
+     */
+    static String encodeQueryComponent(String value) {
+        return java.net.URLEncoder.encode(value, java.nio.charset.StandardCharsets.UTF_8)
+                .replace("+", "%20");
     }
 
     /**

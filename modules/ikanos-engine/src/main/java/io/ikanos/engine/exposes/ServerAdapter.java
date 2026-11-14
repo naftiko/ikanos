@@ -195,6 +195,13 @@ public abstract class ServerAdapter extends Adapter {
             return next;
         }
 
+        if ("awsSigV4".equals(authentication.getType())) {
+            // It signs the calls a capability makes; verifying them on an exposed adapter is not
+            // supported, so refuse it at start rather than fail every request (#954).
+            throw new IllegalArgumentException("awsSigV4 authentication of " + describe()
+                    + " is not supported: it only signs the calls to a consumed adapter.");
+        }
+
         if ("oauth2".equals(authentication.getType())
                 && authentication instanceof OAuth2AuthenticationSpec oauth2) {
             return createOAuth2Restlet(oauth2, next);

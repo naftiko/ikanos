@@ -34,6 +34,9 @@ import org.restlet.data.MediaType;
 import org.restlet.data.Method;
 import org.restlet.data.Protocol;
 import org.restlet.data.Status;
+import org.restlet.representation.InputRepresentation;
+import org.restlet.representation.Representation;
+import org.restlet.representation.StringRepresentation;
 import org.restlet.routing.Router;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -644,5 +647,55 @@ public class ResourceRestletTest {
     spec.setType("string");
     spec.setValue(value);
     return spec;
+  }
+
+  // #954: a forwarded body takes the caller's Content-Length when Restlet left its size unknown,
+  // so that it is not sent chunked to S3 or MinIO, which refuse an unsized body.
+
+  private static Request inbound(Representation entity, String contentLength) {
+    Request request = new Request(Method.PUT, "http://localhost/files/a.csv");
+    request.setEntity(entity);
+    if (contentLength != null) {
+      request.getHeaders().add("Content-Length", contentLength);
+    }
+    return request;
+  }
+
+  private static Representation unsized() {
+    return new InputRepresentation(new java.io.ByteArrayInputStream(new byte[5]));
+  }
+
+  @Test
+  public void sizedShouldTakeTheSizeFromTheContentLengthWhenUnknown() {
+    assertEquals(5, ResourceRestlet.sized(inbound(unsized(), "5")).getSize());
+  }
+
+  @Test
+  public void sizedShouldKeepAnAlreadyKnownSize() {
+    assertEquals(3,
+        ResourceRestlet.sized(inbound(new StringRepresentation("abc"), "10")).getSize());
+  }
+
+  @Test
+  public void sizedShouldLeaveTheSizeUnknownWithoutAContentLength() {
+    assertEquals(Representation.UNKNOWN_SIZE,
+        ResourceRestlet.sized(inbound(unsized(), null)).getSize());
+  }
+
+  @Test
+  public void sizedShouldLeaveTheSizeUnknownWhenTheContentLengthIsMalformed() {
+    assertEquals(Representation.UNKNOWN_SIZE,
+        ResourceRestlet.sized(inbound(unsized(), "five")).getSize());
+  }
+
+  @Test
+  public void sizedShouldLeaveTheSizeUnknownWhenTheContentLengthIsNegative() {
+    assertEquals(Representation.UNKNOWN_SIZE,
+        ResourceRestlet.sized(inbound(unsized(), "-1")).getSize());
+  }
+
+  @Test
+  public void sizedShouldReturnNoEntityWhenTheRequestHasNone() {
+    assertNull(ResourceRestlet.sized(inbound(null, "5")));
   }
 }

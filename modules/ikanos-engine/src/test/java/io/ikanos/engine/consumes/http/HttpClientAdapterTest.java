@@ -234,7 +234,7 @@ public class HttpClientAdapterTest {
         Request request = prepare("list-things", Map.of("filter", "a eq 1"));
 
         assertEquals("https://probe.example/v1/things?adapter-query=from-adapter&top=10"
-                + "&res-query=from-resource&%24filter=a+eq+1&op-query=from-operation",
+                + "&res-query=from-resource&%24filter=a%20eq%201&op-query=from-operation",
                 request.getResourceRef().toString(),
                 "#909: resource-level query parameters should be sent, after the adapter level"
                         + " and before the operation level");
@@ -254,7 +254,7 @@ public class HttpClientAdapterTest {
         Request request = prepare("list-top", Map.of("filter", "a eq 1"));
 
         assertEquals("https://probe.example/v1/things?adapter-query=from-adapter"
-                + "&%24filter=a+eq+1&res-query=from-operation&top=5",
+                + "&%24filter=a%20eq%201&res-query=from-operation&top=5",
                 request.getResourceRef().toString(),
                 "#909: an operation parameter with the same name and location as an adapter or"
                         + " resource parameter should replace it, not be sent a second time");
@@ -265,7 +265,7 @@ public class HttpClientAdapterTest {
         Request request = prepare("list-other", Map.of("filter", "b eq 2"));
 
         assertEquals("https://probe.example/v1/things?adapter-query=from-adapter&top=10"
-                + "&res-query=from-resource&%24filter=b+eq+2",
+                + "&res-query=from-resource&%24filter=b%20eq%202",
                 request.getResourceRef().toString(),
                 "#909: an operation without parameters should still send the resource's");
     }

@@ -396,7 +396,34 @@ public class ResolverTest {
 
         Resolver.resolveInputParametersToRequest(clientRequest, List.of(tags, codes), parameters);
 
-        assertEquals("https://api.example.com/items?tags=x%7Cy&codes=1+2",
+        assertEquals("https://api.example.com/items?tags=x%7Cy&codes=1%202",
+            clientRequest.getResourceRef().toString());
+      }
+
+      /**
+       * A query value is percent-encoded as RFC 3986 does, so that a server never reads a space
+       * sent as {@code +} as a literal plus sign, or the reverse. An AWS SigV4 signature of
+       * {@code prefix=a/b c} sent as {@code a%2Fb+c} failed on MinIO, which reads {@code +} as a
+       * space (#954).
+       */
+      @Test
+      public void resolveInputParametersToRequestShouldEncodeSpaceAndPlusAsRfc3986QueryValues() {
+        Request clientRequest = new Request(Method.GET, "https://s3.example.com/bucket");
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put("prefix", "a/b c");
+        parameters.put("tag", "x+y");
+
+        InputParameterSpec prefix = new InputParameterSpec();
+        prefix.setName("prefix");
+        prefix.setIn("query");
+        InputParameterSpec tag = new InputParameterSpec();
+        tag.setName("tag");
+        tag.setIn("query");
+        tag.setWireName("tag name");
+
+        Resolver.resolveInputParametersToRequest(clientRequest, List.of(prefix, tag), parameters);
+
+        assertEquals("https://s3.example.com/bucket?prefix=a%2Fb%20c&tag%20name=x%2By",
             clientRequest.getResourceRef().toString());
       }
 
@@ -628,7 +655,7 @@ public class ResolverTest {
 
         assertEquals("trace-abc", clientRequest.getHeaders().getFirstValue("X-Trace", true));
         assertEquals("strict", clientRequest.getHeaders().getFirstValue("X-Mode", true));
-        assertTrue(clientRequest.getResourceRef().toString().contains("search=ice+class"));
+        assertTrue(clientRequest.getResourceRef().toString().contains("search=ice%20class"));
         assertEquals("trace-abc", parameters.get("X-Trace"));
         assertEquals("ice class", parameters.get("search"));
       }
@@ -654,8 +681,18 @@ public class ResolverTest {
       public void appendQueryParameterShouldEncodeTheNameAndTheValue() {
         assertEquals("http://api/x?api_key=a%2Bb%26c%3Dd",
             Resolver.appendQueryParameter("http://api/x", "api_key", "a+b&c=d"));
-        assertEquals("http://api/x?p=1&a+b=%3D",
+        assertEquals("http://api/x?p=1&a%20b=%3D",
             Resolver.appendQueryParameter("http://api/x?p=1", "a b", "="));
+      }
+
+      /**
+       * #957 review: the RFC 3986 query encoding lives in appendQueryParameter, so a query-placed
+       * API key gets it too: a space as %20, never +, which an AWS SigV4 signer and S3 read alike.
+       */
+      @Test
+      public void appendQueryParameterShouldEncodeASpaceAsPercent20() {
+        assertEquals("http://api/x?api%20key=a%20b%2Bc",
+            Resolver.appendQueryParameter("http://api/x", "api key", "a b+c"));
       }
 
       @Test

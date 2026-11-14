@@ -47,7 +47,7 @@ public class ConsumedResourceInputParametersIntegrationTest {
 
     @Test
     public void handleToolCallShouldSendResourceLevelQueryParameters() throws Exception {
-        assertEquals("res-query=from-resource&%24filter=a+eq+1&op-query=from-operation",
+        assertEquals("res-query=from-resource&%24filter=a%20eq%201&op-query=from-operation",
                 recordedRequest("list-things", "a eq 1").query(),
                 "#909: the resource's query parameters should be sent with the operation's");
     }
@@ -61,7 +61,7 @@ public class ConsumedResourceInputParametersIntegrationTest {
     @Test
     public void handleToolCallShouldSendResourceLevelParametersForOperationWithoutParameters()
             throws Exception {
-        assertEquals("res-query=from-resource&%24filter=b+eq+2",
+        assertEquals("res-query=from-resource&%24filter=b%20eq%202",
                 recordedRequest("list-other", "b eq 2").query(),
                 "#909: an operation with no parameters of its own should send the resource's");
     }
