@@ -37,6 +37,9 @@ capability:
         outputParameters:
         - type: array
           mapping: $.items
+          items:
+            type: string
+            mapping: $.title
       get-invoice:
         description: Inferred from the consumed MCP tool billing.get-invoice
       hello:

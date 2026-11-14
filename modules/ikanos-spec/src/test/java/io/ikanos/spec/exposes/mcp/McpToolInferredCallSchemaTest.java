@@ -93,6 +93,18 @@ class McpToolInferredCallSchemaTest {
         assertFalse(validate("", "").isEmpty());
     }
 
+    @Test
+    void schemaShouldAcceptTheCompliantLintFixture() throws Exception {
+        // The Spectral test only checks the rule stays silent on it: the fixture must also be a
+        // valid capability, or it proves nothing about what the rule accepts.
+        try (InputStream in = McpToolInferredCallSchemaTest.class.getClassLoader()
+                .getResourceAsStream("rules/polychro-mcp-tool-inferred-call-compliant.yaml")) {
+            assertNotNull(in);
+            List<Error> errors = schema.validate(IkanosMappers.yaml().readTree(in));
+            assertTrue(errors.isEmpty(), errors.toString());
+        }
+    }
+
     private static List<Error> validate(String toolFields) throws Exception {
         return validate("description: \"List the items\"", toolFields);
     }
