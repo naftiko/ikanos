@@ -40,6 +40,7 @@ functions:
   - shared-listener-mounts
   - exposes-hosts-binds-ref
   - definitions
+  - mcp-tool-search
 
 rules:
 
@@ -474,6 +475,102 @@ rules:
         max: 0
 
   # Agent Skills over MCP (SEP-2640) — skills served by an exposed MCP adapter
+
+  ikanos-mcp-tool-search-reserved-names:
+    message: "{{error}}"
+    description: >
+      An MCP adapter that declares `toolSearch` advertises two meta-tools in
+      deferred mode, `search-tools` and `call-tool` unless renamed. A tool with
+      one of those names would be shadowed, so the engine refuses to load.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: mcp-tool-search
+      functionOptions:
+        check: reservedNames
+
+  ikanos-mcp-tool-search-implicit-reserved-names:
+    message: "{{error}}"
+    description: >
+      Without a `toolSearch` block, clients may still select deferred mode with
+      `?toolSearch=deferred`. A tool named `search-tools` or `call-tool` blocks
+      that: the engine loads the capability but disables tool search for clients.
+    severity: warn
+    recommended: true
+    given: "$"
+    then:
+      function: mcp-tool-search
+      functionOptions:
+        check: implicitReservedNames
+
+  ikanos-mcp-tool-search-lookalike-names:
+    message: "{{error}}"
+    description: >
+      Tool names may use underscores, so a tool can be named `search_tools` or
+      `call_tool`. Models confuse such a tool with the meta-tools of deferred
+      mode, and with the tool search tools of other MCP frameworks.
+    severity: warn
+    recommended: true
+    given: "$"
+    then:
+      function: mcp-tool-search
+      functionOptions:
+        check: lookalikeNames
+
+  ikanos-mcp-tool-search-always-listed-exists:
+    message: "{{error}}"
+    description: >
+      Each `toolSearch.alwaysListed` entry must name a tool of the same MCP
+      adapter. The engine refuses to load otherwise; this rule surfaces the
+      typo in the editor.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: mcp-tool-search
+      functionOptions:
+        check: alwaysListedExists
+
+  ikanos-mcp-tool-search-always-listed-size:
+    message: "{{error}}"
+    description: >
+      Pinned tools are sent on every request in deferred mode. Keep
+      `alwaysListed` to the three to five tools most calls need.
+    severity: warn
+    recommended: true
+    given: "$"
+    then:
+      function: mcp-tool-search
+      functionOptions:
+        check: alwaysListedSize
+
+  ikanos-mcp-tool-search-description:
+    message: "{{error}}"
+    description: >
+      The search meta-tool's description is generated from the server
+      `description` and the tool tags, so the model knows what it can find
+      without listing the tools. Deferred mode needs that description.
+    severity: warn
+    recommended: true
+    given: "$"
+    then:
+      function: mcp-tool-search
+      functionOptions:
+        check: description
+
+  ikanos-mcp-tool-search-small-catalog:
+    message: "{{error}}"
+    description: >
+      Deferred mode trades tool definitions for a search round trip. Below ten
+      tools, the definitions usually cost less than the extra request.
+    severity: warn
+    recommended: true
+    given: "$"
+    then:
+      function: mcp-tool-search
+      functionOptions:
+        check: smallCatalog
 
   ikanos-mcp-skill-allowed-tools:
     message: "`allowed-tools` is a request, not a grant: hosts ignore it for skills served over MCP unless the user approves it."

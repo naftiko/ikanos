@@ -251,6 +251,7 @@ When designing or modifying a Capability:
 - Override only adapter-specific fields when using `ref` (e.g., `method` for REST, `hints` for MCP) — let the rest be inherited from the flow
 - Declare inputs and shapes that several MCP tools (or flows) repeat once, in the `definitions` of their MCP adapter (or aggregate), and reuse them with `inputParameterSets: [names]` and `schema: name` — they are expanded at load time, so `tools/list` stays the inline equivalent
 - Declare the hints most tools share (e.g. `readOnly: true`) once in the MCP exposes block's `hints`, and give a tool only the hint fields that differ — each field resolves from the tool's `hints`, then the flow's `semantics` (for `ref`), then the server's `hints`; a tool that declares `destructive: true` without `readOnly` resolves `readOnly` to `false`
+- Keep an MCP adapter's `toolSearch` at `mode: listed` unless most of its clients have no tool search of their own: a client opts into deferred mode with `?toolSearch=deferred` on the endpoint URL (it needs the `ikanos-tool-search` module). For deferred mode, give the adapter a `description`, tag its tools (the search meta-tool names the tag categories), and pin the three to five tools most calls need with `alwaysListed`
 
 **Don't:**
 - Expose an `inputParameter` that is not used in any step
