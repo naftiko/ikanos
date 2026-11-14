@@ -1,0 +1,58 @@
+ikanos: "1.0.0-beta10"
+info:
+  display: "Operations tools with tool search"
+  description: >
+    Shows the `toolSearch` block of an MCP adapter. The endpoint lists every tool by default;
+    a client without tool search of its own adds `?toolSearch=deferred` to the endpoint URL and
+    gets two meta-tools, `search-tools` and `call-tool`, plus the pinned tools, so the other tool
+    definitions stay out of every model request. Deferred mode needs the optional
+    ikanos-tool-search module on the classpath.
+capability:
+  consumes:
+    - type: http
+      namespace: ops-api
+      description: "Operations API."
+      baseUri: https://api.ops.example.com
+      resources:
+        incidents:
+          path: /v1/incidents
+          operations:
+            list-incidents:
+              method: GET
+        deployments:
+          path: /v1/deployments
+          operations:
+            list-deployments:
+              method: GET
+            restart-deployment:
+              method: POST
+  exposes:
+    - type: mcp
+      namespace: ops
+      port: 3001
+      description: "Operations tools for incidents and Kubernetes deployments."
+      toolSearch:
+        mode: listed
+        clientSelectable: true
+        maxResults: 5
+        alwaysListed: [list-open-incidents]
+      tools:
+        list-open-incidents:
+          description: "List incidents that are still open, newest first."
+          tags: [incidents]
+          hints:
+            readOnly: true
+          call: ops-api.list-incidents
+        list-deployments:
+          description: "List the deployments of the cluster with their ready replica counts."
+          tags: [kubernetes, deployments]
+          hints:
+            readOnly: true
+          call: ops-api.list-deployments
+        restart-deployment:
+          description: "Restart a Kubernetes deployment and wait for the rollout to finish."
+          tags: [kubernetes, deployments]
+          hints:
+            readOnly: false
+            destructive: false
+          call: ops-api.restart-deployment

@@ -1,0 +1,49 @@
+# Spectral fixture — every ikanos-mcp-tool-search-* rule MUST FIRE:
+#   adapter "deferred-ops": a declared toolSearch in deferred mode, no description, three tools
+#   (one named like the search meta-tool), seven alwaysListed entries (one unknown);
+#   adapter "listed-ops": no toolSearch, a tool named call-tool and one named search_tools.
+ikanos: "1.0.0-beta10"
+info:
+  display: "MCP tool search rules — violations"
+  description: "Fixture that breaks every MCP tool search Polychro rule."
+capability:
+  consumes:
+    - type: http
+      namespace: ops-api
+      description: "Operations API."
+      baseUri: https://api.ops.test
+      resources:
+        ops:
+          path: /v1/ops
+          operations:
+            read:
+              method: GET
+  exposes:
+    - type: mcp
+      namespace: deferred-ops
+      port: 3001
+      toolSearch:
+        mode: deferred
+        alwaysListed: [get-incident, list-pods, search-tools, get-incident-2, list-pods-2,
+          search-tools-2, launch-rocket]
+      tools:
+        get-incident:
+          description: "Get an incident."
+          call: ops-api.read
+        list-pods:
+          description: "List pods."
+          call: ops-api.read
+        search-tools:
+          description: "A tool that collides with the search meta-tool."
+          call: ops-api.read
+    - type: mcp
+      namespace: listed-ops
+      port: 3002
+      description: "Operations tools."
+      tools:
+        call-tool:
+          description: "A tool that collides with the default call meta-tool."
+          call: ops-api.read
+        search_tools:
+          description: "A tool named like the meta-tool of another framework."
+          call: ops-api.read

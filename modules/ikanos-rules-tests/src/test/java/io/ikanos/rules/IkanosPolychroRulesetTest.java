@@ -552,6 +552,62 @@ public class IkanosPolychroRulesetTest {
     }
 
     // ────────────────────────────────────────────────────────────────
+    // MCP tool search rules
+    // ────────────────────────────────────────────────────────────────
+
+    @Test
+    public void mcpToolSearchReservedNamesRuleShouldFireWhenADeclaredMetaToolNameIsATool() {
+        assertRuleFires("rules/polychro-mcp-tool-search-violations.yaml",
+            "ikanos-mcp-tool-search-reserved-names");
+    }
+
+    @Test
+    public void mcpToolSearchImplicitReservedNamesRuleShouldFireWhenADefaultMetaToolNameIsATool() {
+        assertToolSearchRuleFires("ikanos-mcp-tool-search-implicit-reserved-names");
+    }
+
+    @Test
+    public void mcpToolSearchLookalikeNamesRuleShouldFireForSearchUnderscoreTools() {
+        assertToolSearchRuleFires("ikanos-mcp-tool-search-lookalike-names");
+    }
+
+    @Test
+    public void mcpToolSearchAlwaysListedExistsRuleShouldFireForAnUnknownTool() {
+        assertRuleFires("rules/polychro-mcp-tool-search-violations.yaml",
+            "ikanos-mcp-tool-search-always-listed-exists");
+    }
+
+    @Test
+    public void mcpToolSearchAlwaysListedSizeRuleShouldFireAboveFiveTools() {
+        assertToolSearchRuleFires("ikanos-mcp-tool-search-always-listed-size");
+    }
+
+    @Test
+    public void mcpToolSearchDescriptionRuleShouldFireForDeferredModeWithoutDescription() {
+        assertToolSearchRuleFires("ikanos-mcp-tool-search-description");
+    }
+
+    @Test
+    public void mcpToolSearchSmallCatalogRuleShouldFireForDeferredModeOnFewTools() {
+        assertToolSearchRuleFires("ikanos-mcp-tool-search-small-catalog");
+    }
+
+    @Test
+    public void mcpToolSearchRulesShouldNotFireForACompliantEndpoint() {
+        LintResult result = lintFixtureAtSeverity(
+            "rules/polychro-mcp-tool-search-compliant.yaml", "info");
+        assertTrue(!result.output().contains("ikanos-mcp-tool-search-"),
+            "Expected no tool search findings for a compliant document.\n" + result.output());
+    }
+
+    private void assertToolSearchRuleFires(String ruleId) {
+        LintResult result = lintFixtureAtSeverity(
+            "rules/polychro-mcp-tool-search-violations.yaml", "info");
+        assertTrue(result.output().contains(ruleId),
+            "Expected lint output to reference " + ruleId + ".\n" + result.output());
+    }
+
+    // ────────────────────────────────────────────────────────────────
     // Agent Skills over MCP rules (SEP-2640)
     // ────────────────────────────────────────────────────────────────
 
