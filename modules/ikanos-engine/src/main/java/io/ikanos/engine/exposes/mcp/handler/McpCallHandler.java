@@ -18,6 +18,7 @@ import tools.jackson.databind.ObjectMapper;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.mcp.model.HandlerResult;
 import io.ikanos.engine.exposes.mcp.model.McpHeader;
+import io.ikanos.engine.exposes.mcp.model.McpRequestContext;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPostProcessor;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPreProcessor;
 
@@ -51,6 +52,19 @@ public abstract class McpCallHandler {
      * @return the handler's result.
      */
     public abstract HandlerResult handle(JsonNode requestBody);
+
+    /**
+     * Handles an MCP call with what the request asks of the endpoint beyond its body, such as a
+     * tag filter on the endpoint URL. Handlers that ignore the context keep the default, which
+     * delegates to {@link #handle(JsonNode)}.
+     * @param requestBody the JsonRpc request's body.
+     * @param context the request's context; {@link McpRequestContext#DEFAULT} when it asks for
+     *        nothing.
+     * @return the handler's result.
+     */
+    public HandlerResult handle(JsonNode requestBody, McpRequestContext context) {
+        return handle(requestBody);
+    }
 
     /**
      * Get the list of headers that are required by this handler.

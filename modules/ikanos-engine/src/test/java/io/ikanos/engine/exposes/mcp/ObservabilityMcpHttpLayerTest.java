@@ -177,11 +177,12 @@ class ObservabilityMcpHttpLayerTest {
         ProtocolDispatcher capturingDispatcher = new ProtocolDispatcher(adapter) {
             @Override
             public io.ikanos.engine.exposes.mcp.model.DispatchResult dispatch(
-                    tools.jackson.databind.JsonNode root) {
+                    tools.jackson.databind.JsonNode root,
+                    io.ikanos.engine.exposes.mcp.model.McpRequestContext context) {
                 // At this point we are inside the SERVER span scope created by McpServerResource
                 capturedTraceId.set(MDC.get(TelemetryBootstrap.MDC_TRACE_ID));
                 capturedSpanId.set(MDC.get(TelemetryBootstrap.MDC_SPAN_ID));
-                return super.dispatch(root);
+                return super.dispatch(root, context);
             }
         };
 

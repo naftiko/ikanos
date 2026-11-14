@@ -61,6 +61,7 @@ public class McpServerAdapter extends ServerAdapter {
     private final ToolHandler toolHandler;
     private final List<McpSchema.Tool> tools;
     private final Map<String, String> toolLabels;
+    private final Map<String, List<String>> toolTags;
     private final ResourceHandler resourceHandler;
     private final PromptHandler promptHandler;
     private final SkillHandler skillHandler;
@@ -76,6 +77,7 @@ public class McpServerAdapter extends ServerAdapter {
         // Build MCP Tool definitions from the spec
         this.tools = new ArrayList<>();
         this.toolLabels = new HashMap<>();
+        this.toolTags = new HashMap<>();
         Context.getCurrentLogger().log(Level.INFO, "Building MCP Tool definitions from the spec");
 
         for (McpServerToolSpec toolSpec : serverSpec.getTools().values()) {
@@ -90,6 +92,7 @@ public class McpServerAdapter extends ServerAdapter {
             if (toolSpec.getDisplay() != null) {
                 this.toolLabels.put(toolSpec.getName(), toolSpec.getDisplay());
             }
+            this.toolTags.put(toolSpec.getName(), List.copyOf(toolSpec.getTags()));
         }
 
         // Create the resource handler (transport-agnostic)
@@ -228,6 +231,15 @@ public class McpServerAdapter extends ServerAdapter {
 
     public List<McpSchema.Tool> getTools() {
         return tools;
+    }
+
+    /**
+     * The declared tags of each tool, by tool name. A tool without tags maps to an empty list.
+     *
+     * @return the tags by tool name
+     */
+    public Map<String, List<String>> getToolTags() {
+        return toolTags;
     }
 
     public Map<String, String> getToolLabels() {
