@@ -154,6 +154,16 @@ class AccessControlTest {
     }
 
     @Test
+    void checkShouldNotFallBackToANestedPathWhenTheLiteralClaimIsNull() {
+        JWTClaimsSet claims = new JWTClaimsSet.Builder()
+                .claim("realm_access", Map.of("roles", List.of("editor")))
+                .claim("realm_access.roles", null).build();
+        assertTrue(claims.getClaims().containsKey("realm_access.roles"));
+
+        assertNotNull(AccessControl.check(claim("realm_access.roles", "editor"), claims));
+    }
+
+    @Test
     void checkShouldNotMatchAnObjectClaimByItsText() {
         JWTClaimsSet claims = new JWTClaimsSet.Builder()
                 .claim("roles", Map.of("editor", true)).build();
@@ -304,6 +314,17 @@ class AccessControlTest {
 
         assertThrows(IllegalArgumentException.class,
                 () -> AccessControl.validate(adapter, false, AccessControl.declaredIn(adapter)));
+    }
+
+    @Test
+    void validateShouldRefuseAuthorizationRequiringNothing() {
+        RestServerSpec adapter = restAdapter(new AuthorizationSpec(null, null));
+        adapter.setAuthentication(oauth2("records.read"));
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> AccessControl.validate(adapter, false, AccessControl.declaredIn(adapter)));
+        assertTrue(error.getMessage().contains("operation 'records.update'"), error.getMessage());
+        assertTrue(error.getMessage().contains("requires nothing"), error.getMessage());
     }
 
     @Test

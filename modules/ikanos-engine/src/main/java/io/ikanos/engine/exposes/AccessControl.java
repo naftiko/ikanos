@@ -146,9 +146,10 @@ public final class AccessControl {
      * @return the value, or {@code null} when the token does not carry it
      */
     static Object claimValue(JWTClaimsSet claims, String name) {
-        Object direct = claims.getClaim(name);
-        if (direct != null || !name.contains(".")) {
-            return direct;
+        // A claim of that exact name wins, even when its value is null: a dotted name falls back to
+        // a nested path only when the token has no claim of that name at all.
+        if (claims.getClaims().containsKey(name) || !name.contains(".")) {
+            return claims.getClaim(name);
         }
         Object current = claims.getClaims();
         for (String segment : name.split("\\.", -1)) {
@@ -214,8 +215,8 @@ public final class AccessControl {
     /**
      * Fails the capability at load time when an {@code authorization} cannot be enforced: the
      * adapter does not validate OAuth 2.1 tokens (other authentication, none, or the MCP stdio transport),
-     * a required scope is not one the adapter recognizes ({@code authentication.scopes}), or a
-     * claim lists no allowed value. The schema and the ruleset report the same problems at lint
+     * a required scope is not one the adapter recognizes ({@code authentication.scopes}), a
+     * requirement lists neither scopes nor claims, or a claim lists no allowed value. The schema and the ruleset report the same problems at lint
      * time.
      *
      * @param adapter the exposed adapter
@@ -247,6 +248,13 @@ public final class AccessControl {
                 }
             });
         }
+        declared.forEach((location, requirement) -> {
+            if (requirement.getScopes().isEmpty() && requirement.getClaims().isEmpty()) {
+                // An empty block would replace a broader requirement and let any token through.
+                errors.add(location + " declares an 'authorization' that requires nothing:"
+                        + " list 'scopes' or 'claims'");
+            }
+        });
         declared.forEach((location, requirement) -> requirement.getClaims().forEach(
                 (claim, values) -> {
                     if (claim == null || claim.isBlank()) {

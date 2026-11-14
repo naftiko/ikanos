@@ -3999,7 +3999,7 @@
           "items": {
             "type": "string"
           },
-          "description": "Scopes this resource server recognizes. They are advertised in Protected Resource Metadata (`scopes_supported`) and in the OpenAPI export, but a token does not need them to be accepted: what a call needs is set with `authorization` on the adapter, a resource, an operation or a tool, and every scope used there must be listed here."
+          "description": "Scopes this resource server recognizes. They are advertised in Protected Resource Metadata (`scopes_supported`) and in the OpenAPI export, but a token does not need them to be accepted: what a call needs is set with `authorization` on the adapter, a resource, an operation or a tool, and every scope used there must be listed here. The control adapter, which takes no `authorization`, still requires every scope listed here on every call."
         },
         "audience": {
           "type": "string",

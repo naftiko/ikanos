@@ -13,16 +13,23 @@
  */
 package io.ikanos.engine.exposes.control;
 
+import java.util.List;
 import io.ikanos.Capability;
+import io.ikanos.engine.exposes.AccessControl;
 import io.ikanos.engine.exposes.ServerAdapter;
 import io.ikanos.engine.observability.TelemetryBootstrap;
+import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
+import io.ikanos.spec.exposes.AuthorizationSpec;
 import io.ikanos.spec.observability.ObservabilitySpec;
 import io.ikanos.spec.observability.ObservabilityTracesLocalSpec;
 import io.ikanos.spec.exposes.control.ControlManagementSpec;
 import io.ikanos.spec.exposes.control.ControlServerSpec;
 import io.ikanos.spec.exposes.control.ScriptingManagementSpec;
 import org.restlet.Context;
+import org.restlet.Request;
+import org.restlet.Response;
 import org.restlet.Restlet;
+import org.restlet.routing.Filter;
 import org.restlet.routing.Router;
 
 /**
@@ -91,6 +98,35 @@ public class ControlServerAdapter extends ServerAdapter {
 
         Restlet chain = buildServerChain(this.router);
         initServer(serverSpec.getAddress(), serverSpec.getPort(), chain);
+    }
+
+    /**
+     * The control port has no {@code authorization} block, so it keeps requiring every scope listed
+     * in {@code authentication.scopes} on every call, as all adapters did up to 1.0.0-beta9 (#999):
+     * the management endpoints stay closed to a valid token without them.
+     */
+    @Override
+    protected Restlet createOAuth2Restlet(OAuth2AuthenticationSpec oauth2, Restlet next) {
+        List<String> scopes = oauth2.getScopes();
+        if (scopes == null || scopes.isEmpty()) {
+            return super.createOAuth2Restlet(oauth2, next);
+        }
+        return super.createOAuth2Restlet(oauth2, requireAllScopes(scopes, next));
+    }
+
+    /**
+     * A filter that lets a call reach {@code next} only when its validated token carries every
+     * scope; otherwise it marks the response with an {@link AccessControl.Denial}, which the OAuth
+     * 2.1 restlet in front of it turns into a {@code 403 insufficient_scope} challenge.
+     */
+    static Restlet requireAllScopes(List<String> scopes, Restlet next) {
+        AuthorizationSpec required = new AuthorizationSpec(scopes, null);
+        return new Filter(next.getContext(), next) {
+            @Override
+            protected int beforeHandle(Request request, Response response) {
+                return AccessControl.enforce(required, request, response) ? CONTINUE : STOP;
+            }
+        };
     }
 
     boolean isMetricsEnabled(ObservabilitySpec observability) {

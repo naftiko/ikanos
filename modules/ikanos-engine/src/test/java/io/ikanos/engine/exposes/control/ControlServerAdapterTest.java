@@ -26,6 +26,15 @@ import io.ikanos.spec.observability.ObservabilityTracesSpec;
 import io.ikanos.spec.observability.ObservabilityTracesLocalSpec;
 
 import java.io.File;
+import java.util.List;
+import org.restlet.Request;
+import org.restlet.Response;
+import org.restlet.Restlet;
+import org.restlet.data.Method;
+import org.restlet.data.Status;
+import com.nimbusds.jwt.JWTClaimsSet;
+import io.ikanos.engine.exposes.AccessControl;
+import io.ikanos.engine.exposes.OAuth2AuthenticationRestlet;
 import io.ikanos.spec.util.IkanosMappers;
 
 /**
@@ -44,6 +53,54 @@ public class ControlServerAdapterTest {
                 IkanosSpec.class);
         Capability capability = new Capability(spec);
         adapter = (ControlServerAdapter) capability.getServerAdapters().get(0);
+    }
+
+    // ── requireAllScopes (#999: the control port keeps requiring its listed scopes) ──
+
+    private static Request requestWithScopes(String scopes) {
+        Request request = new Request(Method.GET, "http://localhost:9199/traces");
+        request.getAttributes().put(OAuth2AuthenticationRestlet.VALIDATED_CLAIMS_ATTRIBUTE,
+                new JWTClaimsSet.Builder().claim("scope", scopes).build());
+        return request;
+    }
+
+    private static Restlet okRestlet(boolean[] called) {
+        return new Restlet() {
+            @Override
+            public void handle(Request request, Response response) {
+                called[0] = true;
+                response.setStatus(Status.SUCCESS_OK);
+            }
+        };
+    }
+
+    @Test
+    void requireAllScopesShouldRefuseTokenMissingOneListedScope() {
+        boolean[] called = {false};
+        Request request = requestWithScopes("control.read");
+        Response response = new Response(request);
+
+        ControlServerAdapter.requireAllScopes(List.of("control.read", "control.admin"),
+                okRestlet(called)).handle(request, response);
+
+        assertFalse(called[0]);
+        assertEquals(Status.CLIENT_ERROR_FORBIDDEN, response.getStatus());
+        AccessControl.Denial denial = assertInstanceOf(AccessControl.Denial.class,
+                response.getAttributes().get(AccessControl.DENIAL_ATTRIBUTE));
+        assertEquals(List.of("control.read", "control.admin"), denial.scopes());
+    }
+
+    @Test
+    void requireAllScopesShouldLetTokenCarryingEveryListedScopeThrough() {
+        boolean[] called = {false};
+        Request request = requestWithScopes("control.admin control.read");
+        Response response = new Response(request);
+
+        ControlServerAdapter.requireAllScopes(List.of("control.read", "control.admin"),
+                okRestlet(called)).handle(request, response);
+
+        assertTrue(called[0]);
+        assertEquals(Status.SUCCESS_OK, response.getStatus());
     }
 
     // ── isMetricsEnabled ──
