@@ -51,4 +51,26 @@ public abstract class ClientSpec {
         this.namespace = namespace;
     }
 
+    /** Value of an {@code off} switch such as {@code discovery: off}. */
+    public static final String OFF = "off";
+
+    /**
+     * Read an enum-like value that has an {@code off} member. YAML 1.1 reads a bare {@code off} as
+     * boolean {@code false} (and {@code on} as {@code true}); Jackson then hands the setter
+     * {@code "false"}. Map that back to {@code off}, so every adapter reads the switch the same way.
+     *
+     * @param value the value as read, may be null
+     * @param defaultValue the value when absent
+     * @return the value, with {@code false} and {@code no} read as {@code off}
+     */
+    protected static String normalizeOff(String value, String defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        }
+        if ("false".equalsIgnoreCase(value) || "no".equalsIgnoreCase(value)) {
+            return OFF;
+        }
+        return value;
+    }
+
 }

@@ -15,10 +15,12 @@ package io.ikanos.engine.consumes.sql;
 
 import java.sql.CallableStatement;
 import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.sql.JDBCType;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -26,6 +28,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.UnaryOperator;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
@@ -58,9 +61,11 @@ import io.ikanos.spec.consumes.sql.SqlProcedureSpec;
  *       refused. Each statement is parsed once, in the MySQL dialect for MySQL and MariaDB URLs:
  *       its {@code :name} placeholders must match declared inputs, every {@code sqlType} must be a
  *       JDBC type, and it must read.</li>
- *   <li><b>Start</b> — a HikariCP pool is created. It opens its connections in the background
- *       and {@code start()} does not wait for them, so a database that is down at start-up only
- *       fails the calls that need it.</li>
+ *   <li><b>Start</b> — a HikariCP pool is created. With {@code discovery: verify} (the
+ *       default), the connection and every procedure are checked at once, so a typo stops the
+ *       capability; with {@code discovery: off}, {@code start()} does not wait for a connection
+ *       (the pool still opens its connections in the background), and a database that is down at
+ *       start-up only fails the calls that need it.</li>
  *   <li><b>Call</b> — a pooled connection is set read-only, the statement is prepared and bound,
  *       and its rows become the document of
  *       {@link SqlRowDocument}. Failures become a status mapped from the SQLState
@@ -109,6 +114,10 @@ public class SqlClientAdapter extends ClientAdapter {
             return null;
         }
     }
+
+    /** The cases a catalog may store an unquoted name in: as written, upper, lower. */
+    private static final List<UnaryOperator<String>> NAME_CASES = List.of(UnaryOperator.identity(),
+            name -> name.toUpperCase(Locale.ROOT), name -> name.toLowerCase(Locale.ROOT));
 
     /** A stored procedure name, optionally qualified by schema and catalog. */
     private static final Pattern STORED_PROCEDURE_NAME =
@@ -694,7 +703,179 @@ public class SqlClientAdapter extends ClientAdapter {
         if (pool != null) {
             return;
         }
-        pool = new HikariDataSource(poolConfig());
+        HikariDataSource created = new HikariDataSource(poolConfig());
+        if (getSqlClientSpec().isDiscoveryVerify()) {
+            try {
+                verify(created);
+            } catch (RuntimeException | Error e) {
+                // an Error too: a pre-JDBC 4 driver throws AbstractMethodError, and the pool's
+                // threads must not outlive a failed start
+                created.close();
+                throw e;
+            }
+        }
+        pool = created;
+    }
+
+    /**
+     * {@code discovery: verify}: open a connection, prepare every statement and read its
+     * metadata, which makes PostgreSQL, SQL Server and Oracle check the SQL on the server without
+     * running it, and look up every stored procedure in the catalog. Drivers that check SQL lazily
+     * (MySQL with client-side prepares) catch less: the check is best effort. Package-private for
+     * tests.
+     *
+     * @throws IllegalStateException naming each failing procedure and its SQLState, never the SQL
+     */
+    void verify(DataSource dataSource) {
+        List<String> problems = new ArrayList<>();
+        try (Connection connection = dataSource.getConnection()) {
+            if (!connection.isValid(5)) {
+                throw new IllegalStateException("consumes type sql '" + getNamespace()
+                        + "' failed discovery: the connection is not valid");
+            }
+            DatabaseMetaData catalog = connection.getMetaData();
+            for (Procedure procedure : procedures.values()) {
+                String problem = procedure.isStored()
+                        ? checkStored(catalog, procedure, jdbcUrl.system())
+                        : checkStatement(connection, procedure);
+                if (problem != null) {
+                    problems.add("procedure '" + procedure.name() + "' " + problem);
+                }
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException("consumes type sql '" + getNamespace() + "' ("
+                    + jdbcUrl.spanTarget() + ") failed discovery: cannot connect (SQLState "
+                    + e.getSQLState() + ")", e);
+        }
+        if (!problems.isEmpty()) {
+            throw new IllegalStateException("consumes type sql '" + getNamespace() + "' ("
+                    + jdbcUrl.spanTarget() + ") failed discovery: " + String.join("; ", problems));
+        }
+        LOGGER.info("consumes type sql '" + getNamespace() + "' checked " + procedures.size()
+                + " procedures at start (best effort: some drivers check SQL only when it runs)");
+    }
+
+    /**
+     * Prepare a statement and read its result metadata, which makes the server parse it. Parameter
+     * metadata is not read: some servers (SQL Server) cannot infer a parameter type for valid SQL
+     * such as {@code :x IS NULL OR col = :x}, and the parse does not need it.
+     *
+     * <p>Inputs with a known type are bound as typed {@code NULL}s first, as a call binds them
+     * (a {@code string} input without {@code sqlType} as VARCHAR): PostgreSQL cannot type
+     * {@code :id IS NULL} otherwise. On MySQL and MariaDB the result
+     * metadata is not read: Connector/J's client-side prepares obtain it by running the query.
+     * Preparing is the whole check there, and with server-side prepares it parses the SQL.</p>
+     */
+    String checkStatement(Connection connection, Procedure procedure) {
+        try (PreparedStatement statement = prepare(connection, procedure)) {
+            if (jdbcUrl.mysqlDialect()) {
+                return null;
+            }
+            statement.setQueryTimeout(timeoutSeconds(procedure.spec()));
+            String where = getNamespace() + "." + procedure.name();
+            for (int i = 0; i < procedure.inputs().size(); i++) {
+                int position = procedure.positions().get(i);
+                SqlBind typedNull = SqlBind.of(procedure.inputs().get(i), null, where, position,
+                        procedure.inoutType(position));
+                if (typedNull.jdbcType() != null) {
+                    // a string input without sqlType too: SqlBind types its NULL as VARCHAR
+                    typedNull.bind(statement);
+                }
+            }
+            try {
+                statement.getMetaData();
+            } catch (SQLFeatureNotSupportedException lazy) {
+                // the driver checks the SQL when it runs
+            }
+            return null;
+        } catch (SQLException e) {
+            LOGGER.log(Level.WARNING, "SQL procedure " + getNamespace() + "." + procedure.name()
+                    + " failed discovery with SQLState " + e.getSQLState(), e);
+            return "does not prepare (SQLState " + e.getSQLState() + ")";
+        }
+    }
+
+    /**
+     * Look up a stored procedure, or a function, by its last name part. A qualified name is read as
+     * {@code schema.proc} and {@code catalog.schema.proc}. On Oracle it is also read as
+     * {@code package.proc} and {@code schema.package.proc}, where the Oracle driver takes the
+     * package as the catalog, and on MySQL and MariaDB as {@code database.proc}, the database read as a
+     * catalog or a schema as their driver's {@code databaseTerm} says. Other databases read a
+     * qualifier as a schema, so the other readings would accept a name their call cannot reach.
+     * Unquoted names are stored upper case by some databases (Oracle, HSQLDB) and lower case by
+     * others (PostgreSQL), so each case is tried. {@code _} and {@code %} are escaped, since the
+     * metadata calls take patterns. A driver that does not support {@code getFunctions} is only
+     * asked for procedures.
+     */
+    static String checkStored(DatabaseMetaData catalog, Procedure procedure, String system) {
+        String[] parts = procedure.spec().getStoredProcedure().trim().split("\\.");
+        String name = parts[parts.length - 1];
+        boolean oracle = "oracle".equals(system);
+        boolean mysql = "mysql".equals(system) || "mariadb".equals(system);
+        try {
+            // {catalog, schema} readings of the qualifier. MySQL and MariaDB call a database
+            // either a catalog or a schema (databaseTerm) and ignore the other argument, so only
+            // the one their driver uses is read: the other would match any database.
+            List<String[]> readings = new ArrayList<>();
+            if (parts.length == 1) {
+                readings.add(new String[] {null, null});
+            } else if (parts.length == 2) {
+                if (!mysql || catalog.supportsSchemasInProcedureCalls()) {
+                    readings.add(new String[] {null, parts[0]});
+                }
+                if (oracle || (mysql && catalog.supportsCatalogsInProcedureCalls())) {
+                    readings.add(new String[] {parts[0], null});
+                }
+            } else {
+                readings.add(new String[] {parts[0], parts[1]});
+                if (oracle) {
+                    readings.add(new String[] {parts[1], parts[0]});
+                }
+            }
+            String escape = catalog.getSearchStringEscape();
+            boolean functions = true;
+            for (UnaryOperator<String> caseOf : NAME_CASES) {
+                String pattern = escapePattern(caseOf.apply(name), escape);
+                for (String[] reading : readings) {
+                    String inDatabase = reading[0] != null ? caseOf.apply(reading[0]) : null;
+                    String inSchema = reading[1] != null
+                            ? escapePattern(caseOf.apply(reading[1]), escape) : null;
+                    try (ResultSet found = catalog.getProcedures(inDatabase, inSchema, pattern)) {
+                        if (found.next()) {
+                            return null;
+                        }
+                    }
+                    if (functions) {
+                        try (ResultSet found = catalog.getFunctions(inDatabase, inSchema,
+                                pattern)) {
+                            if (found.next()) {
+                                return null;
+                            }
+                        } catch (SQLFeatureNotSupportedException | AbstractMethodError none) {
+                            functions = false;
+                        }
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            return "could not be looked up (SQLState " + e.getSQLState() + ")";
+        }
+        return "names a stored procedure that the database does not list";
+    }
+
+    /** @return {@code value} with the metadata pattern characters {@code _} and {@code %} escaped */
+    static String escapePattern(String value, String escape) {
+        if (escape == null || escape.isEmpty()) {
+            return value;
+        }
+        StringBuilder escaped = new StringBuilder(value.length());
+        for (char c : value.toCharArray()) {
+            if (c == '_' || c == '%' || escape.indexOf(c) >= 0) {
+                escaped.append(escape);
+            }
+            escaped.append(c);
+        }
+        return escaped.toString();
     }
 
     HikariConfig poolConfig() {

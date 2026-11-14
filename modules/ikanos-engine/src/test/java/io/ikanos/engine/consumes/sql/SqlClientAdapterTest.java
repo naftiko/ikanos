@@ -219,11 +219,14 @@ class SqlClientAdapterTest {
 
     @Test
     void invokeShouldMapAMissingTableTo502() throws Exception {
-        started("""
+        // discovery: off, or the start-up check would refuse the missing table first
+        adapter = new SqlClientAdapter(null, spec("""
                 missing:
                   description: Reads a table that does not exist.
                   statement: select * from no_such_table
-                """);
+                """));
+        adapter.getSqlClientSpec().setDiscovery("off");
+        adapter.start();
 
         ConsumedResult result = call("missing", Map.of());
 
@@ -233,11 +236,14 @@ class SqlClientAdapterTest {
 
     @Test
     void failureCauseShouldCarryTheSqlStateButNotTheDriverMessage() throws Exception {
-        started("""
+        // discovery: off, or the start-up check would refuse the missing table first
+        adapter = new SqlClientAdapter(null, spec("""
                 missing:
                   description: Reads a table that does not exist.
                   statement: select * from no_such_table
-                """);
+                """));
+        adapter.getSqlClientSpec().setDiscovery("off");
+        adapter.start();
 
         ConsumedResult result = call("missing", Map.of());
 

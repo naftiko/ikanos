@@ -3046,6 +3046,19 @@
         "pool": {
           "$ref": "#/$defs/SqlPool"
         },
+        "discovery": {
+          "type": [
+            "string",
+            "boolean"
+          ],
+          "enum": [
+            "verify",
+            "off",
+            false
+          ],
+          "default": "verify",
+          "description": "`verify` (default): at start-up, open a connection, prepare every statement (which makes PostgreSQL, SQL Server and Oracle check the SQL without running it) and look up every stored procedure in the catalog; a failure stops the capability and names the procedure and the SQLState, never the SQL. Drivers that check SQL lazily catch less. `off`: start-up does not wait for a connection (the pool still opens its connections in the background), for a database not reachable at start; the first call surfaces the problem. YAML 1.1 reads a bare `off` as boolean `false`, so `false` is accepted as an alias of `off`."
+        },
         "procedures": {
           "type": "object",
           "propertyNames": {
