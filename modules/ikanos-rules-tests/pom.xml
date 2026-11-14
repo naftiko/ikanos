@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.ikanos</groupId>
+        <artifactId>ikanos-parent</artifactId>
+        <version>${revision}</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>ikanos-rules-tests</artifactId>
+    <name>Ikanos Rules Tests</name>
+    <description>Tests of the Polychro ruleset of ikanos-spec (ikanos-rules.yml and its JavaScript functions), linted in process with the Polychro library. Test code only; not published. A module of its own because Polychro and ikanos-spec need incompatible versions of json-schema-validator.</description>
+
+    <properties>
+        <!-- Test code only: nothing to install, deploy or publish -->
+        <maven.install.skip>true</maven.install.skip>
+        <maven.deploy.skip>true</maven.deploy.skip>
+        <skipPublishing>true</skipPublishing>
+        <!-- Polychro's GraalVM (GraalJS runs the rule functions); the engine's stays on its own -->
+        <graalvm.polyglot.version>24.2.1</graalvm.polyglot.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!--
+                The root POM manages json-schema-validator at the 3.x line for ikanos-spec;
+                Polychro is built on the 1.0.x line, whose classes share the same package. This
+                module restores Polychro's version: the reason it is a module of its own.
+            -->
+            <dependency>
+                <groupId>com.networknt</groupId>
+                <artifactId>json-schema-validator</artifactId>
+                <version>1.0.87</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <!-- Polychro, with JavaScript rule functions. No Ikanos module: see the description. -->
+        <dependency>
+            <groupId>io.polychro</groupId>
+            <artifactId>polychro-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.polychro</groupId>
+            <artifactId>polychro-ruleset-polyglot</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <skipIfEmpty>true</skipIfEmpty>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
