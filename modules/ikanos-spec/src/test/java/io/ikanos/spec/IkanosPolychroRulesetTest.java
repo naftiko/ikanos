@@ -601,7 +601,7 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void cacheTtlFromUpstreamRuleShouldWarnWhereItHasNoEffect() {
-        assertEquals(3, countFindings("rules/spectral-cache-hints-violations.yaml",
+        assertEquals(5, countFindings("rules/spectral-cache-hints-violations.yaml",
             "ikanos-cache-ttl-from-upstream-no-effect"));
     }
 
