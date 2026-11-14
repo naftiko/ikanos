@@ -22,6 +22,7 @@ import java.io.InputStream;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import com.networknt.schema.Error;
@@ -148,6 +149,64 @@ class McpToolInputSchemaValidationTest {
                   maximum: 100
                 """);
         assertTrue(errors.isEmpty(), "Expected no errors, got: " + errors);
+    }
+
+    @Test
+    void schemaShouldAcceptExamplesOnParametersAndNestedProperties() throws Exception {
+        List<Error> errors = validateTool("""
+                severity:
+                  type: "string"
+                  description: "Severity."
+                  enum: ["sev1", "sev2"]
+                  examples: ["sev2"]
+                page_size:
+                  type: "integer"
+                  description: "Page size."
+                  examples: [25]
+                labels:
+                  type: "object"
+                  description: "Labels."
+                  properties:
+                    team: { type: "string", examples: ["payments"] }
+                    urgent: { type: "boolean", examples: [true] }
+                """);
+        assertTrue(errors.isEmpty(), "Expected no errors, got: " + errors);
+    }
+
+    @Test
+    @DisplayName("The shipped example capability-mcp-tool-input-examples.yml validates")
+    void schemaShouldAcceptTheShippedInputExamplesCapability() throws Exception {
+        JsonNode document;
+        try (InputStream in = getClass().getClassLoader()
+                .getResourceAsStream("schemas/examples/capability-mcp-tool-input-examples.yml")) {
+            assertNotNull(in, "the shipped example must be on the classpath");
+            document = YAML.readTree(in);
+        }
+        List<Error> errors = schema.validate(document);
+        assertTrue(errors.isEmpty(), "Expected no errors, got: " + errors);
+    }
+
+    @Test
+    void schemaShouldRejectAnObjectExample() throws Exception {
+        List<Error> errors = validateTool("""
+                labels:
+                  type: "object"
+                  description: "Labels."
+                  examples:
+                    - team: "payments"
+                """);
+        assertFalse(errors.isEmpty(), "Examples are scalar values; object examples go on properties");
+    }
+
+    @Test
+    void schemaShouldRejectAnEmptyExamplesList() throws Exception {
+        List<Error> errors = validateTool("""
+                severity:
+                  type: "string"
+                  description: "Severity."
+                  examples: []
+                """);
+        assertFalse(errors.isEmpty(), "An examples list holds at least one value");
     }
 
     @Test

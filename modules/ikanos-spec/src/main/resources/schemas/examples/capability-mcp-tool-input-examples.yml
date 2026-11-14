@@ -1,0 +1,53 @@
+ikanos: "1.0.0-beta10"
+info:
+  display: "Incident tools with input examples"
+  description: >
+    Shows `examples` on MCP tool inputs. The engine advertises them as JSON Schema
+    `examples` in each tool's inputSchema, typed like the input, so models see what a
+    valid argument looks like. An object input carries examples on its properties.
+capability:
+  consumes:
+    - type: http
+      namespace: incidents-api
+      description: "Incidents API."
+      baseUri: https://api.incidents.example.com
+      resources:
+        incidents:
+          path: /v1/incidents
+          operations:
+            create-incident:
+              method: POST
+              body: |
+                {"severity": "{{severity}}", "service": "{{service}}", "team": "{{team}}"}
+  exposes:
+    - type: mcp
+      namespace: incidents
+      port: 3001
+      description: "Incident tools."
+      tools:
+        create-incident:
+          description: "Open an incident and page the on-call engineer of the affected service."
+          inputParameters:
+            severity:
+              type: string
+              description: "Incident severity."
+              enum: [sev1, sev2, sev3]
+              examples: [sev2]
+              required: true
+            service:
+              type: string
+              description: "Name of the affected service."
+              examples: [checkout, payments-api]
+              required: true
+            labels:
+              type: object
+              description: "Routing labels."
+              properties:
+                team:
+                  type: string
+                  examples: [payments]
+          call: incidents-api.create-incident
+          with:
+            severity: $this.incidents.severity
+            service: $this.incidents.service
+            team: $this.incidents.labels.team

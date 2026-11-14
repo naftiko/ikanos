@@ -1955,6 +1955,9 @@
         "enum": {
           "$ref": "#/$defs/McpToolInputEnum"
         },
+        "examples": {
+          "$ref": "#/$defs/McpToolInputExamples"
+        },
         "format": {
           "type": "string",
           "description": "JSON Schema format hint for agents (e.g. date, date-time, email, uri, uuid). Not enforced by Ikanos."
@@ -2006,7 +2009,7 @@
     },
     "McpToolInputSchema": {
       "type": "object",
-      "description": "Nested JSON Schema for MCP tool inputs (array items and object properties). A bounded subset of JSON Schema, copied as written into the tool's inputSchema. Unlike the parameter level, `required` here is the array of required property names. Like the parameter-level keywords, `enum`, `format`, `minimum`, `maximum`, `required` and `additionalProperties` are advertised to MCP clients and not enforced by Ikanos. A nested schema may instead reference a schema of the `definitions` with `schema: name`, optionally with a `description` that replaces the schema's.",
+      "description": "Nested JSON Schema for MCP tool inputs (array items and object properties). A bounded subset of JSON Schema, copied as written into the tool's inputSchema. Unlike the parameter level, `required` here is the array of required property names. Like the parameter-level keywords, `enum`, `examples`, `format`, `minimum`, `maximum`, `required` and `additionalProperties` are advertised to MCP clients and not enforced by Ikanos. A nested schema may instead reference a schema of the `definitions` with `schema: name`, optionally with a `description` that replaces the schema's.",
       "properties": {
         "type": {
           "type": "string",
@@ -2028,6 +2031,9 @@
         },
         "enum": {
           "$ref": "#/$defs/McpToolInputEnum"
+        },
+        "examples": {
+          "$ref": "#/$defs/McpToolInputExamples"
         },
         "format": {
           "type": "string"
@@ -2135,6 +2141,18 @@
       "uniqueItems": true,
       "items": {
         "type": "string"
+      }
+    },
+    "McpToolInputExamples": {
+      "type": "array",
+      "description": "Example values of a string, number, integer or boolean input, emitted with the input's type as JSON Schema `examples` in the tool's inputSchema. Examples show models what a valid value looks like, which reduces malformed calls on complex inputs. For an object or array input, give examples on its `properties` or `items`. Not enforced by Ikanos.",
+      "minItems": 1,
+      "items": {
+        "type": [
+          "string",
+          "number",
+          "boolean"
+        ]
       }
     },
     "DefinitionName": {

@@ -1,0 +1,49 @@
+# Spectral fixture — ikanos-mcp-tool-input-examples MUST FIRE:
+#   a number example that is not a number, an example outside the enum,
+#   a boolean example that is not true/false, and an example on an object input.
+ikanos: "1.0.0-beta10"
+info:
+  display: "MCP tool input examples — violations"
+  description: "Fixture whose MCP tool input examples are not valid values of their inputs."
+capability:
+  consumes:
+    - type: http
+      namespace: incidents-api
+      description: "Incidents API."
+      baseUri: https://api.incidents.test
+      resources:
+        incidents:
+          path: /v1/incidents
+          operations:
+            create-incident:
+              method: POST
+  exposes:
+    - type: mcp
+      namespace: incidents
+      port: 3001
+      description: "Incident tools."
+      tools:
+        create-incident:
+          description: "Open an incident."
+          inputParameters:
+            severity:
+              type: string
+              description: "Severity."
+              enum: [sev1, sev2, sev3]
+              examples: [critical]
+            impact:
+              type: number
+              description: "Share of users affected."
+              examples: [high]
+            page:
+              type: boolean
+              description: "Whether to page on-call."
+              examples: ["yes"]
+            labels:
+              type: object
+              description: "Labels."
+              examples: [payments]
+              properties:
+                team:
+                  type: string
+          call: incidents-api.create-incident

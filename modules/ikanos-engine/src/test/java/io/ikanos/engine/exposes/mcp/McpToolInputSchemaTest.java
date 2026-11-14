@@ -171,6 +171,53 @@ class McpToolInputSchemaTest {
     }
 
     @Test
+    void forParametersShouldEmitExamplesWithTheParameterType() throws Exception {
+        JsonNode schema = schemaOf("""
+                - name: severity
+                  type: string
+                  description: "Severity."
+                  examples: [sev2]
+                - name: page_size
+                  type: integer
+                  description: "Page size."
+                  examples: [25, 50]
+                - name: urgent
+                  type: boolean
+                  description: "Urgent."
+                  examples: [true]
+                """).path("properties");
+
+        assertEquals("[\"sev2\"]", JSON.writeValueAsString(schema.path("severity").path("examples")));
+        assertEquals("[25,50]", JSON.writeValueAsString(schema.path("page_size").path("examples")));
+        assertEquals("[true]", JSON.writeValueAsString(schema.path("urgent").path("examples")));
+    }
+
+    @Test
+    void forParametersShouldEmitExamplesOnNestedProperties() throws Exception {
+        JsonNode schema = schemaOf("""
+                - name: labels
+                  type: object
+                  description: "Labels."
+                  properties:
+                    team: { type: string, examples: [payments] }
+                """);
+
+        assertEquals(JSON.readTree("[\"payments\"]"), schema.path("properties").path("labels")
+                .path("properties").path("team").path("examples"));
+    }
+
+    @Test
+    void forParametersShouldOmitExamplesWhenNoneAreDeclared() throws Exception {
+        JsonNode schema = schemaOf("""
+                - name: severity
+                  type: string
+                  description: "Severity."
+                """);
+
+        assertFalse(schema.path("properties").path("severity").has("examples"));
+    }
+
+    @Test
     void forParametersShouldEmitArrayOfStrings() throws Exception {
         JsonNode schema = schemaOf("""
                 - name: tags

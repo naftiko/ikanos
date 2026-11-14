@@ -154,6 +154,15 @@ public class InputParameterDeserializer extends ValueDeserializer<InputParameter
             }
         }
 
+        // Handle "examples" array: scalar values kept as text, like "enum", and emitted with the
+        // input's type in the MCP inputSchema
+        if (node.has("examples")) {
+            JsonNode examplesNode = node.get("examples");
+            if (examplesNode.isArray()) {
+                examplesNode.forEach(item -> spec.getExamples().add(item.asString()));
+            }
+        }
+
         // MCP tool input schemas: object-level required list, format and bounds
         if (node.has("requiredProperties") && node.get("requiredProperties").isArray()) {
             node.get("requiredProperties").forEach(item -> spec.getRequired().add(item.asString()));

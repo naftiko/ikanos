@@ -1,0 +1,52 @@
+# Spectral fixture — ikanos-mcp-tool-input-examples MUST NOT FIRE:
+#   every example is a valid value of its input, including on nested properties.
+ikanos: "1.0.0-beta10"
+info:
+  display: "MCP tool input examples — compliant"
+  description: "Fixture whose MCP tool input examples are valid values of their inputs."
+capability:
+  consumes:
+    - type: http
+      namespace: incidents-api
+      description: "Incidents API."
+      baseUri: https://api.incidents.test
+      resources:
+        incidents:
+          path: /v1/incidents
+          operations:
+            create-incident:
+              method: POST
+  exposes:
+    - type: mcp
+      namespace: incidents
+      port: 3001
+      description: "Incident tools."
+      tools:
+        create-incident:
+          description: "Open an incident."
+          inputParameters:
+            severity:
+              type: string
+              description: "Severity."
+              enum: [sev1, sev2, sev3]
+              examples: [sev2]
+            impact:
+              type: number
+              description: "Share of users affected."
+              examples: [0.25]
+            replicas:
+              type: integer
+              description: "Replica count."
+              examples: [3]
+            page:
+              type: boolean
+              description: "Whether to page on-call."
+              examples: [true]
+            labels:
+              type: object
+              description: "Labels."
+              properties:
+                team:
+                  type: string
+                  examples: [payments]
+          call: incidents-api.create-incident

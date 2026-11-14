@@ -993,6 +993,7 @@ public final class DefinitionsExpander {
             // Like required, a default belongs to a top-level input only (#979)
             addIf(extra, "default", !topLevel && param.getDefaultValue() != null);
             addIf(extra, "enum", !param.getEnumeration().isEmpty());
+            addIf(extra, "examples", !param.getExamples().isEmpty());
             addIf(extra, "format", param.getFormat() != null);
             addIf(extra, "minimum", param.getMinimum() != null);
             addIf(extra, "maximum", param.getMaximum() != null);
