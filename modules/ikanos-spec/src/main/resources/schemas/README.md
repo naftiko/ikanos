@@ -1451,7 +1451,7 @@ authentication:
 #### 3.17.6 Rules
 
 - Only one authentication type can be used per authentication object.
-- On a consumed adapter (`http` or `mcp`), only `basic`, `apikey`, `bearer` and `digest` are allowed: `oauth2` is for exposed adapters only.
+- On a consumed adapter (`http` or `mcp`), only `basic`, `apikey`, `bearer`, `digest` and `awsSigV4` are allowed: `oauth2` is for exposed adapters only, and `awsSigV4` for consumed adapters only.
 - The `type` field determines which additional fields are required or allowed.
 - Authentication can be specified at multiple levels (exposes, consumes) with inner levels overriding outer levels.
 - On an exposed adapter, a bearer `token`, or an apikey `key` or `value`, stops the capability from starting when it resolves to an empty value, or when any of its variables is unbound, misspelled or bound to an empty value (so `"sk-{{API_KEY}}"` with an empty `API_KEY` is refused too). The error names the variables, never their values. To expose an adapter without a credential, remove its `authentication` block.
