@@ -13,9 +13,12 @@
  */
 package io.ikanos.engine.consumes;
 
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -32,6 +35,21 @@ public record Freshness(Long ttlMs, boolean privateOnly) {
 
     /** No freshness information. */
     public static final Freshness UNKNOWN = new Freshness(null, false);
+
+    /**
+     * The three HTTP-date forms a recipient must accept (RFC 9110 5.6.7): IMF-fixdate, then the
+     * obsolete RFC 850 and asctime forms. A two-digit RFC 850 year is read between 1970 and 2069.
+     */
+    private static final List<DateTimeFormatter> HTTP_DATES = List.of(
+            DateTimeFormatter.RFC_1123_DATE_TIME,
+            new DateTimeFormatterBuilder().parseCaseInsensitive()
+                    .appendPattern("EEEE, dd-MMM-")
+                    .appendValueReduced(ChronoField.YEAR, 2, 2, 1970)
+                    .appendPattern(" HH:mm:ss 'GMT'")
+                    .toFormatter(Locale.US).withZone(ZoneOffset.UTC),
+            new DateTimeFormatterBuilder().parseCaseInsensitive()
+                    .appendPattern("EEE MMM ppd HH:mm:ss yyyy")
+                    .toFormatter(Locale.US).withZone(ZoneOffset.UTC));
 
     /**
      * Read freshness from raw response header values.
@@ -212,8 +230,13 @@ public record Freshness(Long ttlMs, boolean privateOnly) {
         if (value == null) {
             return null;
         }
-        String digits = value.replace("\"", "").trim();
-        if (digits.isEmpty() || !digits.chars().allMatch(Character::isDigit)) {
+        // only a matching pair of surrounding quotes is removed; anything else but ASCII digits
+        // inside, such as a stray quote or a space, makes the value invalid
+        String digits = value.trim();
+        if (digits.length() >= 2 && digits.startsWith("\"") && digits.endsWith("\"")) {
+            digits = digits.substring(1, digits.length() - 1);
+        }
+        if (digits.isEmpty() || !digits.chars().allMatch(c -> c >= '0' && c <= '9')) {
             return null;
         }
         try {
@@ -224,11 +247,14 @@ public record Freshness(Long ttlMs, boolean privateOnly) {
     }
 
     private static Long httpDate(String value) {
-        try {
-            return ZonedDateTime.parse(value.trim(), DateTimeFormatter.RFC_1123_DATE_TIME)
-                    .toInstant().toEpochMilli();
-        } catch (DateTimeParseException invalid) {
-            return null;
+        String trimmed = value.trim();
+        for (DateTimeFormatter format : HTTP_DATES) {
+            try {
+                return ZonedDateTime.parse(trimmed, format).toInstant().toEpochMilli();
+            } catch (DateTimeParseException notThisForm) {
+                // try the next form
+            }
         }
+        return null;
     }
 }
