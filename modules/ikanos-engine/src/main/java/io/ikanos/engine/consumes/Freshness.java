@@ -57,10 +57,11 @@ public record Freshness(Long ttlMs, boolean privateOnly) {
      * <ul>
      * <li>{@code no-store} and {@code no-cache} give 0, and so does an invalid {@code max-age} or
      * {@code s-maxage} such as {@code -1} (§4.2.1: invalid freshness means stale).</li>
-     * <li>The lifetime is {@code max-age}, or {@code s-maxage} when it is shorter (the result may
-     * be served by a shared cache, so the more conservative one applies), else {@code Expires}
-     * minus {@code Date} (or now when {@code Date} is absent). An {@code Expires} that cannot be
-     * parsed, such as {@code 0}, means already expired (§5.3).</li>
+     * <li>The lifetime is {@code max-age}, else {@code Expires} minus {@code Date} (or now when
+     * {@code Date} is absent). An {@code Expires} that cannot be parsed, such as {@code 0}, means
+     * already expired (§5.3). {@code s-maxage} replaces it when shorter, or stands alone, since the
+     * result may be served by a shared cache; it never lengthens it, and a {@code private} answer
+     * ignores it, as a private cache does (§5.2.2.10).</li>
      * <li>The current age is subtracted, so an answer keeps only the freshness it has left
      * (§4.2.3): the greater of {@code Age} (time spent in an intermediate cache) and the time
      * elapsed since {@code Date}.</li>
@@ -121,14 +122,16 @@ public record Freshness(Long ttlMs, boolean privateOnly) {
             return new Freshness(0L, privateOnly);
         }
         Long lifetime = maxAge;
-        if (sharedMaxAge != null && (lifetime == null || sharedMaxAge < lifetime)) {
-            lifetime = sharedMaxAge;
-        }
         Long dateAt = date != null ? httpDate(date) : null;
         if (lifetime == null && expires != null) {
             Long expiresAt = httpDate(expires);
             long from = dateAt != null ? dateAt : responseMillis;
             lifetime = expiresAt == null || expiresAt <= from ? 0L : expiresAt - from;
+        }
+        // s-maxage only ever shortens the lifetime, and a private cache ignores it (§5.2.2.10)
+        if (sharedMaxAge != null && !privateOnly
+                && (lifetime == null || sharedMaxAge < lifetime)) {
+            lifetime = sharedMaxAge;
         }
         if (lifetime == null) {
             return new Freshness(null, privateOnly);
