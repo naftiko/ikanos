@@ -185,6 +185,67 @@ class ProtocolDispatcherCoverageTest {
                         .asString());
     }
 
+    /**
+     * A legacy list tool without a name gets a generated map key and its name from its aggregate
+     * flow: a {@code tools/call} of that name must still get the tool's own authorization (#999).
+     */
+    @Test
+    void requirementForShouldFindANamelessRefToolByItsFlowName() throws Exception {
+        String yaml = """
+                ikanos: 1.0.0-beta10
+                info:
+                  display: Nameless ref tool
+                  description: A legacy list tool without a name
+                  tags: [Test]
+                  created: '2026-11-14'
+                  modified: '2026-11-14'
+                capability:
+                  aggregates:
+                  - display: Records
+                    namespace: records
+                    flows:
+                      update-record:
+                        description: Update a record.
+                        call: records-api.update
+                  exposes:
+                  - type: mcp
+                    address: localhost
+                    port: 9102
+                    namespace: records-mcp
+                    authentication:
+                      type: oauth2
+                      authorizationServerUri: https://idp.example.org
+                      resource: https://app.example.org/mcp
+                      scopes: [records.read, records.write]
+                    authorization:
+                      scopes: [records.read]
+                    tools:
+                    - ref: records.update-record
+                      authorization:
+                        scopes: [records.write]
+                  consumes:
+                  - type: http
+                    namespace: records-api
+                    baseUri: http://localhost:8080/v1
+                    resources:
+                      records:
+                        path: records
+                        operations:
+                          update:
+                            method: PUT
+                """;
+        IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
+        Capability capability = new Capability(spec);
+        ProtocolDispatcher dispatcher =
+                new ProtocolDispatcher((McpServerAdapter) capability.getServerAdapters().get(0));
+
+        JsonNode call = JSON.readTree(
+                "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\","
+                        + "\"params\":{\"name\":\"update-record\"}}");
+        assertEquals(java.util.List.of("records.write"),
+                dispatcher.requirementFor(call).getScopes());
+    }
+
     private static ProtocolDispatcher dispatcherFrom(String resourcePath) throws Exception {
         ObjectMapper yaml = IkanosMappers.lenientYaml();
         IkanosSpec spec = yaml.readValue(new File(resourcePath), IkanosSpec.class);
