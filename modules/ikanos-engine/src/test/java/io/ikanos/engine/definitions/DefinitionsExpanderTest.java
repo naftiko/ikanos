@@ -553,6 +553,8 @@ class DefinitionsExpanderTest {
                   inputParameterSets:
                     unused:
                       size: { type: integer, description: "Size.", default: "200" }
+                      label: { description: "Label.", default: 5 }
+                      name: { description: "Name.", default: "x" }
                     replaced:
                       order: { type: string, description: "Order.", enum: [a, d], default: z }
                       rows: { schema: page-size, description: "Rows.", default: "20" }
@@ -572,6 +574,8 @@ class DefinitionsExpanderTest {
         assertEquals(List.of(
                 "MCP adapter 'tools', input parameter set 'unused', input 'size': default"
                         + " does not match type 'integer'.",
+                "MCP adapter 'tools', input parameter set 'unused', input 'label': default"
+                        + " does not match type 'string'.",
                 "MCP adapter 'tools', input parameter set 'replaced', input 'order': default"
                         + " is not one of the enum values.",
                 "MCP adapter 'tools', input parameter set 'replaced', input 'rows': default"
