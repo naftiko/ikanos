@@ -38,7 +38,9 @@ import io.ikanos.spec.exposes.rest.RestServerSpec;
  * unchanged. A {@code forward} answer never gets one: the resource is a transparent proxy, and the
  * upstream decides, since the caller's credentials may be passed to it. A TTL of 0 sends
  * {@code no-store}; a positive one sends {@code public} or {@code private} with {@code max-age} in
- * whole seconds, rounded up. A {@code private} answer also sends {@code Vary: Authorization}, and an
+ * whole seconds, rounded up. A {@code private} answer, and any answer of an adapter that
+ * authenticates its callers (even a {@code public} one), also sends {@code Vary: Authorization}, so
+ * a shared cache never serves an authenticated answer to a caller without the same credentials. An
  * answer that reads an input from outside the URL, or an API key from a header other than
  * {@code Authorization}, sends {@code Vary: *}, since that header is not part of the cache key and
  * Restlet cannot name arbitrary headers in {@code Vary}.</p>
@@ -62,8 +64,9 @@ final class RestCacheControl {
         if (operation == null) {
             return;
         }
+        // Only GET: the operation method enum has no HEAD, and operations match methods exactly
         Method method = request.getMethod();
-        if (!Method.GET.equals(method) && !Method.HEAD.equals(method)) {
+        if (!Method.GET.equals(method)) {
             return;
         }
         if (response.getStatus() == null || !response.getStatus().isSuccess()) {
@@ -84,7 +87,9 @@ final class RestCacheControl {
                 ? CacheDirective.publicInfo() : CacheDirective.privateInfo());
         // Rounded up, so a TTL under a second never becomes max-age=0 ("revalidate")
         directives.add(CacheDirective.maxAge((int) Math.ceil(ttlMs / 1000.0)));
-        if (CacheScopes.PRIVATE.equals(scope)) {
+        // An authenticated adapter's answer varies on the credentials even when declared public,
+        // or a shared cache keyed on the URL alone would serve it to unauthenticated callers
+        if (CacheScopes.PRIVATE.equals(scope) || server.getAuthentication() != null) {
             response.getDimensions().add(Dimension.AUTHORIZATION);
         }
         if (inputOutsideUrl(server, resource, operation) != null
@@ -138,7 +143,8 @@ final class RestCacheControl {
 
     /**
      * The name of the first input read from outside the URL (a header, or the body, which is where
-     * an input without {@code in} is read), or {@code null}.
+     * an input without {@code in} is read), or {@code null}. An input with a literal {@code value}
+     * (one that is not a JSONPath) never reads the request, so it does not count.
      */
     static String inputOutsideUrl(RestServerSpec server, RestServerResourceSpec resource,
             RestServerOperationSpec operation) {
@@ -147,10 +153,16 @@ final class RestCacheControl {
                 operation != null ? operation.getInputParameters() : List.<InputParameterSpec>of())
                 .filter(list -> list != null)
                 .flatMap(List::stream)
+                .filter(p -> !hasLiteralValue(p))
                 .filter(p -> p.getIn() == null
                         || !URL_LOCATIONS.contains(p.getIn().toLowerCase(Locale.ROOT)))
                 .map(InputParameterSpec::getName)
                 .findFirst().orElse(null);
+    }
+
+    /** Whether {@code p} has a static {@code value}, which the engine uses instead of the request. */
+    static boolean hasLiteralValue(InputParameterSpec p) {
+        return p.getValue() != null && !p.getValue().trim().startsWith("$");
     }
 
     /**
