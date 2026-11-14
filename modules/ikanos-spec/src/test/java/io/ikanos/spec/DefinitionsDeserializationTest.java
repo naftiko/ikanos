@@ -171,6 +171,42 @@ class DefinitionsDeserializationTest {
     }
 
     @Test
+    void writeValueShouldKeepAnUnmodeledKeyBesideAnOutputSchemaAcrossARoundTrip()
+            throws Exception {
+        // An output takes no key beside `schema:`. One the class does not model, such as
+        // `format`, is kept apart so that the expander rejects it, also after an import copy.
+        AggregateSpec aggregate = yaml.readValue("""
+                display: "Ships"
+                namespace: ships
+                definitions:
+                  schemas:
+                    ship: { type: object, properties: { imo: { type: string } } }
+                flows:
+                  get-ship:
+                    description: "Get a ship."
+                    steps:
+                      ship: { type: call, call: erp.get-ship }
+                    mappings:
+                      - target: flagship
+                        value: "$.ship"
+                    outputParameters:
+                      flagship: { schema: ship, format: date }
+                """, AggregateSpec.class);
+
+        AggregateSpec copy = yaml.readValue(yaml.writeValueAsBytes(aggregate),
+                AggregateSpec.class);
+
+        for (AggregateSpec spec : List.of(aggregate, copy)) {
+            OutputParameterSpec flagship = spec.getFlows().get("get-ship")
+                    .getOutputParameters().get(0);
+            assertEquals(List.of("format"),
+                    List.copyOf(flagship.getUnmodeledSchemaSiblings().keySet()));
+            assertEquals("date",
+                    flagship.getUnmodeledSchemaSiblings().get("format").asString());
+        }
+    }
+
+    @Test
     void writeValueShouldKeepRestDefinitionsAndTheirUsesAcrossTheRoundTripOfAnImport()
             throws Exception {
         // An import copies a REST adapter through the serializers before the definitions pass
