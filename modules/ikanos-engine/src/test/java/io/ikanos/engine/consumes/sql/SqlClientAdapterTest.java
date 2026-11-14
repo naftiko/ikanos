@@ -255,7 +255,7 @@ class SqlClientAdapterTest {
         io.ikanos.spec.InputParameterSpec input =
                 new io.ikanos.spec.InputParameterSpec("amount", "number", null, null);
 
-        SqlBind.of(input, "1.25", "erp.find").bind(statement, 1);
+        SqlBind.of(input, "1.25", "erp.find", 1).bind(statement);
 
         org.mockito.Mockito.verify(statement).setBigDecimal(1, new BigDecimal("1.25"));
     }
@@ -445,7 +445,7 @@ class SqlClientAdapterTest {
         io.ikanos.spec.InputParameterSpec input =
                 new io.ikanos.spec.InputParameterSpec("name", "string", null, null);
 
-        SqlBind.of(input, null, "erp.find").bind(statement, 1);
+        SqlBind.of(input, null, "erp.find", 1).bind(statement);
 
         org.mockito.Mockito.verify(statement).setNull(1, java.sql.Types.VARCHAR);
     }
@@ -477,6 +477,36 @@ class SqlClientAdapterTest {
         JsonNode value = SqlRowDocument.column(rs, meta, 1, "ID");
 
         assertEquals("18446744073709551615", value.toString());
+    }
+
+    @Test
+    void outShouldReadAnUnsignedBigintPastLongMaxValue() throws Exception {
+        java.sql.CallableStatement call = org.mockito.Mockito.mock(java.sql.CallableStatement.class);
+        org.mockito.Mockito.when(call.getObject(1))
+                .thenReturn(new java.math.BigInteger("18446744073709551615"));
+        org.mockito.Mockito.when(call.getLong(1)).thenThrow(new java.sql.SQLException("range"));
+
+        JsonNode value = SqlRowDocument.out(call, 1, java.sql.JDBCType.BIGINT, "ID");
+
+        assertEquals("18446744073709551615", value.toString());
+    }
+
+    @Test
+    void outShouldReadIntegersAndRealsWithoutAGetterOfAnotherType() throws Exception {
+        java.sql.CallableStatement call = org.mockito.Mockito.mock(java.sql.CallableStatement.class);
+        // PostgreSQL refuses getLong on an INTEGER OUT and getDouble on a REAL OUT
+        org.mockito.Mockito.when(call.getLong(org.mockito.ArgumentMatchers.anyInt()))
+                .thenThrow(new java.sql.SQLException("type mismatch"));
+        org.mockito.Mockito.when(call.getDouble(org.mockito.ArgumentMatchers.anyInt()))
+                .thenThrow(new java.sql.SQLException("type mismatch"));
+        org.mockito.Mockito.when(call.getObject(1)).thenReturn(42);
+        org.mockito.Mockito.when(call.getObject(2)).thenReturn((short) 7);
+        org.mockito.Mockito.when(call.getFloat(3)).thenReturn(1.5f);
+
+        assertEquals(42, SqlRowDocument.out(call, 1, java.sql.JDBCType.INTEGER, "N").intValue());
+        assertEquals(7, SqlRowDocument.out(call, 2, java.sql.JDBCType.SMALLINT, "S").intValue());
+        assertEquals(1.5, SqlRowDocument.out(call, 3, java.sql.JDBCType.REAL, "R").doubleValue());
+        assertTrue(SqlRowDocument.out(call, 4, java.sql.JDBCType.INTEGER, "NONE").isNull());
     }
 
     @Test

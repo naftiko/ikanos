@@ -152,6 +152,94 @@ class SqlClientSchemaValidationTest {
         assertFalse(validate(yaml).isEmpty(), "a procedure without a statement is invalid");
     }
 
+    private static final String GET_BALANCE = """
+            get-customer:
+              description: Balance of one account.
+              storedProcedure: dbo.usp_GetAccountBalance
+              readOnly: true
+              inputParameters:
+                account-id: { type: string, position: 1 }
+              outParameters:
+                balance: { position: 2, sqlType: DECIMAL }
+                currency: { position: 3, sqlType: VARCHAR }
+              outputParameters:
+                balance: { type: number, value: "$.out.balance" }
+            """;
+
+    @Test
+    void schemaShouldAcceptAStoredProcedureWithOutParameters() throws Exception {
+        List<Error> errors = validate(capability(GET_BALANCE));
+
+        assertTrue(errors.isEmpty(), "valid stored procedure must validate: " + errors);
+    }
+
+    @Test
+    void runtimeShouldReadStoredProcedureFields() throws Exception {
+        IkanosSpec spec = YAML.readValue(capability(GET_BALANCE), IkanosSpec.class);
+
+        SqlProcedureSpec procedure = ((SqlClientSpec) spec.getCapability().getConsumes().get(0))
+                .getProcedures().get("get-customer");
+        assertEquals("dbo.usp_GetAccountBalance", procedure.getStoredProcedure());
+        assertEquals(Boolean.TRUE, procedure.getReadOnly());
+        assertEquals(1, procedure.getInputParameters().get(0).getPosition());
+        SqlOutParameterSpec currency = procedure.getOutParameters().get("currency");
+        assertEquals("currency", currency.getName());
+        assertEquals(3, currency.getPosition());
+        assertEquals("VARCHAR", currency.getSqlType());
+    }
+
+    @Test
+    void schemaShouldRequireReadOnlyOnAStoredProcedure() throws Exception {
+        String yaml = capability(GET_BALANCE.replace("  readOnly: true\n", ""));
+
+        assertFalse(validate(yaml).isEmpty(), "a storedProcedure must declare readOnly");
+    }
+
+    @Test
+    void runtimeShouldNotTruncateAFractionalPosition() throws Exception {
+        IkanosSpec spec = YAML.readValue(capability(GET_BALANCE.replace("position: 1 }",
+                "position: 1.5 }")), IkanosSpec.class);
+
+        SqlProcedureSpec procedure = ((SqlClientSpec) spec.getCapability().getConsumes().get(0))
+                .getProcedures().get("get-customer");
+        assertEquals(null, procedure.getInputParameters().get(0).getPosition());
+    }
+
+    @Test
+    void schemaShouldRejectBothAStatementAndAStoredProcedureWithoutReadOnly() throws Exception {
+        String yaml = capability(GET_BALANCE.replace("  readOnly: true\n",
+                "  statement: select 1\n"));
+
+        assertFalse(validate(yaml).isEmpty(), "statement and storedProcedure are exclusive");
+    }
+
+    @Test
+    void runtimeShouldNotTruncateAFractionalOutPosition() throws Exception {
+        IkanosSpec spec = YAML.readValue(capability(GET_BALANCE.replace("position: 2,",
+                "position: 2.5,")), IkanosSpec.class);
+
+        SqlProcedureSpec procedure = ((SqlClientSpec) spec.getCapability().getConsumes().get(0))
+                .getProcedures().get("get-customer");
+        assertEquals(null, procedure.getOutParameters().get("balance").getPosition());
+        assertEquals(3, procedure.getOutParameters().get("currency").getPosition());
+    }
+
+    @Test
+    void schemaShouldRejectBothAStatementAndAStoredProcedure() throws Exception {
+        String yaml = capability(GET_BALANCE.replace("readOnly: true",
+                "readOnly: true\n  statement: select 1"));
+
+        assertFalse(validate(yaml).isEmpty(), "statement and storedProcedure are exclusive");
+    }
+
+    @Test
+    void schemaShouldRejectAStoredProcedureNameThatIsNotAnIdentifier() throws Exception {
+        String yaml = capability(GET_BALANCE.replace("dbo.usp_GetAccountBalance",
+                "\"x(); drop table t\""));
+
+        assertFalse(validate(yaml).isEmpty(), "storedProcedure must be a name");
+    }
+
     @Test
     void schemaShouldRejectAUrlThatIsNotJdbc() throws Exception {
         String yaml = capability(GET_CUSTOMER).replace("\"{{JDBC_URL}}\"",
@@ -188,5 +276,33 @@ class SqlClientSchemaValidationTest {
                 "placeholder: customer-id");
 
         assertFalse(validate(yaml).isEmpty(), "placeholder must be a SQL identifier");
+    }
+
+    @Test
+    void schemaShouldRejectReadOnlyFalseUntilWritesAreSupported() throws Exception {
+        String yaml = capability(GET_BALANCE.replace("readOnly: true", "readOnly: false"));
+
+        assertFalse(validate(yaml).isEmpty(), "readOnly: false is not supported yet");
+    }
+
+    @Test
+    void schemaShouldRejectOutParametersOnAStatement() throws Exception {
+        String yaml = capability("""
+                get-customer:
+                  description: Statements return no OUT parameters.
+                  statement: select 1
+                  outParameters:
+                    total: { position: 1, sqlType: DECIMAL }
+                """);
+
+        assertFalse(validate(yaml).isEmpty(), "outParameters need a storedProcedure");
+    }
+
+    @Test
+    void schemaShouldRequireAPositionOnStoredProcedureInputs() throws Exception {
+        String yaml = capability(GET_BALANCE.replace("{ type: string, position: 1 }",
+                "{ type: string }"));
+
+        assertFalse(validate(yaml).isEmpty(), "a stored-procedure input needs a position");
     }
 }

@@ -622,6 +622,22 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
+    public void sqlStoredProcedureReadOnlyRuleShouldFireWithoutReadOnly() {
+        ProcessResult result = lintFixture("rules/spectral-sql-consumes-violations.yaml");
+        assertEquals(1, findings(result, "ikanos-sql-stored-procedure-read-only"),
+            "Expected ikanos-sql-stored-procedure-read-only on get-balance.\n"
+                + result.output());
+    }
+
+    @Test
+    public void sqlStoredProcedureParametersRuleShouldFireForAGapAndOutParametersOnAStatement() {
+        ProcessResult result = lintFixture("rules/spectral-sql-consumes-violations.yaml");
+        assertEquals(2, findings(result, "ikanos-sql-stored-procedure-parameters"),
+            "Expected ikanos-sql-stored-procedure-parameters on get-balance and total.\n"
+                + result.output());
+    }
+
+    @Test
     public void sqlRulesShouldNotFireForBoundCredentialsAndMatchedReadStatements() {
         ProcessResult result = lintFixtureAtSeverity("rules/spectral-sql-consumes-compliant.yaml",
             "info");

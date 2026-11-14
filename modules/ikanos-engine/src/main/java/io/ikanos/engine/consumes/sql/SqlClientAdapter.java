@@ -13,7 +13,9 @@
  */
 package io.ikanos.engine.consumes.sql;
 
+import java.sql.CallableStatement;
 import java.sql.Connection;
+import java.sql.JDBCType;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -21,13 +23,16 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 import javax.sql.DataSource;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.Capability;
 import io.ikanos.engine.consumes.ClientAdapter;
 import io.ikanos.engine.consumes.ConsumedInvocation;
@@ -36,6 +41,7 @@ import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.consumes.sql.SqlClientSpec;
 import io.ikanos.spec.consumes.sql.SqlConnectionSpec;
+import io.ikanos.spec.consumes.sql.SqlOutParameterSpec;
 import io.ikanos.spec.consumes.sql.SqlPoolSpec;
 import io.ikanos.spec.consumes.sql.SqlProcedureSpec;
 
@@ -70,13 +76,40 @@ public class SqlClientAdapter extends ClientAdapter {
      *
      * @param name the procedure name, the call target after the namespace
      * @param spec the declaration
-     * @param statement the parsed statement
+     * @param statement the parsed statement, or {@code null} for a stored procedure
+     * @param jdbcSql the SQL sent to the driver: the statement with {@code ?}, or
+     *     {@code {call <name>(?, ...)}}
+     * @param inputs the inputs in bind order, one entry per {@code ?} they fill
+     * @param positions the position of each entry of {@code inputs}
+     * @param outs the {@code OUT} and {@code INOUT} parameters, by position
      * @param view the output declarations
-     * @param operation the span operation, such as {@code SELECT}
+     * @param operation the span operation: {@code SELECT} or {@code CALL}
      */
-    record Procedure(String name, SqlProcedureSpec spec, SqlStatement statement,
-            ConsumedOperationView view, String operation) {
+    record Procedure(String name, SqlProcedureSpec spec, SqlStatement statement, String jdbcSql,
+            List<InputParameterSpec> inputs, List<Integer> positions,
+            List<SqlOutParameterSpec> outs, ConsumedOperationView view, String operation) {
+
+        boolean isStored() {
+            return statement == null;
+        }
+
+        /**
+         * @return the {@code sqlType} of the {@code OUT} half of an {@code INOUT} parameter at
+         *     {@code position}, which its input half is bound as, or {@code null}
+         */
+        JDBCType inoutType(int position) {
+            for (SqlOutParameterSpec out : outs) {
+                if (out.getPosition() == position) {
+                    return JDBCType.valueOf(out.getSqlType().trim().toUpperCase(Locale.ROOT));
+                }
+            }
+            return null;
+        }
     }
+
+    /** A stored procedure name, optionally qualified by schema and catalog. */
+    private static final Pattern STORED_PROCEDURE_NAME =
+            Pattern.compile("^[A-Za-z_][A-Za-z0-9_$#]*(\\.[A-Za-z_][A-Za-z0-9_$#]*){0,2}$");
 
     private final JdbcUrl jdbcUrl;
     private final String url;
@@ -117,39 +150,132 @@ public class SqlClientAdapter extends ClientAdapter {
         for (SqlProcedureSpec procedure : spec.getProcedures().values()) {
             String where = "consumes type sql '" + spec.getNamespace() + "' procedure '"
                     + procedure.getName() + "'";
-            if (procedure.getStatement() == null || procedure.getStatement().isBlank()) {
-                throw new IllegalArgumentException(where + " requires a statement");
+            boolean hasStatement = procedure.getStatement() != null
+                    && !procedure.getStatement().isBlank();
+            boolean hasStored = procedure.getStoredProcedure() != null
+                    && !procedure.getStoredProcedure().isBlank();
+            if (hasStatement == hasStored) {
+                throw new IllegalArgumentException(where
+                        + " requires exactly one of statement and storedProcedure");
             }
-            SqlStatement statement;
-            try {
-                statement = SqlStatement.parse(procedure.getStatement(), dialect);
-            } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException(where + ": " + e.getMessage(), e);
-            }
-            String nonRead = statement.nonReadKeyword();
-            if (nonRead != null) {
-                throw new IllegalArgumentException(where + " must read (SELECT, WITH or VALUES);"
-                        + " it uses " + nonRead);
+            if (Boolean.FALSE.equals(procedure.getReadOnly())) {
+                throw new IllegalArgumentException(where
+                        + " declares readOnly: false; write procedures are not supported yet");
             }
             procedure.getInputParameters()
                     .forEach(input -> SqlBind.targetType(input, where));
-            java.util.Set<String> declared = new java.util.HashSet<>();
-            for (InputParameterSpec input : procedure.getInputParameters()) {
-                if (!declared.add(placeholderOf(input))) {
-                    throw new IllegalArgumentException(where + " declares placeholder ':"
-                            + placeholderOf(input) + "' on two inputs");
-                }
-            }
-            for (String placeholder : statement.placeholders()) {
-                if (inputFor(procedure, placeholder) == null) {
-                    throw new IllegalArgumentException(where + " uses placeholder ':"
-                            + placeholder + "', which matches no declared input");
-                }
-            }
-            built.put(procedure.getName(), new Procedure(procedure.getName(), procedure,
-                    statement, ConsumedOperationView.of(procedure, null, null), "SELECT"));
+            Procedure parsed = hasStatement ? statementProcedure(procedure, where, dialect)
+                    : storedProcedure(procedure, where);
+            built.put(procedure.getName(), parsed);
         }
         return built;
+    }
+
+    static Procedure statementProcedure(SqlProcedureSpec procedure, String where,
+            SqlStatement.Dialect dialect) {
+        if (!procedure.getOutParameters().isEmpty()) {
+            throw new IllegalArgumentException(where
+                    + " declares outParameters, which only a storedProcedure can return");
+        }
+        SqlStatement statement;
+        try {
+            statement = SqlStatement.parse(procedure.getStatement(), dialect);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(where + ": " + e.getMessage(), e);
+        }
+        String nonRead = statement.nonReadKeyword();
+        if (nonRead != null) {
+            throw new IllegalArgumentException(where + " must read (SELECT, WITH or VALUES);"
+                    + " it uses " + nonRead);
+        }
+        java.util.Set<String> declared = new java.util.HashSet<>();
+        for (InputParameterSpec input : procedure.getInputParameters()) {
+            if (!declared.add(placeholderOf(input))) {
+                throw new IllegalArgumentException(where + " declares placeholder ':"
+                        + placeholderOf(input) + "' on two inputs");
+            }
+        }
+        List<InputParameterSpec> inputs = new ArrayList<>();
+        List<Integer> positions = new ArrayList<>();
+        for (String placeholder : statement.placeholders()) {
+            InputParameterSpec input = inputFor(procedure, placeholder);
+            if (input == null) {
+                throw new IllegalArgumentException(where + " uses placeholder ':"
+                        + placeholder + "', which matches no declared input");
+            }
+            inputs.add(input);
+            positions.add(inputs.size());
+        }
+        return new Procedure(procedure.getName(), procedure, statement, statement.jdbcSql(),
+                List.copyOf(inputs), List.copyOf(positions), List.of(),
+                ConsumedOperationView.of(procedure, null, null), "SELECT");
+    }
+
+    /**
+     * Check a stored procedure: a plain or qualified name, a {@code readOnly} attestation, and
+     * positions that are unique and contiguous from 1, where an {@code INOUT} parameter takes the
+     * same position in {@code inputParameters} and {@code outParameters}.
+     */
+    private static Procedure storedProcedure(SqlProcedureSpec procedure, String where) {
+        String name = procedure.getStoredProcedure().trim();
+        if (!STORED_PROCEDURE_NAME.matcher(name).matches()) {
+            throw new IllegalArgumentException(where
+                    + " storedProcedure must be a name such as schema.procedure");
+        }
+        if (procedure.getReadOnly() == null) {
+            throw new IllegalArgumentException(where + " must declare readOnly: the engine"
+                    + " cannot tell whether a stored procedure changes data");
+        }
+        TreeMap<Integer, InputParameterSpec> inputsByPosition = new TreeMap<>();
+        for (InputParameterSpec input : procedure.getInputParameters()) {
+            Integer position = input.getPosition();
+            if (position == null || position < 1) {
+                throw new IllegalArgumentException(where + " input '" + input.getName()
+                        + "' requires a position of 1 or more");
+            }
+            if (inputsByPosition.put(position, input) != null) {
+                throw new IllegalArgumentException(where + " declares two inputs at position "
+                        + position);
+            }
+        }
+        TreeMap<Integer, SqlOutParameterSpec> outsByPosition = new TreeMap<>();
+        for (SqlOutParameterSpec out : procedure.getOutParameters().values()) {
+            Integer position = out.getPosition();
+            if (position == null || position < 1) {
+                throw new IllegalArgumentException(where + " out parameter '" + out.getName()
+                        + "' requires a position of 1 or more");
+            }
+            SqlBind.jdbcType(out.getSqlType(), "out parameter '" + out.getName() + "'", where);
+            if (outsByPosition.put(position, out) != null) {
+                throw new IllegalArgumentException(where
+                        + " declares two out parameters at position " + position);
+            }
+            InputParameterSpec inout = inputsByPosition.get(position);
+            if (inout != null && inout.getSqlType() != null && !inout.getSqlType().isBlank()
+                    && !inout.getSqlType().trim().equalsIgnoreCase(out.getSqlType().trim())) {
+                throw new IllegalArgumentException(where + " declares INOUT position "
+                        + position + " as " + inout.getSqlType() + " in and " + out.getSqlType()
+                        + " out; an INOUT parameter has one type");
+            }
+        }
+        int highest = Math.max(
+                inputsByPosition.isEmpty() ? 0 : inputsByPosition.lastKey(),
+                outsByPosition.isEmpty() ? 0 : outsByPosition.lastKey());
+        for (int position = 1; position <= highest; position++) {
+            if (!inputsByPosition.containsKey(position) && !outsByPosition.containsKey(position)) {
+                throw new IllegalArgumentException(where + " has no parameter at position "
+                        + position + "; positions must be contiguous from 1");
+            }
+        }
+        StringBuilder call = new StringBuilder("{call ").append(name).append('(');
+        for (int position = 1; position <= highest; position++) {
+            call.append(position == 1 ? "?" : ", ?");
+        }
+        call.append(")}");
+        return new Procedure(procedure.getName(), procedure, null, call.toString(),
+                List.copyOf(inputsByPosition.values()), List.copyOf(inputsByPosition.keySet()),
+                List.copyOf(outsByPosition.values()),
+                ConsumedOperationView.of(procedure, null, null), "CALL");
     }
 
     /** @return the input whose placeholder (or, without one, whose key) is {@code name} */
@@ -193,14 +319,15 @@ public class SqlClientAdapter extends ClientAdapter {
         }
         String where = getNamespace() + "." + operationName;
         List<SqlBind> binds = new ArrayList<>();
-        for (String placeholder : procedure.statement().placeholders()) {
-            InputParameterSpec input = inputFor(procedure.spec(), placeholder);
+        for (int i = 0; i < procedure.inputs().size(); i++) {
+            InputParameterSpec input = procedure.inputs().get(i);
             Object value = parameters != null ? parameters.get(input.getName()) : null;
             if (value == null && input.isRequiredOrDefault(true)) {
                 throw new IllegalArgumentException("Missing required input '" + input.getName()
                         + "' for SQL procedure " + where);
             }
-            binds.add(SqlBind.of(input, value, where));
+            int position = procedure.positions().get(i);
+            binds.add(SqlBind.of(input, value, where, position, procedure.inoutType(position)));
         }
         return new SqlInvocation(this, procedure, List.copyOf(binds));
     }
@@ -213,23 +340,7 @@ public class SqlClientAdapter extends ClientAdapter {
                     + "' is not started");
         }
         try (Connection connection = current.getConnection()) {
-            readOnly(connection);
-            try (PreparedStatement statement =
-                    connection.prepareStatement(procedure.statement().jdbcSql())) {
-                statement.setQueryTimeout(timeoutSeconds(procedure.spec()));
-                if (procedure.spec().getFetchSize() != null) {
-                    statement.setFetchSize(procedure.spec().getFetchSize());
-                }
-                for (int i = 0; i < binds.size(); i++) {
-                    binds.get(i).bind(statement, i + 1);
-                }
-                if (!statement.execute()) {
-                    return SqlConsumedResult.success(procedure.view(), SqlRowDocument.empty());
-                }
-                try (ResultSet rows = statement.getResultSet()) {
-                    return SqlConsumedResult.success(procedure.view(), SqlRowDocument.read(rows));
-                }
-            }
+            return read(connection, procedure, binds);
         } catch (SQLException e) {
             log(procedure, e);
             return SqlConsumedResult.failure(procedure.view(), e);
@@ -237,6 +348,139 @@ public class SqlClientAdapter extends ClientAdapter {
             LOGGER.warning("SQL procedure " + getNamespace() + "." + procedure.name()
                     + " failed: " + e.getMessage());
             return SqlConsumedResult.failure(procedure.view(), e);
+        }
+    }
+
+    /**
+     * Run one read on a pooled connection. A procedure with a cursor {@code OUT} runs in a
+     * transaction, rolled back once its rows are read: PostgreSQL closes a {@code refcursor} at
+     * the end of the transaction, which in auto-commit is the call itself. HikariCP restores
+     * auto-commit when the connection returns to the pool. A rollback that fails evicts the
+     * connection and fails the call. Package-private for tests.
+     */
+    ConsumedResult read(Connection connection, Procedure procedure, List<SqlBind> binds)
+            throws SQLException {
+        readOnly(connection);
+        boolean cursor = returnsCursor(procedure);
+        if (cursor) {
+            connection.setAutoCommit(false);
+        }
+        ConsumedResult result;
+        try {
+            result = readStatement(connection, procedure, binds);
+        } catch (SQLException | RuntimeException e) {
+            if (cursor) {
+                endCursorTransaction(connection, procedure, e);
+            }
+            throw e;
+        }
+        if (cursor) {
+            endCursorTransaction(connection, procedure, null);
+        }
+        return result;
+    }
+
+    /**
+     * Roll back the transaction a cursor read ran in. When that fails, the connection is evicted,
+     * so the pool never hands out a connection still in a transaction, and the rollback error is
+     * thrown, or added to the {@code failure} the read already threw.
+     */
+    private void endCursorTransaction(Connection connection, Procedure procedure,
+            Exception failure) throws SQLException {
+        try {
+            connection.rollback();
+        } catch (SQLException e) {
+            LOGGER.log(Level.WARNING, "Rollback failed for SQL procedure " + getNamespace() + "."
+                    + procedure.name() + "; evicting the connection", e);
+            HikariDataSource current = pool;
+            if (current != null) {
+                current.evictConnection(connection);
+            }
+            if (failure == null) {
+                throw e;
+            }
+            failure.addSuppressed(e);
+        }
+    }
+
+    /** @return whether an {@code OUT} parameter is a cursor: {@code REF_CURSOR} or {@code OTHER} */
+    static boolean returnsCursor(Procedure procedure) {
+        for (SqlOutParameterSpec out : procedure.outs()) {
+            String type = out.getSqlType() != null
+                    ? out.getSqlType().trim().toUpperCase(Locale.ROOT) : "";
+            if ("REF_CURSOR".equals(type) || "OTHER".equals(type)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private ConsumedResult readStatement(Connection connection, Procedure procedure,
+            List<SqlBind> binds) throws SQLException {
+        try (PreparedStatement statement = procedure.isStored()
+                ? connection.prepareCall(procedure.jdbcSql())
+                : connection.prepareStatement(procedure.jdbcSql())) {
+            statement.setQueryTimeout(timeoutSeconds(procedure.spec()));
+            if (procedure.spec().getFetchSize() != null) {
+                statement.setFetchSize(procedure.spec().getFetchSize());
+            }
+            for (SqlBind bind : binds) {
+                bind.bind(statement);
+            }
+            if (statement instanceof CallableStatement call) {
+                registerOuts(call, procedure);
+            }
+            ObjectNode document;
+            if (firstResultSet(statement)) {
+                try (ResultSet rows = statement.getResultSet()) {
+                    document = SqlRowDocument.read(rows);
+                }
+            } else {
+                document = SqlRowDocument.empty();
+            }
+            drainResults(statement);
+            if (statement instanceof CallableStatement call && !procedure.outs().isEmpty()) {
+                ObjectNode out = document.putObject(SqlRowDocument.OUT);
+                for (SqlOutParameterSpec param : procedure.outs()) {
+                    out.set(param.getName(), SqlRowDocument.out(call, param.getPosition(),
+                            JDBCType.valueOf(param.getSqlType().trim()
+                                    .toUpperCase(Locale.ROOT)), param.getName()));
+                }
+            }
+            return SqlConsumedResult.success(procedure.view(), document);
+        }
+    }
+
+    /**
+     * Read past the remaining results and update counts. SQL Server reports an error raised after
+     * a procedure's first result set only when the results are walked, and fills OUT values only
+     * after the last one: closing the statement first would report success.
+     */
+    static void drainResults(PreparedStatement statement) throws SQLException {
+        while (statement.getMoreResults() || statement.getUpdateCount() != -1) {
+            // the rows of later result sets are not returned
+        }
+    }
+
+    /**
+     * Execute and move to the first result set, skipping update counts: some drivers (HSQLDB,
+     * SQL Server) report a stored procedure's result set only after {@code getMoreResults()}.
+     *
+     * @return whether a result set is current
+     */
+    static boolean firstResultSet(PreparedStatement statement) throws SQLException {
+        boolean resultSet = statement.execute();
+        while (!resultSet && statement.getUpdateCount() != -1) {
+            resultSet = statement.getMoreResults();
+        }
+        return resultSet;
+    }
+
+    private void registerOuts(CallableStatement call, Procedure procedure) throws SQLException {
+        String where = getNamespace() + "." + procedure.name();
+        for (SqlOutParameterSpec out : procedure.outs()) {
+            call.registerOutParameter(out.getPosition(), SqlBind.jdbcType(out.getSqlType(),
+                    "out parameter '" + out.getName() + "'", where).getVendorTypeNumber());
         }
     }
 

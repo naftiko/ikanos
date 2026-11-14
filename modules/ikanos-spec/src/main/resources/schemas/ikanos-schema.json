@@ -3129,7 +3129,7 @@
     },
     "ConsumedSqlProcedure": {
       "type": "object",
-      "description": "One SQL procedure. `statement` is SQL written in the database's own dialect, sent to the driver verbatim; `:name` placeholders become JDBC bind variables. A statement must read (`SELECT`, `WITH` or `VALUES`), and holds one statement only.",
+      "description": "One SQL procedure: either a `statement` or a `storedProcedure`. A `statement` is SQL written in the database's own dialect, sent to the driver verbatim; `:name` placeholders become JDBC bind variables. It must read (`SELECT`, `WITH` or `VALUES`), and holds one statement only. A `storedProcedure` is called by name, with inputs bound by `position` and `outParameters` registered as `OUT`; it must declare `readOnly`.",
       "properties": {
         "display": {
           "type": "string",
@@ -3150,6 +3150,26 @@
           "minLength": 1,
           "description": "Inline SQL. Caller values reach it only through `:name` placeholders, each matching an input's `placeholder` or key. String literals, quoted identifiers, comments and `::` casts are not placeholders."
         },
+        "storedProcedure": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_$#]*(\\.[A-Za-z_][A-Za-z0-9_$#]*){0,2}$",
+          "description": "Name of the stored procedure or function to call, optionally qualified (`dbo.usp_GetAccountBalance`, `finance.reports.month_end`). The adapter calls `{call <name>(?, ...)}` with one `?` per position, so a function's return value is not read: on PostgreSQL a function's result comes back as rows, and a `CREATE PROCEDURE` needs `escapeSyntaxCallMode=callIfNoReturn` in the URL."
+        },
+        "readOnly": {
+          "type": "boolean",
+          "const": true,
+          "description": "Whether the procedure only reads. A `statement` is checked and defaults to `true`. A `storedProcedure` is opaque to the engine, so it must say: `true` runs it on a read-only connection where the driver supports it. `false` is not supported yet."
+        },
+        "outParameters": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-zA-Z0-9-_]+$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/ConsumedSqlOutParameter"
+          },
+          "description": "Stored-procedure `OUT` and `INOUT` parameters, keyed by the name they take under `out` in the row document. An `INOUT` parameter is also declared in `inputParameters`, at the same `position`. Not allowed with `statement`."
+        },
         "inputParameters": {
           "type": "object",
           "propertyNames": {
@@ -3165,7 +3185,7 @@
           "additionalProperties": {
             "$ref": "#/$defs/ConsumedOutputParameter"
           },
-          "description": "Values extracted with JsonPath from the row document `{rows, rowCount}`, such as `$.rows[0].name` or `$.rows`."
+          "description": "Values extracted with JsonPath from the row document `{rows, out, rowCount}`, such as `$.rows[0].name`, `$.rows` or `$.out.balance`."
         },
         "timeoutMs": {
           "type": "integer",
@@ -3179,10 +3199,50 @@
         }
       },
       "required": [
-        "description",
-        "statement"
+        "description"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "required": [
+            "statement"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "storedProcedure"
+                ]
+              },
+              {
+                "required": [
+                  "outParameters"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "storedProcedure",
+            "readOnly"
+          ],
+          "not": {
+            "required": [
+              "statement"
+            ]
+          },
+          "properties": {
+            "inputParameters": {
+              "additionalProperties": {
+                "required": [
+                  "position"
+                ]
+              }
+            }
+          }
+        }
+      ]
     },
     "ConsumedSqlInputParameter": {
       "type": "object",
@@ -3241,8 +3301,65 @@
             "OTHER"
           ],
           "description": "`java.sql.JDBCType` the value is bound as. Text is converted to the type first: ISO-8601 for dates and times, decimal for numbers."
+        },
+        "position": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Stored procedures only: the 1-based position of this argument in the call. Positions across `inputParameters` and `outParameters` are unique and contiguous from 1, except that an `INOUT` parameter appears in both."
         }
       },
+      "additionalProperties": false
+    },
+    "ConsumedSqlOutParameter": {
+      "type": "object",
+      "description": "One `OUT` or `INOUT` parameter of a stored procedure.",
+      "properties": {
+        "position": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-based position in the call."
+        },
+        "sqlType": {
+          "type": "string",
+          "enum": [
+            "BIT",
+            "BOOLEAN",
+            "TINYINT",
+            "SMALLINT",
+            "INTEGER",
+            "BIGINT",
+            "REAL",
+            "FLOAT",
+            "DOUBLE",
+            "NUMERIC",
+            "DECIMAL",
+            "CHAR",
+            "VARCHAR",
+            "LONGVARCHAR",
+            "NCHAR",
+            "NVARCHAR",
+            "LONGNVARCHAR",
+            "CLOB",
+            "NCLOB",
+            "DATE",
+            "TIME",
+            "TIMESTAMP",
+            "TIME_WITH_TIMEZONE",
+            "TIMESTAMP_WITH_TIMEZONE",
+            "ARRAY",
+            "REF_CURSOR",
+            "OTHER"
+          ],
+          "description": "`java.sql.JDBCType` the value is registered as, and read back as. A cursor (`REF_CURSOR`, or `OTHER` for a PostgreSQL `refcursor`) becomes an array of rows."
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "position",
+        "sqlType"
+      ],
       "additionalProperties": false
     },
     "OperationStepBase": {

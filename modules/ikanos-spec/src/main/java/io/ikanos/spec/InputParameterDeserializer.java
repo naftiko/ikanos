@@ -73,6 +73,13 @@ public class InputParameterDeserializer extends ValueDeserializer<InputParameter
             spec.setSqlType(node.get("sqlType").asString());
         }
 
+        // 1.5 is not a position: only an exactly integral number is read, so the missing
+        // position is reported rather than truncated to 1
+        if (node.has("position") && node.get("position").canConvertToInt()
+                && node.get("position").canConvertToExactIntegral()) {
+            spec.setPosition(node.get("position").asInt());
+        }
+
         if (node.has("style")) {
             spec.setStyle(node.get("style").asString());
         }
