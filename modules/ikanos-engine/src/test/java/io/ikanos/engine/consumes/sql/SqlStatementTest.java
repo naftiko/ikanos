@@ -350,6 +350,19 @@ class SqlStatementTest {
     }
 
     @Test
+    void returnsRowsShouldNotReadAColumnNamedReturningAsAReturningClause() {
+        for (SqlStatement.Dialect dialect : SqlStatement.Dialect.values()) {
+            assertFalse(SqlStatement.parse("insert into audit (returning) values (:value)",
+                    dialect).returnsRows(), dialect.name());
+        }
+        // SQL Server has no RETURNING clause: there it is always a name
+        assertFalse(SqlStatement.parse("insert into audit select a from s returning",
+                SqlStatement.Dialect.SQLSERVER).returnsRows());
+        assertTrue(SqlStatement.parse("insert into t (a) values (1) returning id",
+                SqlStatement.Dialect.POSTGRESQL).returnsRows());
+    }
+
+    @Test
     void writeOperationShouldRefuseASecondSqlServerStatementThatSelects() {
         for (String sql : List.of(
                 "update orders set status = 'SHIPPED' select id into orders_copy from orders"

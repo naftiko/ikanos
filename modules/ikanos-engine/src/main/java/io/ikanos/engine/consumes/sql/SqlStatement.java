@@ -347,7 +347,8 @@ final class SqlStatement {
     }
 
     /**
-     * @return whether the statement has a {@code RETURNING} clause, or SQL Server's
+     * @return whether the statement has a {@code RETURNING} clause ({@code RETURNING} outside
+     *     parentheses, on a database other than SQL Server, which has none), or SQL Server's
      *     {@code OUTPUT} clause: {@code OUTPUT} outside parentheses, followed directly by
      *     {@code inserted.}, {@code deleted.} or {@code $action}. A column named {@code output}
      *     is not one, nor are columns {@code output, inserted} listed together.
@@ -355,7 +356,8 @@ final class SqlStatement {
     boolean returnsRows() {
         for (int i = 0; i < keywords.size(); i++) {
             String keyword = keywords.get(i);
-            if ("RETURNING".equals(keyword)) {
+            if ("RETURNING".equals(keyword) && dialect != Dialect.SQLSERVER
+                    && depths.get(i) == 0) {
                 return true;
             }
             if ("OUTPUT".equals(keyword) && dialect == Dialect.SQLSERVER && depths.get(i) == 0
