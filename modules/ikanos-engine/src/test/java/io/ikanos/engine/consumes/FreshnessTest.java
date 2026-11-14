@@ -117,6 +117,37 @@ class FreshnessTest {
         assertThat(parse(cacheControl, null, null, null).ttlMs()).isZero();
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"max-age=3\"00", "max-age=\"300", "max-age=\" 300 \"",
+        "max-age=3 00", "max-age=\"\""})
+    void parseShouldTreatAMalformedQuotedMaxAgeAsStale(String cacheControl) {
+        assertThat(parse(cacheControl, null, null, null).ttlMs()).isZero();
+    }
+
+    @Test
+    void parseShouldAcceptAQuotedMaxAge() {
+        assertThat(parse("max-age=\"300\"", null, null, null).ttlMs()).isEqualTo(300_000L);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"Thursday, 12-Nov-26 10:10:00 GMT", "Thu Nov 12 10:10:00 2026"})
+    void parseShouldAcceptTheObsoleteHttpDateForms(String expires) {
+        assertThat(parse(null, expires, null, null).ttlMs()).isEqualTo(600_000L);
+    }
+
+    @Test
+    void parseShouldAgeFromAnObsoleteFormDate() {
+        assertThat(parse("max-age=600", null, "Thu Nov 12 09:55:00 2026", null).ttlMs())
+                .isEqualTo(300_000L);
+    }
+
+    @Test
+    void parseShouldAcceptASingleDigitDayInTheAsctimeForm() {
+        // 1 December 2026 is 19 days after NOW
+        assertThat(parse(null, "Tue Dec  1 10:00:00 2026", null, null).ttlMs())
+                .isEqualTo(19 * 86_400_000L);
+    }
+
     @Test
     void parseShouldNotFallBackToExpiresWhenMaxAgeIsInvalid() {
         assertThat(parse("max-age=-1", "Thu, 12 Nov 2026 11:00:00 GMT", DATE, null).ttlMs())
