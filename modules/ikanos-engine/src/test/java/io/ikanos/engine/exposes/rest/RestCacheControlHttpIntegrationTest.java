@@ -38,8 +38,9 @@ import io.ikanos.spec.util.VersionHelper;
 
 /**
  * {@code Cache-Control} on REST answers (#1021), read from what an HTTP client receives: the
- * headers must be set before the answer is committed, and a forward that a declared operation
- * falls back to must not get the operation's caching policy.
+ * headers must be set before the answer is committed, a forward that a declared operation
+ * falls back to must not get the operation's caching policy, and an authenticated answer must name
+ * the credentials in {@code Vary} even when it is {@code public}.
  */
 class RestCacheControlHttpIntegrationTest {
 
@@ -49,6 +50,8 @@ class RestCacheControlHttpIntegrationTest {
     private static Component upstream;
     private static Capability capability;
     private static int port;
+    private static int apiKeyPort;
+    private static int bearerPort;
 
     @BeforeAll
     static void start() throws Exception {
@@ -72,6 +75,8 @@ class RestCacheControlHttpIntegrationTest {
         upstream.start();
 
         port = freePort();
+        apiKeyPort = freePort();
+        bearerPort = freePort();
         String yaml = """
                 ikanos: "%s"
                 capability:
@@ -99,11 +104,51 @@ class RestCacheControlHttpIntegrationTest {
                             method: GET
                         forward:
                           targetNamespace: upstream
+                  - type: rest
+                    address: localhost
+                    port: %d
+                    namespace: keyed
+                    ttlMs: 60000
+                    cacheScope: public
+                    authentication:
+                      type: apikey
+                      key: X-API-Key
+                      value: abc123
+                      placement: header
+                    resources:
+                      products:
+                        path: "/products"
+                        operations:
+                          list-products:
+                            method: GET
+                            outputParameters:
+                              status:
+                                type: string
+                                value: "ok"
+                  - type: rest
+                    address: localhost
+                    port: %d
+                    namespace: guarded
+                    ttlMs: 60000
+                    cacheScope: public
+                    authentication:
+                      type: bearer
+                      token: secret-token
+                    resources:
+                      products:
+                        path: "/products"
+                        operations:
+                          list-products:
+                            method: GET
+                            outputParameters:
+                              status:
+                                type: string
+                                value: "ok"
                   consumes:
                   - type: http
                     namespace: upstream
                     baseUri: "http://localhost:%d"
-                """.formatted(IKANOS, port, upstreamPort);
+                """.formatted(IKANOS, port, apiKeyPort, bearerPort, upstreamPort);
         IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
         capability = new Capability(spec);
         capability.start();
@@ -138,10 +183,45 @@ class RestCacheControlHttpIntegrationTest {
         assertThat(response.headers().firstValue("Cache-Control")).isEmpty();
     }
 
+    @Test
+    void publicAnswerOfAnApiKeyHeaderAdapterShouldVaryOnEverythingOverHttp() throws Exception {
+        HttpResponse<String> response = get(apiKeyPort, "/products", "X-API-Key", "abc123");
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.headers().firstValue("Cache-Control"))
+                .hasValue("public, max-age=60");
+        assertThat(vary(response)).contains("*");
+        assertThat(get(apiKeyPort, "/products", null, null).statusCode()).isEqualTo(401);
+    }
+
+    @Test
+    void publicAnswerOfABearerAdapterShouldVaryOnAuthorizationOverHttp() throws Exception {
+        HttpResponse<String> response = get(bearerPort, "/products", "Authorization",
+                "Bearer secret-token");
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.headers().firstValue("Cache-Control"))
+                .hasValue("public, max-age=60");
+        assertThat(vary(response)).containsIgnoringCase("Authorization");
+        assertThat(get(bearerPort, "/products", null, null).statusCode()).isEqualTo(401);
+    }
+
+    static String vary(HttpResponse<String> response) {
+        return String.join(", ", response.headers().allValues("Vary"));
+    }
+
     static HttpResponse<String> get(String path) throws Exception {
-        HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
-                .GET().build();
-        return HTTP.send(request, HttpResponse.BodyHandlers.ofString());
+        return get(port, path, null, null);
+    }
+
+    static HttpResponse<String> get(int target, String path, String header, String value)
+            throws Exception {
+        HttpRequest.Builder request = HttpRequest.newBuilder(
+                URI.create("http://localhost:" + target + path)).GET();
+        if (header != null) {
+            request.header(header, value);
+        }
+        return HTTP.send(request.build(), HttpResponse.BodyHandlers.ofString());
     }
 
     static int freePort() throws Exception {
