@@ -83,6 +83,16 @@ public class TelemetryBootstrap {
     public static final AttributeKey<String> ATTR_AGENT_ID_SOURCE = AttributeKey.stringKey("ikanos.agent.id.source");
     /** Who presented the agent's token (RFC 8693 {@code act}), e.g. a token-exchanging gateway. */
     public static final AttributeKey<String> ATTR_AGENT_ACTOR_ID = AttributeKey.stringKey("ikanos.agent.actor.id");
+    /** How an MCP request is advertised tools: {@code listed} or {@code deferred}. */
+    public static final AttributeKey<String> ATTR_TOOL_SEARCH_VARIANT = AttributeKey.stringKey("ikanos.mcp.tool_search.variant");
+    /** Number of tools a search returned. */
+    public static final AttributeKey<Long> ATTR_TOOL_SEARCH_RESULT_COUNT = AttributeKey.longKey("ikanos.mcp.tool_search.result_count");
+    /** Name of the best-matching tool of a search, when there is one. */
+    public static final AttributeKey<String> ATTR_TOOL_SEARCH_TOP_TOOL = AttributeKey.stringKey("ikanos.mcp.tool_search.top_tool");
+    /** Names of the filters a search used, comma-separated; never their values, nor the query. */
+    public static final AttributeKey<String> ATTR_TOOL_SEARCH_FILTERS = AttributeKey.stringKey("ikanos.mcp.tool_search.filters");
+    /** Set when a search could not run because the provider is missing or failed. */
+    public static final AttributeKey<Boolean> ATTR_TOOL_SEARCH_UNAVAILABLE = AttributeKey.booleanKey("ikanos.mcp.tool_search.unavailable");
 
     private static final TelemetryBootstrap NOOP = new TelemetryBootstrap(OpenTelemetry.noop());
 
@@ -395,6 +405,26 @@ public class TelemetryBootstrap {
             .setSpanKind(SpanKind.INTERNAL);
         setStringAttribute(builder, ATTR_ADAPTER_TYPE, "mcp");
         setStringAttribute(builder, ATTR_OPERATION_ID, toolName != null ? toolName : "unknown");
+        return builder.startSpan();
+    }
+
+    /**
+     * Start an INTERNAL span for one MCP tool search ({@code mcp.tool_search}). The query text is
+     * never recorded, since it may hold user data; callers add the result count, the top tool and
+     * the names of the filters used.
+     *
+     * @param namespace the MCP endpoint namespace
+     * @return the started span, or an invalid span when telemetry is disabled
+     */
+    public Span startToolSearchSpan(String namespace) {
+        if (!enabled) return Span.getInvalid();
+        SpanBuilder builder = tracer.spanBuilder("mcp.tool_search")
+            .setSpanKind(SpanKind.INTERNAL);
+        setStringAttribute(builder, ATTR_ADAPTER_TYPE, "mcp");
+        setStringAttribute(builder, ATTR_TOOL_SEARCH_VARIANT, "deferred");
+        if (namespace != null) {
+            setStringAttribute(builder, ATTR_NAMESPACE, namespace);
+        }
         return builder.startSpan();
     }
 

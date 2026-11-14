@@ -255,6 +255,8 @@ public class ProtocolDispatcher {
                                 INVALID_REQUEST.getCode(), "Invalid Request: " + e.getMessage()),
                                 INVALID_REQUEST);
             }
+            // The variant on every server span shows the fleet mix and per-variant cost.
+            span.setAttribute(TelemetryBootstrap.ATTR_TOOL_SEARCH_VARIANT, context.mode().value());
             return dispatch(request, context);
         } catch (Exception e) {
             TelemetryBootstrap.recordError(span, e);

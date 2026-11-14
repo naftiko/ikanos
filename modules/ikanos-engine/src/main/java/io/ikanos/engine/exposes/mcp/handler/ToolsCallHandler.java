@@ -30,9 +30,13 @@ import io.ikanos.engine.exposes.mcp.search.ToolSearchCatalog;
 import io.ikanos.engine.exposes.mcp.search.ToolSearchMode;
 import io.ikanos.engine.exposes.mcp.search.ToolSearchQuery;
 import io.ikanos.engine.exposes.mcp.search.ToolSearchUnavailableException;
+import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.modelcontextprotocol.spec.McpSchema;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.context.Scope;
 import org.restlet.Context;
 
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -118,6 +122,35 @@ public class ToolsCallHandler extends McpCallHandler {
      */
     ObjectNode searchTools(ToolSearchCatalog catalog, JsonNode arguments,
             McpRequestContext context) {
+        long start = System.nanoTime();
+        Span span = TelemetryBootstrap.get().startToolSearchSpan(catalog.namespace());
+        ObjectNode result = null;
+        try (Scope scope = span.makeCurrent()) {
+            result = runSearch(catalog, arguments, context, span);
+            return result;
+        } catch (RuntimeException e) {
+            TelemetryBootstrap.recordError(span, e);
+            throw e;
+        } finally {
+            String outcome = "error";
+            if (result != null && !result.path("isError").asBoolean()) {
+                JsonNode tools = result.path("structuredContent").path("tools");
+                span.setAttribute(TelemetryBootstrap.ATTR_TOOL_SEARCH_RESULT_COUNT,
+                        (long) tools.size());
+                if (!tools.isEmpty()) {
+                    span.setAttribute(TelemetryBootstrap.ATTR_TOOL_SEARCH_TOP_TOOL,
+                            tools.get(0).path("name").asString());
+                }
+                outcome = tools.isEmpty() ? "miss" : "hit";
+            }
+            TelemetryBootstrap.endSpan(span);
+            TelemetryBootstrap.get().getMetrics().recordToolSearch(catalog.namespace(), outcome,
+                    (System.nanoTime() - start) / 1_000_000_000.0);
+        }
+    }
+
+    private ObjectNode runSearch(ToolSearchCatalog catalog, JsonNode arguments,
+            McpRequestContext context, Span span) {
         JsonNode args = arguments != null ? arguments : MAPPER.createObjectNode();
         String text = args.path("query").isString() ? args.path("query").asString() : null;
         if (text == null || text.isBlank()) {
@@ -162,13 +195,35 @@ public class ToolsCallHandler extends McpCallHandler {
             limit = Math.min(limitNode.asInt(), ToolSearchCatalog.MAX_LIMIT);
         }
 
+        span.setAttribute(TelemetryBootstrap.ATTR_TOOL_SEARCH_FILTERS,
+                filterNames(tagsNode, context, readOnlyNode, limitNode));
         try {
             List<String> names = catalog.search(new ToolSearchQuery(text, tags, readOnly, limit));
             return searchResult(names, catalog);
         } catch (ToolSearchUnavailableException e) {
+            span.setAttribute(TelemetryBootstrap.ATTR_TOOL_SEARCH_UNAVAILABLE, true);
             String ref = ErrorReference.record(Level.SEVERE, "MCP tool search is unavailable", e);
             return toolError(ErrorReference.withReference(SEARCH_UNAVAILABLE, ref));
         }
+    }
+
+    /** The names of the filters a search used, for telemetry: never their values. */
+    private static String filterNames(JsonNode tags, McpRequestContext context, JsonNode readOnly,
+            JsonNode limit) {
+        List<String> names = new ArrayList<>();
+        if (tags != null && !tags.isNull()) {
+            names.add("tags");
+        }
+        if (!context.tagFilter().isEmpty()) {
+            names.add("urlTags");
+        }
+        if (readOnly != null && readOnly.asBoolean(false)) {
+            names.add("readOnly");
+        }
+        if (limit != null && !limit.isNull()) {
+            names.add("limit");
+        }
+        return String.join(",", names);
     }
 
     /**
@@ -249,6 +304,7 @@ public class ToolsCallHandler extends McpCallHandler {
         if (toolArguments != null && !toolArguments.isNull() && !toolArguments.isObject()) {
             return toolError("arguments must be an object.");
         }
+        TelemetryBootstrap.get().getMetrics().recordToolSearchCall(catalog.namespace());
         try {
             Map<String, Object> callArguments = toolArguments != null && toolArguments.isObject()
                     ? MAPPER.treeToValue(toolArguments, Map.class)
