@@ -277,6 +277,56 @@ public class ResolverTest {
       }
 
       @Test
+      void resolveInputParameterFromRequestShouldReturnEveryValueOfARepeatedArrayQueryParameter() {
+        Request request = new Request(Method.GET, "https://example.com/ships?ids=A&ids=B");
+
+        assertEquals(List.of("A", "B"), Resolver.resolveInputParameterFromRequest(
+            queryInput("ids", "array"), request, null, MAPPER));
+      }
+
+      @Test
+      void resolveInputParameterFromRequestShouldLeaveAnAbsentArrayQueryParameterAbsent() {
+        Request request = new Request(Method.GET, "https://example.com/ships");
+
+        assertNull(Resolver.resolveInputParameterFromRequest(
+            queryInput("ids", "array"), request, null, MAPPER));
+      }
+
+      @Test
+      void resolveInputParameterFromRequestShouldParseAnObjectQueryParameterAsJson() {
+        Request request = new Request(Method.GET,
+            "https://example.com/ships?filter=%7B%22flag%22%3A%22NO%22%7D");
+
+        assertEquals(Map.of("flag", "NO"), Resolver.resolveInputParameterFromRequest(
+            queryInput("filter", "object"), request, null, MAPPER));
+      }
+
+      @Test
+      void resolveInputParameterFromRequestShouldLeaveAnObjectQueryParameterThatIsNotJsonAbsent() {
+        Request request = new Request(Method.GET, "https://example.com/ships?filter=NO");
+
+        assertNull(Resolver.resolveInputParameterFromRequest(
+            queryInput("filter", "object"), request, null, MAPPER));
+      }
+
+      @Test
+      void resolveInputParameterFromRequestShouldRejectAJsonArrayForAnObjectQueryParameter() {
+        Request request = new Request(Method.GET, "https://example.com/ships?filter=%5B1%5D");
+
+        assertThrows(IllegalArgumentException.class, () -> Resolver
+            .resolveInputParameterFromRequest(queryInput("filter", "object"), request, null,
+                MAPPER));
+      }
+
+      private static InputParameterSpec queryInput(String name, String type) {
+        InputParameterSpec input = new InputParameterSpec();
+        input.setName(name);
+        input.setIn("query");
+        input.setType(type);
+        return input;
+      }
+
+      @Test
       public void resolveInputParameterFromRequestShouldHandlePathQueryHeaderAndBody() throws Exception {
         Request request = new Request(Method.GET, "https://example.com/search?q=ships");
         request.getAttributes().put("shipId", "IMO-1");

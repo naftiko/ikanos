@@ -1,0 +1,60 @@
+ikanos: 1.0.0-beta10
+info:
+  display: REST input types
+  description: REST inputs read as their declared type, and hyphenated path placeholders
+  tags:
+  - Test
+  created: '2026-11-14'
+  modified: '2026-11-14'
+capability:
+  exposes:
+  - type: rest
+    address: localhost
+    port: 9213
+    namespace: fleet-api
+    resources:
+      # A path placeholder whose name has a hyphen
+      crew:
+        path: "/crew/{{ship-id}}"
+        operations:
+          list:
+            method: GET
+            inputParameters:
+              ship-id:
+                in: path
+                type: string
+                description: Identifier of the ship
+            outputParameters:
+              ship:
+                type: string
+                value: "{{ship-id}}"
+      # An array read from a repeated query parameter
+      ships:
+        path: /ships
+        operations:
+          search:
+            method: GET
+            inputParameters:
+              ids:
+                in: query
+                type: array
+                description: IMO numbers of the ships
+            outputParameters:
+              ids:
+                type: string
+                value: "{{ids}}"
+      # An object read from a JSON query parameter
+      find:
+        path: /find
+        operations:
+          find:
+            method: GET
+            inputParameters:
+              filter:
+                in: query
+                type: object
+                description: Filter on ship fields
+            outputParameters:
+              flag:
+                type: string
+                value: "{{filter.flag}}"

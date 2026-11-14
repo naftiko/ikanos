@@ -62,6 +62,7 @@ import io.ikanos.spec.consumes.http.BearerAuthenticationSpec;
 import io.ikanos.spec.consumes.http.DigestAuthenticationSpec;
 import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
 import io.ikanos.spec.exposes.AuthorizationSpec;
+import io.ikanos.spec.exposes.rest.RestPaths;
 import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
 import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
@@ -71,9 +72,6 @@ import io.ikanos.spec.exposes.ServerSpec;
  * Builds an OpenAPI {@link OpenAPI} POJO from a Ikanos capability spec's REST adapter.
  */
 public class OasExportBuilder {
-
-    /** A Mustache path variable, {@code {{name}}}; the name follows the parameter key pattern. */
-    private static final Pattern PATH_VARIABLE = Pattern.compile("\\{\\{([\\w-]+)\\}\\}");
 
     /** An OpenAPI path template variable, {@code {name}}, once Mustache variables are converted. */
     private static final Pattern OAS_PATH_VARIABLE = Pattern.compile("\\{([\\w-]+)\\}");
@@ -375,16 +373,25 @@ public class OasExportBuilder {
         // OpenAPI requires every path parameter to be required
         param.setRequired("path".equals(param.getIn())
                 || inputParam.isRequiredOrDefault(REST_PARAMETER_REQUIRED_BY_DEFAULT));
-        param.setSchema(buildInputSchema(inputParam));
+        if ("query".equals(param.getIn()) && inputParam.isJsonInQuery()) {
+            // One JSON value, as the adapter reads it, not form-encoded members (#1078)
+            param.setContent(new Content().addMediaType("application/json",
+                    new MediaType().schema(buildInputSchema(inputParam))));
+        } else {
+            param.setSchema(buildInputSchema(inputParam));
+        }
         if (inputParam.getDescription() != null) {
             param.setDescription(inputParam.getDescription());
         }
         return param;
     }
 
-    /** Converts Mustache segments {@code {{var}}} to the OpenAPI form {@code {var}}. */
+    /**
+     * Converts Mustache segments {@code {{var}}} to the OpenAPI form {@code {var}}, with the
+     * placeholder rule the REST adapter routes with ({@link RestPaths}).
+     */
     static String toOpenApiPath(String path) {
-        return PATH_VARIABLE.matcher(path).replaceAll("{$1}");
+        return RestPaths.toUriTemplate(path);
     }
 
     /**
@@ -628,11 +635,20 @@ public class OasExportBuilder {
         return in + ":" + input.getName();
     }
 
+    /**
+     * The schema of an input parameter. An array always gets {@code items}, which OpenAPI 3.0
+     * requires: the declared ones, or an empty schema (#1078).
+     */
     Schema<?> buildInputSchema(InputParameterSpec inputParam) {
         Schema<?> schema = new Schema<>();
-        setSchemaType(schema, mapIkanosTypeToOas(inputParam.getType()));
+        String type = mapIkanosTypeToOas(inputParam.getType());
+        setSchemaType(schema, type);
         if (inputParam.getDescription() != null) {
             schema.setDescription(inputParam.getDescription());
+        }
+        if ("array".equals(type)) {
+            schema.setItems(inputParam.getItems() != null
+                    ? buildInputSchema(inputParam.getItems()) : new Schema<>());
         }
         return schema;
     }
@@ -827,6 +843,7 @@ public class OasExportBuilder {
             return "string";
         }
         return switch (ikanosType) {
+            case "integer" -> "integer";
             case "number" -> "number";
             case "boolean" -> "boolean";
             case "array" -> "array";
