@@ -302,11 +302,48 @@ public class ResolverTest {
       }
 
       @Test
-      void resolveInputParameterFromRequestShouldLeaveAnObjectQueryParameterThatIsNotJsonAbsent() {
+      void resolveInputParameterFromRequestShouldRejectAnObjectQueryParameterThatIsNotJson() {
         Request request = new Request(Method.GET, "https://example.com/ships?filter=NO");
 
-        assertNull(Resolver.resolveInputParameterFromRequest(
-            queryInput("filter", "object"), request, null, MAPPER));
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+            () -> Resolver.resolveInputParameterFromRequest(queryInput("filter", "object"),
+                request, null, MAPPER));
+        assertTrue(error.getMessage().contains("filter"));
+      }
+
+      @Test
+      void resolveInputParameterFromRequestShouldRejectAQuotedJsonStringForAnObjectQueryParameter() {
+        Request request = new Request(Method.GET, "https://example.com/ships?filter=%22NO%22");
+
+        assertThrows(IllegalArgumentException.class, () -> Resolver
+            .resolveInputParameterFromRequest(queryInput("filter", "object"), request, null,
+                MAPPER));
+      }
+
+      @Test
+      void resolveInputParameterFromRequestShouldParseAnArrayOfObjectsQueryParameterAsJson() {
+        Request request = new Request(Method.GET,
+            "https://example.com/ships?filters=%5B%7B%22flag%22%3A%22NO%22%7D%5D");
+
+        assertEquals(List.of(Map.of("flag", "NO")), Resolver.resolveInputParameterFromRequest(
+            arrayOfObjectsInput("filters"), request, null, MAPPER));
+      }
+
+      @Test
+      void resolveInputParameterFromRequestShouldRejectAQuotedJsonStringForAnArrayOfObjects() {
+        Request request = new Request(Method.GET, "https://example.com/ships?filters=%22NO%22");
+
+        assertThrows(IllegalArgumentException.class, () -> Resolver
+            .resolveInputParameterFromRequest(arrayOfObjectsInput("filters"), request, null,
+                MAPPER));
+      }
+
+      private static InputParameterSpec arrayOfObjectsInput(String name) {
+        InputParameterSpec input = queryInput(name, "array");
+        InputParameterSpec item = new InputParameterSpec();
+        item.setType("object");
+        input.setItems(item);
+        return input;
       }
 
       @Test

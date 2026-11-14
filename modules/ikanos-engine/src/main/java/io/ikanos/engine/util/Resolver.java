@@ -998,6 +998,13 @@ public class Resolver {
         String in = spec.getIn() == null ? "body" : spec.getIn();
         String name = spec.getName();
 
+        if ("query".equalsIgnoreCase(in) && spec.isJsonInQuery()
+                && request.getResourceRef() != null) {
+            // Outside the catch-all below: a value that is not of the declared JSON type is the
+            // caller's error, not an absent value
+            return queryValue(spec, request.getResourceRef().getQueryAsForm(), mapper);
+        }
+
         try {
             switch (in.toLowerCase()) {
                 case "path": {
@@ -1083,8 +1090,10 @@ public class Resolver {
      * parameter ({@code ?ids=A&ids=B}, OpenAPI's default form style); any other type takes the
      * first value.
      *
-     * @return the value, or {@code null} when the parameter is absent, or when a JSON value does
-     *         not parse
+     * @return the value, or {@code null} when the parameter is absent
+     * @throws IllegalArgumentException when a JSON input is not JSON, or is JSON of another type
+     *         (a quoted string for an object, for example); the message names the parameter but
+     *         not the value, which is caller data
      */
     static Object queryValue(InputParameterSpec spec, Form query, ObjectMapper mapper) {
         String name = spec.getName();
@@ -1093,18 +1102,36 @@ public class Resolver {
             if (text == null) {
                 return null;
             }
+            boolean object = "object".equalsIgnoreCase(spec.getType());
+            JsonNode node;
             try {
-                return mapper.convertValue(mapper.readTree(text), Object.class);
+                node = mapper.readTree(text);
             } catch (JacksonException e) {
-                logger.debug("Query parameter is not valid JSON, treating it as absent", e);
-                return null;
+                node = null;
             }
+            if (node == null || (object ? !node.isObject() : !isArrayOfObjects(node))) {
+                throw new IllegalArgumentException("Input parameter '" + name + "' must be "
+                        + (object ? "a JSON object" : "a JSON array of objects"));
+            }
+            return mapper.convertValue(node, Object.class);
         }
         if ("array".equalsIgnoreCase(spec.getType())) {
             String[] values = query.getValuesArray(name);
             return values.length == 0 ? null : List.of(values);
         }
         return query.getFirstValue(name);
+    }
+
+    private static boolean isArrayOfObjects(JsonNode node) {
+        if (!node.isArray()) {
+            return false;
+        }
+        for (JsonNode element : node) {
+            if (!element.isObject()) {
+                return false;
+            }
+        }
+        return true;
     }
 
 
