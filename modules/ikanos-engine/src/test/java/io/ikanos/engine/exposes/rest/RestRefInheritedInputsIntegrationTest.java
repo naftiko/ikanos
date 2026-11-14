@@ -73,6 +73,23 @@ public class RestRefInheritedInputsIntegrationTest {
     }
 
     @Test
+    void handleShouldPassAHyphenatedPathVariableToTheFlow() throws Exception {
+        JsonNode body = send(Method.GET, "/crew/IMO-1234567", null, null);
+
+        assertEquals("IMO-1234567", body.path("ship").asString());
+    }
+
+    @Test
+    void handleShouldPassEveryValueOfARepeatedQueryParameterForAnArrayInput()
+            throws Exception {
+        JsonNode body = send(Method.GET, "/crew/IMO-1234567?roles=master&roles=cook",
+                null, null);
+
+        // The mock output renders the list as JSON: both values reached the flow
+        assertEquals("[\"master\",\"cook\"]", body.path("roles").asString());
+    }
+
+    @Test
     void handleShouldPassJsonBodyMembersToTheFlowForPost() throws Exception {
         JsonNode body = send(Method.POST, "/ships",
                 "{\"imo\":\"IMO-1111111\",\"name\":\"Aurora\"}", null);

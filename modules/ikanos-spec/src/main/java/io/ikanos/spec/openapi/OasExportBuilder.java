@@ -13,6 +13,7 @@
  */
 package io.ikanos.spec.openapi;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -51,6 +52,7 @@ import io.ikanos.spec.consumes.http.BasicAuthenticationSpec;
 import io.ikanos.spec.consumes.http.BearerAuthenticationSpec;
 import io.ikanos.spec.consumes.http.DigestAuthenticationSpec;
 import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
+import io.ikanos.spec.exposes.rest.RestPaths;
 import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
 import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
@@ -214,7 +216,7 @@ public class OasExportBuilder {
             basePath = "/" + resource.getName();
             }
             // Convert Mustache segments {{var}} to OpenAPI format {var}
-            basePath = basePath.replaceAll("\\{\\{(\\w+)\\}\\}", "{$1}");
+            basePath = RestPaths.toUriTemplate(basePath);
 
             for (RestServerOperationSpec opSpec : resource.getOperations().values()) {
                 List<InputParameterSpec> inherited = RefInputs.forRestOperation(resource, opSpec,
@@ -402,11 +404,49 @@ public class OasExportBuilder {
         return schema;
     }
 
+    /**
+     * The schema of an input parameter, with the JSON Schema subset an input can declare (an
+     * aggregate flow input, which a {@code ref} operation inherits, declares the most): type,
+     * {@code items}, {@code properties} and their {@code required} names,
+     * {@code additionalProperties}, {@code enum}, {@code format}, {@code minimum} and
+     * {@code maximum}. An array always gets {@code items}, which OpenAPI 3.0 requires.
+     */
+    @SuppressWarnings({"rawtypes", "unchecked"})
     Schema<?> buildInputSchema(InputParameterSpec inputParam) {
-        Schema<?> schema = new Schema<>();
-        setSchemaType(schema, mapIkanosTypeToOas(inputParam.getType()));
+        Schema schema = new Schema<>();
+        String type = mapIkanosTypeToOas(inputParam.getType());
+        setSchemaType(schema, type);
         if (inputParam.getDescription() != null) {
             schema.setDescription(inputParam.getDescription());
+        }
+        if ("array".equals(type)) {
+            schema.setItems(inputParam.getItems() != null
+                    ? buildInputSchema(inputParam.getItems()) : new Schema<>());
+        }
+        if (!inputParam.getProperties().isEmpty()) {
+            Map<String, Schema> properties = new LinkedHashMap<>();
+            for (InputParameterSpec property : inputParam.getProperties()) {
+                properties.put(property.getName(), buildInputSchema(property));
+            }
+            schema.setProperties(properties);
+        }
+        if (!inputParam.getRequired().isEmpty()) {
+            schema.setRequired(new ArrayList<>(inputParam.getRequired()));
+        }
+        if (inputParam.getAdditionalProperties() != null) {
+            schema.setAdditionalProperties(inputParam.getAdditionalProperties());
+        }
+        if (!inputParam.getEnumeration().isEmpty()) {
+            schema.setEnum(new ArrayList<>(inputParam.getEnumeration()));
+        }
+        if (inputParam.getFormat() != null) {
+            schema.setFormat(inputParam.getFormat());
+        }
+        if (inputParam.getMinimum() != null) {
+            schema.setMinimum(new BigDecimal(inputParam.getMinimum().toString()));
+        }
+        if (inputParam.getMaximum() != null) {
+            schema.setMaximum(new BigDecimal(inputParam.getMaximum().toString()));
         }
         return schema;
     }
@@ -563,6 +603,7 @@ public class OasExportBuilder {
             return "string";
         }
         return switch (ikanosType) {
+            case "integer" -> "integer";
             case "number" -> "number";
             case "boolean" -> "boolean";
             case "array" -> "array";

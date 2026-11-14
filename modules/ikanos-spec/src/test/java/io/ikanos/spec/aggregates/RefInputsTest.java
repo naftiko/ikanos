@@ -81,6 +81,16 @@ class RefInputsTest {
         assertEquals("path", placed.getIn());
     }
 
+    @Test
+    void forRestOperationShouldPlaceAHyphenatedFlowInputNamedInThePathInThePath() {
+        RestServerResourceSpec resource = resource("/ships/{{ship-id}}", "GET");
+
+        InputParameterSpec placed = RefInputs.forRestOperation(resource, operation(resource),
+                () -> List.of(input("ship-id", null))).get(0);
+
+        assertEquals("path", placed.getIn());
+    }
+
     @ParameterizedTest
     @CsvSource({"GET, query", "DELETE, query", "HEAD, query", "get, query", "POST, body",
             "PUT, body", "PATCH, body"})

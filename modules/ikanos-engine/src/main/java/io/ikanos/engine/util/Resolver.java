@@ -836,7 +836,14 @@ public class Resolver {
                 case "query": {
                     if (request.getResourceRef() != null
                             && request.getResourceRef().getQueryAsForm() != null) {
-                        return request.getResourceRef().getQueryAsForm().getFirstValue(name);
+                        org.restlet.data.Form query = request.getResourceRef().getQueryAsForm();
+                        if ("array".equalsIgnoreCase(spec.getType())) {
+                            // Every value of a repeated parameter (?ids=A&ids=B), as OpenAPI's
+                            // default query style (form, exploded) sends an array
+                            String[] values = query.getValuesArray(name);
+                            return values.length == 0 ? null : List.of(values);
+                        }
+                        return query.getFirstValue(name);
                     }
                     return null;
                 }

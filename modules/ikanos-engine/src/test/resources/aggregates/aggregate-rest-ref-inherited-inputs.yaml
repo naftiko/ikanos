@@ -50,6 +50,25 @@ capability:
           name:
             type: string
             value: "{{name}}"
+      list-crew:
+        description: List the crew of a ship, by role.
+        inputParameters:
+          ship-id:
+            type: string
+            required: true
+            description: Identifier of the ship
+          roles:
+            type: array
+            items:
+              type: string
+            description: Roles to list
+        outputParameters:
+          ship:
+            type: string
+            value: "{{ship-id}}"
+          roles:
+            type: string
+            value: "{{roles}}"
   exposes:
   - type: rest
     address: localhost
@@ -78,6 +97,13 @@ capability:
           register:
             method: POST
             ref: fleet.register-ship
+      # A hyphenated path placeholder, and an array read from a repeated query parameter
+      crew:
+        path: "/crew/{{ship-id}}"
+        operations:
+          list:
+            method: GET
+            ref: fleet.list-crew
       # Own inputs replace the flow's: imo is read from the header, not from the query string
       own:
         path: /own

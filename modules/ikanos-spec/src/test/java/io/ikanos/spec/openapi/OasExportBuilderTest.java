@@ -1154,6 +1154,72 @@ public class OasExportBuilderTest {
     }
 
     @Test
+    void buildInputSchemaShouldGiveAnArrayItsItems() {
+        InputParameterSpec ids = input("ids", "array");
+        ids.setItems(input(null, "string"));
+
+        io.swagger.v3.oas.models.media.Schema<?> schema = builder.buildInputSchema(ids);
+
+        assertEquals("array", schema.getType());
+        assertEquals("string", schema.getItems().getType());
+    }
+
+    @Test
+    void buildInputSchemaShouldGiveAnArrayWithoutDeclaredItemsAnEmptyItemsSchema() {
+        io.swagger.v3.oas.models.media.Schema<?> schema =
+                builder.buildInputSchema(input("ids", "array"));
+
+        assertNotNull(schema.getItems(), "OpenAPI 3.0 requires items on an array");
+    }
+
+    @Test
+    void buildInputSchemaShouldKeepIntegerTypeAndBounds() {
+        InputParameterSpec limit = input("limit", "integer");
+        limit.setMinimum(1);
+        limit.setMaximum(100);
+
+        io.swagger.v3.oas.models.media.Schema<?> schema = builder.buildInputSchema(limit);
+
+        assertEquals("integer", schema.getType());
+        assertEquals(0, new java.math.BigDecimal("1").compareTo(schema.getMinimum()));
+        assertEquals(0, new java.math.BigDecimal("100").compareTo(schema.getMaximum()));
+    }
+
+    @Test
+    void buildInputSchemaShouldKeepEnumAndFormat() {
+        InputParameterSpec status = input("status", "string");
+        status.getEnumeration().addAll(List.of("active", "laid-up"));
+        InputParameterSpec since = input("since", "string");
+        since.setFormat("date");
+
+        assertEquals(List.of("active", "laid-up"), builder.buildInputSchema(status).getEnum());
+        assertEquals("date", builder.buildInputSchema(since).getFormat());
+    }
+
+    @Test
+    void buildInputSchemaShouldKeepObjectPropertiesAndRequiredNames() {
+        InputParameterSpec filter = input("filter", "object");
+        filter.getProperties().add(input("flag", "string"));
+        filter.getProperties().add(input("tonnage", "number"));
+        filter.getRequired().add("flag");
+        filter.setAdditionalProperties(false);
+
+        io.swagger.v3.oas.models.media.Schema<?> schema = builder.buildInputSchema(filter);
+
+        assertEquals(List.of("flag", "tonnage"), List.copyOf(schema.getProperties().keySet()));
+        assertEquals("number", schema.getProperties().get("tonnage").getType());
+        assertEquals(List.of("flag"), schema.getRequired());
+        assertEquals(Boolean.FALSE, schema.getAdditionalProperties());
+    }
+
+    private static InputParameterSpec input(String name, String type) {
+        InputParameterSpec input = new InputParameterSpec();
+        input.setName(name);
+        input.setType(type);
+        return input;
+    }
+
+    @Test
     void buildShouldWarnWhenTheFlowOfARefOperationIsNotDeclaredInline() {
         IkanosSpec spec = minimalSpec("Test", null);
         RestServerResourceSpec resource = resourceWithOperation("/ships/{{imo}}", "ship",

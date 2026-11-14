@@ -15,14 +15,12 @@ package io.ikanos.spec.aggregates;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.Supplier;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import io.ikanos.spec.InputParameterSpec;
+import io.ikanos.spec.exposes.rest.RestPaths;
 import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
 import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
 
@@ -33,21 +31,14 @@ import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
  *
  * <p>
  * A flow input has no {@code in}, so a REST operation places the inputs it inherits: an input
- * named by a placeholder of the resource path ({@code {{name}}} or {@code {name}}) is read from
- * the path, the others from the query string for {@code GET}, {@code DELETE} and {@code HEAD},
- * and from the members of the JSON body for the other methods.
+ * named by a placeholder of the resource path ({@code {{name}}} or {@code {name}}, see
+ * {@link RestPaths}) is read from the path, the others from the query string for {@code GET},
+ * {@code DELETE} and {@code HEAD}, and from the members of the JSON body for the other methods.
  */
 public final class RefInputs {
 
     /** Methods whose inherited inputs are read from the query string rather than the body. */
     private static final Set<String> QUERY_METHODS = Set.of("GET", "DELETE", "HEAD");
-
-    /**
-     * A path placeholder: {@code {{name}}}, as the schema documents, or {@code {name}}, the URI
-     * template the REST adapter routes it as. Same names as {@code Adapter.toUriTemplate}.
-     */
-    private static final Pattern PATH_PLACEHOLDER =
-            Pattern.compile("\\{\\{(\\w+)\\}\\}|\\{(\\w+)\\}");
 
     private RefInputs() {}
 
@@ -97,7 +88,8 @@ public final class RefInputs {
         if (inherited == null || inherited.isEmpty()) {
             return List.of();
         }
-        Set<String> pathNames = pathPlaceholders(resource != null ? resource.getPath() : null);
+        Set<String> pathNames =
+                RestPaths.placeholders(resource != null ? resource.getPath() : null);
         List<InputParameterSpec> placed = new ArrayList<>(inherited.size());
         for (InputParameterSpec input : inherited) {
             InputParameterSpec copy = input.copy();
@@ -130,22 +122,6 @@ public final class RefInputs {
     static String placementOutsidePath(String method) {
         String verb = method != null ? method.trim().toUpperCase(Locale.ROOT) : "GET";
         return QUERY_METHODS.contains(verb) ? "query" : "body";
-    }
-
-    /**
-     * @param path a resource path, may be null
-     * @return the names of its placeholders, in order
-     */
-    static Set<String> pathPlaceholders(String path) {
-        Set<String> names = new LinkedHashSet<>();
-        if (path == null) {
-            return names;
-        }
-        Matcher matcher = PATH_PLACEHOLDER.matcher(path);
-        while (matcher.find()) {
-            names.add(matcher.group(1) != null ? matcher.group(1) : matcher.group(2));
-        }
-        return names;
     }
 
     private static boolean declaresInputs(List<InputParameterSpec> inputs) {
