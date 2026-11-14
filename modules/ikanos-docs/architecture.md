@@ -78,6 +78,7 @@ flowchart BT
 | `modules/ikanos-tunnel-ziti` | An optional OpenZiti implementation of the reverse-tunnel SPI. It is discovered with `ServiceLoader` when the jar is on the classpath. |
 | `modules/ikanos-docs` | No code. This document, the tutorial capabilities (`tutorial/`), demos, and test documentation. |
 | `modules/ikanos-coverage` | No code. Aggregates JaCoCo coverage across modules for the quality gate. |
+| `modules/ikanos-rules-tests` | Test code only, not published. Lints `ikanos-spec`'s ruleset fixtures with the Polychro library, in process. A module of its own because Polychro and `ikanos-spec` need incompatible versions of `json-schema-validator` (and GraalVM). |
 
 The JSON Schema and the ruleset are also synchronized to Crafter, the Naftiko VS Code extension, by the `synchronize-schema-and-rules` workflow. A change to either one reaches editors too.
 
@@ -115,7 +116,7 @@ The YAML format is defined once, in `modules/ikanos-spec/src/main/resources/sche
 | Layer | Where | Role |
 |---|---|---|
 | JSON Schema | `schemas/ikanos-schema.json` | The source of truth for structure: which keys exist, their types, which are required. `schemas/README.md` documents it, and `schemas/examples/` holds reference capabilities. |
-| Ruleset | `rules/ikanos-rules.yml` | Checks the schema cannot express: cross-object consistency (a `call` points to a declared operation), quality and security rules. It is written in the Spectral format and is the ruleset Polychro applies. |
+| Ruleset | `rules/ikanos-rules.yml` | Checks the schema cannot express: cross-object consistency (a `call` points to a declared operation), quality and security rules. Polychro applies it: in the `lint-capabilities` CI job through the Polychro CLI, and in process in the ruleset tests (`modules/ikanos-rules-tests`). Custom functions (`rules/functions/*.js`) are called as `function(input, options)` and return paths relative to the node the rule targets. |
 | Jackson model | `io.ikanos.spec` | The `*Spec` classes the YAML is read into. Polymorphic sections are picked by custom deserializers: `ServerSpecDeserializer` by `type`, `ClientSpecDeserializer` by the presence of `from` (an import), and similar ones for parameters, steps and bindings. The model is read with Jackson 3; every mapper comes from `IkanosMappers`, which restores the Jackson 2 defaults the model relies on (setter-less `final` collections filled through their getters, declaration order on output, unknown properties rejected unless a loader asks for a lenient mapper). Jackson reads a YAML alias (`*name`) as a plain string, so every reader of a capability or imported file first calls `YamlAliases.reject`, which fails on the first alias with its line and column: Ikanos does not support anchors and aliases. |
 
 Validation runs **outside** the runtime:
