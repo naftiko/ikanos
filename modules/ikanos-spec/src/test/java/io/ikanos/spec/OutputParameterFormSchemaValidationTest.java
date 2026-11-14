@@ -191,6 +191,29 @@ class OutputParameterFormSchemaValidationTest {
     }
 
     @Test
+    void validateShouldRejectMappingOnlyMockMapOutputOnRestOperation() throws Exception {
+        assertRejected(OPERATION, restOperation("""
+                outputParameters:
+                  total:
+                    type: "number"
+                    mapping: "$.total"
+                """), "A mock output has nothing to map: each leaf needs a value");
+    }
+
+    @Test
+    void validateShouldRejectNestedMappingOnlyMockMapOutputOnRestOperation() throws Exception {
+        assertRejected(OPERATION, restOperation("""
+                outputParameters:
+                  payload:
+                    type: "object"
+                    properties:
+                      total:
+                        type: "number"
+                        mapping: "$.total"
+                """), "A nested mock output has nothing to map: each leaf needs a value");
+    }
+
+    @Test
     void validateShouldAcceptMockListOutputsOnRestOperation() throws Exception {
         assertAccepted(restOperation("""
                 outputParameters:

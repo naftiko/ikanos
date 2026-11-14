@@ -739,6 +739,50 @@
       ],
       "unevaluatedProperties": false
     },
+    "NestedMockOutputParameter": {
+      "description": "Mock output of a REST operation in map form (no call or steps): a scalar MockOutputParameter, or an object or array that nests mock outputs, with a `value` on each scalar leaf.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/MockOutputParameter"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "object"
+            },
+            "properties": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/NestedMockOutputParameter"
+              },
+              "minProperties": 1
+            }
+          },
+          "required": [
+            "type",
+            "properties"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "array"
+            },
+            "items": {
+              "$ref": "#/$defs/NestedMockOutputParameter"
+            }
+          },
+          "required": [
+            "type",
+            "items"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
     "Hostname": {
       "type": "string",
       "description": "Valid hostname",
@@ -2652,16 +2696,9 @@
           "properties": {
             "outputParameters": {
               "type": "object",
-              "description": "Mock outputs, keyed by name. Each one is a scalar MockOutputParameter, or nests objects and arrays like the list form, with a `value` on each leaf.",
+              "description": "Mock outputs, keyed by name.",
               "additionalProperties": {
-                "anyOf": [
-                  {
-                    "$ref": "#/$defs/MockOutputParameter"
-                  },
-                  {
-                    "$ref": "#/$defs/MappedOutputParameter"
-                  }
-                ]
+                "$ref": "#/$defs/NestedMockOutputParameter"
               },
               "minProperties": 1
             }
