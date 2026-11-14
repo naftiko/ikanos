@@ -161,10 +161,13 @@ class SqlWriteTest {
 
     @Test
     void invokeShouldCommitWithinMaxAffectedRows() throws Exception {
-        ConsumedResult result = call(SHIP_REGION, "ship-region", Map.of("region", "US"));
+        ConsumedResult result = call(SHIP_REGION.replace("maxAffectedRows: 1",
+                "maxAffectedRows: 2"), "ship-region", Map.of("region", "EU"));
 
         assertEquals(200, result.status());
-        assertEquals(0, result.document().get("rowCount").asInt());
+        assertEquals(2, result.document().get("rowCount").asInt());
+        assertEquals("SHIPPED", status(1), "a write at the cap must be committed");
+        assertEquals("SHIPPED", status(2), "a write at the cap must be committed");
     }
 
     @Test
@@ -397,5 +400,57 @@ class SqlWriteTest {
 
         assertThrows(java.sql.SQLTimeoutException.class, () -> adapter.runWrite(connection,
                 SqlClientAdapter.buildProcedures(spec, SqlStatement.Dialect.STANDARD).get("add"), java.util.List.of()));
+    }
+
+    @Test
+    void executeWriteShouldEvictTheConnectionWhenRollbackFailsAfterAnError() throws Exception {
+        SqlClientSpec spec = spec(SHIP_REGION);
+        adapter = new SqlClientAdapter(null, spec);
+        com.zaxxer.hikari.HikariDataSource pool =
+                org.mockito.Mockito.mock(com.zaxxer.hikari.HikariDataSource.class);
+        java.sql.Connection connection = org.mockito.Mockito.mock(java.sql.Connection.class);
+        java.sql.PreparedStatement statement =
+                org.mockito.Mockito.mock(java.sql.PreparedStatement.class);
+        org.mockito.Mockito.when(pool.getConnection()).thenReturn(connection);
+        org.mockito.Mockito.when(connection.prepareStatement(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(statement);
+        org.mockito.Mockito.when(statement.execute())
+                .thenThrow(new java.sql.SQLException("deadlock", "40001"));
+        org.mockito.Mockito.doThrow(new java.sql.SQLException("connection lost"))
+                .when(connection).rollback();
+
+        ConsumedResult result = adapter.executeWrite(pool,
+                SqlClientAdapter.buildProcedures(spec, SqlStatement.Dialect.STANDARD)
+                        .get("ship-region"), java.util.List.of());
+
+        assertFalse(result.isSuccessful());
+        org.mockito.Mockito.verify(pool).evictConnection(connection);
+        org.mockito.Mockito.verify(connection, org.mockito.Mockito.never()).commit();
+    }
+
+    @Test
+    void executeWriteShouldEvictTheConnectionWhenRollbackFailsPastMaxAffectedRows()
+            throws Exception {
+        SqlClientSpec spec = spec(SHIP_REGION);
+        adapter = new SqlClientAdapter(null, spec);
+        com.zaxxer.hikari.HikariDataSource pool =
+                org.mockito.Mockito.mock(com.zaxxer.hikari.HikariDataSource.class);
+        java.sql.Connection connection = org.mockito.Mockito.mock(java.sql.Connection.class);
+        java.sql.PreparedStatement statement =
+                org.mockito.Mockito.mock(java.sql.PreparedStatement.class);
+        org.mockito.Mockito.when(pool.getConnection()).thenReturn(connection);
+        org.mockito.Mockito.when(connection.prepareStatement(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(statement);
+        org.mockito.Mockito.when(statement.getUpdateCount()).thenReturn(2, -1);
+        org.mockito.Mockito.doThrow(new java.sql.SQLException("connection lost"))
+                .when(connection).rollback();
+
+        ConsumedResult result = adapter.executeWrite(pool,
+                SqlClientAdapter.buildProcedures(spec, SqlStatement.Dialect.STANDARD)
+                        .get("ship-region"), java.util.List.of());
+
+        assertEquals(409, result.status());
+        org.mockito.Mockito.verify(pool).evictConnection(connection);
+        org.mockito.Mockito.verify(connection, org.mockito.Mockito.never()).commit();
     }
 }
