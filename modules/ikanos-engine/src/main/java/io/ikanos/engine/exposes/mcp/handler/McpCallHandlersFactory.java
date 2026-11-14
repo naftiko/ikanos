@@ -25,6 +25,8 @@ import io.ikanos.engine.exposes.mcp.processor.ServerDataAppender;
 
 import java.util.ArrayList;
 import java.util.List;
+import io.ikanos.spec.exposes.mcp.McpServerResourceSpec;
+import io.ikanos.spec.exposes.mcp.McpServerSpec;
 
 import static io.ikanos.engine.exposes.mcp.model.McpHeader.MCP_METHOD;
 import static io.ikanos.engine.exposes.mcp.model.McpHeader.MCP_NAME;
@@ -54,9 +56,17 @@ public class McpCallHandlersFactory {
         DispatchPreProcessor protocolsVersionsValidator = new ProtocolsVersionsValidator(mapper);
         DispatchPostProcessor cacheDataAppender =
                 new CacheDataAppender(CacheHints.forServer(adapter.getMcpServerSpec()));
-        // Resolve every resource's hints now, so an invalid one fails at startup, not on a read
-        adapter.getMcpServerSpec().getResources().values()
-                .forEach(resource -> CacheHints.forResource(adapter.getMcpServerSpec(), resource));
+        // Resolve every resource's hints now, so an invalid one fails at startup, not on a read,
+        // naming the resource it comes from
+        McpServerSpec spec = adapter.getMcpServerSpec();
+        for (McpServerResourceSpec resource : spec.getResources().values()) {
+            try {
+                CacheHints.forResource(spec, resource);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(
+                        "MCP resource '" + resource.getName() + "': " + e.getMessage(), e);
+            }
+        }
         DispatchPostProcessor serverDataAppender = new ServerDataAppender(adapter, mapper);
 
         List<McpCallHandler> handlers = new ArrayList<>(List.of(
