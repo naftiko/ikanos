@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import tools.jackson.core.JacksonException;
 import org.restlet.Request;
 import org.restlet.data.Form;
+import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
@@ -1105,7 +1106,9 @@ public class Resolver {
             boolean object = "object".equalsIgnoreCase(spec.getType());
             JsonNode node;
             try {
-                node = mapper.readTree(text);
+                // One JSON document: trailing JSON or text fails, as for a consumed JSON body
+                node = mapper.readerFor(JsonNode.class)
+                        .with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).readValue(text);
             } catch (JacksonException e) {
                 node = null;
             }
