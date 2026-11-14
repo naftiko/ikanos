@@ -13,13 +13,17 @@
  */
 package io.ikanos.spec.exposes.rest;
 
+import java.util.LinkedHashSet;
+import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * The placeholders of an exposed resource path, one rule for the REST adapter's routes and the
- * OpenAPI export. A placeholder is written {@code {{name}}}, as the schema documents; a name has
- * the characters of an input parameter name other than {@code *}: letters, digits, {@code _} and
- * {@code -}.
+ * The placeholders of an exposed resource path, one rule for the REST adapter's routes, the
+ * OpenAPI export and the inputs a {@code ref} operation inherits (#1039). A placeholder is
+ * written {@code {{name}}}, as the schema documents, or {@code {name}}, the URI template form;
+ * a name has the characters of an input parameter name other than {@code *}: letters, digits,
+ * {@code _} and {@code -}.
  */
 public final class RestPaths {
 
@@ -27,6 +31,9 @@ public final class RestPaths {
     static final String NAME = "[A-Za-z0-9_-]+";
 
     private static final Pattern MUSTACHE = Pattern.compile("\\{\\{(" + NAME + ")\\}\\}");
+
+    private static final Pattern PLACEHOLDER =
+            Pattern.compile("\\{\\{(" + NAME + ")\\}\\}|\\{(" + NAME + ")\\}");
 
     private RestPaths() {}
 
@@ -36,5 +43,21 @@ public final class RestPaths {
      */
     public static String toUriTemplate(String path) {
         return path == null ? null : MUSTACHE.matcher(path).replaceAll("{$1}");
+    }
+
+    /**
+     * @param path a resource path, may be null
+     * @return the names of its placeholders, in either form, in order
+     */
+    public static Set<String> placeholders(String path) {
+        Set<String> names = new LinkedHashSet<>();
+        if (path == null) {
+            return names;
+        }
+        Matcher matcher = PLACEHOLDER.matcher(path);
+        while (matcher.find()) {
+            names.add(matcher.group(1) != null ? matcher.group(1) : matcher.group(2));
+        }
+        return names;
     }
 }

@@ -43,6 +43,7 @@ import io.ikanos.engine.util.Resolver;
 import io.ikanos.engine.util.Secrets;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.OutputParameterSpec;
+import io.ikanos.spec.aggregates.RefInputs;
 import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
 import io.ikanos.spec.consumes.http.AuthenticationSpec;
 import io.ikanos.spec.consumes.http.AwsSigV4AuthenticationSpec;
@@ -58,6 +59,7 @@ import tools.jackson.databind.node.NullNode;
 import java.io.IOException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -90,6 +92,12 @@ public class ResourceRestlet extends Restlet {
      */
     private final Set<String> droppedLocationWarnings = ConcurrentHashMap.newKeySet();
 
+    /**
+     * For each {@code ref} operation that declares no inputs, nor its resource, the flow inputs
+     * it accepts, placed in the request (#1039). Operations that inherit none are absent.
+     */
+    private final Map<RestServerOperationSpec, List<InputParameterSpec>> inheritedInputs;
+
     public ResourceRestlet(Capability capability, RestServerSpec serverSpec,
             RestServerResourceSpec resourceSpec) {
         this(capability, serverSpec, resourceSpec, null);
@@ -106,6 +114,31 @@ public class ResourceRestlet extends Restlet {
         this.resourceSpec = resourceSpec;
         this.stepExecutor = new OperationStepExecutor(capability, serverSpec.getNamespace());
         this.inputRequests = inputRequests;
+        this.inheritedInputs = resolveInheritedInputs(capability, resourceSpec);
+    }
+
+    private static Map<RestServerOperationSpec, List<InputParameterSpec>> resolveInheritedInputs(
+            Capability capability, RestServerResourceSpec resourceSpec) {
+        Map<RestServerOperationSpec, List<InputParameterSpec>> inherited = new HashMap<>();
+        for (RestServerOperationSpec op : resourceSpec.getOperations().values()) {
+            List<InputParameterSpec> inputs = RefInputs.forRestOperation(resourceSpec, op,
+                    () -> capability.lookupFlow(op.getRef()).getInputParameters());
+            if (!inputs.isEmpty()) {
+                inherited.put(op, inputs);
+            }
+        }
+        return Map.copyOf(inherited);
+    }
+
+    /**
+     * Return the flow inputs a {@code ref} operation inherits, placed in the request: none when
+     * the operation does not use {@code ref}, or when it or its resource declares inputs.
+     *
+     * @param serverOp the operation
+     * @return the inherited inputs, never null
+     */
+    List<InputParameterSpec> getInheritedInputs(RestServerOperationSpec serverOp) {
+        return serverOp != null ? inheritedInputs.getOrDefault(serverOp, List.of()) : List.of();
     }
 
     @Override
@@ -191,12 +224,14 @@ public class ResourceRestlet extends Restlet {
                     return true;
                 }
 
-                // Build request-scoped input parameter map (resource + operation). A value that
-                // does not match its declared type is the caller's error.
+                // Build request-scoped input parameter map (server + resource + operation, or
+                // the flow's inputs for a ref operation that declares none). A value that does
+                // not match its declared type is the caller's error.
                 Map<String, Object> inputParameters;
                 try {
                     inputParameters = stepExecutor.resolveInputParametersFromRequest(request,
-                            getServerSpec(), getResourceSpec(), serverOp);
+                            getServerSpec(), getResourceSpec(), serverOp,
+                            getInheritedInputs(serverOp));
                 } catch (IllegalArgumentException e) {
                     sendError(response, Status.CLIENT_ERROR_BAD_REQUEST,
                             "Error resolving request parameters",

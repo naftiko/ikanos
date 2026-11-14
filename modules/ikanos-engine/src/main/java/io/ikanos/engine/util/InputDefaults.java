@@ -334,26 +334,7 @@ public final class InputDefaults {
      * @return a {@link BigInteger}, {@link BigDecimal}, {@link Boolean} or the string itself
      */
     public static Object typedEnumValue(String type, String value) {
-        if (type == null) {
-            return value;
-        }
-        try {
-            switch (type) {
-                case "integer":
-                    return new BigInteger(value);
-                case "number":
-                    return new BigDecimal(value);
-                case "boolean":
-                    if ("true".equals(value) || "false".equals(value)) {
-                        return Boolean.valueOf(value);
-                    }
-                    return value;
-                default:
-                    return value;
-            }
-        } catch (NumberFormatException e) {
-            return value;
-        }
+        return InputParameterSpec.typedEnumValue(type, value);
     }
 
     /**

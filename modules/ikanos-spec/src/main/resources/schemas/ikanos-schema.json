@@ -1683,7 +1683,7 @@
         },
         "ref": {
           "type": "string",
-          "description": "Reference to an aggregate flow. Format: {aggregate-namespace}.{flow-name}. The flow provides the execution, so `call`, `steps` and `mappings` are not allowed next to `ref`; `inputParameters`, `with` and `outputParameters` adapt the flow, and an explicit `description` or `hints` overrides the inherited one.",
+          "description": "Reference to an aggregate flow. Format: {aggregate-namespace}.{flow-name}. The flow provides the execution, so `call`, `steps` and `mappings` are not allowed next to `ref`; `inputParameters`, `with` and `outputParameters` adapt the flow, and an explicit `description` or `hints` overrides the inherited one. A tool that declares no `inputParameters` advertises and accepts the flow's; own inputs replace them.",
           "pattern": "^[a-zA-Z0-9-]+\\.[a-zA-Z0-9-]+$"
         },
         "call": {
@@ -2236,7 +2236,7 @@
     },
     "InputParameterSetNames": {
       "type": "array",
-      "description": "Names of input parameter sets declared in the `definitions` of the same MCP adapter (for a tool), REST adapter (for a resource or an operation) or aggregate (for a flow). The sets apply in order, then the unit's own `inputParameters`, whose entries replace a set's entry of the same name whole. On a `ref` MCP tool, the sets act like its own `inputParameters`: a non-empty result replaces the inputs the flow advertises. A `ref` REST operation does not inherit its flow's inputs (#1039): it receives only its own and its resource's, inline or through sets.",
+      "description": "Names of input parameter sets declared in the `definitions` of the same MCP adapter (for a tool), REST adapter (for a resource or an operation) or aggregate (for a flow). The sets apply in order, then the unit's own `inputParameters`, whose entries replace a set's entry of the same name whole. On a `ref` tool or operation, the sets act like its own `inputParameters`: a non-empty result replaces the inputs the flow advertises. On a `ref` REST operation, the resource's inputs, inline or through sets, replace them too.",
       "items": {
         "$ref": "#/$defs/DefinitionName"
       },
@@ -2778,7 +2778,7 @@
         },
         "ref": {
           "type": "string",
-          "description": "Reference to an aggregate flow. Format: {aggregate-namespace}.{flow-name}. The flow provides the execution, so `call`, `steps` and `mappings` are not allowed next to `ref`; `inputParameters`, `with` and `outputParameters` adapt the flow, and an explicit `description` overrides the inherited one.",
+          "description": "Reference to an aggregate flow. Format: {aggregate-namespace}.{flow-name}. The flow provides the execution, so `call`, `steps` and `mappings` are not allowed next to `ref`; `inputParameters`, `with` and `outputParameters` adapt the flow, and an explicit `description` overrides the inherited one. When neither the operation nor its resource declares `inputParameters`, the operation accepts the flow's: an input named by a placeholder of the resource path is a path parameter, the others are query parameters for `GET` and `DELETE` and members of the JSON body for the other methods. Own inputs replace the flow's.",
           "pattern": "^[a-zA-Z0-9-]+\\.[a-zA-Z0-9-]+$"
         },
         "call": {

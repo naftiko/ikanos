@@ -46,7 +46,9 @@ import io.ikanos.spec.exposes.ServerSpec;
  * {@code outputParameters}, {@code mappings}) are <b>not</b> copied — at runtime, adapters
  * delegate to {@link AggregateFlow} instances held by the {@link io.ikanos.Capability}. A unit
  * that uses {@code ref} must not declare its own {@code call}, {@code steps} or
- * {@code mappings}, since the flow runs instead of them.
+ * {@code mappings}, since the flow runs instead of them. A unit that declares no inputs accepts
+ * its flow's, which the adapter reads from the flow when it is built
+ * ({@link io.ikanos.spec.aggregates.RefInputs}).
  */
 public class AggregateRefResolver {
 
@@ -139,7 +141,9 @@ public class AggregateRefResolver {
     /**
      * Validate a ref on a REST operation and inherit adapter-specific metadata.
      * Execution fields are not copied — they are resolved at runtime via
-     * {@link AggregateFlow}.
+     * {@link AggregateFlow}. Inputs are not copied either: when the operation and its resource
+     * declare none, {@code ResourceRestlet} places the flow's inputs in the request
+     * ({@link io.ikanos.spec.aggregates.RefInputs#forRestOperation}).
      */
     void resolveRestOperationRef(RestServerOperationSpec op,
             Map<String, AggregateFlowSpec> flowMap) {
