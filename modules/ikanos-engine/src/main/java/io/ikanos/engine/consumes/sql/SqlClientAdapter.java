@@ -580,12 +580,20 @@ public class SqlClientAdapter extends ClientAdapter {
                 }
                 resultSet = statement.getMoreResults();
             }
+            Integer max = procedure.spec().getMaxAffectedRows();
+            if (max != null && !counted && document == null) {
+                // Neither an update count nor rows (SQL Server under NOCOUNT ON): reading that
+                // as zero rows would commit a write the cap was meant to stop
+                LOGGER.warning("SQL procedure " + getNamespace() + "." + procedure.name()
+                        + " reported no row count, so maxAffectedRows " + max
+                        + " cannot be checked; rolled back");
+                return SqlConsumedResult.rowCountUnknown(procedure.view(), max);
+            }
             if (document == null) {
                 document = SqlRowDocument.empty();
             }
             long rowCount = counted ? changed : document.get(SqlRowDocument.ROW_COUNT).asLong();
             document.put(SqlRowDocument.ROW_COUNT, rowCount);
-            Integer max = procedure.spec().getMaxAffectedRows();
             if (max != null && rowCount > max) {
                 LOGGER.warning("SQL procedure " + getNamespace() + "." + procedure.name()
                         + " would change " + rowCount + " rows, more than maxAffectedRows " + max
