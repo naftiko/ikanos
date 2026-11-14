@@ -254,7 +254,7 @@ public class AwsSigV4IntegrationTest {
     }
 
     @Test
-    void signsAGetWithAPathAndAQuery() throws Exception {
+    void invokeShouldSignAGetWhenItHasAPathAndAQuery() throws Exception {
         start(auth(null));
 
         ConsumedResult result =
@@ -267,7 +267,7 @@ public class AwsSigV4IntegrationTest {
     }
 
     @Test
-    void signsTheHashOfAJsonBody() throws Exception {
+    void invokeShouldSignTheHashOfTheBodyWhenItIsJson() throws Exception {
         start(auth("s3"));
 
         ConsumedResult result = call("put-object",
@@ -284,7 +284,7 @@ public class AwsSigV4IntegrationTest {
     }
 
     @Test
-    void signsForAnotherServiceWithoutThePayloadHeader() throws Exception {
+    void invokeShouldSignWithoutThePayloadHeaderWhenTheServiceIsNotS3() throws Exception {
         start(auth("execute-api"));
 
         ConsumedResult result = call("put-object", Map.of("key", "item", "note", "x"));
@@ -298,7 +298,7 @@ public class AwsSigV4IntegrationTest {
 
     /** A body passed through by forward can't be read twice: S3 is sent UNSIGNED-PAYLOAD. */
     @Test
-    void signsAForwardedUploadWithAnUnsignedPayload() throws Exception {
+    void forwardShouldSignAnUploadWithAnUnsignedPayloadWhenTheTargetIsS3() throws Exception {
         start(auth(null));
 
         // A caller sending a sized body, as S3 clients do (Restlet's own client sends it chunked)
@@ -327,7 +327,8 @@ public class AwsSigV4IntegrationTest {
      * them at load, whatever their case.
      */
     @Test
-    void refusesAnAmzTrustedHeaderOnAForwardToAwsSigV4() throws Exception {
+    void capabilityShouldRefuseAnAmzTrustedHeaderWhenTheForwardTargetSignsWithAwsSigV4()
+            throws Exception {
         IkanosSpec spec = IkanosMappers.lenientYaml()
                 .readValue(forwardYaml(auth(null), "X-Amz-Copy-Source"), IkanosSpec.class);
 
@@ -340,7 +341,7 @@ public class AwsSigV4IntegrationTest {
 
     /** Another trusted header is still forwarded, and signed. */
     @Test
-    void forwardsAndSignsAnotherTrustedHeader() throws Exception {
+    void forwardShouldSignAnotherTrustedHeaderWhenTheTargetSignsWithAwsSigV4() throws Exception {
         IkanosSpec spec = IkanosMappers.lenientYaml()
                 .readValue(forwardYaml(auth(null), "X-Request-Note"), IkanosSpec.class);
         capability = new Capability(spec);
@@ -367,7 +368,8 @@ public class AwsSigV4IntegrationTest {
 
     /** An x-amz-* trusted header stays allowed when the target doesn't sign with awsSigV4. */
     @Test
-    void acceptsAnAmzTrustedHeaderWithoutAwsSigV4() throws Exception {
+    void capabilityShouldAcceptAnAmzTrustedHeaderWhenTheTargetDoesNotSignWithAwsSigV4()
+            throws Exception {
         IkanosSpec spec = IkanosMappers.lenientYaml()
                 .readValue(forwardYaml(null, "x-amz-meta-owner"), IkanosSpec.class);
 
@@ -403,7 +405,7 @@ public class AwsSigV4IntegrationTest {
 
     /** A consumed MCP adapter signs its JSON-RPC POST, payload hash included, like HTTP. */
     @Test
-    void signsACallToAConsumedMcpAdapter() throws Exception {
+    void mcpTransportShouldSignTheCallWhenTheConsumedMcpAdapterUsesAwsSigV4() throws Exception {
         AwsSigV4AuthenticationSpec auth = new AwsSigV4AuthenticationSpec();
         auth.setAccessKeyId(KEY_ID);
         auth.setSecretAccessKey(SECRET.toCharArray());
@@ -428,7 +430,7 @@ public class AwsSigV4IntegrationTest {
     }
 
     @Test
-    void refusesAwsSigV4OnAnExposedAdapter() throws Exception {
+    void capabilityShouldRefuseAwsSigV4WhenAnExposedAdapterDeclaresIt() throws Exception {
         int restPort = findFreePort();
         String yaml = """
                 ikanos: "%s"
