@@ -93,7 +93,11 @@ public class RestServerOperationSpec extends OperationSpec {
         this.with.set(with != null ? Map.copyOf(with) : null);
     }
 
-    /** Freshness of this operation's answers in milliseconds, or {@code null} for the adapter's. */
+    /**
+     * Freshness of this operation's successful {@code GET} answers in milliseconds, which replaces
+     * the adapter's ({@code 0} sends {@code no-store} even when the adapter sets a positive TTL),
+     * or {@code null} for the adapter's.
+     */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public Integer getTtlMs() { return ttlMs.get(); }
     public void setTtlMs(Integer ttlMs) { this.ttlMs.set(ttlMs); }
