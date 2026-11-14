@@ -90,6 +90,16 @@ public class RestRefInheritedInputsIntegrationTest {
     }
 
     @Test
+    void handleShouldPassAnObjectQueryInputSentAsJsonToTheFlow() throws Exception {
+        String filter = java.net.URLEncoder.encode("{\"flag\":\"NO\"}",
+                java.nio.charset.StandardCharsets.UTF_8);
+
+        JsonNode body = send(Method.GET, "/find?filter=" + filter, null, null);
+
+        assertEquals("NO", body.path("flag").asString());
+    }
+
+    @Test
     void handleShouldPassJsonBodyMembersToTheFlowForPost() throws Exception {
         JsonNode body = send(Method.POST, "/ships",
                 "{\"imo\":\"IMO-1111111\",\"name\":\"Aurora\"}", null);

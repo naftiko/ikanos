@@ -13,8 +13,6 @@
  */
 package io.ikanos.engine.exposes.mcp;
 
-import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -63,11 +61,7 @@ final class McpToolInputSchema {
             property.put("description", param.getDescription());
         }
         if (!param.getEnumeration().isEmpty()) {
-            List<Object> values = new ArrayList<>();
-            for (String value : param.getEnumeration()) {
-                values.add(typedEnumValue(type, value));
-            }
-            property.put("enum", values);
+            property.put("enum", param.typedEnumeration());
         }
         if (param.getFormat() != null) {
             property.put("format", param.getFormat());
@@ -97,29 +91,5 @@ final class McpToolInputSchema {
             property.put("additionalProperties", param.getAdditionalProperties());
         }
         return property;
-    }
-
-    /**
-     * Enum values are stored as strings; emit them with the parameter's JSON type so that the
-     * advertised schema stays valid for number, integer and boolean parameters.
-     */
-    private static Object typedEnumValue(String type, String value) {
-        try {
-            switch (type) {
-                case "integer":
-                    return new BigInteger(value);
-                case "number":
-                    return new BigDecimal(value);
-                case "boolean":
-                    if ("true".equals(value) || "false".equals(value)) {
-                        return Boolean.valueOf(value);
-                    }
-                    return value;
-                default:
-                    return value;
-            }
-        } catch (NumberFormatException e) {
-            return value;
-        }
     }
 }

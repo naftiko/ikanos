@@ -69,6 +69,19 @@ capability:
           roles:
             type: string
             value: "{{roles}}"
+      find-ships:
+        description: Find ships matching a filter.
+        inputParameters:
+          filter:
+            type: object
+            description: Filter on ship fields
+            properties:
+              flag:
+                type: string
+        outputParameters:
+          flag:
+            type: string
+            value: "{{filter.flag}}"
   exposes:
   - type: rest
     address: localhost
@@ -104,6 +117,13 @@ capability:
           list:
             method: GET
             ref: fleet.list-crew
+      # An object input in the query is one JSON value
+      find:
+        path: /find
+        operations:
+          find:
+            method: GET
+            ref: fleet.find-ships
       # Own inputs replace the flow's: imo is read from the header, not from the query string
       own:
         path: /own

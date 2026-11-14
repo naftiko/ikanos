@@ -837,6 +837,22 @@ public class Resolver {
                     if (request.getResourceRef() != null
                             && request.getResourceRef().getQueryAsForm() != null) {
                         org.restlet.data.Form query = request.getResourceRef().getQueryAsForm();
+                        if (spec.isJsonInQuery()) {
+                            // An object, or an array of objects, is one JSON value, as the
+                            // OpenAPI export declares it (content: application/json). A value
+                            // that is not JSON is treated as absent; a JSON value of another
+                            // type fails the declared type check.
+                            String text = query.getFirstValue(name);
+                            if (text == null) {
+                                return null;
+                            }
+                            try {
+                                return mapper.convertValue(mapper.readTree(text), Object.class);
+                            } catch (JacksonException e) {
+                                logger.debug("Query parameter is not valid JSON", e);
+                                return null;
+                            }
+                        }
                         if ("array".equalsIgnoreCase(spec.getType())) {
                             // Every value of a repeated parameter (?ids=A&ids=B), as OpenAPI's
                             // default query style (form, exploded) sends an array

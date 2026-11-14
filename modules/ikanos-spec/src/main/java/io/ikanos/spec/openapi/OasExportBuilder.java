@@ -302,7 +302,13 @@ public class OasExportBuilder {
                 param.setIn(inputParam.getIn() != null ? inputParam.getIn() : "query");
                 param.setRequired(
                         inputParam.isRequiredOrDefault(REST_PARAMETER_REQUIRED_BY_DEFAULT));
-                param.setSchema(buildInputSchema(inputParam));
+                if ("query".equals(param.getIn()) && inputParam.isJsonInQuery()) {
+                    // One JSON value, as the adapter reads it, not form-encoded members
+                    param.setContent(new Content().addMediaType("application/json",
+                            new MediaType().schema(buildInputSchema(inputParam))));
+                } else {
+                    param.setSchema(buildInputSchema(inputParam));
+                }
                 if (inputParam.getDescription() != null) {
                     param.setDescription(inputParam.getDescription());
                 }
@@ -437,7 +443,7 @@ public class OasExportBuilder {
             schema.setAdditionalProperties(inputParam.getAdditionalProperties());
         }
         if (!inputParam.getEnumeration().isEmpty()) {
-            schema.setEnum(new ArrayList<>(inputParam.getEnumeration()));
+            schema.setEnum(inputParam.typedEnumeration());
         }
         if (inputParam.getFormat() != null) {
             schema.setFormat(inputParam.getFormat());

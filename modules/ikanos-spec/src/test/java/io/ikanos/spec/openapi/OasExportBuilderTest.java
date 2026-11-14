@@ -1212,6 +1212,41 @@ public class OasExportBuilderTest {
         assertEquals(Boolean.FALSE, schema.getAdditionalProperties());
     }
 
+    @Test
+    void buildInputSchemaShouldTypeNumericAndBooleanEnumValues() {
+        InputParameterSpec level = input("level", "integer");
+        level.getEnumeration().addAll(List.of("1", "2"));
+        InputParameterSpec ratio = input("ratio", "number");
+        ratio.getEnumeration().add("0.5");
+        InputParameterSpec active = input("active", "boolean");
+        active.getEnumeration().add("true");
+
+        assertEquals(List.of(java.math.BigInteger.ONE, java.math.BigInteger.TWO),
+                builder.buildInputSchema(level).getEnum());
+        assertEquals(List.of(new java.math.BigDecimal("0.5")),
+                builder.buildInputSchema(ratio).getEnum());
+        assertEquals(List.of(Boolean.TRUE), builder.buildInputSchema(active).getEnum());
+    }
+
+    @Test
+    void buildShouldExportAnObjectQueryParameterAsJsonContent() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerResourceSpec resource = resourceWithOperation("/ships", "ships",
+                "GET", "find-ships", null);
+        InputParameterSpec filter = input("filter", "object");
+        filter.setIn("query");
+        filter.getProperties().add(input("flag", "string"));
+        firstOp(resource).setInputParameters(Map.of("filter", filter));
+        addResource(getRestServer(spec), resource);
+
+        io.swagger.v3.oas.models.parameters.Parameter parameter = builder.build(spec, null)
+                .getOpenApi().getPaths().get("/ships").getGet().getParameters().get(0);
+
+        assertNull(parameter.getSchema());
+        assertEquals("object",
+                parameter.getContent().get("application/json").getSchema().getType());
+    }
+
     private static InputParameterSpec input(String name, String type) {
         InputParameterSpec input = new InputParameterSpec();
         input.setName(name);

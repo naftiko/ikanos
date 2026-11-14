@@ -13,6 +13,10 @@
  */
 package io.ikanos.spec;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.List;
 import tools.jackson.databind.annotation.JsonDeserialize;
 import tools.jackson.databind.annotation.JsonSerialize;
 import io.ikanos.spec.util.StructureSpec;
@@ -207,6 +211,57 @@ public class InputParameterSpec extends StructureSpec<InputParameterSpec> {
 
     public void setAdditionalProperties(Boolean additionalProperties) {
         this.additionalProperties = additionalProperties;
+    }
+
+    /**
+     * The {@code enum} values with the parameter's JSON type: they are stored as strings, and a
+     * schema that lists {@code "1"} for an {@code integer} parameter accepts no value. Used by
+     * every exporter of an input schema (MCP {@code tools/list}, OpenAPI).
+     *
+     * @return the values, as {@link BigInteger} for {@code integer}, {@link BigDecimal} for
+     *         {@code number}, {@link Boolean} for {@code boolean}, and as written otherwise or
+     *         when a value does not parse
+     */
+    public List<Object> typedEnumeration() {
+        String type = getType() != null ? getType() : "string";
+        List<Object> values = new ArrayList<>();
+        for (String value : getEnumeration()) {
+            values.add(typedEnumValue(type, value));
+        }
+        return values;
+    }
+
+    /**
+     * Whether a query value of this parameter is a JSON document: an {@code object}, or an
+     * {@code array} of objects, has no form encoding that the REST adapter reads, so it is sent
+     * as JSON in one query parameter ({@code ?filter={"flag":"NO"}}) and the OpenAPI export
+     * declares it with {@code content: application/json}.
+     *
+     * @return {@code true} for an object or an array of objects
+     */
+    public boolean isJsonInQuery() {
+        return "object".equalsIgnoreCase(getType()) || ("array".equalsIgnoreCase(getType())
+                && getItems() != null && "object".equalsIgnoreCase(getItems().getType()));
+    }
+
+    private static Object typedEnumValue(String type, String value) {
+        try {
+            switch (type) {
+                case "integer":
+                    return new BigInteger(value);
+                case "number":
+                    return new BigDecimal(value);
+                case "boolean":
+                    if ("true".equals(value) || "false".equals(value)) {
+                        return Boolean.valueOf(value);
+                    }
+                    return value;
+                default:
+                    return value;
+            }
+        } catch (NumberFormatException e) {
+            return value;
+        }
     }
 
     /**
