@@ -83,7 +83,7 @@ public class OutputParameterSerializer extends ValueSerializer<OutputParameterSp
         if (spec.getSchema() != null) {
             node.put("schema", spec.getSchema());
             // Kept so that a copy (imports deep-copy through the serializers) is still rejected.
-            spec.getUnmodeledSchemaSiblings().forEach(node::set);
+            spec.getSchemaSiblings().forEach(node::set);
         }
 
         // Kept so that a copy (imports deep-copy through the serializers) is still rejected.
@@ -208,7 +208,7 @@ public class OutputParameterSerializer extends ValueSerializer<OutputParameterSp
         if (spec.getSchema() != null) {
             node.put("schema", spec.getSchema());
             // Kept so that a copy (imports deep-copy through the serializers) is still rejected.
-            spec.getUnmodeledSchemaSiblings().forEach(node::set);
+            spec.getSchemaSiblings().forEach(node::set);
         }
 
         // Kept so that a copy (imports deep-copy through the serializers) is still rejected.

@@ -998,8 +998,11 @@ public final class DefinitionsExpander {
             addIf(extra, "contentEncoding", param.getContentEncoding() != null);
             addIf(extra, "contentCompression", param.getContentCompression() != null);
             addIf(extra, "contentMediaType", param.getContentMediaType() != null);
-            // Keys the deserializer does not model, such as `format`, are kept apart for this
-            extra.addAll(param.getUnmodeledSchemaSiblings().keySet());
+            // The keys as declared, including one the deserializer does not model (`format`)
+            // or whose value it ignores (an `enum` that is not a list)
+            for (String key : param.getSchemaSiblings().keySet()) {
+                addIf(extra, key, !extra.contains(key));
+            }
             if (!extra.isEmpty()) {
                 errors.add(location + ": 'schema: " + param.getSchema() + "' takes no other key"
                         + " in an output, found " + extra + ".");

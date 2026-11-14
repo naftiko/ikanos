@@ -372,10 +372,11 @@ class RestDefinitionsExpanderTest {
     }
 
     @Test
-    void expandAllShouldRejectAnUnmodeledKeyBesideASchemaInAnOrchestratedRestOutput()
+    void expandAllShouldRejectEveryDeclaredKeyBesideASchemaInAnOrchestratedRestOutput()
             throws Exception {
-        // `format` is not a field of an output: the deserializer used to drop it, so the
-        // output was accepted. It is kept apart now, and rejected like any other key.
+        // `format` is not a field of an output, and an `enum` that is not a list is ignored:
+        // the deserializer used to drop both, so the output was accepted. Every key declared
+        // beside `schema:` is kept as declared now, and rejected.
         IkanosSpec spec = rest("""
                 definitions:
                   schemas:
@@ -401,6 +402,7 @@ class RestDefinitionsExpanderTest {
                         crew:
                           type: array
                           items: { schema: crew-member, pattern: "^x" }
+                        deputy: { schema: crew-member, enum: lead, required: yes, items: [] }
                 """);
 
         DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
@@ -410,6 +412,9 @@ class RestDefinitionsExpanderTest {
                 + " output, found [format]."), result.errors().toString());
         assertTrue(result.errors().stream().anyMatch(e -> e.contains("found [pattern]")),
                 result.errors().toString());
+        // Modeled keys whose values the deserializer ignores are rejected too
+        assertTrue(result.errors().stream().anyMatch(e -> e.contains("output 'deputy'")
+                && e.contains("found [enum, required, items]")), result.errors().toString());
     }
 
     @Test

@@ -26,13 +26,11 @@ import tools.jackson.databind.ValueDeserializer;
 public class OutputParameterDeserializer extends ValueDeserializer<OutputParameterSpec> {
 
     /**
-     * The keys this deserializer reads. Any other key beside {@code schema:} is kept apart, so
-     * that the definitions expander rejects it instead of it being silently dropped.
+     * The keys of an output that are not siblings of {@code schema:}: the schema itself, the
+     * output's name (the {@code name} of the list form, or the one the map form injects), and
+     * {@code $ref}, which the definitions expander rejects on its own.
      */
-    static final Set<String> MODELED_KEYS = Set.of("name", "type", "mapping", "value", "const",
-            "selector", "description", "schema", "$ref", "items", "values", "properties",
-            "required", "enum", "precision", "scale", "maxLength", "contentEncoding",
-            "contentCompression", "contentMediaType");
+    static final Set<String> NOT_SCHEMA_SIBLINGS = Set.of("schema", "name", "$ref");
 
     @Override
     public OutputParameterSpec deserialize(JsonParser p, DeserializationContext ctxt) {
@@ -90,10 +88,11 @@ public class OutputParameterDeserializer extends ValueDeserializer<OutputParamet
         // name, with `schema:`.
         if (node.has("schema")) {
             spec.setSchema(node.get("schema").asString());
+            // Kept as declared, so that the expander rejects any of them, even one this
+            // deserializer does not read or whose value it ignores
             for (var field : node.properties()) {
-                if (!MODELED_KEYS.contains(field.getKey())) {
-                    spec.getUnmodeledSchemaSiblings().put(field.getKey(),
-                            field.getValue().deepCopy());
+                if (!NOT_SCHEMA_SIBLINGS.contains(field.getKey())) {
+                    spec.getSchemaSiblings().put(field.getKey(), field.getValue().deepCopy());
                 }
             }
         }
