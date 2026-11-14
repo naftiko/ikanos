@@ -81,7 +81,8 @@ function restCallerDependent(adapter, path, results) {
         ? "the adapter authenticates its callers"
         : "input '" + input + "' is read from outside the URL";
       results.push({
-        message: "REST operation '" + opKey + "' answers are cacheScope public"
+        message: "REST operation '" + opKey + "'" + ofAdapter(adapter)
+          + " answers are cacheScope public"
           + (ownScope ? "" : " (from the adapter)") + ", but " + why
           + ". Check that no answer depends on the caller, or use auto.",
         path: ownScope
@@ -108,7 +109,7 @@ function mcpCallerDependent(adapter, path, context, results) {
       && mcpResourceCached(adapter, resource, context));
   if (adapter.cacheScope === "public" && adapterScopeCached) {
     results.push({
-      message: "MCP adapter results are cacheScope public, but " + why
+      message: "MCP adapter" + named(adapter) + " results are cacheScope public, but " + why
         + ". Check that no result depends on the caller, or use auto.",
       path: [...path, "cacheScope"],
     });
@@ -117,7 +118,8 @@ function mcpCallerDependent(adapter, path, context, results) {
     if (resource && resource.cacheScope === "public"
       && mcpResourceCached(adapter, resource, context)) {
       results.push({
-        message: "MCP resource '" + key + "' is cacheScope public, but " + why
+        message: "MCP resource '" + key + "'" + ofAdapter(adapter)
+          + " is cacheScope public, but " + why
           + ". Check that no result depends on the caller, or use auto.",
         path: [...path, "resources", key, "cacheScope"],
       });
@@ -144,7 +146,8 @@ function mcpTtlFromUpstream(adapter, path, context, results) {
     const reason = ttlFromUpstreamNoEffect(resource, context);
     if (reason) {
       results.push({
-        message: "ttlFromUpstream has no effect on MCP resource '" + key + "': " + reason
+        message: "ttlFromUpstream has no effect on MCP resource '" + key + "'"
+          + ofAdapter(adapter) + ": " + reason
           + ". Set ttlMs instead.",
         path: [...path, "resources", key, "ttlFromUpstream"],
       });
@@ -192,6 +195,16 @@ function hasLiteralValue(param) {
   const value = param.value;
   return value !== undefined && value !== null
     && !(typeof value === "string" && value.trim().startsWith("$"));
+}
+
+/** ` 'namespace'` of an adapter, for messages, or nothing when it has none. */
+function named(adapter) {
+  return typeof adapter.namespace === "string" ? " '" + adapter.namespace + "'" : "";
+}
+
+/** ` of adapter 'namespace'`, for messages, or nothing when it has none. */
+function ofAdapter(adapter) {
+  return typeof adapter.namespace === "string" ? " of adapter '" + adapter.namespace + "'" : "";
 }
 
 function asArray(value) {
