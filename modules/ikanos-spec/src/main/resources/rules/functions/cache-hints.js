@@ -7,11 +7,14 @@
  * the `check` option:
  *
  * - `caller-dependent`: an effective `cacheScope: public` where the answer can
- *   depend on the caller. MCP: the adapter authenticates its callers or identifies
- *   them through `trust`. REST: on a `GET` operation that sends `Cache-Control`
+ *   depend on the caller and can be cached. MCP: the adapter authenticates its
+ *   callers or identifies them through `trust`, and the results get a positive
+ *   `ttlMs` (MCP's default is 0) or the resource reads it from its upstream
+ *   (`ttlFromUpstream`). REST: on a `GET` operation that sends `Cache-Control`
  *   (a positive `ttlMs` on the operation or the adapter), the adapter authenticates
  *   its callers or an input is read from outside the URL (`in: header`, or the
- *   body, where an input without `in` is read). It can be intended, so it warns.
+ *   body, where an input without `in` is read), unless the input has a literal
+ *   `value`, which never reads the request. It can be intended, so it warns.
  * - `ttl-from-upstream-no-effect`: `ttlFromUpstream: true` on an MCP resource
  *   whose read does not come from a single HTTP answer: a static `location`,
  *   `steps`, or a call to an MCP consumed adapter. (A resource cannot call an
@@ -98,15 +101,19 @@ function mcpCallerDependent(adapter, path, results) {
   const why = adapter.authentication
     ? "the adapter authenticates its callers"
     : "callers are identified (trust: " + trustMode + ")";
-  if (adapter.cacheScope === "public") {
+  const resources = entries(adapter.resources);
+  // The adapter's scope covers lists (with its ttlMs) and the resources that set no scope
+  const adapterScopeCached = adapter.ttlMs > 0 || resources.some(([, resource]) =>
+    resource && resource.cacheScope === undefined && mcpResourceCached(adapter, resource));
+  if (adapter.cacheScope === "public" && adapterScopeCached) {
     results.push({
       message: "MCP adapter results are cacheScope public, but " + why
         + ". Check that no result depends on the caller, or use auto.",
       path: [...path, "cacheScope"],
     });
   }
-  for (const [key, resource] of entries(adapter.resources)) {
-    if (resource && resource.cacheScope === "public") {
+  for (const [key, resource] of resources) {
+    if (resource && resource.cacheScope === "public" && mcpResourceCached(adapter, resource)) {
       results.push({
         message: "MCP resource '" + key + "' is cacheScope public, but " + why
           + ". Check that no result depends on the caller, or use auto.",
@@ -114,6 +121,15 @@ function mcpCallerDependent(adapter, path, results) {
       });
     }
   }
+}
+
+/**
+ * Whether reads of an MCP resource can be cached: a positive `ttlMs` (its own, else
+ * the adapter's; MCP's default is 0), or a TTL read from its upstream.
+ */
+function mcpResourceCached(adapter, resource) {
+  const ttlMs = resource.ttlMs !== undefined ? resource.ttlMs : adapter.ttlMs;
+  return ttlMs > 0 || resource.ttlFromUpstream === true;
 }
 
 function mcpTtlFromUpstream(adapter, path, context, results) {
@@ -147,10 +163,13 @@ function callTargetReason(call, context) {
     ? "MCP upstreams send no HTTP caching headers" : null;
 }
 
-/** Name of the first input read from outside the URL (header or body), or null. */
+/**
+ * Name of the first input read from outside the URL (header or body), or null. An
+ * input with a literal `value` (not a JSONPath) never reads the request: it does not count.
+ */
 function inputOutsideUrl(inputParameters) {
   for (const [key, param] of entries(inputParameters)) {
-    if (!param || typeof param !== "object") {
+    if (!param || typeof param !== "object" || hasLiteralValue(param)) {
       continue;
     }
     const location = typeof param.in === "string" ? param.in.toLowerCase() : "body";
@@ -159,6 +178,12 @@ function inputOutsideUrl(inputParameters) {
     }
   }
   return null;
+}
+
+function hasLiteralValue(param) {
+  const value = param.value;
+  return value !== undefined && value !== null
+    && !(typeof value === "string" && value.trim().startsWith("$"));
 }
 
 function asArray(value) {
