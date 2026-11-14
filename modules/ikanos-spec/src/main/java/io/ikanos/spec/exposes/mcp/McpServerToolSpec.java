@@ -181,6 +181,19 @@ public class McpServerToolSpec {
     }
 
     /**
+     * Whether the output parameters were written as a map keyed by name (the schema's mock form)
+     * rather than as an array. Code that replaces them, such as the expansion of shared
+     * definitions, passes a {@link OutputParameterListOrMapDeserializer.KeyedList} to
+     * {@link #setOutputParameters(List)} when this is {@code true}, so the tool keeps its form.
+     *
+     * @return {@code true} for the map form
+     */
+    @JsonIgnore
+    public boolean isOutputParametersKeyed() {
+        return outputParametersKeyed.get();
+    }
+
+    /**
      * Whether the tool declares mock output parameters, with neither {@code call} nor
      * {@code steps}: {@code outputParameters} written as a non-empty map (the schema's mock
      * form), or as a non-empty array whose every entry is a static {@code value} without a

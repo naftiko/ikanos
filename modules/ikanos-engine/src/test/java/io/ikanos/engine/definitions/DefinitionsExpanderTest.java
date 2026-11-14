@@ -70,6 +70,46 @@ class DefinitionsExpanderTest {
     }
 
     @Test
+    void expandAllShouldKeepAMapFormMockToolAMockWhenItsOutputsAreNested() throws Exception {
+        // An object output carries its static values on its properties, so only the map form
+        // marks this tool as a mock: expansion must not turn it into the array form.
+        IkanosSpec spec = mcp("", """
+                ship:
+                  description: "Mock ship."
+                  outputParameters:
+                    ship:
+                      type: object
+                      properties:
+                        name: { type: string, value: "Northwind" }
+                """);
+        assertTrue(tool(spec, "ship").hasMockOutputParameters());
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+
+        assertTrue(result.errors().isEmpty(), result.errors().toString());
+        McpServerToolSpec tool = tool(spec, "ship");
+        assertTrue(tool.isOutputParametersKeyed());
+        assertTrue(tool.hasMockOutputParameters());
+        assertEquals(List.of("ship"), names(tool.getOutputParameters()));
+    }
+
+    @Test
+    void expandAllShouldKeepTheArrayFormWhenTheToolWroteItsOutputsAsAnArray() throws Exception {
+        IkanosSpec spec = mcp("", """
+                get-ship:
+                  description: "Get a ship."
+                  call: fleet.get-ship
+                  outputParameters:
+                    - { type: string, mapping: "$.name" }
+                """);
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+
+        assertTrue(result.errors().isEmpty(), result.errors().toString());
+        assertFalse(tool(spec, "get-ship").isOutputParametersKeyed());
+    }
+
+    @Test
     void expandAllShouldReplaceSetEntryWholeAtItsPositionWhenUnitRedeclaresIt() throws Exception {
         IkanosSpec spec = mcp("""
                 definitions:
