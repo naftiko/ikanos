@@ -98,7 +98,7 @@ class AwsSigV4AuthenticationSchemaTest {
     }
 
     @Test
-    void acceptsAwsSigV4OnAConsumedAdapter() throws Exception {
+    void schemaShouldAcceptAwsSigV4WhenOnAConsumedHttpAdapter() throws Exception {
         List<Error> errors = validate(capability(AWS_AUTH, null));
         assertTrue(errors.isEmpty(), "Expected no errors, got:\n" + errors);
     }
@@ -129,7 +129,7 @@ class AwsSigV4AuthenticationSchemaTest {
     }
 
     @Test
-    void acceptsAwsSigV4OnAConsumedMcpAdapter() throws Exception {
+    void schemaShouldAcceptAwsSigV4WhenOnAConsumedMcpAdapter() throws Exception {
         List<Error> errors = validate(mcpCapability(AWS_AUTH + """
                   service: execute-api
             """));
@@ -137,7 +137,7 @@ class AwsSigV4AuthenticationSchemaTest {
     }
 
     @Test
-    void deserializesAwsSigV4OnAConsumedMcpAdapter() throws Exception {
+    void deserializationShouldBuildTheSpecWhenOnAConsumedMcpAdapter() throws Exception {
         IkanosSpec spec = IkanosMappers.yaml().readValue(mcpCapability(AWS_AUTH), IkanosSpec.class);
 
         McpClientSpec billing = (McpClientSpec) spec.getCapability().getConsumes().get(0);
@@ -147,7 +147,7 @@ class AwsSigV4AuthenticationSchemaTest {
     }
 
     @Test
-    void acceptsTheOptionalFields() throws Exception {
+    void schemaShouldAcceptTheOptionalFieldsWhenDeclared() throws Exception {
         List<Error> errors = validate(capability(AWS_AUTH + """
                   service: execute-api
                   sessionToken: "{{S3_SESSION_TOKEN}}"
@@ -157,19 +157,19 @@ class AwsSigV4AuthenticationSchemaTest {
     }
 
     @Test
-    void rejectsAwsSigV4WithoutARegion() throws Exception {
+    void schemaShouldRejectAwsSigV4WhenTheRegionIsMissing() throws Exception {
         assertFalse(validate(capability(AWS_AUTH.replace("      region: us-east-1\n", ""), null))
                 .isEmpty());
     }
 
     @Test
-    void rejectsAwsSigV4OnAnExposedAdapter() throws Exception {
+    void schemaShouldRejectAwsSigV4WhenOnAnExposedAdapter() throws Exception {
         assertFalse(validate(capability(AWS_AUTH, AWS_AUTH)).isEmpty(),
                 "awsSigV4 only signs outgoing requests; an exposed adapter can't declare it");
     }
 
     @Test
-    void deserializesIntoItsSpec() throws Exception {
+    void deserializationShouldBuildTheSpecWhenOnAConsumedHttpAdapter() throws Exception {
         IkanosSpec spec = IkanosMappers.yaml().readValue(capability(AWS_AUTH + """
                   sessionToken: "{{S3_SESSION_TOKEN}}"
             """, null), IkanosSpec.class);

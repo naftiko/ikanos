@@ -68,7 +68,7 @@ class ConsumedAuthenticationAwsSigV4Test {
                     "S3_SESSION_TOKEN", "tok"));
 
     @Test
-    void rendersTheCredentialsAndParametersFromTheBindings() {
+    void applyShouldRenderTheCredentialsAndParametersFromTheBindings() {
         AwsSigV4AuthenticationSpec spec = spec("us-east-1");
         spec.setService("s3");
         spec.setSessionToken("{{secrets.S3_SESSION_TOKEN}}");
@@ -94,7 +94,7 @@ class ConsumedAuthenticationAwsSigV4Test {
     }
 
     @Test
-    void omitsTheOptionalParametersWhenNotDeclared() {
+    void applyShouldOmitTheOptionalParametersWhenNotDeclared() {
         Request request = new Request(Method.GET, TARGET);
 
         ConsumedAuthentication.apply(spec("eu-west-3"), null, request, TARGET, BOUND);
@@ -106,7 +106,7 @@ class ConsumedAuthenticationAwsSigV4Test {
     }
 
     @Test
-    void doesNotSendAnUnboundSecret() {
+    void applyShouldRefuseToSendWhenTheSecretIsUnbound() {
         Request request = new Request(Method.GET, TARGET);
         Map<String, Object> missingSecret =
                 Map.of("secrets", Map.of("S3_ACCESS_KEY_ID", "AKID"));
@@ -122,7 +122,7 @@ class ConsumedAuthenticationAwsSigV4Test {
     }
 
     @Test
-    void doesNotSendWithoutARegion() {
+    void applyShouldRefuseToSendWhenTheRegionIsMissing() {
         Request request = new Request(Method.GET, TARGET);
 
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
@@ -134,7 +134,7 @@ class ConsumedAuthenticationAwsSigV4Test {
     }
 
     @Test
-    void listsItsTemplatesForTheLoadTimeCheck() {
+    void credentialsShouldListTheTemplatesForTheLoadTimeCheck() {
         AwsSigV4AuthenticationSpec spec = spec("{{region}}");
         spec.setSessionToken("{{secrets.S3_SESSION_TOKEN}}");
 
@@ -147,7 +147,7 @@ class ConsumedAuthenticationAwsSigV4Test {
 
     /** #957 review: awsSigV4 is a type the engine sends, so a capability with it loads. */
     @Test
-    void isAcceptedWhenTheCapabilityLoads() {
+    void findUnsupportedShouldAcceptACompleteAwsSigV4Credential() {
         assertEquals(List.of(),
                 ConsumedAuthentication.findUnsupported(capability(spec("us-east-1"))));
     }
@@ -165,7 +165,7 @@ class ConsumedAuthenticationAwsSigV4Test {
             "{{A}} | '' | us-east-1 | an empty secretAccessKey",
             "{{A}} | {{S}} | ' ' | an empty region",
             "| | | no accessKeyId, no secretAccessKey and no region"}, delimiter = '|')
-    void isRefusedWhenTheCapabilityLoadsWithoutAKeyASecretOrARegion(String accessKeyId,
+    void findUnsupportedShouldReportAnAwsSigV4WhenAKeyASecretOrARegionIsMissing(String accessKeyId,
             String secretAccessKey, String region, String lacks) {
         AwsSigV4AuthenticationSpec spec = new AwsSigV4AuthenticationSpec();
         spec.setAccessKeyId(accessKeyId);
@@ -185,7 +185,7 @@ class ConsumedAuthenticationAwsSigV4Test {
      * Each round removes it, then releases the threads together.
      */
     @Test
-    void registersTheHelperOnceWhenCalledConcurrently() throws Exception {
+    void ensureRegisteredShouldRegisterTheHelperOnceWhenCalledConcurrently() throws Exception {
         List<AuthenticatorHelper> registered = Engine.getInstance().getRegisteredAuthenticators();
         int threads = 16;
         ExecutorService pool = Executors.newFixedThreadPool(threads);
