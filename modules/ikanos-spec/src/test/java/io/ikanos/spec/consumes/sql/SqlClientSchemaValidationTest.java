@@ -241,6 +241,46 @@ class SqlClientSchemaValidationTest {
     }
 
     @Test
+    void schemaAndRuntimeShouldAcceptAWriteProcedureWithMaxAffectedRows() throws Exception {
+        String yaml = capability("""
+                get-customer:
+                  description: Marks one order as shipped.
+                  readOnly: false
+                  maxAffectedRows: 1
+                  statement: update orders set status = 'SHIPPED' where id = :id
+                  inputParameters:
+                    id: { type: string }
+                  outputParameters:
+                    updated: { type: number, value: "$.rowCount" }
+                """);
+
+        assertTrue(validate(yaml).isEmpty(), "write procedure must validate: " + validate(yaml));
+        SqlProcedureSpec procedure = ((SqlClientSpec) YAML.readValue(yaml, IkanosSpec.class)
+                .getCapability().getConsumes().get(0)).getProcedures().get("get-customer");
+        assertEquals(Boolean.FALSE, procedure.getReadOnly());
+        assertEquals(1, procedure.getMaxAffectedRows());
+    }
+
+    @Test
+    void schemaShouldRejectMaxAffectedRowsOnARead() throws Exception {
+        String write = """
+                get-customer:
+                  description: Reads one order.
+                  readOnly: false
+                  maxAffectedRows: 1
+                  statement: select id from orders where id = :id
+                  inputParameters:
+                    id: { type: string }
+                """;
+
+        assertFalse(validate(capability(write.replace("readOnly: false", "readOnly: true")))
+                .isEmpty(), "maxAffectedRows needs readOnly: false");
+        assertFalse(validate(capability(write.replace("  readOnly: false\n", "")))
+                .isEmpty(),
+                "maxAffectedRows needs an explicit readOnly: false");
+    }
+
+    @Test
     void schemaShouldRejectAUrlThatIsNotJdbc() throws Exception {
         String yaml = capability(GET_CUSTOMER).replace("\"{{JDBC_URL}}\"",
                 "\"https://db.example.com\"");
@@ -279,10 +319,11 @@ class SqlClientSchemaValidationTest {
     }
 
     @Test
-    void schemaShouldRejectReadOnlyFalseUntilWritesAreSupported() throws Exception {
-        String yaml = capability(GET_BALANCE.replace("readOnly: true", "readOnly: false"));
+    void schemaShouldRejectMaxAffectedRowsOnAStoredProcedure() throws Exception {
+        String yaml = capability(GET_BALANCE.replace("readOnly: true",
+                "readOnly: false\n  maxAffectedRows: 1"));
 
-        assertFalse(validate(yaml).isEmpty(), "readOnly: false is not supported yet");
+        assertFalse(validate(yaml).isEmpty(), "maxAffectedRows applies to statements only");
     }
 
     @Test

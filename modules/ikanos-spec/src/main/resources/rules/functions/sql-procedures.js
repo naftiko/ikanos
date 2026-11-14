@@ -19,10 +19,20 @@
  *   `outParameters` are unique and contiguous from 1, an `INOUT` parameter
  *   taking the same position in both; `outParameters` only appear with a
  *   `storedProcedure`.
+ * - `exposure` (`ikanos-sql-write-exposure`): a procedure with
+ *   `readOnly: false` is not reached by an MCP tool claiming
+ *   `hints.readOnly: true`, or inheriting it from the `hints` of its MCP
+ *   exposes block, an MCP resource, a REST GET or HEAD operation, or
+ *   an aggregate flow declaring `semantics.safe: true`. A target reaches a
+ *   procedure through its `call`, its steps' `call`, its `ref`, and any flow
+ *   those name, followed transitively.
  */
 export default function sqlProcedures(targetVal, opts) {
   if (!targetVal || typeof targetVal !== "object") {
     return;
+  }
+  if (opts && opts.check === "exposure") {
+    return checkExposure(targetVal);
   }
   const check = opts && opts.check === "positions" ? checkPositions : checkPlaceholders;
   const results = [];
@@ -62,6 +72,221 @@ function dialectOf(adapter) {
     mysql: name === "mysql" || name === "mariadb",
     sqlite: name === "sqlite",
   };
+}
+
+function writeProcedures(targetVal) {
+  const writes = new Set();
+  const collect = (consumes) => {
+    if (!Array.isArray(consumes)) {
+      return;
+    }
+    for (const adapter of consumes) {
+      if (!adapter || adapter.type !== "sql" || !isObject(adapter.procedures)) {
+        continue;
+      }
+      for (const [name, procedure] of Object.entries(adapter.procedures)) {
+        if (isObject(procedure) && procedure.readOnly === false) {
+          writes.add(adapter.namespace + "." + name);
+        }
+      }
+    }
+  };
+  collect(targetVal.consumes);
+  if (isObject(targetVal.capability)) {
+    collect(targetVal.capability.consumes);
+  }
+  return writes;
+}
+
+/** Every `call` an exposed target or a flow makes: its own `call` and each step's. */
+function callsOf(target) {
+  const calls = [];
+  if (!isObject(target)) {
+    return calls;
+  }
+  if (typeof target.call === "string") {
+    calls.push(target.call);
+  }
+  if (isObject(target.steps)) {
+    for (const step of Object.values(target.steps)) {
+      if (isObject(step) && typeof step.call === "string") {
+        calls.push(step.call);
+      }
+    }
+  }
+  return calls;
+}
+
+/**
+ * The aggregate flows, keyed `<aggregate namespace>.<flow name>`, and which of them reach a SQL
+ * write procedure, directly or through another flow.
+ */
+function flowWrites(capability, writes) {
+  const flows = new Map();
+  const aggregates = Array.isArray(capability.aggregates) ? capability.aggregates : [];
+  aggregates.forEach((aggregate, index) => {
+    const entries = isObject(aggregate) && isObject(aggregate.flows) ? aggregate.flows : {};
+    for (const [name, flow] of Object.entries(entries)) {
+      flows.set(aggregate.namespace + "." + name, { name, index, flow });
+    }
+  });
+  const memo = new Map();
+  const reach = (key, seen) => {
+    if (memo.has(key)) {
+      return memo.get(key);
+    }
+    if (seen.has(key) || !flows.has(key)) {
+      return null;
+    }
+    seen.add(key);
+    let found = null;
+    for (const call of callsOf(flows.get(key).flow)) {
+      found = writes.has(call) ? call : reach(call, seen);
+      if (found) {
+        break;
+      }
+    }
+    memo.set(key, found);
+    return found;
+  };
+  for (const key of flows.keys()) {
+    reach(key, new Set());
+  }
+  return { flows, reach: (key) => memo.get(key) || null };
+}
+
+/** @return the SQL write procedure an exposed target reaches, or null */
+function writeReached(target, writes, flows) {
+  if (!isObject(target)) {
+    return null;
+  }
+  const calls = callsOf(target);
+  if (typeof target.ref === "string") {
+    calls.push(target.ref);
+  }
+  for (const call of calls) {
+    const found = writes.has(call) ? call : flows.reach(call);
+    if (found) {
+      return found;
+    }
+  }
+  return null;
+}
+
+function checkExposure(targetVal) {
+  const writes = writeProcedures(targetVal);
+  const results = [];
+  if (writes.size === 0 || !isObject(targetVal.capability)) {
+    return results;
+  }
+  const capability = targetVal.capability;
+  const flows = flowWrites(capability, writes);
+  const exposes = Array.isArray(capability.exposes) ? capability.exposes : [];
+  exposes.forEach((adapter, index) => {
+    if (!isObject(adapter)) {
+      return;
+    }
+    const base = ["capability", "exposes", index];
+    if (adapter.type === "mcp" && isObject(adapter.tools)) {
+      for (const [name, tool] of Object.entries(adapter.tools)) {
+        const write = writeReached(tool, writes, flows);
+        if (!write) {
+          continue;
+        }
+        if (isObject(tool) && isObject(tool.hints) && tool.hints.readOnly === true) {
+          results.push({
+            message: "MCP tool '" + name + "' claims hints.readOnly: true but calls SQL write procedure '" + write + "'.",
+            path: [...base, "tools", name, "hints", "readOnly"],
+          });
+        } else if (inheritsReadOnly(tool, adapter, capability)) {
+          results.push({
+            message: "MCP tool '" + name + "' inherits hints.readOnly: true from its exposes block but calls SQL write procedure '" + write + "'; declare hints.readOnly: false on the tool.",
+            path: [...base, "tools", name],
+          });
+        }
+      }
+    }
+    if (adapter.type === "mcp" && isObject(adapter.resources)) {
+      for (const [name, resource] of Object.entries(adapter.resources)) {
+        const write = writeReached(resource, writes, flows);
+        if (write) {
+          results.push({
+            message: "MCP resource '" + name + "' calls SQL write procedure '" + write + "'; reading a resource must not change data.",
+            path: [...base, "resources", name],
+          });
+        }
+      }
+    }
+    if (adapter.type === "rest" && isObject(adapter.resources)) {
+      for (const [resourceName, resource] of Object.entries(adapter.resources)) {
+        const operations = isObject(resource) && isObject(resource.operations) ? resource.operations : {};
+        for (const [name, operation] of Object.entries(operations)) {
+          const method = isObject(operation) && typeof operation.method === "string"
+            ? operation.method.toUpperCase() : "";
+          const write = writeReached(operation, writes, flows);
+          if (write && (method === "GET" || method === "HEAD")) {
+            results.push({
+              message: "REST operation '" + name + "' uses " + method + " but calls SQL write procedure '" + write + "'.",
+              path: [...base, "resources", resourceName, "operations", name, "method"],
+            });
+          }
+        }
+      }
+    }
+  });
+  for (const { name, index, flow } of flows.flows.values()) {
+    if (!isObject(flow) || !isObject(flow.semantics) || flow.semantics.safe !== true) {
+      continue;
+    }
+    const write = flows.reach(capability.aggregates[index].namespace + "." + name);
+    if (write) {
+      results.push({
+        message: "Aggregate flow '" + name + "' declares semantics.safe: true but calls SQL write procedure '" + write + "'.",
+        path: ["capability", "aggregates", index, "flows", name, "semantics", "safe"],
+      });
+    }
+  }
+  return results;
+}
+
+/**
+ * Whether an MCP tool resolves `readOnly: true` from the server's default `hints`, as
+ * McpServerSpec.resolveToolHints does: the tool's own `readOnly` wins; a tool declaring
+ * `destructive: true` without `readOnly` resolves to false; for a `ref` tool, a flow declaring
+ * `semantics.safe` decides (a safe flow that writes is reported on the flow); otherwise the
+ * exposes block's `hints.readOnly` applies.
+ */
+function inheritsReadOnly(tool, adapter, capability) {
+  if (!isObject(adapter.hints) || adapter.hints.readOnly !== true) {
+    return false;
+  }
+  const hints = isObject(tool) && isObject(tool.hints) ? tool.hints : {};
+  if (typeof hints.readOnly === "boolean" || hints.destructive === true) {
+    return false;
+  }
+  if (isObject(tool) && typeof tool.ref === "string") {
+    const flow = flowNamed(capability, tool.ref);
+    if (flow && isObject(flow.semantics) && typeof flow.semantics.safe === "boolean") {
+      return false;
+    }
+  }
+  return true;
+}
+
+/** The aggregate flow a `<aggregate namespace>.<flow name>` reference names, or null. */
+function flowNamed(capability, ref) {
+  const aggregates = Array.isArray(capability.aggregates) ? capability.aggregates : [];
+  for (const aggregate of aggregates) {
+    if (!isObject(aggregate) || !isObject(aggregate.flows)) {
+      continue;
+    }
+    for (const [name, flow] of Object.entries(aggregate.flows)) {
+      if (aggregate.namespace + "." + name === ref && isObject(flow)) {
+        return flow;
+      }
+    }
+  }
+  return null;
 }
 
 function checkPositions(namespace, name, procedure, path, dialect, results) {

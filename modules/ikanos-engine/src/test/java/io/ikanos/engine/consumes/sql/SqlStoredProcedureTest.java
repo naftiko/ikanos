@@ -178,15 +178,6 @@ class SqlStoredProcedureTest {
     }
 
     @Test
-    void constructorShouldRefuseReadOnlyFalseUntilWritesAreSupported() throws Exception {
-        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-                () -> new SqlClientAdapter(null, spec(GET_BALANCE.replace("readOnly: true",
-                        "readOnly: false"))));
-
-        assertTrue(e.getMessage().contains("not supported yet"), e.getMessage());
-    }
-
-    @Test
     void constructorShouldRefuseAGapInPositions() throws Exception {
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> new SqlClientAdapter(null, spec(GET_BALANCE.replace("position: 3",

@@ -123,6 +123,64 @@ class SqlStatementTest {
     }
 
     @Test
+    void writeOperationShouldRefuseADataModifyingCteWhoseRowsTheDriverWouldNotCount() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> SqlStatement.parse("with d as (delete from t where id > 0 returning *)"
+                        + " select count(*) from d").writeOperation());
+
+        assertTrue(e.getMessage().contains("inside a WITH"), e.getMessage());
+    }
+
+    @Test
+    void writeOperationShouldAcceptAWriteAfterAWithThatOnlyReads() {
+        assertEquals("UPDATE", SqlStatement.parse("with x as (select id from s where flag)"
+                + " update t set n = 0 where id in (select id from x)").writeOperation());
+    }
+
+    @Test
+    void writeOperationShouldRefuseTwoWrites() {
+        assertThrows(IllegalArgumentException.class, () -> SqlStatement
+                .parse("with d as (delete from t where id = :id) insert into log values (1)")
+                .writeOperation());
+    }
+
+    @Test
+    void writeOperationShouldAcceptAnUpsertWhoseUpdateIsAClause() {
+        assertEquals("INSERT", SqlStatement.parse(
+                "insert into t (id, n) values (:id, 1) on duplicate key update n = n + 1")
+                .writeOperation());
+    }
+
+    @Test
+    void writeOperationShouldRefuseAWithThatOnlyReads() {
+        assertThrows(IllegalArgumentException.class,
+                () -> SqlStatement.parse("with x as (select 1) select * from x").writeOperation());
+    }
+
+    @Test
+    void writeOperationShouldRefuseAnUpdateWhoseOnlyWhereIsInASubquery() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> SqlStatement.parse("update t set n = (select max(n) from s where s.id = 1)")
+                        .writeOperation());
+
+        assertTrue(e.getMessage().contains("without WHERE"), e.getMessage());
+    }
+
+    @Test
+    void writeOperationShouldAcceptAnOnConflictDoUpdateUpsert() {
+        assertEquals("INSERT", SqlStatement.parse("insert into t (id, n) values (:id, 1)"
+                + " on conflict (id) do update set n = t.n + 1").writeOperation());
+    }
+
+    @Test
+    void writeOperationShouldRefuseACallToAProcedure() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> SqlStatement.parse("call settle_invoices()").writeOperation());
+
+        assertTrue(e.getMessage().contains("CALL"), e.getMessage());
+    }
+
+    @Test
     void nonReadKeywordShouldIgnoreKeywordsInLiteralsAndOrdinaryColumns() {
         assertNull(SqlStatement
                 .parse("select comment, replace(name, 'a', 'b'), 'delete' from t")
@@ -251,5 +309,227 @@ class SqlStatementTest {
 
         assertEquals("select id from t where payload ?? 'k' and tags ??| array['a'] and id = ?",
                 statement.jdbcSql());
+    }
+
+    @Test
+    void writeOperationShouldAcceptAnOracleMergeWithADeleteWhereClause() {
+        assertEquals("MERGE", SqlStatement.parse("merge into t using s on (t.id = s.id)"
+                + " when matched then update set t.n = s.n delete where t.n = 0"
+                + " when not matched then insert (id, n) values (s.id, s.n)").writeOperation());
+    }
+
+    @Test
+    void writeOperationShouldStillRefuseADeleteAfterAWriteThatIsNotAMerge() {
+        assertThrows(IllegalArgumentException.class, () -> SqlStatement
+                .parse("update t set n = 0 where id = 1 delete where id = 2").writeOperation());
+    }
+
+    @Test
+    void returnsRowsShouldReadAnOutputClauseButNotAColumnNamedOutput() {
+        SqlStatement.Dialect sqlServer = SqlStatement.Dialect.SQLSERVER;
+        assertFalse(SqlStatement.parse("insert into audit (output) values (:value)", sqlServer)
+                .returnsRows());
+        assertTrue(SqlStatement.parse("insert into t (a) output inserted.id values (1)",
+                sqlServer).returnsRows());
+        assertTrue(SqlStatement.parse("merge into t using s on t.id = s.id when matched then"
+                + " delete output $action, deleted.id;", sqlServer).returnsRows());
+        assertTrue(SqlStatement.parse("insert into t (a) values (1) returning id")
+                .returnsRows());
+    }
+
+    @Test
+    void returnsRowsShouldNotReadOutputColumnsAsAnOutputClause() {
+        for (SqlStatement.Dialect dialect : SqlStatement.Dialect.values()) {
+            assertFalse(SqlStatement.parse("insert into audit (output, inserted)"
+                    + " values (:output, :inserted)", dialect).returnsRows(), dialect.name());
+            assertFalse(SqlStatement.parse("insert into audit select output, inserted from x",
+                    dialect).returnsRows(), dialect.name());
+        }
+        assertFalse(SqlStatement.parse("insert into t (a) output inserted.id values (1)",
+                SqlStatement.Dialect.POSTGRESQL).returnsRows());
+    }
+
+    @Test
+    void returnsRowsShouldNotReadAColumnNamedReturningAsAReturningClause() {
+        for (SqlStatement.Dialect dialect : SqlStatement.Dialect.values()) {
+            assertFalse(SqlStatement.parse("insert into audit (returning) values (:value)",
+                    dialect).returnsRows(), dialect.name());
+        }
+        // SQL Server has no RETURNING clause: there it is always a name
+        assertFalse(SqlStatement.parse("insert into audit select a from s returning",
+                SqlStatement.Dialect.SQLSERVER).returnsRows());
+        assertTrue(SqlStatement.parse("insert into t (a) values (1) returning id",
+                SqlStatement.Dialect.POSTGRESQL).returnsRows());
+    }
+
+    @Test
+    void writeOperationShouldRefuseASecondSqlServerStatementThatSelects() {
+        for (String sql : List.of(
+                "update orders set status = 'SHIPPED' select id into orders_copy from orders"
+                        + " where id = 1",
+                "insert into t (a) values (1) select a into c from t",
+                "insert into t select 1 select a into c from t",
+                "delete from t where id = 1 select * from t")) {
+            assertThrows(IllegalArgumentException.class,
+                    () -> SqlStatement.parse(sql, SqlStatement.Dialect.SQLSERVER)
+                            .writeOperation(), sql);
+        }
+    }
+
+    @Test
+    void writeOperationShouldAcceptAnInsertFromASelectOnSqlServer() {
+        for (String sql : List.of(
+                "insert into t (a) select a from s where id = :id",
+                "insert into t select a from s union all select a from u",
+                "update t set a = (select max(a) from s) where id = 1",
+                "with src as (select a from s) insert into t select a from src")) {
+            assertEquals(sql.substring(0, 6).equals("update") ? "UPDATE" : "INSERT",
+                    SqlStatement.parse(sql, SqlStatement.Dialect.SQLSERVER).writeOperation(),
+                    sql);
+        }
+    }
+
+    @Test
+    void writeOperationShouldRefuseAStatementAppendedWithoutASeparator() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> SqlStatement.parse("UPDATE orders SET status = 'SHIPPED'"
+                        + " WHERE region = 'EU' COMMIT").writeOperation());
+
+        assertTrue(e.getMessage().contains("COMMIT"), e.getMessage());
+        assertThrows(IllegalArgumentException.class, () -> SqlStatement
+                .parse("delete from orders where id = 1 drop table orders").writeOperation());
+    }
+
+    @Test
+    void writeOperationShouldRefuseASqlServerStatementWithoutASeparator() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> SqlStatement.parse("update orders set status = 'SHIPPED' where id = 1"
+                        + " print 'done'", SqlStatement.Dialect.SQLSERVER).writeOperation());
+
+        assertTrue(e.getMessage().contains("PRINT"), e.getMessage());
+        assertThrows(IllegalArgumentException.class, () -> SqlStatement.parse(
+                "insert into t (a) values (1) declare @x int", SqlStatement.Dialect.SQLSERVER)
+                .writeOperation());
+        // only the SET of an UPDATE belongs to it
+        e = assertThrows(IllegalArgumentException.class, () -> SqlStatement.parse(
+                "update t set a = 1 where id = 1 set nocount on", SqlStatement.Dialect.SQLSERVER)
+                .writeOperation());
+        assertTrue(e.getMessage().contains("SET"), e.getMessage());
+    }
+
+    @Test
+    void writeOperationShouldRefuseTriggerDdlAppendedToASqlServerWrite() {
+        for (String keyword : List.of("DISABLE", "ENABLE")) {
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                    () -> SqlStatement.parse("update orders set status = 'SHIPPED' where id = 1 "
+                            + keyword.toLowerCase() + " trigger audit on orders",
+                            SqlStatement.Dialect.SQLSERVER).writeOperation());
+
+            assertTrue(e.getMessage().contains(keyword), e.getMessage());
+        }
+        assertEquals("UPDATE", SqlStatement.parse("update t set \"disable\" = 1 where id = 1",
+                SqlStatement.Dialect.SQLSERVER).writeOperation());
+    }
+
+    @Test
+    void writeOperationShouldAcceptTheSetOfAnUpdateOnSqlServer() {
+        assertEquals("UPDATE", SqlStatement.parse("update orders set status = :status"
+                + " where id = :id", SqlStatement.Dialect.SQLSERVER).writeOperation());
+        assertEquals("MERGE", SqlStatement.parse("merge into t using s on t.id = s.id"
+                + " when matched then update set t.n = s.n"
+                + " when not matched then insert (id, n) values (s.id, s.n);",
+                SqlStatement.Dialect.SQLSERVER).writeOperation());
+        // a T-SQL keyword is no statement keyword elsewhere
+        assertEquals("INSERT", SqlStatement.parse("insert into audit (print) values (1)",
+                SqlStatement.Dialect.POSTGRESQL).writeOperation());
+    }
+
+    @Test
+    void writeOperationShouldNotReadABracketIdentifierAsWhere() {
+        for (SqlStatement.Dialect dialect
+                : List.of(SqlStatement.Dialect.SQLSERVER, SqlStatement.Dialect.SQLITE)) {
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                    () -> SqlStatement.parse("UPDATE orders SET [where] = 1", dialect)
+                            .writeOperation(), dialect.name());
+
+            assertTrue(e.getMessage().contains("without WHERE"), e.getMessage());
+            assertEquals("DELETE", SqlStatement.parse(
+                    "delete from orders where [where] = 1", dialect).writeOperation());
+        }
+    }
+
+    @Test
+    void writeOperationShouldNotReadAWhereHiddenInANestedComment() {
+        for (SqlStatement.Dialect dialect
+                : List.of(SqlStatement.Dialect.POSTGRESQL, SqlStatement.Dialect.SQLSERVER)) {
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                    () -> SqlStatement.parse("update orders set status = 'SHIPPED'"
+                            + " /* outer /* inner */ where id = 1 */", dialect).writeOperation(),
+                    dialect.name());
+
+            assertTrue(e.getMessage().contains("without WHERE"), e.getMessage());
+        }
+    }
+
+    @Test
+    void writeOperationShouldRefuseADeleteAfterAColumnNamedDoOnSqlServer() {
+        // DO is no reserved word in T-SQL: the DELETE is a second statement, not an upsert clause
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> SqlStatement.parse("update orders set status = 'SHIPPED' where id = do"
+                        + " delete from orders", SqlStatement.Dialect.SQLSERVER)
+                        .writeOperation());
+
+        assertTrue(e.getMessage().contains("DELETE"), e.getMessage());
+        assertThrows(IllegalArgumentException.class, () -> SqlStatement.parse(
+                "insert into t (a) select do from s where id = 1 do delete from t",
+                SqlStatement.Dialect.SQLSERVER).writeOperation());
+        assertEquals("INSERT", SqlStatement.parse("insert into t (id, n) values (:id, 1)"
+                + " on conflict (id) do update set n = t.n + 1",
+                SqlStatement.Dialect.POSTGRESQL).writeOperation());
+    }
+
+    @Test
+    void writeOperationShouldRefuseAMergeThatDeletesEveryRowTheSourceLacks() {
+        for (SqlStatement.Dialect dialect
+                : List.of(SqlStatement.Dialect.SQLSERVER, SqlStatement.Dialect.POSTGRESQL)) {
+            for (String branch : List.of("delete", "update set t.n = 0")) {
+                IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                        () -> SqlStatement.parse("merge into t using s on t.id = s.id"
+                                + " when matched then update set t.n = s.n"
+                                + " when not matched by source then " + branch + ";", dialect)
+                                .writeOperation(), dialect.name());
+
+                assertTrue(e.getMessage().contains("BY SOURCE"), e.getMessage());
+            }
+            assertEquals("MERGE", SqlStatement.parse("merge into t using s on t.id = s.id"
+                    + " when not matched by source and t.region = :region then delete"
+                    + " when not matched by target then insert (id) values (s.id);", dialect)
+                    .writeOperation(), dialect.name());
+        }
+    }
+
+    @Test
+    void writeOperationShouldRefuseASqlServerJoinedDeleteWithoutWhere() {
+        for (String sql : List.of(
+                "delete t from orders t join stale s on t.id = s.id",
+                "delete from orders from orders join stale s on orders.id = s.id",
+                "delete t from orders t join (select id from stale where flag = 1) s"
+                        + " on t.id = s.id")) {
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                    () -> SqlStatement.parse(sql, SqlStatement.Dialect.SQLSERVER)
+                            .writeOperation(), sql);
+
+            assertTrue(e.getMessage().contains("without WHERE"), e.getMessage());
+        }
+        assertEquals("DELETE", SqlStatement.parse("delete t from orders t join stale s"
+                + " on t.id = s.id where s.flag = 1", SqlStatement.Dialect.SQLSERVER)
+                .writeOperation());
+    }
+
+    @Test
+    void parseShouldRecordAnAuthoredTerminator() {
+        assertTrue(SqlStatement.parse("merge into t using s on t.id = s.id"
+                + " when matched then update set t.n = s.n;").terminated());
+        assertFalse(SqlStatement.parse("update t set n = 0 where id = 1").terminated());
     }
 }

@@ -42,6 +42,7 @@ public class SqlProcedureSpec extends OperationSpec {
             Collections.synchronizedMap(new LinkedHashMap<>());
     private final AtomicReference<Integer> timeoutMs = new AtomicReference<>();
     private final AtomicReference<Integer> fetchSize = new AtomicReference<>();
+    private final AtomicReference<Integer> maxAffectedRows = new AtomicReference<>();
 
     public SqlProcedureSpec() {
         super();
@@ -69,7 +70,8 @@ public class SqlProcedureSpec extends OperationSpec {
 
     /**
      * Whether the procedure only reads. Defaults to {@code true} for a statement, which is
-     * checked; a stored procedure is opaque to the engine, so it must say.
+     * checked; a stored procedure is opaque to the engine, so it must say. {@code false} lets the
+     * procedure write, in one transaction per call.
      *
      * @return the declared value, or {@code null} when absent
      */
@@ -116,5 +118,18 @@ public class SqlProcedureSpec extends OperationSpec {
 
     public void setFetchSize(Integer fetchSize) {
         this.fetchSize.set(fetchSize);
+    }
+
+    /**
+     * @return the most rows one call may change; past it, the call rolls back and fails.
+     *     {@code null} for no cap
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public Integer getMaxAffectedRows() {
+        return maxAffectedRows.get();
+    }
+
+    public void setMaxAffectedRows(Integer maxAffectedRows) {
+        this.maxAffectedRows.set(maxAffectedRows);
     }
 }

@@ -2,9 +2,10 @@
 #   bound credentials, read statements (with a leading comment, a CTE, a cast,
 #   a placeholder used twice and a colon inside a string literal), and every
 #   input used through its placeholder or its key; a stored procedure with
-#   readOnly, an INOUT parameter and contiguous positions. A PostgreSQL URL
-#   nests block comments, a SQL Server URL reads [...] as an identifier, and a
-#   MySQL URL reads # as a comment.
+#   readOnly, an INOUT parameter and contiguous positions; a write statement
+#   exposed through an MCP tool without readOnly and a REST POST. A PostgreSQL
+#   URL nests block comments, a SQL Server URL reads [...] as an identifier,
+#   and a MySQL URL reads # as a comment.
 ikanos: "1.0.0-beta10"
 info:
   display: "Consumed SQL rules — compliant"
@@ -60,6 +61,17 @@ capability:
             rate: { position: 3, sqlType: DECIMAL }
           outputParameters:
             amount: { type: number, value: "$.out.amount" }
+        mark-shipped:
+          description: Marks one paid order as shipped.
+          readOnly: false
+          maxAffectedRows: 1
+          statement: |
+            -- one order at a time
+            update orders set status = 'SHIPPED' where id = :id and status = 'PAID'
+          inputParameters:
+            id: { type: string }
+          outputParameters:
+            updated: { type: number, value: "$.rowCount" }
     - type: sql
       namespace: pg
       description: "PostgreSQL database, read with nested comments."
@@ -115,3 +127,22 @@ capability:
           description: Customers changed since a time.
           hints: { readOnly: true }
           call: erp.changed-since
+        mark-shipped:
+          description: Marks one order as shipped.
+          hints: { readOnly: false, destructive: false }
+          call: erp.mark-shipped
+    - type: rest
+      namespace: erp-rest
+      port: 3002
+      resources:
+        orders:
+          path: /orders/{id}/ship
+          description: Ship an order.
+          operations:
+            ship:
+              method: POST
+              call: erp.mark-shipped
+              inputParameters:
+                id: { in: path, type: string, description: Order id }
+              with:
+                id: "{{id}}"

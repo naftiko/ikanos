@@ -93,6 +93,26 @@ final class SqlConsumedResult implements ConsumedResult {
         return new SqlConsumedResult(operation, null, 502, reason(502), e);
     }
 
+    /**
+     * A write that would change more rows than its {@code maxAffectedRows}: 409, rolled back, so
+     * nothing changed.
+     */
+    static SqlConsumedResult tooManyRows(ConsumedOperationView operation, long changed, int max) {
+        return new SqlConsumedResult(operation, null, 409,
+                "The call would change more rows than allowed", new SqlClientException(
+                        "would change " + changed + " rows, more than maxAffectedRows " + max));
+    }
+
+    /**
+     * A capped write whose driver reported no row count, as SQL Server does under
+     * {@code SET NOCOUNT ON}: 502, rolled back, since {@code maxAffectedRows} cannot be checked.
+     */
+    static SqlConsumedResult rowCountUnknown(ConsumedOperationView operation, int max) {
+        return new SqlConsumedResult(operation, null, 502, reason(502), new SqlClientException(
+                "the database reported no row count, so maxAffectedRows " + max
+                        + " cannot be checked; turn NOCOUNT off for this connection"));
+    }
+
     static int status(SQLException e) {
         String state = e.getSQLState();
         if (e instanceof SQLTimeoutException || "57014".equals(state)) {

@@ -36,9 +36,9 @@ import java.util.Set;
  *
  * <p>On PostgreSQL and SQL Server, block comments nest. On SQL Server and SQLite, {@code […]} is
  * a quoted identifier. SQL Server also runs a batch whose statements are not separated by
- * {@code ;}, so there the statement keywords of T-SQL are refused anywhere in a read
- * ({@link #SQLSERVER_STATEMENT_KEYWORDS}); they are reserved words, so no unquoted column can
- * carry them.</p>
+ * {@code ;}, so there the statement keywords of T-SQL are refused anywhere in a read or a
+ * write, but for the {@code SET} of an {@code UPDATE} ({@link #SQLSERVER_STATEMENT_KEYWORDS});
+ * they are reserved words, so no unquoted column can carry them.</p>
  *
  * <p>The SQL itself is sent to the driver verbatim otherwise: Ikanos never rewrites the dialect.</p>
  */
@@ -98,14 +98,27 @@ final class SqlStatement {
     private final String jdbcSql;
     private final List<String> placeholders;
     private final List<String> keywords;
+    private final List<Integer> depths;
+    /** Where each keyword starts in {@link #sql}. */
+    private final List<Integer> offsets;
+    private final boolean terminated;
 
     private SqlStatement(String sql, Dialect dialect, String jdbcSql, List<String> placeholders,
-            List<String> keywords) {
+            List<String> keywords, List<Integer> depths, List<Integer> offsets,
+            boolean terminated) {
         this.sql = sql;
         this.dialect = dialect;
         this.jdbcSql = jdbcSql;
         this.placeholders = Collections.unmodifiableList(placeholders);
         this.keywords = Collections.unmodifiableList(keywords);
+        this.depths = Collections.unmodifiableList(depths);
+        this.offsets = Collections.unmodifiableList(offsets);
+        this.terminated = terminated;
+    }
+
+    /** @return whether the author ended the statement with {@code ;}, which jdbcSql drops */
+    boolean terminated() {
+        return terminated;
     }
 
     /** @return the statement as authored */
@@ -150,6 +163,259 @@ final class SqlStatement {
         return null;
     }
 
+    /** Keywords that start a statement that writes rows. */
+    static final Set<String> WRITE_STARTS = Set.of("INSERT", "UPDATE", "DELETE", "MERGE");
+
+    /**
+     * Keywords that start a statement of their own, never a part of one INSERT, UPDATE, DELETE or
+     * MERGE. SQL Server runs {@code UPDATE t SET a = 1 WHERE id = 1 COMMIT} as two statements, so
+     * the COMMIT would land before {@code maxAffectedRows} could roll back; a write that holds one
+     * of them is refused, on every database. A column with such a name is written quoted.
+     */
+    static final Set<String> OTHER_STATEMENT_KEYWORDS = Set.of("COMMIT", "ROLLBACK", "SAVEPOINT",
+            "DROP", "CREATE", "ALTER", "TRUNCATE", "GRANT", "REVOKE", "EXEC", "EXECUTE",
+            "SHUTDOWN", "WAITFOR", "KILL");
+
+    /**
+     * T-SQL statements that are not reserved words, so not in
+     * {@link #SQLSERVER_STATEMENT_KEYWORDS}, yet change the database: {@code ENABLE TRIGGER} and
+     * {@code DISABLE TRIGGER}. A write that holds them is refused on SQL Server, where
+     * {@code UPDATE t SET a = 1 WHERE id = 1 DISABLE TRIGGER audit ON t} is two statements. A
+     * column with such a name is written quoted.
+     */
+    static final Set<String> SQLSERVER_WRITE_REFUSED_KEYWORDS = Set.of("ENABLE", "DISABLE");
+
+    /**
+     * On SQL Server, which runs a batch whose statements are not separated by {@code ;}, find a
+     * T-SQL statement keyword ({@link #SQLSERVER_STATEMENT_KEYWORDS},
+     * {@link #SQLSERVER_WRITE_REFUSED_KEYWORDS}) in a write, as a read is checked. The {@code SET} of an {@code UPDATE} (one per {@code UPDATE}, a {@code MERGE}
+     * branch included) is part of it; any other {@code SET} starts a statement of its own.
+     *
+     * @return the first such keyword, or {@code null} when there is none or the database is not
+     *     SQL Server
+     */
+    private String sqlServerStatementKeyword() {
+        if (dialect != Dialect.SQLSERVER) {
+            return null;
+        }
+        int pendingSets = 0;
+        for (String keyword : keywords) {
+            if ("UPDATE".equals(keyword)) {
+                pendingSets++;
+            } else if ("SET".equals(keyword) && pendingSets > 0) {
+                pendingSets--;
+            } else if (SQLSERVER_STATEMENT_KEYWORDS.contains(keyword)
+                    || SQLSERVER_WRITE_REFUSED_KEYWORDS.contains(keyword)) {
+                return keyword;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Classify a statement declared {@code readOnly: false}.
+     *
+     * <p>It must run exactly one {@code INSERT}, {@code UPDATE}, {@code DELETE} or {@code MERGE},
+     * as its main statement: first, or after a {@code WITH} whose parts only read. Anything else
+     * is refused. That keeps out DDL ({@code CREATE}, {@code ALTER}, {@code DROP}),
+     * {@code TRUNCATE}, grants, maintenance ({@code VACUUM}, {@code ANALYZE}, {@code REINDEX}) and
+     * procedure calls, which belong in {@code storedProcedure}. It also keeps out a write inside a
+     * {@code WITH} or a subquery: the driver reports only the main statement's row count, so such a
+     * write would escape {@code maxAffectedRows}.</p>
+     *
+     * <p>An {@code UPDATE} or {@code DELETE} needs a {@code WHERE} of its own, at its own level of
+     * parentheses: a {@code WHERE} in a subquery does not limit the rows it changes. A
+     * {@code MERGE} branch ({@code THEN UPDATE}), an upsert ({@code ON CONFLICT DO UPDATE},
+     * {@code ON DUPLICATE KEY UPDATE}) and a locking {@code FOR UPDATE} are clauses, not
+     * statements, and need none, but a {@code WHEN NOT MATCHED BY SOURCE} branch needs an
+     * {@code AND} condition.</p>
+     *
+     * @return the write operation, such as {@code UPDATE}, for the span
+     * @throws IllegalArgumentException naming the keyword that is refused
+     */
+    String writeOperation() {
+        String first = firstKeyword();
+        if (!WRITE_STARTS.contains(first) && !"WITH".equals(first)) {
+            throw new IllegalArgumentException("a write statement must be INSERT, UPDATE, DELETE"
+                    + " or MERGE (or a WITH that runs one); it starts with "
+                    + (first.isEmpty() ? "nothing" : first));
+        }
+        for (String keyword : keywords) {
+            if (OTHER_STATEMENT_KEYWORDS.contains(keyword)) {
+                throw new IllegalArgumentException("a write statement runs one INSERT, UPDATE,"
+                        + " DELETE or MERGE; it also runs " + keyword
+                        + " (quote it if it names a column)");
+            }
+        }
+        String other = sqlServerStatementKeyword();
+        if (other != null) {
+            throw new IllegalArgumentException("a write statement runs one INSERT, UPDATE,"
+                    + " DELETE or MERGE; on SQL Server it also runs " + other
+                    + " (quote it if it names a column)");
+        }
+        String operation = null;
+        for (int i = 0; i < keywords.size(); i++) {
+            String keyword = keywords.get(i);
+            if (!WRITE_STARTS.contains(keyword) || isClause(i)
+                    || isMergeDeleteClause(operation, i)) {
+                continue;
+            }
+            if (depths.get(i) != 0) {
+                throw new IllegalArgumentException(keyword + " inside a WITH or a subquery is"
+                        + " refused: its rows would not count against maxAffectedRows");
+            }
+            if (operation != null) {
+                throw new IllegalArgumentException("a write statement runs one INSERT, UPDATE,"
+                        + " DELETE or MERGE; it also runs " + keyword);
+            }
+            operation = keyword;
+            if (("UPDATE".equals(keyword) || "DELETE".equals(keyword)) && !hasOwnWhere(i)) {
+                throw new IllegalArgumentException(keyword
+                        + " without WHERE would change every row; add a WHERE clause");
+            }
+        }
+        if (operation == null) {
+            throw new IllegalArgumentException("a write statement must be INSERT, UPDATE, DELETE"
+                    + " or MERGE (or a WITH that runs one); this WITH only reads");
+        }
+        if ("MERGE".equals(operation)) {
+            refuseUnboundedBySourceBranch();
+        }
+        refuseSqlServerSelect(operation);
+        return operation;
+    }
+
+    /** Set operators that join one SELECT to the next. */
+    private static final Set<String> SET_OPERATORS = Set.of("UNION", "ALL", "EXCEPT", "INTERSECT");
+
+    /**
+     * On SQL Server, refuse a {@code SELECT} outside parentheses that is not the source of an
+     * {@code INSERT}: SQL Server runs {@code UPDATE t SET a = 1 SELECT … INTO copy FROM t} as two
+     * statements. The source of an {@code INSERT} is its first {@code SELECT}, with no
+     * {@code VALUES} before it, and the ones a set operator joins to it.
+     */
+    private void refuseSqlServerSelect(String operation) {
+        if (dialect != Dialect.SQLSERVER) {
+            return;
+        }
+        boolean values = false;
+        boolean selected = false;
+        for (int i = 0; i < keywords.size(); i++) {
+            if (depths.get(i) != 0) {
+                continue;
+            }
+            String keyword = keywords.get(i);
+            if ("VALUES".equals(keyword)) {
+                values = true;
+            } else if ("SELECT".equals(keyword)) {
+                boolean insertSource = "INSERT".equals(operation) && !values && !selected;
+                boolean joined = selected && SET_OPERATORS.contains(keywords.get(i - 1));
+                if (!insertSource && !joined) {
+                    throw new IllegalArgumentException("a write statement runs one INSERT,"
+                            + " UPDATE, DELETE or MERGE; on SQL Server it also runs a SELECT");
+                }
+                selected = true;
+            }
+        }
+    }
+
+    /**
+     * @return whether a {@code WHERE} follows the keyword at {@code i} at the same level of
+     *     parentheses, before that level closes
+     */
+    boolean hasOwnWhere(int i) {
+        int depth = depths.get(i);
+        for (int j = i + 1; j < keywords.size(); j++) {
+            if (depths.get(j) < depth) {
+                return false;
+            }
+            if (depths.get(j) == depth && "WHERE".equals(keywords.get(j))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @return whether the keyword at {@code i} is Oracle's {@code DELETE WHERE} clause of a
+     *     {@code MERGE} ({@code WHEN MATCHED THEN UPDATE SET … DELETE WHERE …}), not a statement
+     */
+    private boolean isMergeDeleteClause(String operation, int i) {
+        return "MERGE".equals(operation) && "DELETE".equals(keywords.get(i))
+                && depths.get(i) == 0 && i + 1 < keywords.size()
+                && "WHERE".equals(keywords.get(i + 1)) && keywords.subList(0, i).contains("UPDATE");
+    }
+
+    /**
+     * @return whether the statement has a {@code RETURNING} clause ({@code RETURNING} outside
+     *     parentheses, on a database other than SQL Server, which has none), or SQL Server's
+     *     {@code OUTPUT} clause: {@code OUTPUT} outside parentheses, followed directly by
+     *     {@code inserted.}, {@code deleted.} or {@code $action}. A column named {@code output}
+     *     is not one, nor are columns {@code output, inserted} listed together.
+     */
+    boolean returnsRows() {
+        for (int i = 0; i < keywords.size(); i++) {
+            String keyword = keywords.get(i);
+            if ("RETURNING".equals(keyword) && dialect != Dialect.SQLSERVER
+                    && depths.get(i) == 0) {
+                return true;
+            }
+            if ("OUTPUT".equals(keyword) && dialect == Dialect.SQLSERVER && depths.get(i) == 0
+                    && i + 1 < keywords.size() && outputColumn(i)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @return whether the keyword after the {@code OUTPUT} at {@code i} starts an output column:
+     *     {@code inserted.} or {@code deleted.}, or {@code $action}, with only spaces between
+     */
+    private boolean outputColumn(int i) {
+        String next = keywords.get(i + 1);
+        int start = offsets.get(i + 1);
+        String between = sql.substring(offsets.get(i) + keywords.get(i).length(), start).strip();
+        if ("ACTION".equals(next)) {
+            return "$".equals(between);
+        }
+        if (!between.isEmpty() || !("INSERTED".equals(next) || "DELETED".equals(next))) {
+            return false;
+        }
+        String after = sql.substring(start + next.length()).stripLeading();
+        return after.startsWith(".");
+    }
+
+    /**
+     * @return whether the keyword at {@code i} is a clause of another statement, not its own.
+     *     {@code DO} ({@code ON CONFLICT DO UPDATE}) counts everywhere but on SQL Server, where it
+     *     is no reserved word: {@code … WHERE id = do DELETE FROM t} compares a column named
+     *     {@code do}, then runs a second statement.
+     */
+    boolean isClause(int i) {
+        String previous = i > 0 ? keywords.get(i - 1) : "";
+        return "THEN".equals(previous) || "FOR".equals(previous) || "KEY".equals(previous)
+                || ("DO".equals(previous) && dialect != Dialect.SQLSERVER);
+    }
+
+    /**
+     * Refuse a {@code MERGE} branch {@code WHEN NOT MATCHED BY SOURCE} with no {@code AND}
+     * condition: it deletes or updates every target row the source lacks, so an empty source
+     * changes the whole table, as an {@code UPDATE} or {@code DELETE} without {@code WHERE} would.
+     */
+    private void refuseUnboundedBySourceBranch() {
+        for (int i = 0; i + 5 < keywords.size(); i++) {
+            if ("WHEN".equals(keywords.get(i)) && "NOT".equals(keywords.get(i + 1))
+                    && "MATCHED".equals(keywords.get(i + 2)) && "BY".equals(keywords.get(i + 3))
+                    && "SOURCE".equals(keywords.get(i + 4))
+                    && "THEN".equals(keywords.get(i + 5))) {
+                throw new IllegalArgumentException("WHEN NOT MATCHED BY SOURCE without AND"
+                        + " would change every target row the source lacks; add an AND"
+                        + " condition");
+            }
+        }
+    }
+
     /**
      * Parse an authored statement.
      *
@@ -190,6 +456,9 @@ final class SqlStatement {
         StringBuilder out = new StringBuilder(sql.length());
         List<String> placeholders = new ArrayList<>();
         List<String> keywords = new ArrayList<>();
+        List<Integer> depths = new ArrayList<>();
+        List<Integer> offsets = new ArrayList<>();
+        int depth = 0;
         int n = sql.length();
         int i = 0;
         boolean ended = false;
@@ -257,6 +526,8 @@ final class SqlStatement {
                     end++;
                 }
                 keywords.add(sql.substring(i, end).toUpperCase(Locale.ROOT));
+                depths.add(depth);
+                offsets.add(i);
                 out.append(sql, i, end);
                 i = end;
             } else if (c == '?' && dialect == Dialect.POSTGRESQL) {
@@ -264,11 +535,17 @@ final class SqlStatement {
                 out.append("??");
                 i++;
             } else {
+                if (c == '(') {
+                    depth++;
+                } else if (c == ')') {
+                    depth = Math.max(0, depth - 1);
+                }
                 out.append(c);
                 i++;
             }
         }
-        return new SqlStatement(sql, dialect, out.toString().strip(), placeholders, keywords);
+        return new SqlStatement(sql, dialect, out.toString().strip(), placeholders, keywords,
+                depths, offsets, ended);
     }
 
     /**

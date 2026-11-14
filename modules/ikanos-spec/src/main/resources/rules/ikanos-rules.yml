@@ -474,23 +474,62 @@ rules:
         notMatch: "(^|[?&;:(,])\\s*([Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Pp][Ww][Dd])\\s*=(?!\\s*\\{\\{)|//[^/@?;]*:[^/@?;{]+@|:[Tt][Hh][Ii][Nn]:[^@/:{]+/[^@{]+@"
 
   ikanos-sql-statement-read-only:
-    message: "A SQL procedure `statement` must read: start with SELECT, WITH or VALUES."
+    message: "A SQL procedure `statement` must read (SELECT, WITH or VALUES) unless it declares `readOnly: false`."
     description: >
-      SQL procedures read data. The engine refuses, when the capability loads,
-      a statement that does not start with SELECT, WITH or VALUES, or that
-      writes anyway (a data-modifying CTE, SELECT ... INTO). This rule surfaces
-      the first case in the editor.
+      A SQL procedure reads unless it says otherwise. The engine refuses, when
+      the capability loads, a statement without `readOnly: false` that does not
+      start with SELECT, WITH or VALUES, or that writes anyway (a
+      data-modifying CTE, SELECT ... INTO). This rule surfaces the first case
+      in the editor.
     severity: error
     recommended: true
     given:
-      - "$.consumes[?(@.type == 'sql')].procedures[*].statement"
-      - "$.capability.consumes[?(@.type == 'sql')].procedures[*].statement"
+      - "$.consumes[?(@.type == 'sql')].procedures[?(@.readOnly != false)].statement"
+      - "$.capability.consumes[?(@.type == 'sql')].procedures[?(@.readOnly != false)].statement"
     then:
       function: pattern
       functionOptions:
         # No /.../i literal: Polychro compiles the pattern as written, so letters
         # match in either case through character classes
         match: "^(\\s|\\(|--[^\\n]*\\n|#[^\\n]*\\n|/\\*[\\s\\S]*?\\*/)*([Ss][Ee][Ll][Ee][Cc][Tt]|[Ww][Ii][Tt][Hh]|[Vv][Aa][Ll][Uu][Ee][Ss])\\b"
+
+  ikanos-sql-write-statement:
+    message: "A SQL write `statement` must be INSERT, UPDATE, DELETE or MERGE (or a WITH that runs one)."
+    description: >
+      `readOnly: false` lets a statement change rows, never the schema: DDL,
+      TRUNCATE, grants and maintenance are refused when the capability loads,
+      and so are UPDATE and DELETE without WHERE. A stored procedure is called
+      through `storedProcedure`, not a CALL statement.
+    severity: error
+    recommended: true
+    given:
+      - "$.consumes[?(@.type == 'sql')].procedures[?(@.readOnly == false)].statement"
+      - "$.capability.consumes[?(@.type == 'sql')].procedures[?(@.readOnly == false)].statement"
+    then:
+      function: pattern
+      functionOptions:
+        # No /.../i literal: Polychro compiles the pattern as written, so letters
+        # match in either case through character classes
+        match: "^(\\s|--[^\\n]*\\n|#[^\\n]*\\n|/\\*[\\s\\S]*?\\*/)*([Ii][Nn][Ss][Ee][Rr][Tt]|[Uu][Pp][Dd][Aa][Tt][Ee]|[Dd][Ee][Ll][Ee][Tt][Ee]|[Mm][Ee][Rr][Gg][Ee]|[Ww][Ii][Tt][Hh])\\b"
+
+  ikanos-sql-write-exposure:
+    message: "{{error}}"
+    description: >
+      A SQL procedure with `readOnly: false` changes data. An exposed MCP tool
+      that reaches it must not claim `hints.readOnly: true`, nor inherit it
+      from the `hints` of its MCP exposes block, an MCP resource must not
+      reach it, a REST operation that reaches it must not use GET or
+      HEAD, and an aggregate flow that reaches it must not declare
+      `semantics.safe: true`: agents and clients rely on those claims to call
+      without asking. A target reaches a procedure through its `call`, its
+      steps, its `ref`, and the flows those name, followed transitively.
+    severity: warn
+    recommended: true
+    given: "$"
+    then:
+      function: sql-procedures
+      functionOptions:
+        check: exposure
 
   ikanos-sql-placeholders-bound:
     message: "{{error}}"
