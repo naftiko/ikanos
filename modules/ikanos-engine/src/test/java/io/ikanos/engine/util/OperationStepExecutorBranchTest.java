@@ -27,6 +27,8 @@ import org.junit.jupiter.api.Test;
 import org.restlet.Request;
 import org.restlet.data.MediaType;
 import org.restlet.data.Method;
+import org.restlet.representation.EmptyRepresentation;
+import org.restlet.representation.Representation;
 import org.restlet.representation.StringRepresentation;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -242,6 +244,48 @@ class OperationStepExecutorBranchTest {
         assertEquals("acme", resolved.get("X-Tenant"));
         assertEquals("ice", resolved.get("q"));
         assertEquals("i-1", resolved.get("itemId"));
+    }
+
+    @Test
+    void resolveInputParametersFromRequestShouldTreatABodyWithoutReaderAsAbsent()
+            throws Exception {
+        Capability capability = capabilityFromYaml("""
+                ikanos: "%s"
+                capability:
+                  exposes:
+                    - type: "rest"
+                      address: "localhost"
+                      port: 0
+                      namespace: "test"
+                      resources:
+                        - path: "/items"
+                          operations:
+                            - method: "GET"
+                              name: "search"
+                              inputParameters:
+                                - name: "q"
+                                  in: "query"
+                                  type: string
+                  consumes: []
+                """.formatted(schemaVersion));
+
+        RestServerSpec serverSpec = (RestServerSpec) capability.getServerAdapters().get(0).getSpec();
+        RestServerResourceSpec resourceSpec = serverSpec.getResources().values().iterator().next();
+        RestServerOperationSpec operationSpec = resourceSpec.getOperations().values().iterator().next();
+
+        // What Restlet builds for a request with no Content-Length and "Connection: close"
+        // (issue #897): an empty entity of unknown size, so not isEmpty(), with no reader.
+        Representation entity = new EmptyRepresentation();
+        entity.setSize(Representation.UNKNOWN_SIZE);
+        Request request = new Request(Method.GET, "http://localhost/items?q=ice");
+        request.setEntity(entity);
+
+        Map<String, Object> resolved = new OperationStepExecutor(capability)
+                .resolveInputParametersFromRequest(request, serverSpec, resourceSpec,
+                        operationSpec);
+
+        assertEquals("ice", resolved.get("q"),
+                "issue #897: a body without a reader must be read as no body, not fail");
     }
 
     @Test

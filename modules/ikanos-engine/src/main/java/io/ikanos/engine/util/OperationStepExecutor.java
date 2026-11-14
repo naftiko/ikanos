@@ -14,6 +14,7 @@
 package io.ikanos.engine.util;
 
 import java.io.IOException;
+import java.io.Reader;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -105,10 +106,14 @@ public class OperationStepExecutor {
         Map<String, Object> params = new HashMap<>();
         JsonNode tmpRoot = null;
 
-        // Read request body once (may be null)
+        // Read request body once (may be null). A request with no Content-Length and
+        // "Connection: close" gets an empty entity of unknown size, so not isEmpty(), whose reader
+        // is null: that is no body either (issue #897).
         try {
-            if ((request.getEntity() != null) && !request.getEntity().isEmpty()) {
-                tmpRoot = mapper.readTree(request.getEntity().getReader());
+            Reader body = (request.getEntity() != null) && !request.getEntity().isEmpty()
+                    ? request.getEntity().getReader() : null;
+            if (body != null) {
+                tmpRoot = mapper.readTree(body);
             }
         } catch (JacksonException | IOException e) {
             logger.debug("Request body is not valid JSON; treating as absent", e);

@@ -162,7 +162,10 @@ public class ServerHost {
                 host.setHostDomain(toHostRegex(entry.getKey()));
                 component.getHosts().add(host);
             }
-            host.attachDefault(buildPrefixRouter(host.getContext(), entry.getValue()));
+            // Without this filter, an exception that escapes an adapter leaves its client
+            // waiting for an answer, as on a dedicated listener (#897)
+            host.attachDefault(new UncaughtExceptionFilter(
+                    buildPrefixRouter(host.getContext(), entry.getValue())));
         }
 
         for (Mount mount : mounts) {
