@@ -15,6 +15,7 @@ package io.ikanos.engine.consumes.http;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.net.ServerSocket;
@@ -72,6 +73,9 @@ public class AwsSigV4IntegrationTest {
 
     private final AtomicReference<String> receivedBody = new AtomicReference<>();
 
+    /** The request a redirect led to, if the client followed it. */
+    private final AtomicReference<Request> redirected = new AtomicReference<>();
+
     private Component upstream;
 
     private int upstreamPort;
@@ -103,9 +107,23 @@ public class AwsSigV4IntegrationTest {
                                 + "{\"tools\":[]}}", MediaType.APPLICATION_JSON);
                     }
                 });
+                router.attach("/elsewhere", new Restlet() {
+                    @Override
+                    public void handle(Request request, Response response) {
+                        redirected.set(request);
+                        response.setStatus(Status.SUCCESS_OK);
+                        response.setEntity("{\"ok\":true}", MediaType.APPLICATION_JSON);
+                    }
+                });
                 router.attach("/documents", new Restlet() {
                     @Override
                     public void handle(Request request, Response response) {
+                        if (request.getResourceRef().getPath().endsWith("/moved")) {
+                            received.set(request);
+                            response.redirectTemporary(
+                                    "http://localhost:" + upstreamPort + "/elsewhere/moved");
+                            return;
+                        }
                         try {
                             receivedBody.set(request.isEntityAvailable()
                                     ? request.getEntity().getText()
@@ -427,6 +445,20 @@ public class AwsSigV4IntegrationTest {
 
         assertTrue(receivedBody.get().contains("\"tools/list\""), receivedBody.get());
         assertSignatureMatches("execute-api", true);
+    }
+
+    @Test
+    void callShouldNotFollowARedirectWhenTheAdapterSignsWithAwsSigV4() throws Exception {
+        // The signature covers the host and path it was computed for, and the HTTP client would
+        // re-send the request to the new location without signing it again.
+        start(auth("s3"));
+
+        ConsumedResult result = call("get-object", Map.of("key", "moved"));
+
+        assertNull(redirected.get(), () -> "The redirect was followed, with Authorization "
+                + redirected.get().getHeaders().getFirstValue("Authorization", true));
+        assertEquals(307, result.status());
+        assertSignatureMatches("s3", false);
     }
 
     @Test

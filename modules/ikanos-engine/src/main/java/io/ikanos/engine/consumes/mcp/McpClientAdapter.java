@@ -98,7 +98,9 @@ public class McpClientAdapter extends ClientAdapter {
     private final Map<String, Schema> outputSchemas = new ConcurrentHashMap<>();
 
     public McpClientAdapter(Capability capability, McpClientSpec spec) {
-        this(capability, spec, new Client(List.of(HTTP, HTTPS)));
+        this(capability, spec, new Client(
+                ConsumedAuthentication.clientContext(spec.getAuthentication()),
+                List.of(HTTP, HTTPS)));
     }
 
     /** Constructor with an injectable Restlet client, for tests. */

@@ -19,6 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.restlet.Context;
 import org.restlet.Request;
 import org.restlet.data.ChallengeResponse;
 import org.restlet.data.ChallengeScheme;
@@ -286,6 +287,24 @@ public final class ConsumedAuthentication {
 
     private static String passwordOrNull(char[] password) {
         return password == null ? null : new String(password);
+    }
+
+    /**
+     * The context of the Restlet {@link org.restlet.Client} that sends the calls of a consumed
+     * adapter. With {@code awsSigV4}, the client doesn't follow redirects: the signature covers
+     * the host and path it was computed for, and the HTTP client would re-send the request to the
+     * new location without signing it again, with the {@code X-Amz-*} headers, session token
+     * included. The caller gets the 3xx instead (#954).
+     *
+     * @param authentication the adapter's authentication, may be null
+     * @return a new context for the adapter's client
+     */
+    public static Context clientContext(AuthenticationSpec authentication) {
+        Context context = new Context();
+        if (authentication instanceof AwsSigV4AuthenticationSpec) {
+            context.getParameters().set("followRedirects", "false");
+        }
+        return context;
     }
 
     /**

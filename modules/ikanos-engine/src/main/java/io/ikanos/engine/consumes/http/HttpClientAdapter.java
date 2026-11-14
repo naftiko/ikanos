@@ -101,12 +101,12 @@ public class HttpClientAdapter extends ClientAdapter {
         Tunnel tunnel = selectTunnel(spec, tunnels);
         if (tunnel == null) {
             IkanosHttpClientHelper.ensureRegistered();
-            this.httpClient = new Client(
-                    new Context(), List.of(HTTP, HTTPS), HTTP_CLIENT_HELPER_CLASS_NAME);
+            this.httpClient = new Client(ConsumedAuthentication.clientContext(
+                    spec.getAuthentication()), List.of(HTTP, HTTPS), HTTP_CLIENT_HELPER_CLASS_NAME);
         } else {
             TunnelRouteTable routes = new TunnelRouteTable();
             routes.register(extractHost(this.baseUri), tunnel);
-            Context restletContext = new Context();
+            Context restletContext = ConsumedAuthentication.clientContext(spec.getAuthentication());
             restletContext.getAttributes().put(TunnelRouteTable.CONTEXT_ATTRIBUTE, routes);
             IkanosHttpClientHelper.ensureRegistered(TunnelAwareHttpClientHelper.class,
                     TunnelAwareHttpClientHelper::new);
