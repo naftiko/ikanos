@@ -460,6 +460,38 @@ public class AwsSigV4IntegrationTest {
                 + " 'proxy'"), error.getMessage());
     }
 
+    @Test
+    void capabilityShouldRefuseAwsSigV4WhenAStdioMcpAdapterDeclaresIt() throws Exception {
+        // stdio builds no authentication chain, so the refusal must not depend on it
+        String yaml = """
+                ikanos: "%s"
+                capability:
+                  exposes:
+                    - type: "mcp"
+                      transport: "stdio"
+                      namespace: "tools"
+                      authentication:
+                %s
+                      tools:
+                        - name: "hello"
+                          description: "Says hello"
+                          outputParameters:
+                            - name: "message"
+                              type: "string"
+                              value: "Hello"
+                  consumes:
+                    - type: "http"
+                      namespace: "store"
+                      baseUri: "http://localhost:%d/documents"
+                """.formatted(VersionHelper.getSchemaVersion(), auth(null), upstreamPort);
+        IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
+
+        IllegalArgumentException error =
+                assertThrows(IllegalArgumentException.class, () -> new Capability(spec));
+        assertEquals("awsSigV4 authentication of the mcp adapter 'tools' is not supported: it"
+                + " only signs the calls to a consumed adapter.", error.getMessage());
+    }
+
     private static String sha256Hex(String body) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
