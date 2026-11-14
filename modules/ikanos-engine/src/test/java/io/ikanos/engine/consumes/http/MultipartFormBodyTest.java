@@ -280,4 +280,19 @@ public class MultipartFormBodyTest {
         }
         return -1;
     }
+
+    @Test
+    public void buildShouldRejectTemplateWithOnlyTheCallerRoot() {
+        Map<String, Object> parameters = new java.util.HashMap<>();
+        parameters.put(io.ikanos.engine.util.Resolver.CALLER_ROOT, new io.ikanos.engine.util.CallerRoot(
+                Map.of("claims", Map.of("sub", "alice"))));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> MultipartFormBody.build(
+                        List.of(part("owner", "{{owner}}", null, null, null)), parameters),
+                "#998: the caller root is no input, so an unresolved part still fails");
+        assertTrue(new String(MultipartFormBody.build(
+                List.of(part("owner", "{{auth.claims.sub}}", null, null, null)), parameters)
+                .bytes(), StandardCharsets.UTF_8).contains("alice"));
+    }
 }

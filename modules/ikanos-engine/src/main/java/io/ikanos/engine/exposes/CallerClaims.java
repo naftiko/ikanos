@@ -184,12 +184,16 @@ public final class CallerClaims {
         }
     }
 
-    /** @return {@code view} and its nested maps, unmodifiable */
+    /**
+     * @return an unmodifiable copy of {@code view} and its nested maps; a copy, since a dotted
+     *         claim and its path share their nested maps
+     */
     @SuppressWarnings("unchecked")
     private static Map<String, Object> unmodifiable(Map<String, Object> view) {
-        view.replaceAll((name, value) -> value instanceof Map<?, ?> nested
-                ? unmodifiable((Map<String, Object>) nested) : value);
-        return Collections.unmodifiableMap(view);
+        Map<String, Object> copy = new LinkedHashMap<>();
+        view.forEach((name, value) -> copy.put(name, value instanceof Map<?, ?> nested
+                ? unmodifiable((Map<String, Object>) nested) : value));
+        return Collections.unmodifiableMap(copy);
     }
 
     /** @return the text of a claim value, a nested view, or {@code null} to leave it out */

@@ -209,4 +209,19 @@ class CallerClaimsTest {
                 Resolver.resolveMustacheTemplate("{{auth.claims.org.id}}", parameters),
                 "#998: the claim of that exact name is read first, as for an identity header");
     }
+
+    @Test
+    void ofShouldAcceptANamespacedClaimHoldingNestedObjects() {
+        Map<String, Object> root = rootOf(new JWTClaimsSet.Builder()
+                .claim("https://example.com/profile",
+                        Map.of("address", Map.of("country", "US")))
+                .build());
+        Map<String, Object> parameters = new HashMap<>();
+        CallerClaims.putInto(parameters, root);
+
+        assertEquals("US", CallerClaims.claim(root, "https://example.com/profile.address.country"));
+        assertEquals("US", Resolver.resolveMustacheTemplate(
+                "{{auth.claims.https://example.com/profile.address.country}}", parameters),
+                "#998: a dotted claim and its path share nested objects, frozen once each");
+    }
 }
