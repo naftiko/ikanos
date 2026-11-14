@@ -22,6 +22,8 @@ import io.ikanos.engine.exposes.mcp.model.HandlerSuccessResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerResult;
 import io.ikanos.engine.exposes.mcp.model.McpHeader;
 import io.ikanos.engine.exposes.mcp.model.McpRequestContext;
+import io.ikanos.engine.exposes.mcp.search.ToolSearchCatalog;
+import io.ikanos.engine.exposes.mcp.search.ToolSearchMode;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPostProcessor;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPreProcessor;
 import io.ikanos.engine.exposes.mcp.model.McpResultType;
@@ -46,13 +48,17 @@ public class ToolsListHandler extends McpCallHandler {
 
     @Override
     public HandlerResult handle(JsonNode requestBody) {
-        return handle(requestBody, McpRequestContext.DEFAULT);
+        return handle(requestBody, McpRequestContext.of(adapter.getToolSearchCatalog()));
     }
 
     /**
      * Lists the tools in authored order, keeping only those that carry one of the context's tags
      * when the request sets a tag filter. The filter limits discovery, not access: a tool left
      * out here can still be called by name.
+     *
+     * <p>In deferred mode, the list is the two meta-tools, never filtered, followed by the pinned
+     * tools. It never changes between requests, so it stays in the client's cached prompt
+     * prefix; the model finds the other tools with the search meta-tool.</p>
      */
     @Override
     public HandlerResult handle(JsonNode requestBody, McpRequestContext context) {
@@ -60,8 +66,16 @@ public class ToolsListHandler extends McpCallHandler {
         ArrayNode toolsArray = result.putArray("tools");
         Map<String, String> labels = adapter.getToolLabels();
         Map<String, List<String>> tags = adapter.getToolTags();
+        ToolSearchCatalog catalog = adapter.getToolSearchCatalog();
 
-        for (McpSchema.Tool tool : adapter.getTools()) {
+        List<McpSchema.Tool> listed = adapter.getTools();
+        if (context.mode() == ToolSearchMode.DEFERRED) {
+            for (McpSchema.Tool metaTool : catalog.metaTools()) {
+                toolsArray.add(McpToolJson.write(metaTool, labels, MAPPER));
+            }
+            listed = catalog.pinnedTools();
+        }
+        for (McpSchema.Tool tool : listed) {
             if (context.acceptsTags(tags.getOrDefault(tool.name(), List.of()))) {
                 toolsArray.add(McpToolJson.write(tool, labels, MAPPER));
             }

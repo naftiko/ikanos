@@ -1409,6 +1409,10 @@
           "$ref": "#/$defs/McpToolHints",
           "description": "Default hints for every tool of this server. Each field is resolved on its own, from the most specific source to the broadest: the tool's own `hints`, then the hints derived from the `semantics` of the aggregate flow for a tool with `ref`, then these server `hints`. A tool only declares the fields that differ. A tool that declares `destructive: true` without its own `readOnly` resolves `readOnly` to `false`, so it is never advertised as read-only. The resolved hints are what `tools/list` advertises."
         },
+        "toolSearch": {
+          "$ref": "#/$defs/McpToolSearch",
+          "description": "Tool search for this endpoint. A client in deferred mode gets two meta-tools from tools/list, `search-tools` and `call-tool`, plus the pinned tools, and finds the other tools by searching, so their definitions stay out of every model request. A client selects the mode by adding `?toolSearch=deferred` or `?toolSearch=listed` to the endpoint URL; without it, `mode` applies. Deferred mode needs the optional `ikanos-tool-search` module on the classpath. Omitted means `mode: listed` with client selection allowed."
+        },
         "tools": {
           "type": "object",
           "propertyNames": {
@@ -1581,6 +1585,64 @@
           "authentication"
         ]
       }
+    },
+    "McpToolSearch": {
+      "type": "object",
+      "description": "How an MCP endpoint advertises its tools. In `listed` mode, tools/list returns every tool, as without this block. In `deferred` mode, it returns `search-tools`, `call-tool` and the pinned tools; the model finds the other tools with `search-tools` and calls them with `call-tool` or by name. Clients whose provider defers tools itself should stay in `listed` mode. Search covers only the tools this endpoint exposes and never widens what a client may call.",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "listed",
+            "deferred"
+          ],
+          "default": "listed",
+          "description": "The mode for clients that do not select one. `deferred` fails at load time when no tool search module is installed."
+        },
+        "clientSelectable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether a client may select the mode with `?toolSearch=listed|deferred` on the endpoint URL. When false, the parameter is ignored."
+        },
+        "maxResults": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50,
+          "default": 5,
+          "description": "Number of tools `search-tools` returns when the model sets no `limit`."
+        },
+        "maxToolCalls": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20,
+          "default": 5,
+          "description": "Most tools one `call-tool` request may run. They run in sequence, in call order; a failing tool does not stop the others."
+        },
+        "alwaysListed": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/McpToolName"
+          },
+          "description": "Tools advertised in deferred mode too, and left out of search results. Keep it to the three to five tools most calls need."
+        },
+        "deferDestructive": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether destructive tools may be deferred. By default they stay listed, so client approval prompts still see their `destructiveHint`."
+        },
+        "searchToolName": {
+          "$ref": "#/$defs/McpToolName",
+          "default": "search-tools",
+          "description": "Name of the search meta-tool. Change it when a tool of this endpoint already uses the default name."
+        },
+        "callToolName": {
+          "$ref": "#/$defs/McpToolName",
+          "default": "call-tool",
+          "description": "Name of the call meta-tool. Change it when a tool of this endpoint already uses the default name."
+        }
+      },
+      "additionalProperties": false
     },
     "McpTrust": {
       "type": "object",
