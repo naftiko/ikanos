@@ -304,13 +304,20 @@ public final class DefinitionsExpander {
          * Check the default of a set entry against the type and enum it resolves to, through its
          * {@code schema:} reference if any, where the set declares it: an entry that no unit
          * emits (its set is unused, or every unit replaces it) is never checked on a tool or
-         * flow input, and its default must not wait for its first use either.
+         * flow input, and its default must not wait for its first use either. An untyped entry
+         * is a {@code string}, as it is once emitted on a tool or flow.
          */
         private void checkDefault(InputParameterSpec param, String location) {
-            if (param == null || param.getDefaultValue() == null) {
+            InputParameterSpec resolved = param != null ? target(param) : null;
+            if (resolved == null || param.getDefaultValue() == null
+                    || resolved.getSchema() != null) {
+                // A reference that does not expand is reported by checkContent
                 return;
             }
-            String error = InputDefaults.defaultError(param.getDefaultValue(), target(param));
+            String type = resolved.getType() != null ? resolved.getType()
+                    : InputParameterSpec.DEFAULT_MCP_TOOL_INPUT_TYPE;
+            String error = InputDefaults.defaultError(param.getDefaultValue(), type,
+                    resolved.getEnumeration());
             if (error != null) {
                 errors.add(location + ": " + error + ".");
             }

@@ -153,26 +153,25 @@ public final class InputDefaults {
      * @return the problem, or {@code null} when the default is absent or matches
      */
     static String defaultError(InputParameterSpec param) {
-        return defaultError(param.getDefaultValue(), param);
+        return defaultError(param.getDefaultValue(), param.getType(), param.getEnumeration());
     }
 
     /**
-     * Check a default against the {@code type} and {@code enum} of another declaration, such as
+     * Check a default against a {@code type} and an {@code enum} declared elsewhere, such as in
      * the schema that a {@code schema:} reference resolves to, as {@link #defaultError} does.
      *
      * @param value the default, may be null
-     * @param schema the declaration whose {@code type} and {@code enum} the default must match
+     * @param type the type the default must match, may be null
+     * @param enumeration the values the default must be one of, empty for any
      * @return the problem, or {@code null} when the default is absent or matches
      */
-    public static String defaultError(JsonNode value, InputParameterSpec schema) {
-        if (value == null || schema == null) {
+    public static String defaultError(JsonNode value, String type, List<String> enumeration) {
+        if (value == null) {
             return null;
         }
-        String type = schema.getType();
         if (type != null && !matchesType(type, value)) {
             return "default does not match type '" + type + "'";
         }
-        List<String> enumeration = schema.getEnumeration();
         if (!enumeration.isEmpty() && !inEnum(type, value, enumeration)) {
             return "default is not one of the enum values";
         }
