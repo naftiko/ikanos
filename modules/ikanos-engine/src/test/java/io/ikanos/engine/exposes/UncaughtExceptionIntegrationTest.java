@@ -29,6 +29,7 @@ import org.junit.jupiter.api.Test;
 import org.restlet.Request;
 import org.restlet.Response;
 import org.restlet.Restlet;
+import org.restlet.data.MediaType;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.utils.TestUtils;
 
@@ -79,14 +80,55 @@ class UncaughtExceptionIntegrationTest {
         assertFalse(reply.body().contains(DETAIL), reply.body());
     }
 
-    /** An adapter whose handler chain fails on every request. */
+    /**
+     * A handler that fails before reading a POST body must not break the keep-alive connection:
+     * the body is discarded like a rejected one, so the next request on the connection is served
+     * (see {@link RejectedRequestBodies}, issue #878).
+     */
+    @Test
+    void connectionShouldStayReusableWhenTheHandlerThrowsBeforeABodyArrives() throws Exception {
+        int port = TestUtils.freePorts(1)[0];
+        dedicated = new FailingAdapter(port, null);
+        dedicated.start();
+
+        try (Socket socket = new Socket("localhost", port)) {
+            socket.setSoTimeout(5000);
+            OutputStream out = socket.getOutputStream();
+            InputStream in = socket.getInputStream();
+            String body = "{\"name\":\"Ada\"}";
+
+            out.write(("POST /anything HTTP/1.1\r\nHost: localhost\r\n"
+                    + "Content-Type: application/json\r\n"
+                    + "Content-Length: " + body.length() + "\r\n\r\n")
+                    .getBytes(StandardCharsets.US_ASCII));
+            out.flush();
+            Thread.sleep(100);
+            out.write(body.getBytes(StandardCharsets.US_ASCII));
+            out.flush();
+            assertEquals(500, readStatusCode(in));
+
+            out.write(("GET " + FailingAdapter.OK_PATH + " HTTP/1.1\r\nHost: localhost\r\n"
+                    + "Content-Length: 0\r\n\r\n").getBytes(StandardCharsets.US_ASCII));
+            out.flush();
+            assertEquals(200, readStatusCode(in),
+                    "the next request on the same connection should be served after a 500");
+        }
+    }
+
+    /** An adapter whose handler chain fails on every request but {@link #OK_PATH}. */
     private static final class FailingAdapter extends ServerAdapter {
+
+        static final String OK_PATH = "/ok";
 
         FailingAdapter(int port, String path) {
             super(null, spec(port, path));
             initServer("localhost", port, new Restlet() {
                 @Override
                 public void handle(Request request, Response response) {
+                    if (OK_PATH.equals(request.getResourceRef().getPath())) {
+                        response.setEntity("ok", MediaType.TEXT_PLAIN);
+                        return;
+                    }
                     throw new IllegalStateException(DETAIL);
                 }
             });
@@ -102,6 +144,29 @@ class UncaughtExceptionIntegrationTest {
     // ── raw HTTP ──
 
     private record Reply(int status, String body) {
+    }
+
+    /**
+     * Reads one HTTP/1.1 response with a {@code Content-Length} body and returns its status code,
+     * or -1 if the server closed the connection before sending a status line.
+     */
+    private static int readStatusCode(InputStream in) throws IOException {
+        StringBuilder head = new StringBuilder();
+        while (head.indexOf("\r\n\r\n") < 0) {
+            int b = in.read();
+            if (b < 0) {
+                return -1;
+            }
+            head.append((char) b);
+        }
+        int contentLength = 0;
+        for (String line : head.toString().split("\r\n")) {
+            if (line.regionMatches(true, 0, "Content-Length:", 0, 15)) {
+                contentLength = Integer.parseInt(line.substring(15).trim());
+            }
+        }
+        in.readNBytes(contentLength);
+        return Integer.parseInt(head.substring(9, 12));
     }
 
     private static Reply get(int port, String path) throws IOException {
