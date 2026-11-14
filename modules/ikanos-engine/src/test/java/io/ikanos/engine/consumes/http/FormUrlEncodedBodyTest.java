@@ -203,4 +203,17 @@ class FormUrlEncodedBodyTest {
         assertEquals("a=1&q={{v}}",
                 FormUrlEncodedBody.resolve("a=1{{#x}}&x={{x}}{{/x}}&q={{v}}", Map.of()));
     }
+
+    @Test
+    void encodeShouldRejectUnresolvedTemplateWithOnlyTheCallerRoot() {
+        Map<String, Object> parameters = new java.util.HashMap<>();
+        parameters.put(Resolver.CALLER_ROOT, new io.ikanos.engine.util.CallerRoot(
+                Map.of("claims", Map.of("sub", "alice"))));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> FormUrlEncodedBody.encode(Map.of("owner", "{{owner}}"), parameters),
+                "#998: the caller root is no input, so an unresolved field still fails");
+        assertEquals("owner=alice",
+                FormUrlEncodedBody.encode(Map.of("owner", "{{auth.claims.sub}}"), parameters));
+    }
 }

@@ -42,7 +42,8 @@ public final class FormUrlEncodedBody {
      * @throws IllegalArgumentException when a value holds a template and no parameters are given
      */
     public static String encode(Map<?, ?> data, Map<String, Object> parameters) {
-        boolean noParameters = parameters == null || parameters.isEmpty();
+        // The caller root alone is no input: an unresolved template still fails (#998)
+        boolean noParameters = Resolver.hasNoInputs(parameters);
         StringBuilder sb = new StringBuilder();
         for (Map.Entry<?, ?> entry : data.entrySet()) {
             String key = String.valueOf(entry.getKey());

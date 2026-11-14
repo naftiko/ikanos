@@ -66,7 +66,8 @@ public final class MultipartFormBody {
      *         template cannot be resolved because no parameters are given
      */
     public static MultipartFormBody build(List<?> data, Map<String, Object> parameters) {
-        boolean noParameters = parameters == null || parameters.isEmpty();
+        // The caller root alone is no input: an unresolved template still fails (#998)
+        boolean noParameters = Resolver.hasNoInputs(parameters);
         List<Part> parts = new ArrayList<>();
         for (Object item : data) {
             if (!(item instanceof Map<?, ?> spec)) {
