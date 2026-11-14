@@ -66,7 +66,7 @@ class ConsumedApiKeyPlacementTest {
         assertNull(request.getHeaders().getFirstValue("api_key"));
     }
 
-    /** #841: the key and its name are URL-encoded, so the API reads the value it was given. */
+    /** #841: the key and its name are percent-encoded (RFC 3986), so the API reads its value. */
     @Test
     void applyShouldUrlEncodeAQueryKeyAndItsName() {
         Request request = new Request(Method.GET, TARGET);
@@ -74,7 +74,7 @@ class ConsumedApiKeyPlacementTest {
         ConsumedAuthentication.apply(new ApiKeyAuthenticationSpec("api key", "query", "{{KEY}}"),
                 null, request, TARGET, Map.of("KEY", "a+b&c=d #é"));
 
-        assertEquals(TARGET + "?api+key=a%2Bb%26c%3Dd+%23%C3%A9",
+        assertEquals(TARGET + "?api%20key=a%2Bb%26c%3Dd%20%23%C3%A9",
                 request.getResourceRef().toString());
         assertEquals("a+b&c=d #é",
                 request.getResourceRef().getQueryAsForm().getFirstValue("api key"));
