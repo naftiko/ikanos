@@ -16,6 +16,7 @@ package io.ikanos.engine.exposes;
 import java.util.UUID;
 import java.util.logging.Level;
 import org.restlet.Context;
+import org.restlet.Request;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanContext;
 
@@ -33,6 +34,9 @@ import io.opentelemetry.api.trace.SpanContext;
  */
 public final class ErrorReference {
 
+    /** Request attribute holding the trace id that {@link #rememberTrace} kept. */
+    static final String TRACE_ID_ATTRIBUTE = "io.ikanos.errorReference.traceId";
+
     private ErrorReference() {}
 
     /**
@@ -45,9 +49,30 @@ public final class ErrorReference {
      * @return the correlation identifier to return to the caller
      */
     public static String record(Level level, String context, Throwable cause) {
-        String correlationId = correlationId();
+        return record(level, context, cause, null);
+    }
+
+    /**
+     * Same as {@link #record(Level, String, Throwable)}, for a failure reported after the
+     * request's span has ended: the identifier is the trace id kept by {@link #rememberTrace}, if
+     * any, so the reference still finds the request's trace.
+     */
+    public static String record(Level level, String context, Throwable cause, Request request) {
+        Object traceId = request != null ? request.getAttributes().get(TRACE_ID_ATTRIBUTE) : null;
+        String correlationId = traceId instanceof String id ? id : correlationId();
         Context.getCurrentLogger().log(level, context + " [ref=" + correlationId + "]", cause);
         return correlationId;
+    }
+
+    /**
+     * Keeps the trace id of a failed request's span on the request, for a caller that reports the
+     * failure once that span has ended, such as {@link UncaughtExceptionFilter}. Does nothing
+     * without a request or a valid span.
+     */
+    public static void rememberTrace(Request request, Span span) {
+        if (request != null && span != null && span.getSpanContext().isValid()) {
+            request.getAttributes().put(TRACE_ID_ATTRIBUTE, span.getSpanContext().getTraceId());
+        }
     }
 
     /** Appends the correlation identifier to a generic, caller-safe message. */

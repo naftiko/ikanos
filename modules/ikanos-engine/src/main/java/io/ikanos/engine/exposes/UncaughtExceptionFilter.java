@@ -48,7 +48,11 @@ class UncaughtExceptionFilter extends Filter {
             return super.doHandle(request, response);
         } catch (RuntimeException | Error e) {
             String correlationId = ErrorReference.record(Level.SEVERE,
-                    "Uncaught exception while handling a " + request.getMethod() + " request", e);
+                    "Uncaught exception while handling a " + request.getMethod() + " request", e,
+                    request);
+            // Read a body the handler left unread, or Jetty would close a keep-alive connection
+            // under the client (#878)
+            RejectedRequestBodies.discard(request);
             // Drop what the failed handler had already set, such as forwarded headers
             response.getHeaders().clear();
             response.setStatus(Status.SERVER_ERROR_INTERNAL);

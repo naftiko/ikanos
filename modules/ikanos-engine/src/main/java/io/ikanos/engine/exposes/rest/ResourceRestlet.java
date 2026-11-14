@@ -177,6 +177,8 @@ public class ResourceRestlet extends Restlet {
         } catch (Exception e) {
             error = true;
             TelemetryBootstrap.recordError(span, e);
+            // UncaughtExceptionFilter answers once this span has ended: keep its trace id
+            ErrorReference.rememberTrace(request, span);
             telemetry.getMetrics().recordRequestError("rest", operationId,
                     e.getClass().getSimpleName());
             throw e;
