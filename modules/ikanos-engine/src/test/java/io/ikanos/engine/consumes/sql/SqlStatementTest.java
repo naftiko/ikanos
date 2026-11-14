@@ -459,6 +459,61 @@ class SqlStatementTest {
     }
 
     @Test
+    void writeOperationShouldRefuseADeleteAfterAColumnNamedDoOnSqlServer() {
+        // DO is no reserved word in T-SQL: the DELETE is a second statement, not an upsert clause
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> SqlStatement.parse("update orders set status = 'SHIPPED' where id = do"
+                        + " delete from orders", SqlStatement.Dialect.SQLSERVER)
+                        .writeOperation());
+
+        assertTrue(e.getMessage().contains("DELETE"), e.getMessage());
+        assertThrows(IllegalArgumentException.class, () -> SqlStatement.parse(
+                "insert into t (a) select do from s where id = 1 do delete from t",
+                SqlStatement.Dialect.SQLSERVER).writeOperation());
+        assertEquals("INSERT", SqlStatement.parse("insert into t (id, n) values (:id, 1)"
+                + " on conflict (id) do update set n = t.n + 1",
+                SqlStatement.Dialect.POSTGRESQL).writeOperation());
+    }
+
+    @Test
+    void writeOperationShouldRefuseAMergeThatDeletesEveryRowTheSourceLacks() {
+        for (SqlStatement.Dialect dialect
+                : List.of(SqlStatement.Dialect.SQLSERVER, SqlStatement.Dialect.POSTGRESQL)) {
+            for (String branch : List.of("delete", "update set t.n = 0")) {
+                IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                        () -> SqlStatement.parse("merge into t using s on t.id = s.id"
+                                + " when matched then update set t.n = s.n"
+                                + " when not matched by source then " + branch + ";", dialect)
+                                .writeOperation(), dialect.name());
+
+                assertTrue(e.getMessage().contains("BY SOURCE"), e.getMessage());
+            }
+            assertEquals("MERGE", SqlStatement.parse("merge into t using s on t.id = s.id"
+                    + " when not matched by source and t.region = :region then delete"
+                    + " when not matched by target then insert (id) values (s.id);", dialect)
+                    .writeOperation(), dialect.name());
+        }
+    }
+
+    @Test
+    void writeOperationShouldRefuseASqlServerJoinedDeleteWithoutWhere() {
+        for (String sql : List.of(
+                "delete t from orders t join stale s on t.id = s.id",
+                "delete from orders from orders join stale s on orders.id = s.id",
+                "delete t from orders t join (select id from stale where flag = 1) s"
+                        + " on t.id = s.id")) {
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                    () -> SqlStatement.parse(sql, SqlStatement.Dialect.SQLSERVER)
+                            .writeOperation(), sql);
+
+            assertTrue(e.getMessage().contains("without WHERE"), e.getMessage());
+        }
+        assertEquals("DELETE", SqlStatement.parse("delete t from orders t join stale s"
+                + " on t.id = s.id where s.flag = 1", SqlStatement.Dialect.SQLSERVER)
+                .writeOperation());
+    }
+
+    @Test
     void parseShouldRecordAnAuthoredTerminator() {
         assertTrue(SqlStatement.parse("merge into t using s on t.id = s.id"
                 + " when matched then update set t.n = s.n;").terminated());

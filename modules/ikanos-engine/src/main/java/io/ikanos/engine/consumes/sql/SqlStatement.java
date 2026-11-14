@@ -227,7 +227,8 @@ final class SqlStatement {
      * parentheses: a {@code WHERE} in a subquery does not limit the rows it changes. A
      * {@code MERGE} branch ({@code THEN UPDATE}), an upsert ({@code ON CONFLICT DO UPDATE},
      * {@code ON DUPLICATE KEY UPDATE}) and a locking {@code FOR UPDATE} are clauses, not
-     * statements, and need none.</p>
+     * statements, and need none, but a {@code WHEN NOT MATCHED BY SOURCE} branch needs an
+     * {@code AND} condition.</p>
      *
      * @return the write operation, such as {@code UPDATE}, for the span
      * @throws IllegalArgumentException naming the keyword that is refused
@@ -276,6 +277,9 @@ final class SqlStatement {
         if (operation == null) {
             throw new IllegalArgumentException("a write statement must be INSERT, UPDATE, DELETE"
                     + " or MERGE (or a WITH that runs one); this WITH only reads");
+        }
+        if ("MERGE".equals(operation)) {
+            refuseUnboundedBySourceBranch();
         }
         refuseSqlServerSelect(operation);
         return operation;
@@ -380,11 +384,34 @@ final class SqlStatement {
         return after.startsWith(".");
     }
 
-    /** @return whether the keyword at {@code i} is a clause of another statement, not its own */
+    /**
+     * @return whether the keyword at {@code i} is a clause of another statement, not its own.
+     *     {@code DO} ({@code ON CONFLICT DO UPDATE}) counts everywhere but on SQL Server, where it
+     *     is no reserved word: {@code … WHERE id = do DELETE FROM t} compares a column named
+     *     {@code do}, then runs a second statement.
+     */
     boolean isClause(int i) {
         String previous = i > 0 ? keywords.get(i - 1) : "";
         return "THEN".equals(previous) || "FOR".equals(previous) || "KEY".equals(previous)
-                || "DO".equals(previous);
+                || ("DO".equals(previous) && dialect != Dialect.SQLSERVER);
+    }
+
+    /**
+     * Refuse a {@code MERGE} branch {@code WHEN NOT MATCHED BY SOURCE} with no {@code AND}
+     * condition: it deletes or updates every target row the source lacks, so an empty source
+     * changes the whole table, as an {@code UPDATE} or {@code DELETE} without {@code WHERE} would.
+     */
+    private void refuseUnboundedBySourceBranch() {
+        for (int i = 0; i + 5 < keywords.size(); i++) {
+            if ("WHEN".equals(keywords.get(i)) && "NOT".equals(keywords.get(i + 1))
+                    && "MATCHED".equals(keywords.get(i + 2)) && "BY".equals(keywords.get(i + 3))
+                    && "SOURCE".equals(keywords.get(i + 4))
+                    && "THEN".equals(keywords.get(i + 5))) {
+                throw new IllegalArgumentException("WHEN NOT MATCHED BY SOURCE without AND"
+                        + " would change every target row the source lacks; add an AND"
+                        + " condition");
+            }
+        }
     }
 
     /**
