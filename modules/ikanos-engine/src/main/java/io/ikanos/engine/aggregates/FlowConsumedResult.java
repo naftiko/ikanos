@@ -122,13 +122,17 @@ public class FlowConsumedResult implements ConsumedResult {
     }
 
     /**
-     * The freshness of the upstream answer the flow passes through unchanged, or
-     * {@link Freshness#UNKNOWN} when the flow shapes its own output.
+     * The freshness of the upstream answer a single-call flow passes through unchanged. A flow
+     * with steps gives {@link Freshness#UNKNOWN}, even when it passes its last answer through:
+     * that answer depends on every step, and its upstream speaks only for the last one. So does a
+     * flow that shapes its own output.
      */
     @Override
     public Freshness freshness() {
         ConsumedResult last = passThrough();
-        return last != null ? last.freshness() : Freshness.UNKNOWN;
+        boolean singleCall = flow.getCall() != null
+                && (flow.getSteps() == null || flow.getSteps().isEmpty());
+        return last != null && singleCall ? last.freshness() : Freshness.UNKNOWN;
     }
 
     @Override
