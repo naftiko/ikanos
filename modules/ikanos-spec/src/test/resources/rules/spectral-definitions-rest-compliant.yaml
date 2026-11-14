@@ -1,0 +1,71 @@
+ikanos: "1.0.0-beta10"
+info:
+  display: "REST definitions"
+  description: "Shared definitions of a REST adapter (#1000) used by its resources and operations."
+  tags:
+    - Test
+capability:
+  consumes:
+    - type: http
+      namespace: registry
+      description: "Registry API"
+      baseUri: "https://registry.acme.org"
+      resources:
+        ships:
+          path: "/ships"
+          description: "Ships"
+          operations:
+            list-ships:
+              method: GET
+              inputParameters:
+                status: { in: query }
+            list-crew:
+              method: GET
+  exposes:
+    - type: rest
+      port: 3002
+      namespace: shipyard-api
+      description: "Shipyard API"
+      definitions:
+        inputParameterSets:
+          status-filter:
+            status: { in: query, type: string, description: "Filter by operational status." }
+          ship-key:
+            imo: { in: path, type: string, description: "IMO number of the ship." }
+        schemas:
+          crew-member:
+            type: object
+            properties:
+              fullName: { type: string }
+              role: { type: string }
+      resources:
+        ships:
+          path: "/ships"
+          description: "Ships of the fleet"
+          operations:
+            list-ships:
+              method: GET
+              description: "List the ships, optionally filtered by status."
+              inputParameterSets: [status-filter]
+              call: registry.list-ships
+              with:
+                status: "{{status}}"
+        ship-crew:
+          path: "/ships/{{imo}}/crew"
+          description: "Crew of a ship"
+          inputParameterSets: [ship-key]
+          operations:
+            list-crew:
+              method: GET
+              description: "List the crew of a ship."
+              steps:
+                crew:
+                  type: call
+                  call: registry.list-crew
+              mappings:
+                - target: crew
+                  value: "$.crew"
+              outputParameters:
+                crew:
+                  type: array
+                  items: { schema: crew-member }

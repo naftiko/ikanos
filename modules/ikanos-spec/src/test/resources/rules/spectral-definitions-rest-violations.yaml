@@ -1,0 +1,52 @@
+ikanos: "1.0.0-beta10"
+info:
+  display: "REST definitions violations"
+  description: "Shared definitions of a REST adapter (#1000) that break every definitions rule."
+  tags:
+    - Test
+capability:
+  consumes:
+    - type: http
+      namespace: registry
+      description: "Registry API"
+      baseUri: "https://registry.acme.org"
+      resources:
+        ships:
+          path: "/ships"
+          description: "Ships"
+          operations:
+            list-ships:
+              method: GET
+  exposes:
+    - type: rest
+      port: 3002
+      namespace: shipyard-api
+      description: "Shipyard API"
+      definitions:
+        inputParameterSets:
+          ship-key:
+            imo: { in: path, type: string, description: "IMO number." }
+          legacy-key:
+            imo: { in: path, type: string, description: "Legacy IMO number." }
+          never-used-rest:
+            limit: { in: query, type: integer, description: "Maximum items." }
+        schemas:
+          crew-member:
+            type: object
+            properties:
+              boss: { schema: crew-lead }
+          crew-lead:
+            type: object
+            properties:
+              member: { schema: crew-member }
+      resources:
+        ship:
+          path: "/ships/{{imo}}"
+          description: "A ship"
+          inputParameterSets: [ship-key, legacy-key]
+          operations:
+            get-ship:
+              method: GET
+              description: "Get a ship."
+              inputParameterSets: [missing-in-rest, crew-member]
+              call: registry.list-ships

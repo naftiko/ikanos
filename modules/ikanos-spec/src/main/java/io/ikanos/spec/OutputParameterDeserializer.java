@@ -13,6 +13,7 @@
  */
 package io.ikanos.spec;
 
+import java.util.Set;
 import tools.jackson.core.JsonParser;
 import tools.jackson.databind.DeserializationContext;
 import tools.jackson.databind.JsonNode;
@@ -23,6 +24,13 @@ import tools.jackson.databind.ValueDeserializer;
  * properties, items, and values in a polymorphic manner.
  */
 public class OutputParameterDeserializer extends ValueDeserializer<OutputParameterSpec> {
+
+    /**
+     * The keys of an output that are not siblings of {@code schema:}: the schema itself, the
+     * output's name (the {@code name} of the list form, or the one the map form injects), and
+     * {@code $ref}, which the definitions expander rejects on its own.
+     */
+    static final Set<String> NOT_SCHEMA_SIBLINGS = Set.of("schema", "name", "$ref");
 
     @Override
     public OutputParameterSpec deserialize(JsonParser p, DeserializationContext ctxt) {
@@ -80,6 +88,13 @@ public class OutputParameterDeserializer extends ValueDeserializer<OutputParamet
         // name, with `schema:`.
         if (node.has("schema")) {
             spec.setSchema(node.get("schema").asString());
+            // Kept as declared, so that the expander rejects any of them, even one this
+            // deserializer does not read or whose value it ignores
+            for (var field : node.properties()) {
+                if (!NOT_SCHEMA_SIBLINGS.contains(field.getKey())) {
+                    spec.getSchemaSiblings().put(field.getKey(), field.getValue().deepCopy());
+                }
+            }
         }
         if (node.has("$ref")) {
             spec.setJsonSchemaRef(node.get("$ref").asString());

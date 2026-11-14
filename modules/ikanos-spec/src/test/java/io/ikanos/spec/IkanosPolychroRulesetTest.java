@@ -702,6 +702,48 @@ public class IkanosPolychroRulesetTest {
         assertFalse(result.output().contains("ikanos-definitions-"), result.output());
     }
 
+    @Test
+    public void definitionsReferenceRuleShouldFireOnUnknownAndWrongKindRestReferences() {
+        ProcessResult result = lintFixture("rules/spectral-definitions-rest-violations.yaml");
+        String output = result.output();
+        assertTrue(result.exitCode() != 0, output);
+        assertTrue(output.contains("Unknown input parameter set 'missing-in-rest'."
+                + " REST adapter 'shipyard-api'"), output);
+        assertTrue(output.contains("'crew-member' is a schema, not an input parameter set"),
+            output);
+    }
+
+    @Test
+    public void definitionsSetConflictRuleShouldFireOnARestResource() {
+        ProcessResult result = lintFixture("rules/spectral-definitions-rest-violations.yaml");
+        assertTrue(result.output().contains("ikanos-definitions-set-conflict")
+                && result.output().contains("Input 'imo' comes from both input parameter sets"
+                    + " 'ship-key' and 'legacy-key'"),
+            result.output());
+    }
+
+    @Test
+    public void definitionsSchemaCycleRuleShouldFireOnRestSchemas() {
+        ProcessResult result = lintFixture("rules/spectral-definitions-rest-violations.yaml");
+        assertTrue(result.output().contains("ikanos-definitions-schema-no-cycle")
+                && result.output().contains("crew-member -> crew-lead -> crew-member"),
+            result.output());
+    }
+
+    @Test
+    public void definitionsUnusedRuleShouldWarnOnRestDefinitionsNoUnitUses() {
+        ProcessResult result = lintFixture("rules/spectral-definitions-rest-violations.yaml");
+        assertTrue(result.output().contains("'never-used-rest', which no resource or operation"
+                + " uses"), result.output());
+    }
+
+    @Test
+    public void definitionsRulesShouldNotFireForCompliantRestDefinitions() {
+        ProcessResult result = lintFixtureAtSeverity(
+            "rules/spectral-definitions-rest-compliant.yaml", "warn");
+        assertFalse(result.output().contains("ikanos-definitions-"), result.output());
+    }
+
     /**
      * Lint a fixture file under {@code src/test/resources/} reporting findings down to
      * {@code severity}.

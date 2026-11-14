@@ -422,17 +422,35 @@ capability:
     address: "0.0.0.0"   # Needed in Docker context. Permits to access the MCP with localhost from outside the container.
     port: 3002
     namespace: shipyard-api
+    # Shared by the resources and operations of this adapter only: expanded at load time, so
+    # the served API (and its OpenAPI export) is the same as if each one declared them inline.
+    definitions:
+      inputParameterSets:
+        status-filter:
+          status:
+            in: query
+            type: string
+            description: "Filter by operational status"
+        ship-key:
+          imo:
+            in: path
+            type: string
+            description: "IMO number of the ship"
+      schemas:
+        crew-member:
+          type: object
+          properties:
+            fullName:
+              type: string
+            role:
+              type: string
     resources:
       ships:
         path: "/ships"
         operations:
           list-ships:
             method: GET
-            inputParameters:
-              status:
-                in: query
-                type: string
-                description: "Filter by operational status"
+            inputParameterSets: [status-filter]
             call: registry.list-ships
             with:
               status: shipyard-api.status
@@ -462,11 +480,7 @@ capability:
         operations:
           get-ship:
             method: GET
-            inputParameters:
-              imo:
-                in: path
-                type: string
-                description: "IMO number of the ship"
+            inputParameterSets: [ship-key]
             call: registry.get-ship
             with:
               imo_number: shipyard-api.imo
@@ -505,11 +519,7 @@ capability:
         operations:
           get-ship-with-crew:
             method: GET
-            inputParameters:
-              imo:
-                in: path
-                type: string
-                description: "IMO number of the ship"
+            inputParameterSets: [ship-key]
             steps:
               get-ship:
                 type: call
@@ -566,20 +576,13 @@ capability:
               crew:
                 type: array
                 items:
-                  fullName:
-                    type: string
-                  role:
-                    type: string
+                  schema: crew-member
       legacy-vessels:
         path: "/legacy/vessels"
         operations:
           list-legacy-vessels:
             method: GET
-            inputParameters:
-              status:
-                in: query
-                type: string
-                description: "Filter by operational status"
+            inputParameterSets: [status-filter]
             call: legacy.list-vessels
             with:
               status: shipyard-api.status
@@ -778,10 +781,7 @@ capability:
               crew:
                 type: array
                 items:
-                  fullName:
-                    type: string
-                  role:
-                    type: string
+                  schema: crew-member
               cargo:
                 type: array
                 items:

@@ -24,6 +24,9 @@ import io.ikanos.spec.aggregates.AggregateFlowSpec;
 import io.ikanos.spec.aggregates.AggregateSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
+import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
+import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
+import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.spec.util.VersionHelper;
 import tools.jackson.databind.ObjectMapper;
@@ -165,5 +168,85 @@ class DefinitionsDeserializationTest {
         assertEquals("ship", flow.getOutputParameters().get(0).getJsonSchemaRef());
         assertEquals("#/elsewhere", copy.getDefinitions().getSchemas().get("fleet")
                 .getProperties().get(0).getJsonSchemaRef());
+    }
+
+    @Test
+    void writeValueShouldKeepEveryKeyBesideAnOutputSchemaAcrossARoundTrip()
+            throws Exception {
+        // An output takes no key beside `schema:`. Every key declared there, including one the
+        // class does not model (`format`) or whose value it ignores (an `enum` that is not a
+        // list), is kept as declared so that the expander rejects it, also after an import copy.
+        AggregateSpec aggregate = yaml.readValue("""
+                display: "Ships"
+                namespace: ships
+                definitions:
+                  schemas:
+                    ship: { type: object, properties: { imo: { type: string } } }
+                flows:
+                  get-ship:
+                    description: "Get a ship."
+                    steps:
+                      ship: { type: call, call: erp.get-ship }
+                    mappings:
+                      - target: flagship
+                        value: "$.ship"
+                    outputParameters:
+                      flagship: { schema: ship, format: date, enum: ignored }
+                """, AggregateSpec.class);
+
+        AggregateSpec copy = yaml.readValue(yaml.writeValueAsBytes(aggregate),
+                AggregateSpec.class);
+
+        for (AggregateSpec spec : List.of(aggregate, copy)) {
+            OutputParameterSpec flagship = spec.getFlows().get("get-ship")
+                    .getOutputParameters().get(0);
+            assertEquals(List.of("format", "enum"),
+                    List.copyOf(flagship.getSchemaSiblings().keySet()));
+            assertEquals("date", flagship.getSchemaSiblings().get("format").asString());
+            assertEquals("ignored", flagship.getSchemaSiblings().get("enum").asString());
+        }
+    }
+
+    @Test
+    void writeValueShouldKeepRestDefinitionsAndTheirUsesAcrossTheRoundTripOfAnImport()
+            throws Exception {
+        // An import copies a REST adapter through the serializers before the definitions pass
+        // (#1000): its definitions and the sets of its resources and operations must survive.
+        RestServerSpec adapter = (RestServerSpec) yaml.readValue("""
+                type: rest
+                port: 3002
+                namespace: shipyard-api
+                definitions:
+                  inputParameterSets:
+                    ship-key:
+                      imo: { in: path, type: string, description: "IMO number." }
+                    paging:
+                      limit: { in: query, type: integer, description: "Maximum items." }
+                  schemas:
+                    crew-member: { type: object, properties: { fullName: { type: string } } }
+                resources:
+                  ship-crew:
+                    path: "/ships/{{imo}}/crew"
+                    inputParameterSets: [ship-key]
+                    operations:
+                      list-crew:
+                        method: GET
+                        inputParameterSets: [paging]
+                        call: registry.list-crew
+                """, io.ikanos.spec.exposes.ServerSpec.class);
+
+        RestServerSpec copy = (RestServerSpec) yaml.readValue(yaml.writeValueAsBytes(adapter),
+                io.ikanos.spec.exposes.ServerSpec.class);
+
+        assertEquals(List.of("ship-key", "paging"),
+                List.copyOf(copy.getDefinitions().getInputParameterSets().keySet()));
+        assertEquals("path", copy.getDefinitions().getInputParameterSets().get("ship-key")
+                .get("imo").getIn());
+        assertEquals(List.of("crew-member"),
+                List.copyOf(copy.getDefinitions().getSchemas().keySet()));
+        RestServerResourceSpec resource = copy.getResources().get("ship-crew");
+        assertEquals(List.of("ship-key"), resource.getInputParameterSets());
+        RestServerOperationSpec operation = resource.getOperations().get("list-crew");
+        assertEquals(List.of("paging"), operation.getInputParameterSets());
     }
 }

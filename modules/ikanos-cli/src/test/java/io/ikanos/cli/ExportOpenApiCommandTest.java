@@ -283,4 +283,158 @@ public class ExportOpenApiCommandTest {
             Files.deleteIfExists(expectedOutput);
         }
     }
+
+    @Test
+    void exportShouldExpandTheDefinitionsOfTheRestAdapter() throws Exception {
+        Path capFile = tempDir.resolve("capability.yml");
+        Files.writeString(capFile, """
+                ikanos: "%s"
+                info:
+                  display: "Definitions"
+                capability:
+                  exposes:
+                    - type: rest
+                      address: localhost
+                      port: 8080
+                      namespace: api
+                      definitions:
+                        inputParameterSets:
+                          paging:
+                            limit: { in: query, type: integer, description: "Maximum items." }
+                      resources:
+                        items:
+                          path: /items
+                          operations:
+                            list-items:
+                              method: GET
+                              inputParameterSets: [paging]
+                """.formatted(IKANOS));
+        Path output = tempDir.resolve("openapi.json");
+
+        int exitCode = new CommandLine(new Cli()).execute("export", "openapi",
+                capFile.toString(), "-o", output.toString(), "-f", "json");
+
+        assertEquals(0, exitCode);
+        JsonNode parameters = IkanosMappers.json().readTree(Files.readString(output))
+                .path("paths").path("/items").path("get").path("parameters");
+        assertEquals(1, parameters.size(), parameters.toString());
+        assertEquals("limit", parameters.get(0).path("name").asString());
+        assertEquals("query", parameters.get(0).path("in").asString());
+    }
+
+    @Test
+    void exportShouldDeclareThePathParameterOfAResourceLevelSet() throws Exception {
+        Path capFile = tempDir.resolve("capability.yml");
+        Files.writeString(capFile, """
+                ikanos: "%s"
+                info:
+                  display: "Definitions"
+                capability:
+                  exposes:
+                    - type: rest
+                      address: localhost
+                      port: 8080
+                      namespace: api
+                      definitions:
+                        inputParameterSets:
+                          ship-key:
+                            imo: { in: path, type: string, description: "IMO number." }
+                      resources:
+                        ship:
+                          path: "/ships/{{imo}}"
+                          inputParameterSets: [ship-key]
+                          operations:
+                            get-ship:
+                              method: GET
+                """.formatted(IKANOS));
+        Path output = tempDir.resolve("openapi.json");
+
+        int exitCode = new CommandLine(new Cli()).execute("export", "openapi",
+                capFile.toString(), "-o", output.toString(), "-f", "json");
+
+        assertEquals(0, exitCode);
+        JsonNode parameters = IkanosMappers.json().readTree(Files.readString(output))
+                .path("paths").path("/ships/{imo}").path("get").path("parameters");
+        assertEquals(1, parameters.size(), parameters.toString());
+        assertEquals("imo", parameters.get(0).path("name").asString());
+        assertEquals("path", parameters.get(0).path("in").asString());
+    }
+
+    @Test
+    void exportShouldMarkASetInputWithoutRequiredAsRequiredLikeItsInlineForm() throws Exception {
+        // A REST parameter that declares no `required` is exported as required. The same entry
+        // from a set must be too: the expansion must not turn the undeclared flag into false.
+        Path capFile = tempDir.resolve("capability.yml");
+        Files.writeString(capFile, """
+                ikanos: "%s"
+                info:
+                  display: "Definitions"
+                capability:
+                  exposes:
+                    - type: rest
+                      address: localhost
+                      port: 8080
+                      namespace: api
+                      definitions:
+                        inputParameterSets:
+                          paging:
+                            limit: { in: query, type: integer, description: "Maximum items." }
+                      resources:
+                        items:
+                          path: /items
+                          operations:
+                            list-items:
+                              method: GET
+                              inputParameterSets: [paging]
+                        inline-items:
+                          path: /inline-items
+                          operations:
+                            list-inline-items:
+                              method: GET
+                              inputParameters:
+                                limit: { in: query, type: integer, description: "Maximum items." }
+                """.formatted(IKANOS));
+        Path output = tempDir.resolve("openapi.json");
+
+        int exitCode = new CommandLine(new Cli()).execute("export", "openapi",
+                capFile.toString(), "-o", output.toString(), "-f", "json");
+
+        assertEquals(0, exitCode);
+        JsonNode paths = IkanosMappers.json().readTree(Files.readString(output)).path("paths");
+        JsonNode fromSet = paths.path("/items").path("get").path("parameters").get(0);
+        JsonNode inline = paths.path("/inline-items").path("get").path("parameters").get(0);
+        assertEquals("limit", fromSet.path("name").asString(), fromSet.toString());
+        assertTrue(fromSet.path("required").asBoolean(false), fromSet.toString());
+        assertEquals(inline, fromSet);
+    }
+
+    @Test
+    void exportShouldFailWhenTheRestAdapterUsesAnUnknownSet() throws Exception {
+        Path capFile = tempDir.resolve("capability.yml");
+        Files.writeString(capFile, """
+                ikanos: "%s"
+                info:
+                  display: "Definitions"
+                capability:
+                  exposes:
+                    - type: rest
+                      address: localhost
+                      port: 8080
+                      namespace: api
+                      resources:
+                        items:
+                          path: /items
+                          operations:
+                            list-items:
+                              method: GET
+                              inputParameterSets: [paging]
+                """.formatted(IKANOS));
+        Path output = tempDir.resolve("openapi.json");
+
+        int exitCode = new CommandLine(new Cli()).execute("export", "openapi",
+                capFile.toString(), "-o", output.toString(), "-f", "json");
+
+        assertEquals(1, exitCode);
+        assertFalse(Files.exists(output), "No contract is written for invalid definitions");
+    }
 }
