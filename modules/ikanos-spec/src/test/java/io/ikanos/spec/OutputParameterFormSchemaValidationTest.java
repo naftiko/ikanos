@@ -166,6 +166,31 @@ class OutputParameterFormSchemaValidationTest {
     }
 
     @Test
+    void validateShouldAcceptNestedObjectMockMapOutputsOnRestOperation() throws Exception {
+        assertAccepted(restOperation("""
+                outputParameters:
+                  payload:
+                    type: "object"
+                    properties:
+                      status:
+                        type: "string"
+                        value: "ok"
+                """));
+    }
+
+    @Test
+    void validateShouldAcceptNestedArrayMockMapOutputsOnRestOperation() throws Exception {
+        assertAccepted(restOperation("""
+                outputParameters:
+                  tags:
+                    type: "array"
+                    items:
+                      type: "string"
+                      value: "blue"
+                """));
+    }
+
+    @Test
     void validateShouldAcceptMockListOutputsOnRestOperation() throws Exception {
         assertAccepted(restOperation("""
                 outputParameters:
