@@ -72,14 +72,23 @@ public class RestInputTypesIntegrationTest {
         assertEquals("NO", body.path("flag").asString());
     }
 
-    private JsonNode get(String path) throws Exception {
-        Request request = new Request(Method.GET, new Reference("http://localhost:9213" + path));
-        request.getResourceRef().setBaseRef("http://localhost:9213");
-        Response response = new Response(request);
+    @Test
+    void handleShouldAnswerBadRequestWhenAnObjectQueryInputIsAQuotedJsonString() {
+        assertEquals(Status.CLIENT_ERROR_BAD_REQUEST, send("/find?filter=%22NO%22").getStatus());
+    }
 
-        adapter.getRouter().handle(request, response);
+    private JsonNode get(String path) throws Exception {
+        Response response = send(path);
 
         assertEquals(Status.SUCCESS_OK, response.getStatus(), path);
         return JSON.readTree(response.getEntity().getText());
+    }
+
+    private Response send(String path) {
+        Request request = new Request(Method.GET, new Reference("http://localhost:9213" + path));
+        request.getResourceRef().setBaseRef("http://localhost:9213");
+        Response response = new Response(request);
+        adapter.getRouter().handle(request, response);
+        return response;
     }
 }
