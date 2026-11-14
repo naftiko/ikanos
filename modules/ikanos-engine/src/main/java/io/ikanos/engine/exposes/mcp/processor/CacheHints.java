@@ -25,7 +25,7 @@ import io.ikanos.spec.exposes.mcp.McpServerSpec;
  * <p>The adapter's values apply to every list and read; a resource's own values override them on
  * {@code resources/read} of that resource, field by field.</p>
  *
- * @param ttlMs freshness in milliseconds, zero or more
+ * @param ttlMs freshness in milliseconds, zero or more; a negative value is treated as 0
  * @param cacheScope {@code public} or {@code private}
  */
 public record CacheHints(int ttlMs, String cacheScope) {
@@ -37,12 +37,11 @@ public record CacheHints(int ttlMs, String cacheScope) {
     public static final String DEFAULT_SCOPE = "private";
 
     public CacheHints {
-        // MCP 2026-07-28 (SEP-2549): ttlMs is an integer of zero or more, cacheScope is public
+        // MCP 2026-07-28 (SEP-2549): a negative ttlMs is treated as 0, and cacheScope is public
         // or private. The engine does not validate the schema at load time, so both are checked
-        // here too, before an invalid value can reach the wire.
-        if (ttlMs < 0) {
-            throw new IllegalArgumentException("MCP ttlMs must be zero or more, got " + ttlMs);
-        }
+        // here too, before an invalid value can reach the wire. McpCallHandlersFactory warns at
+        // startup about a negative ttlMs, where the adapter and resource are known.
+        ttlMs = Math.max(0, ttlMs);
         Objects.requireNonNull(cacheScope, "cacheScope");
         if (!"public".equals(cacheScope) && !"private".equals(cacheScope)) {
             throw new IllegalArgumentException(

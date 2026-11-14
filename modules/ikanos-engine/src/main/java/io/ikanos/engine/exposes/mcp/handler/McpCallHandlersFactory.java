@@ -60,6 +60,11 @@ public class McpCallHandlersFactory {
         // naming the resource it comes from
         McpServerSpec spec = adapter.getMcpServerSpec();
         for (McpServerResourceSpec resource : spec.getResources().values()) {
+            if (resource.getTtlMs() != null && resource.getTtlMs() < 0) {
+                Context.getCurrentLogger().warning("MCP adapter '" + spec.getNamespace()
+                        + "', resource '" + resource.getName() + "': ttlMs " + resource.getTtlMs()
+                        + " is negative, sending 0 instead (SEP-2549)");
+            }
             try {
                 CacheHints.forResource(spec, resource);
             } catch (IllegalArgumentException e) {

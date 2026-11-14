@@ -58,12 +58,19 @@ class CacheHintsTest {
     }
 
     @Test
-    void forResourceShouldRejectANegativeResourceTtl() {
+    void forResourceShouldTreatANegativeResourceTtlAsZero() {
+        // SEP-2549: a negative ttlMs is treated as 0
         McpServerResourceSpec resource = new McpServerResourceSpec();
         resource.setTtlMs(-5);
 
-        assertThatThrownBy(() -> CacheHints.forResource(new McpServerSpec(), resource))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("ttlMs");
+        assertThat(CacheHints.forResource(new McpServerSpec(), resource).ttlMs()).isZero();
+    }
+
+    @Test
+    void forServerShouldTreatANegativeAdapterTtlAsZero() {
+        McpServerSpec server = new McpServerSpec();
+        server.setTtlMs(-1);
+
+        assertThat(CacheHints.forServer(server).ttlMs()).isZero();
     }
 }
