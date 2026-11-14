@@ -158,6 +158,10 @@ public class Resolver {
      * section's value (a client object, a step output) would be read instead, and not as a section
      * itself ({@code {{#auth.claims...}}}), whose inner names fall back to the other parameters
      * when the claim is missing.</li>
+     * <li>Nor relative to a section over the root: when a template has a section named
+     * {@code auth}, such as {@code {{#auth}}{{claims.sub}}{{/auth}}}, it may not read
+     * {@code claims} anywhere, since such a read skips these checks and falls back to the other
+     * parameters when the claim is missing.</li>
      * </ul>
      *
      * @throws CallerClaimMissingException naming the missing references
@@ -165,8 +169,15 @@ public class Resolver {
      *         {@code auth} is taken by something else than the caller root
      */
     public static void requireCallerValues(String template, Map<String, Object> parameters) {
-        if (template == null || !template.contains(CALLER_CLAIMS)) {
+        if (template == null || !(template.contains(CALLER_CLAIMS)
+                || template.contains(CALLER_ROOT) && template.contains(CLAIMS))) {
             return;
+        }
+        if (readsClaimsRelativeToRoot(template)) {
+            throw new IllegalArgumentException("A template reads 'claims' inside a section"
+                    + " named '" + CALLER_ROOT + "', which skips the checks on the caller's"
+                    + " claims. Read each claim outside any section, such as {{" + CALLER_CLAIMS
+                    + ".sub}}");
         }
         CallerTags everywhere = callerTags(template, true);
         if (everywhere.isEmpty()) {
@@ -197,6 +208,68 @@ public class Resolver {
         if (!missing.isEmpty()) {
             throw new CallerClaimMissingException(missing);
         }
+    }
+
+    /** Name of the claims under {@link #CALLER_ROOT}, as a section over the root reads them. */
+    private static final String CLAIMS = "claims";
+
+    /**
+     * Whether template parameters hold nothing but the caller root: no input, step or binding.
+     * The guards that omit a parameter or reject a template with nothing to substitute apply
+     * then, as they did before the root was added to every authenticated call (#998).
+     */
+    public static boolean hasNoInputs(Map<String, Object> parameters) {
+        return parameters == null || parameters.isEmpty() || parameters.size() == 1
+                && parameters.get(CALLER_ROOT) instanceof CallerRoot;
+    }
+
+    /**
+     * Whether {@code template} has a section named {@link #CALLER_ROOT} and reads {@code claims}
+     * (a value, a path or a section) anywhere: inside that section, it would read the claims
+     * relative to the section. JMustache's visitor does not report where a section ends, so a read
+     * outside the section counts too.
+     */
+    private static boolean readsClaimsRelativeToRoot(String template) {
+        boolean[] found = new boolean[2];
+        try {
+            compileTemplate(template).visit(new Mustache.Visitor() {
+                @Override
+                public void visitText(String text) {
+                    // literal text holds no variable
+                }
+
+                @Override
+                public void visitVariable(String name) {
+                    found[1] |= isClaimsReference(name);
+                }
+
+                @Override
+                public boolean visitInclude(String name) {
+                    return false;
+                }
+
+                @Override
+                public boolean visitSection(String name) {
+                    found[0] |= CALLER_ROOT.equals(name.trim());
+                    found[1] |= isClaimsReference(name);
+                    return true;
+                }
+
+                @Override
+                public boolean visitInvertedSection(String name) {
+                    return visitSection(name);
+                }
+            });
+        } catch (RuntimeException e) {
+            logger.debug("Template is not valid Mustache ({})", e.getClass().getSimpleName());
+            return false;
+        }
+        return found[0] && found[1];
+    }
+
+    private static boolean isClaimsReference(String name) {
+        String reference = name.trim();
+        return reference.equals(CLAIMS) || reference.startsWith(CLAIMS + ".");
     }
 
     private static boolean isClaimValue(Object value) {
@@ -275,6 +348,8 @@ public class Resolver {
         requireCallerValues(template, parameters);
 
         boolean noParameters = parameters == null || parameters.isEmpty();
+        // The caller root alone is no input: a missing variable is written back as before (#998)
+        boolean noInputs = hasNoInputs(parameters);
 
         Map<String, Object> serialized = new HashMap<>();
         if (!noParameters) {
@@ -293,13 +368,13 @@ public class Resolver {
         // {{name}}, so an exposes-side credential template never collapses to an empty string.
         // Required-value checks do not read this leftover: they call missingVariables(...).
         Mustache.Compiler compiler = Mustache.compiler().escapeHTML(false)
-                .defaultValue(noParameters ? UNRESOLVED_VARIABLE : "");
+                .defaultValue(noInputs ? UNRESOLVED_VARIABLE : "");
         if (formatter != null && !noParameters) {
             // The formatter runs on every rendered value, whatever its path or tag, and only on
             // rendering: sections still see the original values.
             compiler = compiler.withFormatter(formatter);
         }
-        if (noParameters) {
+        if (noInputs) {
             // Nothing can be substituted: a string that is not a valid template (for example a
             // static credential containing "{{}}") is returned as-is, as it was before #847.
             try {
@@ -1617,8 +1692,8 @@ public class Resolver {
         String template = spec.getValue() != null ? spec.getValue() : spec.getTemplate();
 
         if (template != null) {
-            boolean noParameters = parameters == null || parameters.isEmpty();
-            if (noParameters && !missingVariables(template, parameters).isEmpty()) {
+            // The caller root alone is no input (#998)
+            if (hasNoInputs(parameters) && !missingVariables(template, parameters).isEmpty()) {
                 // Nothing can be substituted: omit the parameter, so an optional one is not sent
                 // with its raw template text. The check is on the template, not on the rendered
                 // value, so a caller value that itself contains "{{" is still sent (#858).

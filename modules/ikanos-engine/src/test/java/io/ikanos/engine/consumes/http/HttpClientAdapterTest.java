@@ -1278,4 +1278,18 @@ public class HttpClientAdapterTest {
         when(capability.getBindings()).thenReturn(bindings);
         return capability;
     }
+
+    @Test
+    void rejectUnresolvedShouldStillCheckATemplateWithOnlyTheCallerRoot() {
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put(io.ikanos.engine.util.Resolver.CALLER_ROOT,
+                new io.ikanos.engine.util.CallerRoot(Map.of("claims", Map.of("sub", "alice"))));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> HttpClientAdapter.rejectUnresolved("body", "{\"owner\":\"{{owner}}\"}",
+                        parameters),
+                "#998: the caller root is no input, so an unresolved body still fails");
+        HttpClientAdapter.rejectUnresolved("body", "{\"owner\":\"{{auth.claims.sub}}\"}",
+                parameters);
+    }
 }
