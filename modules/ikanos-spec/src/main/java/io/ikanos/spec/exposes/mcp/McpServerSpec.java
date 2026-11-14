@@ -69,6 +69,9 @@ public class McpServerSpec extends ServerSpec {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private final AtomicReference<McpToolHintsSpec> hints = new AtomicReference<>();
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private final AtomicReference<McpToolSearchSpec> toolSearch = new AtomicReference<>();
+
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonDeserialize(using = McpServerToolMapDeserializer.class)
     private final Map<String, McpServerToolSpec> tools =
@@ -190,6 +193,18 @@ public class McpServerSpec extends ServerSpec {
 
     public void setHints(McpToolHintsSpec hints) {
         this.hints.set(hints);
+    }
+
+    /**
+     * @return how this server advertises its tools (listed or deferred), or {@code null} when the
+     *         block is omitted, which means {@code listed} with client selection allowed
+     */
+    public McpToolSearchSpec getToolSearch() {
+        return toolSearch.get();
+    }
+
+    public void setToolSearch(McpToolSearchSpec toolSearch) {
+        this.toolSearch.set(toolSearch);
     }
 
     /**

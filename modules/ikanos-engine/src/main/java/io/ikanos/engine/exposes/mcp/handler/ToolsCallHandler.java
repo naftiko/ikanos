@@ -20,18 +20,26 @@ import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.engine.exposes.ErrorReference;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.spec.util.IkanosMappers;
+import io.ikanos.engine.exposes.mcp.McpToolJson;
 import io.ikanos.engine.exposes.mcp.model.HandlerFailureResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerSuccessResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerResult;
 import io.ikanos.engine.exposes.mcp.model.McpHeader;
+import io.ikanos.engine.exposes.mcp.model.McpRequestContext;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPostProcessor;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPreProcessor;
 import io.ikanos.engine.exposes.mcp.model.McpResultType;
+import io.ikanos.engine.exposes.mcp.search.ToolSearchCatalog;
+import io.ikanos.engine.exposes.mcp.search.ToolSearchMode;
+import io.ikanos.engine.exposes.mcp.search.ToolSearchQuery;
+import io.ikanos.engine.exposes.mcp.search.ToolSearchUnavailableException;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.restlet.Context;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 
@@ -43,6 +51,10 @@ import io.ikanos.engine.exposes.mcp.McpCallContext;
 
 /**
  * The tools/call handler.
+ *
+ * <p>In deferred mode, two meta-tools exist besides the declared tools: the search meta-tool,
+ * which returns the full definitions of the best-matching tools, and the call meta-tool, which
+ * calls one of them by name. A direct call of a declared tool works in every mode.</p>
  */
 public class ToolsCallHandler extends McpCallHandler {
 
@@ -51,13 +63,20 @@ public class ToolsCallHandler extends McpCallHandler {
 
     public static final String METHOD_NAME = "tools/call";
 
+    static final String NO_MATCH_HINT = "No tools matched. Try broader keywords or remove filters.";
+    static final String SEARCH_UNAVAILABLE = "Tool search is unavailable on this endpoint.";
+
     public ToolsCallHandler(McpServerAdapter adapter, List<McpHeader> requiredHeaders, List<DispatchPreProcessor> preProcessors, List<DispatchPostProcessor> postProcessors) {
         super(adapter, requiredHeaders, preProcessors, postProcessors);
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public HandlerResult handle(JsonNode requestBody) {
+        return handle(requestBody, McpRequestContext.of(adapter.getToolSearchCatalog()));
+    }
+
+    @Override
+    public HandlerResult handle(JsonNode requestBody, McpRequestContext context) {
         JsonNode idNode = requestBody.get("id");
         JsonNode params = requestBody.get("params");
 
@@ -67,6 +86,23 @@ public class ToolsCallHandler extends McpCallHandler {
 
         String toolName = params.path("name").asString("");
         JsonNode argumentsNode = params.get("arguments");
+        ToolSearchCatalog catalog = adapter.getToolSearchCatalog();
+
+        if (context.mode() == ToolSearchMode.DEFERRED) {
+            if (catalog.isSearchTool(toolName)) {
+                return new HandlerSuccessResult(searchTools(catalog, argumentsNode, context));
+            }
+            if (catalog.isCallTool(toolName)) {
+                return new HandlerSuccessResult(callTool(catalog, argumentsNode));
+            }
+        }
+        return callDeclaredTool(idNode, params, toolName, argumentsNode);
+    }
+
+    /** Calls a declared tool by name, as a client does with a plain {@code tools/call}. */
+    @SuppressWarnings("unchecked")
+    private HandlerResult callDeclaredTool(JsonNode idNode, JsonNode params, String toolName,
+            JsonNode argumentsNode) {
         RequestClientCapabilities capabilities = RequestClientCapabilities.from(params);
         String principal = McpCallContext.principal();
 
@@ -110,9 +146,181 @@ public class ToolsCallHandler extends McpCallHandler {
             Context.getCurrentLogger().log(Level.SEVERE, "Error handling tools call", e);
             return new HandlerFailureResult(INVALID_PARAMS, buildJsonRpcError(idNode, INVALID_PARAMS.getCode(), "Invalid params: " + e.getMessage()));
         } catch (Exception e) {
-            String ref = ErrorReference.record(Level.SEVERE, "Error handling tools call", e);
-            return new HandlerSuccessResult(toolError(ref));
+            return new HandlerSuccessResult(executionFailure(e));
         }
+    }
+
+    /**
+     * Runs the search meta-tool. Input errors are tool errors ({@code isError}), which the model
+     * can act on, not JSON-RPC errors. A tag filter on the endpoint URL also limits the search,
+     * so a client scoped to some tags never finds the others.
+     */
+    ObjectNode searchTools(ToolSearchCatalog catalog, JsonNode arguments,
+            McpRequestContext context) {
+        JsonNode args = arguments != null ? arguments : MAPPER.createObjectNode();
+        String text = args.path("query").isString() ? args.path("query").asString() : null;
+        if (text == null || text.isBlank()) {
+            return toolError("query is required: describe what you want to do, in a few words.");
+        }
+        if (text.length() > ToolSearchCatalog.MAX_QUERY_LENGTH) {
+            return toolError("query is too long: use at most " + ToolSearchCatalog.MAX_QUERY_LENGTH
+                    + " characters.");
+        }
+
+        Set<String> tags = new LinkedHashSet<>();
+        JsonNode tagsNode = args.get("tags");
+        if (tagsNode != null && !tagsNode.isNull()) {
+            if (!tagsNode.isArray()) {
+                return toolError("tags must be an array of strings.");
+            }
+            tagsNode.forEach(tag -> tags.add(tag.asString()));
+        }
+        if (!context.tagFilter().isEmpty()) {
+            if (tags.isEmpty()) {
+                tags.addAll(context.tagFilter());
+            } else {
+                tags.retainAll(context.tagFilter());
+                if (tags.isEmpty()) {
+                    return searchResult(List.of(), catalog);
+                }
+            }
+        }
+
+        JsonNode readOnlyNode = args.get("readOnly");
+        if (readOnlyNode != null && !readOnlyNode.isNull() && !readOnlyNode.isBoolean()) {
+            return toolError("readOnly must be true or false.");
+        }
+        boolean readOnly = readOnlyNode != null && readOnlyNode.asBoolean(false);
+
+        int limit = catalog.maxResults();
+        JsonNode limitNode = args.get("limit");
+        if (limitNode != null && !limitNode.isNull()) {
+            if (!limitNode.isIntegralNumber() || limitNode.asInt() < 1) {
+                return toolError("limit must be a whole number of at least 1.");
+            }
+            limit = Math.min(limitNode.asInt(), ToolSearchCatalog.MAX_LIMIT);
+        }
+
+        try {
+            List<String> names = catalog.search(new ToolSearchQuery(text, tags, readOnly, limit));
+            return searchResult(names, catalog);
+        } catch (ToolSearchUnavailableException e) {
+            String ref = ErrorReference.record(Level.SEVERE, "MCP tool search is unavailable", e);
+            return toolError(ErrorReference.withReference(SEARCH_UNAVAILABLE, ref));
+        }
+    }
+
+    /**
+     * The search result: the found tools' full definitions in {@code structuredContent}, written
+     * by the same serialiser as {@code tools/list}, and the same JSON as text for clients that
+     * read text only.
+     */
+    private ObjectNode searchResult(List<String> names, ToolSearchCatalog catalog) {
+        ObjectNode structured = MAPPER.createObjectNode();
+        ArrayNode tools = structured.putArray("tools");
+        Map<String, String> labels = adapter.getToolLabels();
+        for (String name : names) {
+            catalog.tool(name).ifPresent(tool -> tools.add(McpToolJson.write(tool, labels, MAPPER)));
+        }
+
+        ObjectNode result = MAPPER.createObjectNode();
+        ObjectNode text = result.putArray("content").addObject();
+        text.put("type", "text");
+        text.put("text", tools.isEmpty() ? NO_MATCH_HINT : MAPPER.writeValueAsString(structured));
+        result.set("structuredContent", structured);
+        result.put("isError", false);
+        result.put("resultType", "complete");
+        return result;
+    }
+
+    /**
+     * Runs the call meta-tool: calls each named tool with its arguments, in order, exactly as a
+     * direct {@code tools/call} would, so results, errors and telemetry are the same. Calls run
+     * in sequence, and a failing call does not stop the others: each gets its own result, with
+     * {@code isError} when it failed. Only a malformed request, such as more calls than
+     * {@code maxToolCalls}, is a tool error as a whole.
+     */
+    ObjectNode callTool(ToolSearchCatalog catalog, JsonNode arguments) {
+        JsonNode args = arguments != null ? arguments : MAPPER.createObjectNode();
+        JsonNode calls = args.get("calls");
+        if (calls == null || !calls.isArray() || calls.isEmpty()) {
+            return toolError("calls is required: a list of {name, arguments} for tools returned"
+                    + " by " + catalog.searchToolName() + ".");
+        }
+        if (calls.size() > catalog.maxToolCalls()) {
+            return toolError("Too many calls: " + catalog.callToolName() + " runs at most "
+                    + catalog.maxToolCalls() + " tools per request.");
+        }
+
+        ObjectNode structured = MAPPER.createObjectNode();
+        ArrayNode results = structured.putArray("results");
+        for (JsonNode call : calls) {
+            String name = call.path("name").isString() ? call.path("name").asString() : "";
+            ObjectNode entry = results.addObject();
+            entry.put("name", name);
+            entry.set("result", callOne(catalog, name, call.get("arguments")));
+        }
+
+        ObjectNode result = MAPPER.createObjectNode();
+        ObjectNode text = result.putArray("content").addObject();
+        text.put("type", "text");
+        text.put("text", MAPPER.writeValueAsString(structured));
+        result.set("structuredContent", structured);
+        result.put("isError", false);
+        result.put("resultType", "complete");
+        return result;
+    }
+
+    /** One call of the call meta-tool; every failure is a tool error for that call only. */
+    @SuppressWarnings("unchecked")
+    private ObjectNode callOne(ToolSearchCatalog catalog, String name, JsonNode toolArguments) {
+        if (name.isBlank()) {
+            return toolError("name is required: the name of a tool returned by "
+                    + catalog.searchToolName() + ".");
+        }
+        if (catalog.isSearchTool(name) || catalog.isCallTool(name)) {
+            return toolError(catalog.callToolName() + " cannot call " + name + ".");
+        }
+        if (catalog.tool(name).isEmpty()) {
+            return toolError("Unknown tool: " + name + ". Use " + catalog.searchToolName()
+                    + " to find tools.");
+        }
+        if (toolArguments != null && !toolArguments.isNull() && !toolArguments.isObject()) {
+            return toolError("arguments must be an object.");
+        }
+        try {
+            Map<String, Object> callArguments = toolArguments != null && toolArguments.isObject()
+                    ? MAPPER.treeToValue(toolArguments, Map.class)
+                    : new ConcurrentHashMap<>();
+            McpSchema.CallToolResult toolResult =
+                    adapter.getToolHandler().handleToolCall(name, callArguments);
+            ObjectNode result = MAPPER.valueToTree(toolResult);
+            result.put("resultType", "complete");
+            return result;
+        } catch (IllegalArgumentException e) {
+            Context.getCurrentLogger().log(Level.FINE, "Invalid arguments for " + name, e);
+            return toolError("Invalid arguments for " + name + ": " + e.getMessage());
+        } catch (Exception e) {
+            return executionFailure(e);
+        }
+    }
+
+    /** A tool execution failure: a generic message with a reference id, detail logged. */
+    static ObjectNode executionFailure(Exception e) {
+        String ref = ErrorReference.record(Level.SEVERE, "Error handling tools call", e);
+        return toolError(ErrorReference.withReference("Tool execution failed", ref));
+    }
+
+    /** A tool error, returned as a tool result with {@code isError: true}. */
+    static ObjectNode toolError(String message) {
+        ObjectNode result = JSON.createObjectNode();
+        ArrayNode content = result.putArray("content");
+        ObjectNode textContent = content.addObject();
+        textContent.put("type", "text");
+        textContent.put("text", message);
+        result.put("isError", true);
+        result.put("resultType", "complete");
+        return result;
     }
 
     @Override
@@ -155,21 +363,8 @@ public class ToolsCallHandler extends McpCallHandler {
         } catch (IllegalArgumentException | InputRequiredException e) {
             throw e;
         } catch (Exception e) {
-            String ref = ErrorReference.record(Level.SEVERE, "Error handling tools call", e);
-            return toolError(ref);
+            return executionFailure(e);
         }
-    }
-
-    /** A tool execution error, returned as a tool result with {@code isError: true}. */
-    static ObjectNode toolError(String ref) {
-        ObjectNode result = JSON.createObjectNode();
-        ArrayNode content = result.putArray("content");
-        ObjectNode textContent = content.addObject();
-        textContent.put("type", "text");
-        textContent.put("text", ErrorReference.withReference("Tool execution failed", ref));
-        result.put("isError", true);
-        result.put(McpResultType.FIELD, McpResultType.COMPLETE.wireValue());
-        return result;
     }
 
     @Override
