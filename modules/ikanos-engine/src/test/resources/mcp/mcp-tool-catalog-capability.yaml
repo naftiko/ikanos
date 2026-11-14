@@ -1,0 +1,486 @@
+ikanos: 1.0.0-beta10
+info:
+  display: MCP Tool Catalog Capability
+  description: A 40-tool operations catalog used to test tool listing, tag filtering and tool search
+  tags:
+  - Test
+  - MCP
+  created: '2026-11-14'
+  modified: '2026-11-14'
+capability:
+  exposes:
+  - type: mcp
+    address: localhost
+    port: 9131
+    namespace: ops
+    description: Operations tools for incidents, deployments, Kubernetes, monitoring, on-call, billing and support.
+    tools:
+      get-incident:
+        description: "Get an incident by its id, with status, severity, owner and timeline."
+        tags: [incidents]
+        hints:
+          readOnly: true
+        inputParameters:
+          incident-id:
+            type: string
+            description: "Identifier of the incident, for example INC-1042."
+        call: ops-api.read
+      list-open-incidents:
+        description: "List incidents that are still open, newest first."
+        tags: [incidents]
+        hints:
+          readOnly: true
+        inputParameters:
+          severity:
+            type: string
+            description: "Only return incidents with this severity: sev1, sev2 or sev3."
+        call: ops-api.read
+      create-incident:
+        description: "Open a new incident and page the on-call engineer of the affected service."
+        tags: [incidents]
+        hints:
+          readOnly: false
+          destructive: false
+        inputParameters:
+          title:
+            type: string
+            description: "Short summary of the problem."
+          service:
+            type: string
+            description: "Name of the affected service."
+        call: ops-api.write
+      acknowledge-incident:
+        description: "Acknowledge an incident so the pager stops escalating it."
+        tags: [incidents]
+        hints:
+          readOnly: false
+          destructive: false
+        inputParameters:
+          incident-id:
+            type: string
+            description: "Identifier of the incident to acknowledge."
+        call: ops-api.write
+      resolve-incident:
+        description: "Mark an incident as resolved and record the resolution note."
+        tags: [incidents]
+        hints:
+          readOnly: false
+          destructive: false
+        inputParameters:
+          incident-id:
+            type: string
+            description: "Identifier of the incident."
+          note:
+            type: string
+            description: "What fixed the problem."
+        call: ops-api.write
+      add-incident-note:
+        description: "Append a timeline note to an incident."
+        tags: [incidents]
+        hints:
+          readOnly: false
+          destructive: false
+        inputParameters:
+          incident-id:
+            type: string
+            description: "Identifier of the incident."
+          note:
+            type: string
+            description: "Text of the note."
+        call: ops-api.write
+      list-deployments:
+        description: "List the deployments of a Kubernetes namespace with their ready replica counts."
+        tags: [kubernetes, deployments]
+        hints:
+          readOnly: true
+        inputParameters:
+          namespace:
+            type: string
+            description: "Kubernetes namespace."
+        call: ops-api.read
+      get-deployment-status:
+        description: "Get the rollout status of a Kubernetes deployment."
+        tags: [kubernetes, deployments]
+        hints:
+          readOnly: true
+        inputParameters:
+          namespace:
+            type: string
+            description: "Kubernetes namespace."
+          deployment:
+            type: string
+            description: "Name of the deployment."
+        call: ops-api.read
+      restart-deployment:
+        description: "Restart a Kubernetes deployment and wait for the rollout to finish."
+        tags: [kubernetes, deployments]
+        hints:
+          readOnly: false
+          destructive: false
+        inputParameters:
+          namespace:
+            type: string
+            description: "Kubernetes namespace."
+          deployment:
+            type: string
+            description: "Name of the deployment."
+        call: ops-api.write
+      scale-deployment:
+        description: "Change the number of replicas of a Kubernetes deployment."
+        tags: [kubernetes, deployments]
+        hints:
+          readOnly: false
+          destructive: false
+        inputParameters:
+          deployment:
+            type: string
+            description: "Name of the deployment."
+          replicas:
+            type: number
+            description: "Desired number of replicas."
+        call: ops-api.write
+      rollback-deployment:
+        description: "Roll a Kubernetes deployment back to its previous revision."
+        tags: [kubernetes, deployments]
+        hints:
+          readOnly: false
+          destructive: false
+        inputParameters:
+          deployment:
+            type: string
+            description: "Name of the deployment."
+        call: ops-api.write
+      delete-namespace:
+        description: "Delete a Kubernetes namespace and every resource inside it."
+        tags: [kubernetes]
+        hints:
+          readOnly: false
+          destructive: true
+        inputParameters:
+          namespace:
+            type: string
+            description: "Kubernetes namespace to delete."
+        call: ops-api.write
+      list-pods:
+        description: "List the pods of a namespace with their phase and restart count."
+        tags: [kubernetes]
+        hints:
+          readOnly: true
+        inputParameters:
+          namespace:
+            type: string
+            description: "Kubernetes namespace."
+        call: ops-api.read
+      get-pod-logs:
+        description: "Fetch the recent log lines of a pod container."
+        tags: [kubernetes, logs]
+        hints:
+          readOnly: true
+        inputParameters:
+          pod:
+            type: string
+            description: "Name of the pod."
+          lines:
+            type: number
+            description: "Number of lines to return."
+        call: ops-api.read
+      search-logs:
+        description: "Search application logs across services for a text pattern within a time window."
+        tags: [logs]
+        hints:
+          readOnly: true
+        inputParameters:
+          query:
+            type: string
+            description: "Text to search for."
+          since:
+            type: string
+            description: "Start of the window, for example 1h."
+        call: ops-api.read
+      get-error-rate:
+        description: "Get the HTTP 5xx error rate of a service over the last hour."
+        tags: [monitoring]
+        hints:
+          readOnly: true
+        inputParameters:
+          service:
+            type: string
+            description: "Name of the service."
+        call: ops-api.read
+      get-latency-percentiles:
+        description: "Get p50, p95 and p99 request latency of a service."
+        tags: [monitoring]
+        hints:
+          readOnly: true
+        inputParameters:
+          service:
+            type: string
+            description: "Name of the service."
+        call: ops-api.read
+      list-alerts:
+        description: "List monitoring alerts that are currently firing."
+        tags: [monitoring]
+        hints:
+          readOnly: true
+        call: ops-api.read
+      silence-alert:
+        description: "Silence a firing alert for a period of time."
+        tags: [monitoring]
+        hints:
+          readOnly: false
+          destructive: false
+        inputParameters:
+          alert-id:
+            type: string
+            description: "Identifier of the alert."
+          duration:
+            type: string
+            description: "How long to silence it, for example 2h."
+        call: ops-api.write
+      get-on-call:
+        description: "Find who is on call now for a team or service."
+        tags: [on-call]
+        hints:
+          readOnly: true
+        inputParameters:
+          team:
+            type: string
+            description: "Team name."
+        call: ops-api.read
+      page-engineer:
+        description: "Send a page to a specific engineer."
+        tags: [on-call]
+        hints:
+          readOnly: false
+          destructive: false
+        inputParameters:
+          engineer:
+            type: string
+            description: "Username of the engineer."
+          message:
+            type: string
+            description: "Why they are paged."
+        call: ops-api.write
+      override-on-call:
+        description: "Override the on-call schedule so another engineer takes the shift."
+        tags: [on-call]
+        hints:
+          readOnly: false
+          destructive: false
+        inputParameters:
+          team:
+            type: string
+            description: "Team name."
+          engineer:
+            type: string
+            description: "Engineer taking over."
+        call: ops-api.write
+      list-feature-flags:
+        description: "List feature flags and whether each is enabled per environment."
+        tags: [feature-flags]
+        hints:
+          readOnly: true
+        call: ops-api.read
+      toggle-feature-flag:
+        description: "Turn a feature flag on or off in one environment."
+        tags: [feature-flags]
+        hints:
+          readOnly: false
+          destructive: false
+        inputParameters:
+          flag:
+            type: string
+            description: "Key of the feature flag."
+          enabled:
+            type: boolean
+            description: "New state."
+        call: ops-api.write
+      get-customer:
+        description: "Get a customer account by email or id, with plan and status."
+        tags: [customers]
+        hints:
+          readOnly: true
+        inputParameters:
+          customer:
+            type: string
+            description: "Customer email or id."
+        call: ops-api.read
+      list-customer-invoices:
+        description: "List the invoices of a customer with amounts and payment status."
+        tags: [billing, customers]
+        hints:
+          readOnly: true
+        inputParameters:
+          customer:
+            type: string
+            description: "Customer email or id."
+        call: ops-api.read
+      issue-refund:
+        description: "Refund all or part of a paid invoice."
+        tags: [billing]
+        hints:
+          readOnly: false
+          destructive: false
+        inputParameters:
+          invoice-id:
+            type: string
+            description: "Identifier of the invoice."
+          amount:
+            type: number
+            description: "Amount to refund in cents."
+        call: ops-api.write
+      cancel-subscription:
+        description: "Cancel a customer subscription at the end of the billing period."
+        tags: [billing, customers]
+        hints:
+          readOnly: false
+          destructive: true
+        inputParameters:
+          customer:
+            type: string
+            description: "Customer email or id."
+        call: ops-api.write
+      create-ticket:
+        description: "Create a support ticket for a customer."
+        tags: [support]
+        hints:
+          readOnly: false
+          destructive: false
+        inputParameters:
+          customer:
+            type: string
+            description: "Customer email or id."
+          subject:
+            type: string
+            description: "Ticket subject."
+        call: ops-api.write
+      list-tickets:
+        description: "List open support tickets assigned to a team."
+        tags: [support]
+        hints:
+          readOnly: true
+        inputParameters:
+          team:
+            type: string
+            description: "Team name."
+        call: ops-api.read
+      close-ticket:
+        description: "Close a support ticket with a final reply."
+        tags: [support]
+        hints:
+          readOnly: false
+          destructive: false
+        inputParameters:
+          ticket-id:
+            type: string
+            description: "Identifier of the ticket."
+        call: ops-api.write
+      get-build-status:
+        description: "Get the status of the latest CI build of a repository branch."
+        tags: [ci]
+        hints:
+          readOnly: true
+        inputParameters:
+          repository:
+            type: string
+            description: "Repository name."
+          branch:
+            type: string
+            description: "Branch name."
+        call: ops-api.read
+      retry-build:
+        description: "Retry a failed CI build."
+        tags: [ci]
+        hints:
+          readOnly: false
+          destructive: false
+        inputParameters:
+          build-id:
+            type: string
+            description: "Identifier of the build."
+        call: ops-api.write
+      list-releases:
+        description: "List recent releases of a service with their version and date."
+        tags: [releases]
+        hints:
+          readOnly: true
+        inputParameters:
+          service:
+            type: string
+            description: "Name of the service."
+        call: ops-api.read
+      create-release:
+        description: "Tag and publish a new release of a service."
+        tags: [releases]
+        hints:
+          readOnly: false
+          destructive: false
+        inputParameters:
+          service:
+            type: string
+            description: "Name of the service."
+          version:
+            type: string
+            description: "Version to release."
+        call: ops-api.write
+      rotate-api-key:
+        description: "Rotate the API key of a service account and revoke the old one."
+        tags: [security]
+        hints:
+          readOnly: false
+          destructive: true
+        inputParameters:
+          account:
+            type: string
+            description: "Service account name."
+        call: ops-api.write
+      list-access-grants:
+        description: "List who has access to a production system."
+        tags: [security]
+        hints:
+          readOnly: true
+        inputParameters:
+          system:
+            type: string
+            description: "Name of the system."
+        call: ops-api.read
+      get-status-page:
+        description: "Get the current public status page entries."
+        tags: [status-page]
+        hints:
+          readOnly: true
+        call: ops-api.read
+      post-status-update:
+        description: "Publish an update on the public status page."
+        tags: [status-page]
+        hints:
+          readOnly: false
+          destructive: false
+        inputParameters:
+          message:
+            type: string
+            description: "Text shown to customers."
+        call: ops-api.write
+      run-database-backup:
+        description: "Start an on-demand backup of a production database."
+        tags: [database]
+        hints:
+          readOnly: false
+          destructive: false
+        inputParameters:
+          database:
+            type: string
+            description: "Name of the database."
+        call: ops-api.write
+  consumes:
+  - type: http
+    namespace: ops-api
+    baseUri: http://localhost:8080/v1
+    resources:
+      ops:
+        path: ops
+        operations:
+          read:
+            method: GET
+          write:
+            method: POST

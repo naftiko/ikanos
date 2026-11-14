@@ -1,0 +1,1 @@
+[{"name":"query-database","description":"Query the test database to retrieve committed participants.","inputSchema":{"type":"object"}}]
