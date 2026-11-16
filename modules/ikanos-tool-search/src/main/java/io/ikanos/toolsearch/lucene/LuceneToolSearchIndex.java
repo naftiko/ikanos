@@ -170,13 +170,21 @@ public final class LuceneToolSearchIndex implements ToolSearchIndex {
             return List.of();
         }
         try {
+            StoredFields stored = searcher.storedFields();
+            List<String> names = new ArrayList<>(query.limit());
+            // An exact tool name comes first whatever the BM25 scores, when the filters keep it.
+            ScoreDoc[] exact = searcher.search(exactNameQuery(query), 1).scoreDocs;
+            if (exact.length > 0) {
+                names.add(stored.document(exact[0].doc).get(NAME_KEYWORD));
+            }
             Sort sort = new Sort(SortField.FIELD_SCORE,
                     new SortField(NAME_SORT, SortField.Type.STRING));
             ScoreDoc[] hits = searcher.search(luceneQuery, query.limit(), sort).scoreDocs;
-            StoredFields stored = searcher.storedFields();
-            List<String> names = new ArrayList<>(hits.length);
             for (ScoreDoc hit : hits) {
-                names.add(stored.document(hit.doc).get(NAME_KEYWORD));
+                String name = stored.document(hit.doc).get(NAME_KEYWORD);
+                if (names.size() < query.limit() && !names.contains(name)) {
+                    names.add(name);
+                }
             }
             return names;
         } catch (IOException e) {
@@ -187,7 +195,8 @@ public final class LuceneToolSearchIndex implements ToolSearchIndex {
     /**
      * Builds the query: one optional clause per analysed term and text field, plus an exact name
      * match, with at least one of them required; the tag and read-only filters are mandatory and
-     * do not score. Returns {@code null} when the text has no searchable term.
+     * do not score. Returns {@code null} when the text has no searchable term. An exact name is
+     * also ranked first by {@link #search}, whatever the scores.
      */
     BooleanQuery buildQuery(ToolSearchQuery query) {
         Set<String> terms = analyze(query.text());
@@ -204,7 +213,20 @@ public final class LuceneToolSearchIndex implements ToolSearchIndex {
         builder.add(new BoostQuery(new TermQuery(new Term(NAME_KEYWORD, query.text().strip())),
                 EXACT_NAME_BOOST), Occur.SHOULD);
         builder.setMinimumNumberShouldMatch(1);
+        addFilters(builder, query);
+        return builder.build();
+    }
 
+    /** The tool whose name is exactly the query text, if the filters keep it. */
+    static BooleanQuery exactNameQuery(ToolSearchQuery query) {
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        builder.add(new TermQuery(new Term(NAME_KEYWORD, query.text().strip())), Occur.MUST);
+        addFilters(builder, query);
+        return builder.build();
+    }
+
+    /** Adds the tag and read-only filters, which are mandatory and do not score. */
+    private static void addFilters(BooleanQuery.Builder builder, ToolSearchQuery query) {
         if (!query.anyTags().isEmpty()) {
             BooleanQuery.Builder tags = new BooleanQuery.Builder();
             query.anyTags().stream().sorted()
@@ -215,7 +237,6 @@ public final class LuceneToolSearchIndex implements ToolSearchIndex {
         if (query.readOnlyOnly()) {
             builder.add(new TermQuery(new Term(READ_ONLY, "true")), Occur.FILTER);
         }
-        return builder.build();
     }
 
     /** The distinct analysed terms of a text, in order of first appearance. */
