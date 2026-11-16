@@ -8,7 +8,7 @@ capability:
   exposes:
   - type: mcp
     address: localhost
-    port: 0
+    port: 9096
     namespace: ships
     resources:
       ship-view:
@@ -24,6 +24,7 @@ capability:
         inputParameters:
           imo:
             type: string
+            description: IMO number of the ship.
             required: true
         call: registry.get-ship
         with:
@@ -62,13 +63,21 @@ capability:
                     mapping: $.rank
       refresh-ship:
         description: Re-fetch the ship shown in the view.
+        inputParameters:
+          imo:
+            type: string
+            description: IMO number of the ship.
+            required: true
+        call: registry.get-ship
+        with:
+          imo_number: '{{imo}}'
         ui:
           resourceUri: ui://ships/card/index.html
           visibility:
           - app
         outputParameters:
         - type: string
-          value: refreshed
+          mapping: $.status
   consumes:
   - type: http
     namespace: registry
