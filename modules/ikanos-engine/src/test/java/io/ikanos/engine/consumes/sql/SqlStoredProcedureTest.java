@@ -530,4 +530,25 @@ class SqlStoredProcedureTest {
         assertEquals("2026-11-04T09:12:30Z", SqlRowDocument.out(call, 4,
                 java.sql.JDBCType.TIMESTAMP_WITH_TIMEZONE, "tz").asString());
     }
+
+    @Test
+    void outShouldKeepTheMillisecondsOfATimeOutReadThroughGetObject() throws Exception {
+        // Time.toLocalTime() keeps whole seconds only
+        java.sql.CallableStatement call = org.mockito.Mockito.mock(java.sql.CallableStatement.class);
+        org.mockito.Mockito.when(call.getObject(org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.<Class<Object>>any()))
+                .thenThrow(new java.sql.SQLException("Unsupported type conversion"));
+        java.sql.Time time = java.sql.Time.valueOf("09:12:30");
+        time.setTime(time.getTime() + 123);
+        org.mockito.Mockito.when(call.getObject(1)).thenReturn(time);
+        java.time.Instant instant = java.time.Instant.parse("2026-11-04T09:12:30.123Z");
+        org.mockito.Mockito.when(call.getObject(2))
+                .thenReturn(new java.sql.Time(instant.toEpochMilli()));
+
+        assertEquals("09:12:30.123",
+                SqlRowDocument.out(call, 1, java.sql.JDBCType.TIME, "t").asString());
+        assertEquals("09:12:30.123Z", SqlRowDocument.out(call, 2,
+                java.sql.JDBCType.TIME_WITH_TIMEZONE, "tz").asString());
+        assertEquals("09:12:30.123", SqlRowDocument.value(time, "t").asString());
+    }
 }
