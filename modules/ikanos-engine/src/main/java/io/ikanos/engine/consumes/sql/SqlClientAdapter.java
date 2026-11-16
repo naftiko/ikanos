@@ -471,6 +471,20 @@ public class SqlClientAdapter extends ClientAdapter {
         return resultSet;
     }
 
+    private void registerOuts(CallableStatement call, Procedure procedure) throws SQLException {
+        String where = getNamespace() + "." + procedure.name();
+        for (SqlOutParameterSpec out : procedure.outs()) {
+            int type = registeredType(SqlBind.jdbcType(out.getSqlType(),
+                    "out parameter '" + out.getName() + "'", where), jdbcUrl.dialect());
+            if (out.getScale() != null) {
+                // without a scale, SQL Server rounds a DECIMAL OUT to 4 decimal places
+                call.registerOutParameter(out.getPosition(), type, out.getScale());
+            } else {
+                call.registerOutParameter(out.getPosition(), type);
+            }
+        }
+    }
+
     /**
      * The type an {@code OUT} is registered as. pgjdbc refuses, at execute, an {@code OUT} whose
      * column type differs from the registered one, and reports {@code timestamptz} and
@@ -487,20 +501,6 @@ public class SqlClientAdapter extends ClientAdapter {
             }
         }
         return type.getVendorTypeNumber();
-    }
-
-    private void registerOuts(CallableStatement call, Procedure procedure) throws SQLException {
-        String where = getNamespace() + "." + procedure.name();
-        for (SqlOutParameterSpec out : procedure.outs()) {
-            int type = registeredType(SqlBind.jdbcType(out.getSqlType(),
-                    "out parameter '" + out.getName() + "'", where), jdbcUrl.dialect());
-            if (out.getScale() != null) {
-                // without a scale, SQL Server rounds a DECIMAL OUT to 4 decimal places
-                call.registerOutParameter(out.getPosition(), type, out.getScale());
-            } else {
-                call.registerOutParameter(out.getPosition(), type);
-            }
-        }
     }
 
     /**
