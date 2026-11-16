@@ -30,7 +30,9 @@ public class CacheDataAppender implements DispatchPostProcessor {
     private final String cacheScope;
 
     public CacheDataAppender(Integer ttlMs, String cacheScope) {
-        this.ttlMs = Objects.requireNonNullElse(ttlMs, 0);
+        // MCP 2026-07-28 (SEP-2549): a negative ttlMs is treated as 0. The caller warns at
+        // startup, where the adapter is known (McpCallHandlersFactory).
+        this.ttlMs = Math.max(0, Objects.requireNonNullElse(ttlMs, 0));
         this.cacheScope = Objects.requireNonNullElse(cacheScope, "private");
     }
 
