@@ -49,13 +49,13 @@ class CacheHintsSchemaValidationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"0", "1", "3600000"})
+    @ValueSource(strings = {"0", "1", "3600000", "2147483647"})
     void schemaShouldAcceptAServerTtlOfZeroOrMore(String ttl) throws Exception {
         assertValid(mcp("ttlMs: " + ttl));
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"-1", "2.5", "\"60000\""})
+    @ValueSource(strings = {"-1", "2.5", "\"60000\"", "2147483648"})
     void schemaShouldRejectAServerTtlThatIsNotAnIntegerOfZeroOrMore(String ttl) throws Exception {
         assertInvalid(mcp("ttlMs: " + ttl));
     }

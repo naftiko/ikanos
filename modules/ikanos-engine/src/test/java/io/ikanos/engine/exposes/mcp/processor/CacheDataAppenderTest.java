@@ -39,4 +39,15 @@ class CacheDataAppenderTest {
         assertThat(response.path("result").path("ttlMs").asInt()).isEqualTo(300);
         assertThat(response.path("result").path("cacheScope").asString()).isEqualTo("public");
     }
+
+    @Test
+    void applyShouldSendZeroWhenTtlIsNegative() throws ProcessorException {
+        // SEP-2549: a negative ttlMs is treated as 0
+        ObjectNode response = mapper.createObjectNode();
+        response.set("result", mapper.createObjectNode());
+
+        new CacheDataAppender(-1, "public").apply(response);
+
+        assertThat(response.path("result").path("ttlMs").asInt(-1)).isZero();
+    }
 }
