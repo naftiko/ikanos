@@ -47,11 +47,9 @@ These rules are not covered there yet:
 - On a consumed adapter, a credential that uses a variable with no value (unbound, misspelled,
   or bound to an empty value) is never sent: the call fails with an error naming the variable,
   and a warning names it when the capability loads.
-- In a `json` body whose `data` is an object, a value that is exactly one placeholder takes
-  the parameter's JSON type (string, number, boolean, object, array) and is left out when the
-  parameter is absent; any other string stays a JSON string. A placeholder in a key is
-  resolved too, but two members that resolve to the same key fail the call. In a string
-  template, substituted values are JSON-encoded, so string placeholders must be quoted.
+- In a `json` body whose `data` is an object, a placeholder in a key is resolved too, but two
+  members that resolve to the same key fail the call. In a string template, substituted values
+  are JSON-encoded, so string placeholders must be quoted.
 - In a `multipartForm` part whose `contentType` is `application/json` or a `+json` type,
   substituted values are JSON-encoded and the rendered `value` must be a single JSON document
   with no repeated member key, as for a `json` body.
