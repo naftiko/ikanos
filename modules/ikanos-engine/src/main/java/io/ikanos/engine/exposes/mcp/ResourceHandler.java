@@ -369,7 +369,7 @@ public class ResourceHandler {
      * else (images, audio, PDF, ZIP, {@code application/octet-stream}, …) is treated as binary and
      * returned as a base64 blob.</p>
      */
-    static boolean isBinaryMime(String mimeType) {
+    public static boolean isBinaryMime(String mimeType) {
         if (mimeType == null || mimeType.isBlank()) {
             // Unknown type — be safe and treat as binary so bytes are never UTF-8 corrupted.
             return true;

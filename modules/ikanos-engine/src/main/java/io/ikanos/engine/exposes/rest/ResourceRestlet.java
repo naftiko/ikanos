@@ -31,6 +31,7 @@ import io.ikanos.engine.execution.Executions;
 import io.ikanos.engine.execution.InputDeclinedException;
 import io.ikanos.engine.execution.InputRequiredException;
 import io.ikanos.engine.exposes.ErrorReference;
+import io.ikanos.engine.exposes.mcp.ResourceHandler;
 import io.ikanos.engine.observability.OtelRestletBridge;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.engine.util.OperationStepExecutor;
@@ -340,10 +341,9 @@ public class ResourceRestlet extends Restlet {
         return outcome;
     }
 
-    private static boolean isText(MediaType type) {
-        return MediaType.TEXT_ALL.includes(type) || MediaType.APPLICATION_JSON.includes(type)
-                || MediaType.APPLICATION_XML.includes(type)
-                || type.getSubType().endsWith("+json") || type.getSubType().endsWith("+xml");
+    /** Whether a round can keep this body as text: the types MCP resources read as text. */
+    static boolean isText(MediaType type) {
+        return !ResourceHandler.isBinaryMime(type.getName());
     }
 
     /**
