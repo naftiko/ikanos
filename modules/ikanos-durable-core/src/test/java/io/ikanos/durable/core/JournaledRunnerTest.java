@@ -497,8 +497,19 @@ public class JournaledRunnerTest {
         }
 
         @Override
+        public List<ExecutionRecord> listLabelled(ExecutionStatus status, String key,
+                String value, Instant createdBefore, int limit) {
+            return delegate.listLabelled(status, key, value, createdBefore, limit);
+        }
+
+        @Override
         public List<ExecutionRecord> findByLabel(String key, String value) {
             return delegate.findByLabel(key, value);
+        }
+
+        @Override
+        public List<ExecutionRecord> listUnder(String prefix, ExecutionStatus status) {
+            return delegate.listUnder(prefix, status);
         }
     }
 

@@ -203,8 +203,7 @@ public final class JournaledRunner implements Runner {
      */
     public boolean failIf(ExecutionId executionId, ExecutionStatus expected,
             Predicate<ExecutionView> condition, Failure failure) {
-        ReentrantLock lock = lockOf(executionId);
-        lock.lock();
+        ExecutionLock lock = lock(executionId);
         try {
             if (status(executionId).orElse(null) != expected) {
                 return false;
@@ -219,7 +218,7 @@ public final class JournaledRunner implements Runner {
             throw new IllegalStateException(
                     "Another owner appended to the journal of " + executionId, e);
         } finally {
-            lock.unlock();
+            unlock(executionId, lock);
         }
     }
 
