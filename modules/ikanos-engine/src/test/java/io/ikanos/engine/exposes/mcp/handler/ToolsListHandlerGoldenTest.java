@@ -50,13 +50,15 @@ class ToolsListHandlerGoldenTest {
     private static final ObjectMapper JSON = IkanosMappers.json();
     private static final String CATALOG = "src/test/resources/mcp/mcp-tool-catalog-capability.yaml";
     private static final Path GOLDEN_DIR = Path.of("src/test/resources/mcp/golden");
+    private static final Path VIEWS_DIR = Path.of("src/test/resources/mcp/views");
 
     @ParameterizedTest
     @ValueSource(strings = {
         CATALOG,
         "src/test/resources/mcp/mcp-capability.yaml",
         "src/test/resources/mcp/mcp-hints-capability.yaml",
-        "src/test/resources/aggregates/aggregate-hints-override.yaml"
+        "src/test/resources/aggregates/aggregate-hints-override.yaml",
+        "src/test/resources/mcp/mcp-output-schema-ui-capability.yaml"
     })
     void toolsListShouldMatchGoldenBytes(String fixture) throws Exception {
         String actual = toolsArrayJson(fixture);
@@ -95,7 +97,10 @@ class ToolsListHandlerGoldenTest {
     }
 
     static JsonNode toolsListResponse(String fixture) throws Exception {
-        IkanosSpec spec = YAML.readValue(new File(fixture), IkanosSpec.class);
+        // MCP Apps views need an absolute file URI; tools/list never shows it, so the bytes hold.
+        String yaml = Files.readString(Path.of(fixture), StandardCharsets.UTF_8)
+                .replace("file:///@VIEWS_DIR@/", VIEWS_DIR.toAbsolutePath().toUri().toString());
+        IkanosSpec spec = YAML.readValue(yaml, IkanosSpec.class);
         Capability capability = new Capability(spec);
         McpServerAdapter adapter = (McpServerAdapter) capability.getServerAdapters().stream()
                 .filter(McpServerAdapter.class::isInstance).findFirst().orElseThrow();

@@ -1,0 +1,84 @@
+ikanos: 1.0.0-beta10
+info:
+  display: MCP Output Schema and UI Capability
+  description: >-
+    Golden fixture for tools/list: tools whose definitions carry an outputSchema with nested
+    objects and arrays, and a tool-level _meta with MCP Apps UI metadata.
+capability:
+  exposes:
+  - type: mcp
+    address: localhost
+    port: 0
+    namespace: ships
+    resources:
+      ship-view:
+        display: Ship view
+        description: Interactive ship card.
+        uri: ui://ships/card
+        # The golden test replaces file:///@VIEWS_DIR@/ with the file URI of src/test/resources/mcp/views/.
+        location: file:///@VIEWS_DIR@/ship-card
+        mimeType: text/html;profile=mcp-app
+    tools:
+      get-ship:
+        description: Get ship details.
+        inputParameters:
+          imo:
+            type: string
+            required: true
+        call: registry.get-ship
+        with:
+          imo_number: '{{imo}}'
+        ui:
+          resourceUri: ui://ships/card/index.html
+        outputParameters:
+        - type: object
+          properties:
+            imo:
+              type: string
+              mapping: $.imo_number
+            tonnage:
+              type: number
+              mapping: $.gross_tonnage
+            specs:
+              type: object
+              properties:
+                length:
+                  type: number
+                  mapping: $.dimensions.length_overall
+                beam:
+                  type: number
+                  mapping: $.dimensions.beam
+            crew:
+              type: array
+              mapping: $.crew
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                    mapping: $.full_name
+                  rank:
+                    type: string
+                    mapping: $.rank
+      refresh-ship:
+        description: Re-fetch the ship shown in the view.
+        ui:
+          resourceUri: ui://ships/card/index.html
+          visibility:
+          - app
+        outputParameters:
+        - type: string
+          value: refreshed
+  consumes:
+  - type: http
+    namespace: registry
+    baseUri: http://localhost:8080
+    resources:
+      ship:
+        path: /ships/{{imo_number}}
+        operations:
+          get-ship:
+            method: GET
+            inputParameters:
+              imo_number:
+                in: path
