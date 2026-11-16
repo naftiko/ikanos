@@ -249,6 +249,32 @@ class SqlClientSchemaValidationTest {
     }
 
     @Test
+    void schemaShouldAcceptAScaleOnADecimalOut() throws Exception {
+        String yaml = capability(GET_BALANCE.replace("sqlType: DECIMAL }",
+                "sqlType: DECIMAL, scale: 6 }"));
+
+        assertTrue(validate(yaml).isEmpty(), "a DECIMAL out may declare a scale");
+    }
+
+    @Test
+    void schemaShouldRejectAScaleOnAnOutThatIsNotDecimal() throws Exception {
+        String yaml = capability(GET_BALANCE.replace("sqlType: VARCHAR }",
+                "sqlType: VARCHAR, scale: 2 }"));
+
+        assertFalse(validate(yaml).isEmpty(), "only a DECIMAL or NUMERIC out takes a scale");
+    }
+
+    @Test
+    void runtimeShouldReadTheScaleOfAnOut() throws Exception {
+        IkanosSpec spec = YAML.readValue(capability(GET_BALANCE.replace("sqlType: DECIMAL }",
+                "sqlType: DECIMAL, scale: 6 }")), IkanosSpec.class);
+
+        SqlProcedureSpec procedure = ((SqlClientSpec) spec.getCapability().getConsumes().get(0))
+                .getProcedures().get("get-customer");
+        assertEquals(6, procedure.getOutParameters().get("balance").getScale());
+    }
+
+    @Test
     void schemaShouldRejectAnUnknownSqlType() throws Exception {
         String yaml = capability(GET_CUSTOMER).replace("sqlType: VARCHAR", "sqlType: TEXTISH");
 

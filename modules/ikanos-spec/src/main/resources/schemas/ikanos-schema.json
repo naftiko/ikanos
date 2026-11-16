@@ -3764,6 +3764,11 @@
           ],
           "description": "`java.sql.JDBCType` the value is registered as, and read back as. A cursor (`REF_CURSOR`, or `OTHER` for a PostgreSQL `refcursor`) becomes an array of rows."
         },
+        "scale": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Digits after the decimal point a `DECIMAL` or `NUMERIC` value is registered with. Without it the driver chooses: SQL Server keeps 4, so a value with more decimal places comes back rounded."
+        },
         "description": {
           "type": "string"
         }
@@ -3772,6 +3777,21 @@
         "position",
         "sqlType"
       ],
+      "if": {
+        "required": [
+          "scale"
+        ]
+      },
+      "then": {
+        "properties": {
+          "sqlType": {
+            "enum": [
+              "NUMERIC",
+              "DECIMAL"
+            ]
+          }
+        }
+      },
       "additionalProperties": false
     },
     "OperationStepBase": {

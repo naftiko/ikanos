@@ -422,4 +422,60 @@ class SqlStoredProcedureTest {
 
         assertEquals("50000", e.getSQLState());
     }
+
+    @Test
+    void readShouldRegisterADecimalOutWithItsDeclaredScale() throws Exception {
+        SqlClientSpec spec = spec(GET_BALANCE.replace("sqlType: DECIMAL }",
+                "sqlType: DECIMAL, scale: 6 }"));
+        adapter = new SqlClientAdapter(null, spec);
+        Connection connection = org.mockito.Mockito.mock(Connection.class);
+        java.sql.CallableStatement call = org.mockito.Mockito.mock(java.sql.CallableStatement.class);
+        org.mockito.Mockito.when(connection.prepareCall(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(call);
+        org.mockito.Mockito.when(call.getUpdateCount()).thenReturn(-1);
+
+        adapter.read(connection, SqlClientAdapter.buildProcedures(spec, SqlStatement.Dialect.STANDARD)
+                .get("get-account-balance"), java.util.List.of());
+
+        org.mockito.Mockito.verify(call).registerOutParameter(2, java.sql.Types.DECIMAL, 6);
+        org.mockito.Mockito.verify(call).registerOutParameter(3, java.sql.Types.VARCHAR);
+    }
+
+    @Test
+    void constructorShouldRefuseAScaleOnAnOutThatIsNotDecimal() throws Exception {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> new SqlClientAdapter(null, spec(GET_BALANCE.replace(
+                        "sqlType: VARCHAR }", "sqlType: VARCHAR, scale: 2 }"))));
+
+        assertTrue(e.getMessage().contains("scale"), e.getMessage());
+    }
+
+    @Test
+    void outShouldReadATemporalOutThroughGetObjectWhenTheTypedGettersAreRefused()
+            throws Exception {
+        // pgjdbc: getObject(int, Class) supports only ResultSet, and getString needs VARCHAR
+        java.sql.CallableStatement call = org.mockito.Mockito.mock(java.sql.CallableStatement.class);
+        java.sql.SQLException refused = new java.sql.SQLException("Unsupported type conversion");
+        org.mockito.Mockito.when(call.getObject(org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.<Class<Object>>any())).thenThrow(refused);
+        org.mockito.Mockito.when(call.getString(org.mockito.ArgumentMatchers.anyInt()))
+                .thenThrow(refused);
+        org.mockito.Mockito.when(call.getObject(1))
+                .thenReturn(java.sql.Date.valueOf("2026-11-04"));
+        org.mockito.Mockito.when(call.getObject(2))
+                .thenReturn(java.sql.Time.valueOf("09:12:30"));
+        org.mockito.Mockito.when(call.getObject(3))
+                .thenReturn(java.sql.Timestamp.valueOf("2026-11-04 09:12:30"));
+        java.time.Instant instant = java.time.Instant.parse("2026-11-04T09:12:30Z");
+        org.mockito.Mockito.when(call.getObject(4)).thenReturn(java.sql.Timestamp.from(instant));
+
+        assertEquals("2026-11-04",
+                SqlRowDocument.out(call, 1, java.sql.JDBCType.DATE, "d").asString());
+        assertEquals("09:12:30",
+                SqlRowDocument.out(call, 2, java.sql.JDBCType.TIME, "t").asString());
+        assertEquals("2026-11-04T09:12:30",
+                SqlRowDocument.out(call, 3, java.sql.JDBCType.TIMESTAMP, "ts").asString());
+        assertEquals("2026-11-04T09:12:30Z", SqlRowDocument.out(call, 4,
+                java.sql.JDBCType.TIMESTAMP_WITH_TIMEZONE, "tz").asString());
+    }
 }
