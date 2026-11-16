@@ -1681,6 +1681,19 @@ public class ResolverTest {
     }
 
     @Test
+    void resolveJsonDataShouldCheckAClaimInTheKeyOfAMemberLeftOut() {
+        // The member's value is absent, so the member is left out: its key is still checked
+        assertThrows(CallerClaimMissingException.class,
+                () -> Resolver.resolveJsonData(Map.of("{{auth.claims.email}}", "{{absent}}"),
+                        callerParameters(Map.of("sub", "alice"))),
+                "#998: a missing claim must fail the call wherever the body reads it");
+        assertThrows(IllegalArgumentException.class,
+                () -> Resolver.resolveJsonData(List.of(Map.of(
+                        "{{#filter}}{{auth.claims.sub}}{{/filter}}", "{{absent}}")),
+                        callerParameters(Map.of("sub", "alice"))));
+    }
+
+    @Test
     void resolveInputParametersToRequestShouldFailWithoutAnyParameter() {
         InputParameterSpec header = new InputParameterSpec();
         header.setName("X-User-Id");
