@@ -1,5 +1,5 @@
 /**
- * Spectral custom function: mcp-tool-input-examples
+ * Polychro rule function: mcp-tool-input-examples
  *
  * Enforces `ikanos-mcp-tool-input-examples`: an `examples` value of an MCP tool
  * input must be a valid value of that input, because the engine advertises it to

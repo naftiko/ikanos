@@ -532,8 +532,8 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void mcpToolInputExamplesRuleShouldFireForEachInvalidExample() {
-        ProcessResult result = lintFixtureAtSeverity(
-            "rules/spectral-mcp-tool-input-examples-violations.yaml", "info");
+        LintResult result = lintFixtureAtSeverity(
+            "rules/polychro-mcp-tool-input-examples-violations.yaml", "info");
         long findings = result.output().lines()
             .filter(line -> line.contains("ikanos-mcp-tool-input-examples")).count();
         assertEquals(8, findings,
@@ -545,8 +545,8 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void mcpToolInputExamplesRuleShouldNotFireForValidExamples() {
-        ProcessResult result = lintFixtureAtSeverity(
-            "rules/spectral-mcp-tool-input-examples-compliant.yaml", "info");
+        LintResult result = lintFixtureAtSeverity(
+            "rules/polychro-mcp-tool-input-examples-compliant.yaml", "info");
         assertTrue(!result.output().contains("ikanos-mcp-tool-input-examples"),
             "Expected no example findings for valid examples.\n" + result.output());
     }
