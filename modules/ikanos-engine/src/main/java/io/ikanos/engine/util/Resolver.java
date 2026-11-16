@@ -1017,6 +1017,8 @@ public class Resolver {
         if (data instanceof Map<?, ?> map) {
             ObjectNode object = jsonMapper.createObjectNode();
             for (Map.Entry<?, ?> entry : map.entrySet()) {
+                // A caller claim in the key is checked even when the member is left out (#998)
+                requireCallerValues(String.valueOf(entry.getKey()), parameters);
                 JsonNode value = resolveJsonDataNode(entry.getValue(), parameters, jsonMapper);
                 if (value != null) {
                     String key = resolveJsonKey(String.valueOf(entry.getKey()), parameters,
