@@ -14,6 +14,9 @@
  *     integral decimal such as `25.0` is an integer;
  *   - the input declares `enum` and the example is not one of its values,
  *     compared as numbers for a `number` or `integer` input (`1` matches `"1.0"`);
+ *   - it is an unquoted number on a string input (or one without `type`): the
+ *     engine keeps its authored text, such as `25.0`, which this rule no longer
+ *     sees, so it must be quoted;
  *   - it is an unquoted integer beyond 2^53, which the YAML reader rounds before
  *     this rule sees it: quoted, it is checked exactly. An enum with such a value
  *     is not compared.
@@ -113,6 +116,11 @@ function checkExample(schema, example) {
   if (isInexact(example)) {
     return "is an integer too large for the linter to read exactly; quote it";
   }
+  const textual = type === undefined || type === "string";
+  if (textual && typeof example === "number") {
+    // The engine keeps the authored text (25.0 stays "25.0"); the YAML reader here does not.
+    return "is a number on a string input; quote it";
+  }
   const text = String(example);
   const numeric = type === "number" || type === "integer";
   const decimal = numeric ? parseDecimal(text) : null;
@@ -125,8 +133,10 @@ function checkExample(schema, example) {
   if (type === "boolean" && text !== "true" && text !== "false") {
     return "is not true or false";
   }
-  // An enum value that was not read exactly cannot be compared: leave it to the reader.
+  // An enum value that was not read exactly cannot be compared: leave it to the reader. The
+  // same holds for a number in the enum of a string input, whose authored text is lost.
   if (Array.isArray(schema.enum) && !schema.enum.some(isInexact)
+      && !(textual && schema.enum.some((value) => typeof value === "number"))
       && !schema.enum.some((value) => sameValue(value, text, decimal))) {
     return "is not one of the input's enum values";
   }
