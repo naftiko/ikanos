@@ -15,8 +15,10 @@ package io.ikanos.engine.exposes.rest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
+import io.ikanos.spec.InputParameterSpec;
 
 /**
  * Unit tests of the query helpers of forward mode (#953), with no server: the end-to-end cases
@@ -110,5 +112,20 @@ public class ForwardQueryTest {
         assertEquals(Set.of(), ResourceRestlet.baseUriQueryNames("http://h/v1"));
         assertEquals(Set.of(), ResourceRestlet.baseUriQueryNames("http://h/v1?"));
         assertEquals(Set.of(), ResourceRestlet.baseUriQueryNames(null));
+    }
+
+    @Test
+    void templatedQueryInputNamesShouldReturnTheQueryInputsThatDeclareAValueOrATemplate() {
+        InputParameterSpec org = new InputParameterSpec("org", "string", "query", null);
+        org.setValue("{{ORG}}");
+        InputParameterSpec team = new InputParameterSpec("team", "string", "query", "{{TEAM}}");
+        team.setWireName("team_id");
+        InputParameterSpec limit = new InputParameterSpec("limit", "integer", "query", null);
+        InputParameterSpec header = new InputParameterSpec("trace", "string", "header", "x");
+
+        assertEquals(Set.of("org", "team_id"),
+                ResourceRestlet.templatedQueryInputNames(List.of(org, team, limit, header)),
+                "an input with neither a value nor a template, or not in the query, is left out");
+        assertEquals(Set.of(), ResourceRestlet.templatedQueryInputNames(null));
     }
 }
