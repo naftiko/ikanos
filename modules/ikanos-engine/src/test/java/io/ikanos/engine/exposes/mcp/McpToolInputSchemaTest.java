@@ -193,6 +193,20 @@ class McpToolInputSchemaTest {
     }
 
     @Test
+    void forParametersShouldEmitIntegralDecimalExamplesAsIntegers() throws Exception {
+        JsonNode schema = schemaOf("""
+                - name: page_size
+                  type: integer
+                  description: "Page size."
+                  examples: [25.0, 2.5]
+                """).path("properties");
+
+        // 25.0 is the integer 25; 2.5 is no integer and stays as authored, for the linter to flag.
+        assertEquals("[25,\"2.5\"]",
+                JSON.writeValueAsString(schema.path("page_size").path("examples")));
+    }
+
+    @Test
     void forParametersShouldEmitExamplesOnNestedProperties() throws Exception {
         JsonNode schema = schemaOf("""
                 - name: labels
