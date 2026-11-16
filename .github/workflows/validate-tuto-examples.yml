@@ -2,6 +2,7 @@ name: Validate Shipyard tutorial examples
 
 on:
   push:
+    branches: [main]
     paths:
       - 'modules/ikanos-*/src/main/**'
       - 'modules/ikanos-*/pom.xml'
