@@ -168,6 +168,34 @@ public final class ConsumedTemplateValidator {
     }
 
     /**
+     * Finds the consumed credentials that name a whole bind namespace, such as {@code {{tenant}}}
+     * for the {@code tenant} namespace. Bindings come before call parameters, so such a
+     * credential would render every value of the namespace, also when an input parameter has the
+     * same name. The capability refuses to load with one (#1064).
+     *
+     * @param spec the capability spec, may be null
+     * @param bindings the capability's bindings, may be null
+     * @return one message per credential, naming its variables and never a value
+     */
+    public static List<String> findNamespaceCredentials(IkanosSpec spec,
+            Map<String, Object> bindings) {
+        List<String> errors = new ArrayList<>();
+        for (ClientSpec client : clients(spec)) {
+            AuthenticationSpec authentication = client instanceof HttpClientSpec http
+                    ? http.getAuthentication()
+                    : client instanceof McpClientSpec mcp ? mcp.getAuthentication() : null;
+            ConsumedAuthentication.credentials(authentication,
+                    client.getNamespace() + " authentication").forEach((where, template) -> {
+                List<String> namespaces = Resolver.namespaceVariables(template, bindings);
+                if (!namespaces.isEmpty()) {
+                    errors.add(where + " " + Resolver.describeNamespaceVariables(namespaces));
+                }
+            });
+        }
+        return errors;
+    }
+
+    /**
      * Walks a body spec, checking every string it contains. Every value is checked, including a
      * {@code type} key: at the top level it is the body type, which holds no template, and deeper
      * it is an ordinary field of the payload.

@@ -159,6 +159,83 @@ class NamespacedBindingIntegrationTest {
         assertFalse(e.getMessage().contains("inbound-key"), "the error must not show a secret");
     }
 
+    @Test
+    void consumedTokenNamingAWholeNamespaceShouldRefuseTheCapability() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> start("{{secrets}}", null,
+                        "http://localhost:" + upstream.getAddress().getPort()));
+
+        assertTrue(e.getMessage().contains("up authentication token"), e.getMessage());
+        assertTrue(e.getMessage().contains("{{secrets.KEY}}"), e.getMessage());
+        assertFalse(e.getMessage().contains("s3cr3t"), "the error must not show a secret");
+        assertFalse(e.getMessage().contains("inbound-key"), "the error must not show a secret");
+    }
+
+    /**
+     * #1064 review: bindings come before call parameters, so a credential reading an input
+     * parameter named like a bind namespace would have sent that namespace's every value
+     * upstream. The capability refuses to load instead.
+     */
+    @Test
+    void credentialReadingAParameterNamedLikeANamespaceShouldRefuseTheCapability()
+            throws Exception {
+        Path secretsFile = dir.resolve("tenant.yaml");
+        Files.writeString(secretsFile, "token: \"s3cr3t\"\n");
+        restPort = freePort();
+        String yaml = """
+                ikanos: "%s"
+                binds:
+                  - namespace: "tenant"
+                    location: "%s"
+                    keys:
+                      TOKEN: "token"
+                capability:
+                  consumes:
+                    - namespace: up
+                      type: http
+                      baseUri: "http://localhost:%d"
+                      authentication:
+                        type: apikey
+                        placement: header
+                        key: "X-Tenant"
+                        value: "{{tenant}}"
+                      resources:
+                        item:
+                          path: "/item"
+                          operations:
+                            get-item:
+                              method: GET
+                              inputParameters:
+                                - name: tenant
+                                  in: query
+                  exposes:
+                    - type: rest
+                      address: "localhost"
+                      port: %d
+                      namespace: demo
+                      resources:
+                        call:
+                          path: "/call"
+                          operations:
+                            get:
+                              method: GET
+                              inputParameters:
+                                - name: tenant
+                                  in: query
+                              call: up.get-item
+                """.formatted(IKANOS, secretsFile.toUri(), upstream.getAddress().getPort(),
+                restPort);
+        IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> new Capability(spec));
+
+        assertTrue(e.getMessage().contains("up authentication value"), e.getMessage());
+        assertTrue(e.getMessage().contains("{{tenant.KEY}}"), e.getMessage());
+        assertFalse(e.getMessage().contains("s3cr3t"), "the error must not show a secret");
+        assertEquals(List.of(), upstreamAuthorizations, "nothing was sent to the upstream");
+    }
+
     /**
      * @param consumedToken the consumed bearer token template
      * @param exposedToken the exposed bearer token template, or null for no authentication

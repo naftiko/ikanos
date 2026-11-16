@@ -187,6 +187,46 @@ class ConsumedAuthenticationUnresolvedTest {
         assertNull(request.getChallengeResponse());
     }
 
+    // #1064 review: bindings come before call parameters, so a credential whose variable names a
+    // bind namespace, such as an input parameter called like it, would get the namespace's map.
+
+    @Test
+    void bearerTokenNamingAWholeNamespaceShouldNotBeSent() {
+        Request request = request();
+        Map<String, Object> parameters = ConsumedAuthentication.withBindings(
+                Map.of("tenant", "acme"), Map.of("tenant", Map.of("TOKEN", "s3cr3t")));
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> ConsumedAuthentication.apply(bearer("{{tenant}}"), null, request, TARGET,
+                        parameters));
+
+        assertTrue(e.getMessage().contains("bearer token"), e.getMessage());
+        assertTrue(e.getMessage().contains("tenant"), e.getMessage());
+        assertFalse(e.getMessage().contains("s3cr3t"), "The error must not show a secret");
+        assertNull(request.getChallengeResponse());
+    }
+
+    @Test
+    void apiKeyValueNamingAWholeNamespaceShouldNotBeSent() {
+        Request request = request();
+        Map<String, Object> parameters = Map.of("tenant", Map.of("TOKEN", "s3cr3t"));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> ConsumedAuthentication.apply(apiKey("X-Tenant", "{{tenant}}", "header"),
+                        null, request, TARGET, parameters));
+
+        assertNull(request.getHeaders().getFirstValue("X-Tenant"));
+        assertFalse(request.getResourceRef().toString().contains("s3cr3t"));
+    }
+
+    @Test
+    void canRenderShouldBeFalseForACredentialNamingAWholeNamespace() {
+        Map<String, Object> parameters = Map.of("tenant", Map.of("TOKEN", "s3cr3t"));
+
+        assertFalse(ConsumedAuthentication.canRender(bearer("{{tenant}}"), parameters));
+        assertTrue(ConsumedAuthentication.canRender(bearer("{{tenant.TOKEN}}"), parameters));
+    }
+
     private static Request request() {
         return new Request(Method.GET, TARGET);
     }
