@@ -33,6 +33,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.restlet.Application;
 import org.restlet.Client;
 import org.restlet.Component;
@@ -52,6 +54,7 @@ import org.restlet.util.Series;
 import io.ikanos.Capability;
 import io.ikanos.engine.consumes.ClientAdapter;
 import io.ikanos.engine.consumes.ConsumedResult;
+import io.ikanos.engine.consumes.mcp.McpClientException;
 import io.ikanos.engine.consumes.mcp.McpStreamableHttpTransport;
 import io.ikanos.spec.consumes.http.AwsSigV4AuthenticationSpec;
 import io.ikanos.spec.IkanosSpec;
@@ -459,6 +462,97 @@ public class AwsSigV4IntegrationTest {
                 + redirected.get().getHeaders().getFirstValue("Authorization", true));
         assertEquals(307, result.status());
         assertSignatureMatches("s3", false);
+    }
+
+    /**
+     * A consumed MCP adapter gets the same client context as an HTTP one: a signed JSON-RPC POST
+     * answered with a redirect must not be re-sent, X-Amz-* headers and session token included, to
+     * the host the redirect names. The client streams the POST body, so it could only replay a
+     * {@code 307} if a later client made that body reproducible; it already follows a {@code 302}
+     * or {@code 303} as a GET without one, with every header of the signed call.
+     */
+    @ParameterizedTest
+    @ValueSource(ints = {302, 303, 307})
+    void mcpCallShouldNotFollowARedirectWhenTheAdapterSignsWithAwsSigV4(int status)
+            throws Exception {
+        int otherPort = findFreePort();
+        AtomicReference<Request> otherHost = new AtomicReference<>();
+        Component other = new Component();
+        other.getServers().add(Protocol.HTTP, otherPort);
+        other.getDefaultHost().attachDefault(new Restlet() {
+            @Override
+            public void handle(Request request, Response response) {
+                otherHost.set(request);
+                response.setEntity("{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"content\":[],"
+                        + "\"resultType\":\"complete\"}}", MediaType.APPLICATION_JSON);
+            }
+        });
+        int firstPort = findFreePort();
+        AtomicReference<Request> firstHost = new AtomicReference<>();
+        Component first = new Component();
+        first.getServers().add(Protocol.HTTP, firstPort);
+        first.getDefaultHost().attachDefault(new Restlet() {
+            @Override
+            public void handle(Request request, Response response) {
+                firstHost.set(request);
+                response.setLocationRef("http://127.0.0.1:" + otherPort + "/mcp");
+                response.setStatus(Status.valueOf(status));
+            }
+        });
+        other.start();
+        first.start();
+        try {
+            String yaml = """
+                    ikanos: "%s"
+                    capability:
+                      consumes:
+                        - type: "mcp"
+                          namespace: "tools"
+                          description: "A signed MCP upstream that redirects"
+                          endpoint: "http://localhost:%d/mcp"
+                          discovery: "off"
+                          authentication:
+                    %s
+                            sessionToken: "FwoGZXIvYXdzEXAMPLETOKEN"
+                          tools:
+                            echo:
+                              description: "Echoes"
+                              hints: { readOnly: true }
+                      exposes:
+                        - type: "mcp"
+                          transport: "http"
+                          address: "localhost"
+                          port: 0
+                          namespace: "relay"
+                          tools:
+                            relay:
+                              description: "Relays to the signed upstream"
+                              call: "tools.echo"
+                    """.formatted(VersionHelper.getSchemaVersion(), firstPort,
+                            auth("execute-api").stripTrailing());
+            capability = new Capability(
+                    IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class));
+            capability.start();
+            ClientAdapter tools = capability.getClientAdapters().get(0);
+
+            McpClientException error = null;
+            try {
+                tools.prepare("echo", new HashMap<>()).invoke();
+            } catch (McpClientException e) {
+                error = e;
+            }
+
+            assertNull(otherHost.get(), () -> "The redirect was followed, with"
+                    + " X-Amz-Security-Token " + otherHost.get().getHeaders().getFirstValue("X-Amz-Security-Token", true));
+            assertNotNull(error, "The call should fail on the redirect");
+            assertNotNull(firstHost.get(), "The signed call should reach the first host");
+            assertNotNull(firstHost.get().getHeaders().getFirstValue("Authorization", true),
+                    "The first host should receive the signed call");
+            assertTrue(error.getMessage().contains(String.valueOf(status)), error.getMessage());
+        } finally {
+            first.stop();
+            other.stop();
+        }
     }
 
     @Test
