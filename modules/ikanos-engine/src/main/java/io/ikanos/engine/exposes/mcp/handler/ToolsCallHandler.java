@@ -291,7 +291,8 @@ public class ToolsCallHandler extends McpCallHandler {
      * in sequence, and a failing call does not stop the others: each gets its own result, with
      * {@code isError} when it failed. Only a malformed request, such as more calls than
      * {@code maxToolCalls}, is a tool error as a whole. The image, audio and resource blocks of
-     * the results also follow the text block in {@code content}, as a direct call returns them.
+     * the results also follow the text block in {@code content}, as a direct call returns them;
+     * the text block names their index there rather than repeating their data.
      */
     ObjectNode callTool(ToolSearchCatalog catalog, JsonNode arguments) {
         JsonNode args = arguments != null ? arguments : MAPPER.createObjectNode();
@@ -318,19 +319,41 @@ public class ToolsCallHandler extends McpCallHandler {
         ArrayNode content = result.putArray("content");
         ObjectNode text = content.addObject();
         text.put("type", "text");
-        text.put("text", MAPPER.writeValueAsString(structured));
-        // Images, audio and resources stay usable blocks, as a direct call returns them.
-        for (JsonNode entry : results) {
-            for (JsonNode block : entry.path("result").path("content")) {
-                if (!"text".equals(block.path("type").asString(""))) {
+        // Images, audio and resources stay usable blocks, as a direct call returns them. The text
+        // block points at them instead of repeating their base64 data in the model's context.
+        ObjectNode shown = structured.deepCopy();
+        for (JsonNode entry : shown.path("results")) {
+            if (!(entry.path("result").path("content") instanceof ArrayNode blocks)) {
+                continue;
+            }
+            for (int i = 0; i < blocks.size(); i++) {
+                JsonNode block = blocks.get(i);
+                if (block.isObject() && !"text".equals(block.path("type").asString(""))) {
                     content.add(block.deepCopy());
+                    blocks.set(i, withoutData((ObjectNode) block, content.size() - 1));
                 }
             }
         }
+        text.put("text", MAPPER.writeValueAsString(shown));
         result.set("structuredContent", structured);
         result.put("isError", false);
         result.put("resultType", "complete");
         return result;
+    }
+
+    /**
+     * A content block as the call meta-tool's text block shows it: without its base64
+     * {@code data}, or its resource's {@code blob}, and with the index of the block in
+     * {@code content} that carries them.
+     */
+    private static ObjectNode withoutData(ObjectNode block, int contentIndex) {
+        ObjectNode shown = block.deepCopy();
+        shown.remove("data");
+        if (shown.path("resource") instanceof ObjectNode resource) {
+            resource.remove("blob");
+        }
+        shown.put("contentIndex", contentIndex);
+        return shown;
     }
 
     /** One call of the call meta-tool; every failure is a tool error for that call only. */

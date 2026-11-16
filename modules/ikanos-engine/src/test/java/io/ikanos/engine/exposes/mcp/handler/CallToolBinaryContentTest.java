@@ -124,4 +124,24 @@ class CallToolBinaryContentTest {
         assertEquals("image", content.get(1).path("type").asString(), content.toString());
         assertEquals("image/png", content.get(1).path("mimeType").asString());
     }
+
+    @Test
+    void callToolTextShouldPointAtTheImageRatherThanRepeatItsData() {
+        ToolsCallHandler handler = new ToolsCallHandler(adapter, List.of(), List.of(), List.of());
+        ObjectNode arguments = JSON.createObjectNode();
+        arguments.putArray("calls").addObject().put("name", "render-chart");
+
+        JsonNode result = handler.callTool(adapter.getToolSearchCatalog(), arguments);
+
+        String base64 = java.util.Base64.getEncoder().encodeToString(PNG);
+        assertEquals(base64, result.path("content").get(1).path("data").asString());
+        JsonNode shown = JSON.readTree(result.path("content").get(0).path("text").asString());
+        JsonNode block = shown.path("results").get(0).path("result").path("content").get(0);
+        assertEquals("image", block.path("type").asString(), shown.toString());
+        assertEquals(1, block.path("contentIndex").asInt(), shown.toString());
+        assertFalse(block.has("data"), "The model reads the image once: " + shown);
+        assertEquals(base64, result.path("structuredContent").path("results").get(0)
+                .path("result").path("content").get(0).path("data").asString(),
+                "structuredContent keeps each result as a direct call returns it");
+    }
 }
