@@ -13,11 +13,13 @@
  */
 package io.ikanos.engine.exposes.rest;
 
+import java.io.IOException;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.BooleanSupplier;
 import org.restlet.Request;
 import org.restlet.Response;
@@ -35,11 +37,13 @@ import io.ikanos.engine.execution.Durability;
 import io.ikanos.engine.execution.Elicitation;
 import io.ikanos.engine.execution.ExecutionInputs;
 import io.ikanos.engine.execution.InputRequiredException;
+import io.ikanos.engine.exposes.mcp.AgentIdentityResolver;
 import io.ikanos.engine.exposes.mcp.InlineRounds;
 import io.ikanos.engine.exposes.mcp.InputRequests;
 import io.ikanos.engine.exposes.mcp.McpRequestState;
 import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
 import io.ikanos.spec.util.IkanosMappers;
+import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
@@ -61,8 +65,13 @@ public final class RestInputRequests {
     /** Path prefix of the answer resource, reserved in every REST adapter. */
     public static final String PREFIX = "/_ikanos/executions/";
 
-    /** Largest handle, in characters, carried in a URL under {@code none}. */
-    static final int MAX_HANDLE = 64 * 1024;
+    /**
+     * Largest handle, in characters, carried in a URL under {@code none}. The Jetty listener takes
+     * a request line and headers of at most 8 KiB ({@code requestHeaderSize}, which the engine
+     * keeps at its default) and answers 414 or 431 beyond: half of it leaves the other half to the
+     * method, the mount, {@value #PREFIX} and the request's other headers, such as a bearer token.
+     */
+    static final int MAX_HANDLE = 4 * 1024;
 
     /** Request digest every handle is sealed with: what it is bound to sits in the handle. */
     static final String DIGEST = "rest-input";
@@ -164,8 +173,11 @@ public final class RestInputRequests {
                 response.setStatus(Status.CLIENT_ERROR_METHOD_NOT_ALLOWED);
                 return;
             }
+            JsonNode responses = responses(request, response);
+            if (responses == null) {
+                return;
+            }
             ObjectNode answers = state.answers().deepCopy();
-            JsonNode responses = responses(request);
             for (String key : state.pending()) {
                 if (responses.has(key)) {
                     answers.set(key, responses.get(key));
@@ -214,12 +226,16 @@ public final class RestInputRequests {
             gone(response);
             return;
         }
+        JsonNode responses = responses(request, response);
+        if (responses == null) {
+            return;
+        }
         @SuppressWarnings("unchecked")
         Map<String, Object> parameters = inline.arguments(id)
                 .map(arguments -> (Map<String, Object>) MAPPER.convertValue(arguments, Map.class))
                 .orElseGet(LinkedHashMap::new);
         InlineRounds.Round round = inline.run(entry(restlet, operation), principal, null, id,
-                state.round(), responses(request),
+                state.round(), responses,
                 () -> restlet.runForRounds(operation, parameters));
         render(round, principal, (ObjectNode) bound, response);
     }
@@ -311,25 +327,59 @@ public final class RestInputRequests {
     }
 
     /**
-     * Who the input request is bound to: the credential the request presented in its
-     * {@code Authorization} header, or nobody, when the handle itself is the capability.
+     * Who the input request is bound to: the owner MCP binds its tasks and {@code requestState}
+     * to ({@link AgentIdentityResolver#ownerOf}). Under {@code oauth2} it is the token's issuer
+     * and subject, so a token refreshed while a person answers still answers; otherwise nobody in
+     * particular, and the handle itself is the capability.
      */
-    static String principal(Request request) {
-        String authorization = request.getHeaders() != null
-                ? request.getHeaders().getFirstValue("Authorization", true) : null;
-        return authorization != null ? "rest " + authorization : "rest anonymous";
+    String principal(Request request) {
+        return AgentIdentityResolver.ownerOf(namespace, request, Optional.empty());
     }
 
-    private static JsonNode responses(Request request) {
+    /**
+     * The {@code inputResponses} of an answer: none for an empty body, which asks again. A body
+     * that is no JSON object, or whose {@code inputResponses} is missing or no object, answers
+     * {@code 400} naming the problem, and this returns {@code null}.
+     */
+    private static JsonNode responses(Request request, Response response) {
+        String text;
         try {
-            if (request.getEntity() == null || !request.getEntity().isAvailable()) {
-                return MAPPER.createObjectNode();
-            }
-            JsonNode body = MAPPER.readTree(request.getEntity().getText());
-            return body.path("inputResponses").isObject() ? body.get("inputResponses")
-                    : MAPPER.createObjectNode();
-        } catch (Exception e) {
+            text = request.getEntity() != null && request.getEntity().isAvailable()
+                    ? request.getEntity().getText() : null;
+        } catch (IOException e) {
+            badRequest(response, "The answer body could not be read: " + e.getMessage());
+            return null;
+        }
+        if (text == null || text.isBlank()) {
             return MAPPER.createObjectNode();
         }
+        JsonNode body;
+        try {
+            body = MAPPER.readTree(text);
+        } catch (JacksonException e) {
+            badRequest(response, "The answer body is not valid JSON: "
+                    + e.getOriginalMessage());
+            return null;
+        }
+        if (!body.isObject()) {
+            badRequest(response, "The answer body must be a JSON object with inputResponses");
+            return null;
+        }
+        if (body.isEmpty()) {
+            return MAPPER.createObjectNode();
+        }
+        if (!body.path("inputResponses").isObject()) {
+            badRequest(response, "The answer body must carry its answers in an inputResponses "
+                    + "object, keyed as inputRequests asked them");
+            return null;
+        }
+        return body.get("inputResponses");
+    }
+
+    private static void badRequest(Response response, String message) {
+        ObjectNode error = MAPPER.createObjectNode();
+        error.put("error", message);
+        response.setStatus(Status.CLIENT_ERROR_BAD_REQUEST);
+        response.setEntity(error.toString(), MediaType.APPLICATION_JSON);
     }
 }

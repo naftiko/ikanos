@@ -138,11 +138,14 @@ public class AgentIdentityResolver {
      * parts, so no two kinds, issuers or adapters can name the same owner: a {@code sub} of one
      * issuer never owns another's task, nor does a forwarded identity spelled like it.</p>
      *
+     * <p>REST input requests bind their handles to the same owner, with no identity: a REST
+     * adapter declares no {@code trust}.</p>
+     *
      * @param namespace the namespace of the adapter serving the request
      * @param request the inbound HTTP request, or {@code null} on stdio
      * @param identity what {@link #resolve} returned for it
      */
-    static String ownerOf(String namespace, Request request, Optional<AgentIdentity> identity) {
+    public static String ownerOf(String namespace, Request request, Optional<AgentIdentity> identity) {
         Object claims = request != null
                 ? request.getAttributes().get(OAuth2AuthenticationRestlet.VALIDATED_CLAIMS_ATTRIBUTE)
                 : null;

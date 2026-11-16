@@ -19,6 +19,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.net.ServerSocket;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.file.Path;
 import java.util.Base64;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -39,7 +43,9 @@ import org.restlet.data.Reference;
 import org.restlet.data.Status;
 import org.restlet.routing.Router;
 
+import com.nimbusds.jwt.JWTClaimsSet;
 import io.ikanos.Capability;
+import io.ikanos.engine.exposes.OAuth2AuthenticationRestlet;
 import io.ikanos.engine.exposes.ServerAdapter;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.IkanosMappers;
@@ -290,6 +296,26 @@ public class RestInputRequestIntegrationTest {
         return response;
     }
 
+    /**
+     * Sends a request as {@link OAuth2AuthenticationRestlet} hands it on once it validated
+     * {@code token}, whose claims name {@code subject}.
+     */
+    private static Response sendAs(RestServerAdapter adapter, Method method, String path,
+            String body, String subject, String token) {
+        Request request = new Request(method, new Reference("http://localhost" + path));
+        request.getResourceRef().setBaseRef("http://localhost");
+        if (body != null) {
+            request.setEntity(body, MediaType.APPLICATION_JSON);
+        }
+        request.getAttributes().put(OAuth2AuthenticationRestlet.VALIDATED_CLAIMS_ATTRIBUTE,
+                new JWTClaimsSet.Builder().issuer("https://as.example").subject(subject)
+                        .build());
+        request.getAttributes().put(OAuth2AuthenticationRestlet.VALIDATED_TOKEN_ATTRIBUTE, token);
+        Response response = new Response(request);
+        adapter.getRouter().handle(request, response);
+        return response;
+    }
+
     private JsonNode body(Response response) throws Exception {
         return json.readTree(response.getEntity().getText());
     }
@@ -506,6 +532,126 @@ public class RestInputRequestIntegrationTest {
             assertEquals(0, bookings.get(), "The other adapter's work never runs");
             assertEquals(Status.SUCCESS_OK, send(rest(capability, "departures"), Method.POST,
                     location, ANSWER).getStatus(), control);
+        }
+    }
+
+    @Test
+    void aHandleShouldBeAnsweredByTheSameSubjectWithARefreshedTokenOnly() throws Exception {
+        for (String control : new String[] {NONE, MEMORY}) {
+            RestServerAdapter adapter = rest(load(control));
+            Response asked = sendAs(adapter, Method.POST, "/confirm", null, "alice", "token-1");
+            assertEquals(Status.SUCCESS_ACCEPTED, asked.getStatus(), control);
+            String location = asked.getLocationRef().getPath();
+
+            assertEquals(Status.CLIENT_ERROR_GONE, sendAs(adapter, Method.POST, location, ANSWER,
+                    "bob", "token-3").getStatus(), "Another caller's credential: " + control);
+            assertEquals(Status.CLIENT_ERROR_GONE,
+                    send(adapter, Method.POST, location, ANSWER).getStatus(),
+                    "No credential: " + control);
+            Response done = sendAs(adapter, Method.POST, location, ANSWER, "alice", "token-2");
+            assertEquals(Status.SUCCESS_OK, done.getStatus(),
+                    "The same subject, its token refreshed: " + control);
+        }
+    }
+
+    /** An operation that asks, with a body parameter the handle carries under none. */
+    private static final String NOTES = """
+                  notes:
+                    path: /notes
+                    operations:
+                      note:
+                        method: POST
+                        inputParameters:
+                          - name: note
+                            in: body
+                            type: string
+                        ref: departure.confirm-departure
+            """;
+
+    private static Response note(RestServerAdapter adapter, int length) {
+        return send(adapter, Method.POST, "/notes",
+                "{\"note\":\"" + "n".repeat(length) + "\"}");
+    }
+
+    @Test
+    void underNoneTheLargestHandleShouldStayUnderTheListenersLimit() throws Exception {
+        RestServerAdapter adapter = rest(loadYaml(capability(NONE, NOTES)));
+        assertEquals(Status.SUCCESS_ACCEPTED, note(adapter, 1).getStatus());
+        assertEquals(Status.CLIENT_ERROR_REQUEST_ENTITY_TOO_LARGE,
+                note(adapter, RestInputRequests.MAX_HANDLE).getStatus());
+        // The longest note whose handle still fits.
+        int low = 1;
+        int high = RestInputRequests.MAX_HANDLE;
+        while (high - low > 1) {
+            int mid = (low + high) / 2;
+            if (note(adapter, mid).getStatus().equals(Status.SUCCESS_ACCEPTED)) {
+                low = mid;
+            } else {
+                high = mid;
+            }
+        }
+        String location = note(adapter, low).getLocationRef().getPath();
+        String handle = location.substring(RestInputRequests.PREFIX.length());
+        assertTrue(handle.length() <= RestInputRequests.MAX_HANDLE,
+                String.valueOf(handle.length()));
+        assertEquals(Status.CLIENT_ERROR_REQUEST_ENTITY_TOO_LARGE,
+                note(adapter, low + 1).getStatus(), "One more character no longer fits");
+
+        // Through the listener, with a header the size of a bearer token.
+        int listenerPort;
+        try (ServerSocket socket = new ServerSocket(0)) {
+            listenerPort = socket.getLocalPort();
+        }
+        RestServerAdapter listener = rest(loadYaml(capability(NONE, NOTES).replace(
+                "    port: 0\n    namespace: departures",
+                "    port: " + listenerPort + "\n    namespace: departures")));
+        listener.start();
+        try {
+            HttpClient client = HttpClient.newHttpClient();
+            HttpResponse<String> asked = client.send(HttpRequest.newBuilder(
+                    URI.create("http://localhost:" + listenerPort + "/notes"))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(
+                            "{\"note\":\"" + "n".repeat(low) + "\"}"))
+                    .build(), HttpResponse.BodyHandlers.ofString());
+            assertEquals(202, asked.statusCode(), asked.body());
+            String answerLocation = asked.headers().firstValue("Location").orElseThrow();
+            HttpResponse<String> answered = client.send(HttpRequest.newBuilder(
+                    URI.create(answerLocation))
+                    .header("Content-Type", "application/json")
+                    .header("X-Token-Sized", "t".repeat(1500))
+                    .POST(HttpRequest.BodyPublishers.ofString(ANSWER))
+                    .build(), HttpResponse.BodyHandlers.ofString());
+            // A URI segment variable overflowed the listener thread's stack on such a handle: 404.
+            assertEquals(200, answered.statusCode(), answered.body());
+        } finally {
+            listener.stop();
+        }
+    }
+
+    @Test
+    void anAnswerBodyThatCannotBeReadShouldAnswer400NamingTheProblem() throws Exception {
+        for (String control : new String[] {NONE, MEMORY}) {
+            RestServerAdapter adapter = rest(load(control));
+            String location = send(adapter, Method.POST, "/confirm", null).getLocationRef()
+                    .getPath();
+
+            Response truncated = send(adapter, Method.POST, location,
+                    ANSWER.substring(0, ANSWER.length() - 3));
+            assertEquals(Status.CLIENT_ERROR_BAD_REQUEST, truncated.getStatus(), control);
+            assertTrue(body(truncated).path("error").asString().contains("not valid JSON"),
+                    String.valueOf(body(truncated)));
+            Response unwrapped = send(adapter, Method.POST, location,
+                    "{\"steps/confirm\":{\"action\":\"accept\"}}");
+            assertEquals(Status.CLIENT_ERROR_BAD_REQUEST, unwrapped.getStatus(), control);
+            assertTrue(body(unwrapped).path("error").asString().contains("inputResponses"),
+                    String.valueOf(body(unwrapped)));
+            assertEquals(Status.CLIENT_ERROR_BAD_REQUEST,
+                    send(adapter, Method.POST, location, "[]").getStatus(), control);
+
+            assertEquals(Status.SUCCESS_OK,
+                    send(adapter, Method.POST, location, ANSWER).getStatus(),
+                    "The handle still takes a readable answer: " + control);
         }
     }
 }

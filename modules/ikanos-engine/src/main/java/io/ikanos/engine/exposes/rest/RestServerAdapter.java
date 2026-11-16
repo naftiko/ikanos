@@ -39,8 +39,12 @@ public class RestServerAdapter extends ServerAdapter {
                 serverSpec.getPath(), () -> false);
 
         // Answers to input requests, before the declared resources so none can shadow them.
-        getRouter().attach(RestInputRequests.PREFIX + "{handle}", inputRequests.answerResource(),
-                Template.MODE_EQUALS);
+        TemplateRoute answers = getRouter().attach(RestInputRequests.PREFIX + "{handle}",
+                inputRequests.answerResource(), Template.MODE_EQUALS);
+        // Any characters: a URI segment's regex recurses on each one, and a handle of a few KiB
+        // overflows a listener thread's stack, which Restlet answers 404. A handle that is no
+        // sealed state fails to open and answers 410.
+        answers.getTemplate().getVariables().put("handle", new Variable(Variable.TYPE_ALL));
 
         for (RestServerResourceSpec res : getRestServerSpec().getResources().values()) {
             if (res.getPath() != null && res.getPath().startsWith("/_ikanos/")) {
