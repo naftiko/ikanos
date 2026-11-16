@@ -13,7 +13,10 @@
  *     syntax the engine converts (no hexadecimal, no surrounding spaces), and an
  *     integral decimal such as `25.0` is an integer;
  *   - the input declares `enum` and the example is not one of its values,
- *     compared as numbers for a `number` or `integer` input (`1` matches `"1.0"`).
+ *     compared as numbers for a `number` or `integer` input (`1` matches `"1.0"`);
+ *   - it is an unquoted integer beyond 2^53, which the YAML reader rounds before
+ *     this rule sees it: quoted, it is checked exactly. An enum with such a value
+ *     is not compared.
  *
  * Walks MCP tool inputs (and their nested `items` / `properties`), aggregate flow
  * inputs, and the `definitions.schemas` of both, in a capability and at the root
@@ -107,6 +110,9 @@ function checkExample(schema, example) {
     return "is on an " + type + " input; give examples on its "
       + (type === "object" ? "properties" : "items") + " instead";
   }
+  if (isInexact(example)) {
+    return "is an integer too large for the linter to read exactly; quote it";
+  }
   const text = String(example);
   const numeric = type === "number" || type === "integer";
   const decimal = numeric ? parseDecimal(text) : null;
@@ -119,10 +125,20 @@ function checkExample(schema, example) {
   if (type === "boolean" && text !== "true" && text !== "false") {
     return "is not true or false";
   }
-  if (Array.isArray(schema.enum) && !schema.enum.some((value) => sameValue(value, text, decimal))) {
+  // An enum value that was not read exactly cannot be compared: leave it to the reader.
+  if (Array.isArray(schema.enum) && !schema.enum.some(isInexact)
+      && !schema.enum.some((value) => sameValue(value, text, decimal))) {
     return "is not one of the input's enum values";
   }
   return null;
+}
+
+/**
+ * Whether a value is an unquoted integer beyond 2^53, which the YAML reader has already rounded
+ * to the nearest double: the rule no longer sees the authored digits, while the engine does.
+ */
+function isInexact(value) {
+  return typeof value === "number" && Number.isInteger(value) && !Number.isSafeInteger(value);
 }
 
 /**
