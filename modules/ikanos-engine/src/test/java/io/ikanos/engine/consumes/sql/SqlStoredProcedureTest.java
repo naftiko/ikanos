@@ -451,6 +451,23 @@ class SqlStoredProcedureTest {
     }
 
     @Test
+    void specShouldRefuseAScaleThatIsNotAnInteger() {
+        for (String scale : new String[] {"2.5", "99999999999", "\"six\""}) {
+            tools.jackson.core.JacksonException e = assertThrows(
+                    tools.jackson.core.JacksonException.class,
+                    () -> spec(GET_BALANCE.replace("sqlType: DECIMAL }",
+                            "sqlType: DECIMAL, scale: " + scale + " }")));
+
+            StringBuilder messages = new StringBuilder();
+            for (Throwable t = e; t != null; t = t.getCause()) {
+                messages.append(t.getMessage()).append(" / ");
+            }
+            assertTrue(messages.toString().contains("scale must be an integer"),
+                    messages.toString());
+        }
+    }
+
+    @Test
     void outShouldReadATemporalOutThroughGetObjectWhenTheTypedGettersAreRefused()
             throws Exception {
         // pgjdbc: getObject(int, Class) supports only ResultSet, and getString needs VARCHAR
