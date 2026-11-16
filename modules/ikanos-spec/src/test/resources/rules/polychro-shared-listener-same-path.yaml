@@ -1,12 +1,13 @@
 ---
-# Spectral fixture — ikanos-exposes-mounts-distinct MUST FIRE.
+# Polychro fixture — ikanos-exposes-mounts-distinct MUST FIRE.
 #
-# On port 8080, `/mcp/admin` is nested in `/mcp`.
+# Two MCP adapters on port 8080 declare neither `path` nor `hosts`: both are
+# mounted at the root of any host.
 ikanos: "1.0.0-beta10"
 
 info:
-  display: "Shared listener — nested path"
-  description: "Negative fixture: one path nested in another."
+  display: "Shared listener — same path"
+  description: "Negative fixture: two adapters at the root of one port."
 
 capability:
   aggregates:
@@ -21,7 +22,6 @@ capability:
   exposes:
     - type: "mcp"
       port: 8080
-      path: "/mcp"
       namespace: "greeting-a"
       description: "Greeting tools."
       tools:
@@ -30,7 +30,6 @@ capability:
           ref: "greeting.hello"
     - type: "mcp"
       port: 8080
-      path: "/mcp/admin"
       namespace: "greeting-b"
       description: "Greeting tools."
       tools:

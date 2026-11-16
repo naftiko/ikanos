@@ -765,7 +765,7 @@ rules:
   # ────────────────────────────────────────────────────────────────
   # See blueprints/unified-import-mechanism.md §11 for the full rule catalog.
   # Cross-file reference integrity (§11.2) is enforced by the engine resolver,
-  # not by Spectral, because it requires file-system access.
+  # not by the ruleset, because it requires file-system access.
 
   # §11.1 — Import directive structure
 

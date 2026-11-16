@@ -1,4 +1,4 @@
-# Spectral fixture — snake_case MCP tool names (issue #1006) MUST NOT FAIL linting:
+# Polychro fixture — snake_case MCP tool names (issue #1006) MUST NOT FAIL linting:
 #   tools keep the snake_case names of the MCP server they re-implement, a kebab-case
 #   tool sits next to them, one tool reaches an aggregate flow through `ref`, and a
 #   skill names the snake_case tools it depends on.

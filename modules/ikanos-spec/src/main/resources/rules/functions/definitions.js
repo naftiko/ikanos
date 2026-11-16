@@ -1,5 +1,5 @@
 /**
- * Spectral custom function: definitions
+ * Polychro rule function: definitions
  *
  * Checks the shared `definitions` of MCP adapters and aggregates (#910) and
  * their uses: `inputParameterSets: [names]` on a tool or flow, and

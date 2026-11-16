@@ -127,7 +127,7 @@ public class IkanosPolychroRulesetTest {
     public void semanticsConsistencyRuleShouldWarnWhenMcpHintsContradictSemantics()
             throws IOException {
         LintResult result =
-            lintFixtureAtSeverity("rules/spectral-semantics-inconsistent.yaml", "warn");
+            lintFixtureAtSeverity("rules/polychro-semantics-inconsistent.yaml", "warn");
 
         assertTrue(result.exitCode() != 0,
             "Expected inconsistent semantics document to produce warnings.\n"
@@ -150,7 +150,7 @@ public class IkanosPolychroRulesetTest {
     public void semanticsConsistencyRuleShouldWarnWhenRestMethodContradictsSafeSemantics()
             throws IOException {
         LintResult result =
-            lintFixtureAtSeverity("rules/spectral-semantics-inconsistent.yaml", "warn");
+            lintFixtureAtSeverity("rules/polychro-semantics-inconsistent.yaml", "warn");
 
         assertTrue(result.exitCode() != 0,
             "Expected inconsistent semantics document to produce warnings.\n"
@@ -166,7 +166,7 @@ public class IkanosPolychroRulesetTest {
     @Test
     public void semanticsConsistencyRuleShouldNotWarnWhenHintsAreConsistent()
             throws IOException {
-        LintResult result = lint("src/test/resources/rules/spectral-semantics-consistent.yaml");
+        LintResult result = lint("src/test/resources/rules/polychro-semantics-consistent.yaml");
 
         String output = result.output();
         assertTrue(
@@ -281,7 +281,7 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void tunnelIdentityMustBindRuleShouldFireWhenNamespaceIsUndeclared() {
-        LintResult result = lint("src/test/resources/rules/spectral-tunnel-identity-unbound.yaml");
+        LintResult result = lint("src/test/resources/rules/polychro-tunnel-identity-unbound.yaml");
 
         assertTrue(result.exitCode() != 0,
             "Expected unbound-identity fixture to fail linting.\n" + result.output());
@@ -292,7 +292,7 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void tunnelIdentityMustBindRuleShouldNotFireWhenBindingIsDeclared() {
-        LintResult result = lint("src/test/resources/rules/spectral-tunnel-identity-bound.yaml");
+        LintResult result = lint("src/test/resources/rules/polychro-tunnel-identity-bound.yaml");
 
         String output = result.output();
         assertTrue(!output.contains("ikanos-tunnel-identity-must-bind"),
@@ -302,7 +302,7 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void tunnelFallbackDirectWarnsRuleShouldFireOnNonLoopbackBaseUri() {
-        LintResult result = lintFixture("rules/spectral-tunnel-fallback-direct-public.yaml");
+        LintResult result = lintFixture("rules/polychro-tunnel-fallback-direct-public.yaml");
 
         assertTrue(result.output().contains("ikanos-tunnel-fallback-direct-warns"),
             "Expected lint output to reference ikanos-tunnel-fallback-direct-warns.\n"
@@ -315,7 +315,7 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void mcpTrustNetworkTooBroadRuleShouldFireWhenEveryAddressIsTrusted() {
-        LintResult result = lintFixture("rules/spectral-mcp-trust-broad-network.yaml");
+        LintResult result = lintFixture("rules/polychro-mcp-trust-broad-network.yaml");
         assertTrue(result.output().contains("ikanos-mcp-trust-network-too-broad"),
             "Expected 0.0.0.0/0 and ::/0 in trustedNetworks to be flagged (#483).\n"
                 + result.output());
@@ -323,7 +323,7 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void mcpTrustNetworkTooBroadRuleShouldNotFireOnScopedNetworks() {
-        LintResult result = lintFixture("rules/spectral-mcp-trust-networks-scoped.yaml");
+        LintResult result = lintFixture("rules/polychro-mcp-trust-networks-scoped.yaml");
         assertTrue(!result.output().contains("ikanos-mcp-trust-network-too-broad"),
             "Expected scoped private networks not to be flagged.\n" + result.output());
     }
@@ -331,7 +331,7 @@ public class IkanosPolychroRulesetTest {
     @Test
     public void mcpTrustLoopbackRuleShouldFireWhenAdapterListensBeyondLoopback() {
         LintResult result =
-            lintFixture("rules/spectral-mcp-trust-loopback-public-address.yaml");
+            lintFixture("rules/polychro-mcp-trust-loopback-public-address.yaml");
         assertTrue(result.output().contains("ikanos-mcp-trust-loopback-on-public-address"),
             "Expected trusted loopback peers on a 0.0.0.0 adapter to be flagged (#483).\n"
                 + result.output());
@@ -340,7 +340,7 @@ public class IkanosPolychroRulesetTest {
     @Test
     public void mcpTrustLoopbackRuleShouldNotFireWhenAdapterListensOnLoopback() {
         LintResult result =
-            lintFixture("rules/spectral-mcp-trust-loopback-local-address.yaml");
+            lintFixture("rules/polychro-mcp-trust-loopback-local-address.yaml");
         assertTrue(!result.output().contains("ikanos-mcp-trust-loopback-on-public-address"),
             "Expected trusted loopback peers on a loopback adapter not to be flagged.\n"
                 + result.output());
@@ -348,69 +348,69 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void mcpTrustLoopbackRuleShouldFireWhenAddressIsAHostnameStartingWith127() {
-        assertWarnsOn("rules/spectral-mcp-trust-loopback-hostname-127-prefix.yaml",
+        assertWarnsOn("rules/polychro-mcp-trust-loopback-hostname-127-prefix.yaml",
             "ikanos-mcp-trust-loopback-on-public-address", "'127.0.0.1/32'");
     }
 
     @Test
     public void mcpTrustLoopbackRuleShouldNotFireWhenAdapterListensOnExpandedIpv6Loopback() {
-        LintResult result = lintFixture("rules/spectral-mcp-trust-loopback-expanded-ipv6.yaml");
+        LintResult result = lintFixture("rules/polychro-mcp-trust-loopback-expanded-ipv6.yaml");
         assertTrue(!result.output().contains("ikanos-mcp-trust-loopback-on-public-address"),
             "Expected 0:0:0:0:0:0:0:1 to be read as loopback.\n" + result.output());
     }
 
     @Test
     public void mcpTrustLoopbackRuleShouldNotFireOnScopedNetworks() {
-        LintResult result = lintFixture("rules/spectral-mcp-trust-networks-scoped.yaml");
+        LintResult result = lintFixture("rules/polychro-mcp-trust-networks-scoped.yaml");
         assertTrue(!result.output().contains("ikanos-mcp-trust-loopback-on-public-address"),
             "Expected scoped private networks not to be flagged.\n" + result.output());
     }
 
     @Test
     public void mcpTrustNetworkTooBroadRuleShouldFireOnTheIpv6WholeAddressSpace() {
-        assertWarnsOn("rules/spectral-mcp-trust-ipv6-broad.yaml",
+        assertWarnsOn("rules/polychro-mcp-trust-ipv6-broad.yaml",
             "ikanos-mcp-trust-network-too-broad", "'::/0'");
     }
 
     @Test
     public void mcpTrustNetworkTooBroadRuleShouldFireOnIpv4MappedWholeIpv4Space() {
-        assertWarnsOn("rules/spectral-mcp-trust-ipv4-mapped-broad.yaml",
+        assertWarnsOn("rules/polychro-mcp-trust-ipv4-mapped-broad.yaml",
             "ikanos-mcp-trust-network-too-broad", "'::ffff:0.0.0.0/96'");
     }
 
     @Test
     public void mcpTrustLoopbackRuleShouldFireOnIpv6LoopbackWhenAdapterListensOnAllIpv6() {
-        assertWarnsOn("rules/spectral-mcp-trust-ipv6-loopback-public.yaml",
+        assertWarnsOn("rules/polychro-mcp-trust-ipv6-loopback-public.yaml",
             "ikanos-mcp-trust-loopback-on-public-address", "'::1/128'");
     }
 
     @Test
     public void mcpTrustLoopbackRuleShouldFireOnLoopbackRangeWithout127001() {
-        assertWarnsOn("rules/spectral-mcp-trust-loopback-range-public.yaml",
+        assertWarnsOn("rules/polychro-mcp-trust-loopback-range-public.yaml",
             "ikanos-mcp-trust-loopback-on-public-address", "'127.1.0.0/16'");
     }
 
     @Test
     public void mcpTrustNetworkTooBroadRuleShouldReportEachBroadEntryAtItsPath() {
         // #1069: the function read Polychro's missing context and failed on every adapter.
-        assertReportsAt("rules/spectral-mcp-trust-broad-network.yaml",
+        assertReportsAt("rules/polychro-mcp-trust-broad-network.yaml",
             "ikanos-mcp-trust-network-too-broad",
             "$.capability.exposes[0].trust.trustedNetworks[0]");
-        assertReportsAt("rules/spectral-mcp-trust-broad-network.yaml",
+        assertReportsAt("rules/polychro-mcp-trust-broad-network.yaml",
             "ikanos-mcp-trust-network-too-broad",
             "$.capability.exposes[0].trust.trustedNetworks[1]");
     }
 
     @Test
     public void mcpTrustLoopbackRuleShouldReportTheLoopbackEntryAtItsPath() {
-        assertReportsAt("rules/spectral-mcp-trust-loopback-public-address.yaml",
+        assertReportsAt("rules/polychro-mcp-trust-loopback-public-address.yaml",
             "ikanos-mcp-trust-loopback-on-public-address",
             "$.capability.exposes[0].trust.trustedNetworks[0]");
     }
 
     @Test
     public void mcpTrustRulesShouldNotFailOnScopedNetworks() {
-        LintResult result = lintFixtureAtSeverity("rules/spectral-mcp-trust-networks-scoped.yaml",
+        LintResult result = lintFixtureAtSeverity("rules/polychro-mcp-trust-networks-scoped.yaml",
             "info");
         assertEquals(0, result.exitCode(),
             "#1069: a compliant trust block must lint clean, without a function failure.\n"
@@ -423,7 +423,7 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void sharedListenerRulesShouldNotFireOnDistinctMountsAndBoundHosts() {
-        LintResult result = lintFixture("rules/spectral-shared-listener-compliant.yaml");
+        LintResult result = lintFixture("rules/polychro-shared-listener-compliant.yaml");
         assertFalse(result.output().contains("ikanos-exposes-mounts-distinct"),
             "Expected distinct paths and hosts on one port not to be flagged.\n"
                 + result.output());
@@ -434,19 +434,19 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void mountsDistinctRuleShouldFireWhenTwoAdaptersShareTheRootOfAPort() {
-        assertRuleFires("rules/spectral-shared-listener-same-path.yaml",
+        assertRuleFires("rules/polychro-shared-listener-same-path.yaml",
             "ikanos-exposes-mounts-distinct");
     }
 
     @Test
     public void mountsDistinctRuleShouldFireWhenAPathIsNestedInAnother() {
-        assertRuleFires("rules/spectral-shared-listener-nested-path.yaml",
+        assertRuleFires("rules/polychro-shared-listener-nested-path.yaml",
             "ikanos-exposes-mounts-distinct");
     }
 
     @Test
     public void hostsMustBindRuleShouldFireWhenTheKeyIsNotDeclared() {
-        assertRuleFires("rules/spectral-shared-listener-unbound-host.yaml",
+        assertRuleFires("rules/polychro-shared-listener-unbound-host.yaml",
             "ikanos-exposes-hosts-must-bind");
     }
 
@@ -456,13 +456,13 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void mcpUiResourceMimeTypeRuleShouldFireWhenViewLacksMcpAppProfile() {
-        assertRuleFires("rules/spectral-mcp-ui-violations.yaml",
+        assertRuleFires("rules/polychro-mcp-ui-violations.yaml",
             "ikanos-mcp-ui-resource-mime-type");
     }
 
     @Test
     public void mcpUiToolOutputParametersRuleShouldFireWhenUiToolHasNoOutputParameters() {
-        LintResult result = lintFixtureAtSeverity("rules/spectral-mcp-ui-violations.yaml", "info");
+        LintResult result = lintFixtureAtSeverity("rules/polychro-mcp-ui-violations.yaml", "info");
         assertTrue(result.output().contains("ikanos-mcp-ui-tool-output-parameters"),
             "Expected lint output to reference ikanos-mcp-ui-tool-output-parameters.\n"
                 + result.output());
@@ -471,14 +471,14 @@ public class IkanosPolychroRulesetTest {
     @Test
     public void mcpUiToolOutputParametersRuleShouldReportTheUiTool() {
         // #1069: a [?(...)] filter on the tools map selected nothing under Polychro.
-        assertReportsAt("rules/spectral-mcp-ui-violations.yaml",
+        assertReportsAt("rules/polychro-mcp-ui-violations.yaml",
             "ikanos-mcp-ui-tool-output-parameters",
             "$.capability.exposes[0].tools.get-forecast");
     }
 
     @Test
     public void mcpUiConnectDomainsRuleShouldFireWhenViewDeclaresConnectDomains() {
-        LintResult result = lintFixtureAtSeverity("rules/spectral-mcp-ui-violations.yaml", "info");
+        LintResult result = lintFixtureAtSeverity("rules/polychro-mcp-ui-violations.yaml", "info");
         assertTrue(result.output().contains("ikanos-mcp-ui-connect-domains-empty"),
             "Expected lint output to reference ikanos-mcp-ui-connect-domains-empty.\n"
                 + result.output());
@@ -486,7 +486,7 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void mcpUiRulesShouldNotFireForCompliantView() {
-        LintResult result = lintFixtureAtSeverity("rules/spectral-mcp-ui-compliant.yaml", "info");
+        LintResult result = lintFixtureAtSeverity("rules/polychro-mcp-ui-compliant.yaml", "info");
         assertTrue(!result.output().contains("ikanos-mcp-ui-"),
             "Expected no MCP Apps rule findings for a compliant document.\n" + result.output());
     }
@@ -497,7 +497,7 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void mcpSkillAllowedToolsRuleShouldFireWhenSkillDeclaresAllowedTools() {
-        LintResult result = lintFixtureAtSeverity("rules/spectral-mcp-skills-violations.yaml",
+        LintResult result = lintFixtureAtSeverity("rules/polychro-mcp-skills-violations.yaml",
             "info");
         assertTrue(result.output().contains("ikanos-mcp-skill-allowed-tools"),
             "Expected lint output to reference ikanos-mcp-skill-allowed-tools.\n"
@@ -506,7 +506,7 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void mcpSkillRulesShouldNotFireForCompliantSkill() {
-        LintResult result = lintFixtureAtSeverity("rules/spectral-mcp-skills-compliant.yaml",
+        LintResult result = lintFixtureAtSeverity("rules/polychro-mcp-skills-compliant.yaml",
             "info");
         assertTrue(!result.output().contains("ikanos-mcp-skill-"),
             "Expected no Agent Skills rule findings for a compliant document.\n"
@@ -515,7 +515,7 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void rulesetShouldAcceptSnakeCaseMcpToolNames() {
-        LintResult result = lintFixture("rules/spectral-mcp-tool-names-compliant.yaml");
+        LintResult result = lintFixture("rules/polychro-mcp-tool-names-compliant.yaml");
         assertEquals(0, result.exitCode(),
             "#1006: snake_case MCP tool names, and a skill naming them, must lint clean.\n"
                 + result.output());
@@ -523,19 +523,19 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void skillAdapterRemovedRuleShouldFireForCapabilityExpose() {
-        assertRuleFires("rules/spectral-skill-adapter-removed-violations.yaml",
+        assertRuleFires("rules/polychro-skill-adapter-removed-violations.yaml",
             "ikanos-skill-adapter-removed");
     }
 
     @Test
     public void skillAdapterRemovedRuleShouldFireForStandaloneExpose() {
-        assertRuleFires("rules/spectral-skill-adapter-removed-standalone-violations.yaml",
+        assertRuleFires("rules/polychro-skill-adapter-removed-standalone-violations.yaml",
             "ikanos-skill-adapter-removed");
     }
 
     @Test
     public void skillAdapterRemovedRuleShouldNotFireForSkillsOnMcpAdapter() {
-        LintResult result = lintFixtureAtSeverity("rules/spectral-mcp-skills-compliant.yaml",
+        LintResult result = lintFixtureAtSeverity("rules/polychro-mcp-skills-compliant.yaml",
             "info");
         assertTrue(!result.output().contains("ikanos-skill-adapter-removed"),
             "Expected no removed-adapter finding for skills on an MCP adapter.\n"
@@ -548,7 +548,7 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void mcpConsumesEndpointHttpsRuleShouldFireForRemoteHttpAndUserinfoBypass() {
-        LintResult result = lintFixture("rules/spectral-mcp-consumes-violations.yaml");
+        LintResult result = lintFixture("rules/polychro-mcp-consumes-violations.yaml");
         assertTrue(result.exitCode() != 0,
             "Expected consumed MCP violations to fail linting.\n" + result.output());
         // One finding per offending endpoint: http://example.com and the two userinfo URLs
@@ -563,7 +563,7 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void mcpConsumedToolHintsRuleShouldFireWhenConsumedToolHasNoHints() {
-        LintResult result = lintFixtureAtSeverity("rules/spectral-mcp-consumes-violations.yaml",
+        LintResult result = lintFixtureAtSeverity("rules/polychro-mcp-consumes-violations.yaml",
             "warn");
         long findings = result.output().lines()
             .filter(line -> line.contains("ikanos-mcp-consumed-tool-hints"))
@@ -575,7 +575,7 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void mcpConsumesRulesShouldNotFireForHttpsOrLoopbackWithHints() {
-        LintResult result = lintFixtureAtSeverity("rules/spectral-mcp-consumes-compliant.yaml",
+        LintResult result = lintFixtureAtSeverity("rules/polychro-mcp-consumes-compliant.yaml",
             "info");
         assertTrue(!result.output().contains("ikanos-mcp-consumes-endpoint-https"),
             "Expected no endpoint findings for HTTPS and loopback endpoints.\n"
@@ -591,41 +591,41 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void namespacesUniqueRuleShouldFireWhenAggregateReusesConsumedNamespace() {
-        assertRuleFires("rules/spectral-flow-calls-violations.yaml", "ikanos-namespaces-unique");
+        assertRuleFires("rules/polychro-flow-calls-violations.yaml", "ikanos-namespaces-unique");
     }
 
     @Test
     public void namespacesUniqueRuleShouldFireWhenImportedAliasReusesAggregateNamespace() {
-        assertRuleFires("rules/spectral-namespace-alias-collision.yaml",
+        assertRuleFires("rules/polychro-namespace-alias-collision.yaml",
             "ikanos-namespaces-unique");
     }
 
     @Test
     public void flowCallTargetExistsRuleShouldFireWhenCalledFlowIsMissing() {
-        assertRuleFires("rules/spectral-flow-calls-violations.yaml",
+        assertRuleFires("rules/polychro-flow-calls-violations.yaml",
             "ikanos-flow-call-target-exists");
     }
 
     @Test
     public void flowCallNoCycleRuleShouldFireWhenFlowsCallEachOther() {
-        assertRuleFires("rules/spectral-flow-calls-violations.yaml", "ikanos-flow-call-no-cycle");
+        assertRuleFires("rules/polychro-flow-calls-violations.yaml", "ikanos-flow-call-no-cycle");
     }
 
     @Test
     public void exposesCallNotFlowRuleShouldFireWhenToolCallsAFlow() {
-        assertRuleFires("rules/spectral-flow-calls-violations.yaml",
+        assertRuleFires("rules/polychro-flow-calls-violations.yaml",
             "ikanos-exposes-call-not-flow");
     }
 
     @Test
     public void flowCallSemanticsRuleShouldFireWhenSafeFlowCallsUnsafeOperation() {
-        assertRuleFires("rules/spectral-flow-calls-violations.yaml",
+        assertRuleFires("rules/polychro-flow-calls-violations.yaml",
             "ikanos-flow-call-semantics-conservative");
     }
 
     @Test
     public void flowCallRulesShouldNotFireForCompliantComposition() {
-        LintResult result = lintFixture("rules/spectral-flow-calls-compliant.yaml");
+        LintResult result = lintFixture("rules/polychro-flow-calls-compliant.yaml");
         String output = result.output();
         assertTrue(!output.contains("ikanos-flow-call-")
                 && !output.contains("ikanos-exposes-call-not-flow")
@@ -639,7 +639,7 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void definitionsReferenceRuleShouldFireOnUnknownAndWrongKindReferences() {
-        LintResult result = lintFixture("rules/spectral-definitions-violations.yaml");
+        LintResult result = lintFixture("rules/polychro-definitions-violations.yaml");
         String output = result.output();
         assertTrue(result.exitCode() != 0, output);
         assertTrue(output.contains("Unknown input parameter set 'missing-in-aggregate'"), output);
@@ -653,7 +653,7 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void definitionsReferenceRuleShouldFireOnNamesInheritedFromObjectPrototype() {
-        LintResult result = lintFixture("rules/spectral-definitions-violations.yaml");
+        LintResult result = lintFixture("rules/polychro-definitions-violations.yaml");
         String output = result.output();
         assertTrue(output.contains("Unknown input parameter set 'constructor'"), output);
         assertTrue(output.contains("Unknown schema 'toString'"), output);
@@ -661,19 +661,19 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void definitionsSetConflictRuleShouldFireWhenTwoSetsDeclareTheSameInput() {
-        assertRuleFires("rules/spectral-definitions-violations.yaml",
+        assertRuleFires("rules/polychro-definitions-violations.yaml",
             "ikanos-definitions-set-conflict");
     }
 
     @Test
     public void definitionsSchemaCycleRuleShouldFireWhenSchemasReferenceEachOther() {
-        assertRuleFires("rules/spectral-definitions-violations.yaml",
+        assertRuleFires("rules/polychro-definitions-violations.yaml",
             "ikanos-definitions-schema-no-cycle");
     }
 
     @Test
     public void definitionsUnusedRuleShouldWarnOnDefinitionsNoUnitUses() {
-        LintResult result = lintFixture("rules/spectral-definitions-violations.yaml");
+        LintResult result = lintFixture("rules/polychro-definitions-violations.yaml");
         assertTrue(result.output().contains("ikanos-definitions-unused")
                 && result.output().contains("'never-used', which no tool uses"),
             result.output());
@@ -681,7 +681,7 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void definitionsOutputKeywordsRuleShouldNoteKeywordsAnOutputDoesNotCarry() {
-        LintResult result = lintFixture("rules/spectral-definitions-violations.yaml");
+        LintResult result = lintFixture("rules/polychro-definitions-violations.yaml");
         String output = result.output();
         assertTrue(output.contains("ikanos-definitions-output-keywords"), output);
         assertTrue(output.contains("Schema 'order' is used in an orchestrated output, which does"
@@ -692,7 +692,7 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void definitionsRulesShouldNotFireForCompliantDefinitions() {
-        LintResult result = lintFixtureAtSeverity("rules/spectral-definitions-compliant.yaml",
+        LintResult result = lintFixtureAtSeverity("rules/polychro-definitions-compliant.yaml",
             "warn");
         assertEquals(0, result.exitCode(), result.output());
         assertFalse(result.output().contains("ikanos-definitions-"), result.output());
@@ -725,25 +725,25 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void taskModeRuleShouldFireWhenTheCapabilityHasNoDurabilityMode() {
-        assertRuleFires("rules/spectral-durability-violations.yaml",
+        assertRuleFires("rules/polychro-durability-violations.yaml",
             "ikanos-task-mode-requires-durability");
     }
 
     @Test
     public void elicitSafetyRuleShouldFireWhenAQuestionFollowsAWriteUnderNone() {
-        assertRuleFires("rules/spectral-durability-violations.yaml",
+        assertRuleFires("rules/polychro-durability-violations.yaml",
             "ikanos-elicit-after-unsafe-requires-durability");
     }
 
     @Test
     public void durabilityModeRuleShouldFireForAModeWhoseStoreHasNotShipped() {
-        assertRuleFires("rules/spectral-durability-mode-unavailable.yaml",
+        assertRuleFires("rules/polychro-durability-mode-unavailable.yaml",
             "ikanos-durability-mode-available");
     }
 
     @Test
     public void durabilityRulesShouldNotFireOnTheMemoryMode() {
-        String output = lintFixture("rules/spectral-durability-compliant.yaml").output();
+        String output = lintFixture("rules/polychro-durability-compliant.yaml").output();
         assertTrue(!output.contains("ikanos-task-mode-")
                 && !output.contains("ikanos-elicit-")
                 && !output.contains("ikanos-durability-"),
@@ -752,7 +752,7 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void elicitSafetyRuleShouldNotFireWhenTheQuestionComesBeforeAnyWrite() {
-        String output = lintFixture("rules/spectral-durability-none-compliant.yaml").output();
+        String output = lintFixture("rules/polychro-durability-none-compliant.yaml").output();
         assertTrue(!output.contains("ikanos-elicit-"),
             "Expected no elicit finding when only reads precede the question.\n" + output);
     }

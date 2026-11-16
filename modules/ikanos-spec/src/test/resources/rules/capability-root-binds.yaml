@@ -1,5 +1,5 @@
 ---
-# Spectral fixture — ikanos-capability-no-root-sections MUST FIRE.
+# Polychro fixture — ikanos-capability-no-root-sections MUST FIRE.
 #
 # A capability document declares its bindings under `capability.binds`. Root
 # `binds` is only valid in a standalone shared binds file (#955).

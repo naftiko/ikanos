@@ -1,5 +1,5 @@
 ---
-# Spectral fixture — ikanos-tunnel-fallback-direct-warns MUST FIRE.
+# Polychro fixture — ikanos-tunnel-fallback-direct-warns MUST FIRE.
 #
 # The tunnel uses fallback: direct against a non-loopback baseUri
 # (https://crm.internal). The warn rule must report a violation.

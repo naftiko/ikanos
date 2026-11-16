@@ -1,11 +1,11 @@
 /**
- * Spectral custom function: standalone-no-imports
+ * Polychro rule function: standalone-no-imports
  *
  * Enforces §11.3 of the unified-import-mechanism blueprint:
  * standalone files (documents without a `capability` key that have a root-level
  * section array) must not contain import entries (entries with a `from` field).
  *
- * This is a defense-in-depth layer: the Spectral rule catches violations that
+ * This is a defense-in-depth layer: the ruleset catches violations that
  * may slip past schema validation when the document structure is ambiguous.
  */
 export default function standaloneNoImports(targetVal) {

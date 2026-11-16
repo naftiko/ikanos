@@ -1,5 +1,5 @@
 /**
- * Spectral custom function: flow-calls
+ * Polychro rule function: flow-calls
  *
  * Checks calls between aggregate flows (`call: namespace.flow-name`, from a
  * `call` step or a flow-level `call:`). Select the check with

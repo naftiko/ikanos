@@ -1,5 +1,5 @@
 /**
- * Spectral custom function: shared-listener-mounts
+ * Polychro rule function: shared-listener-mounts
  *
  * Exposed adapters on the same address and port share one listener and are routed by
  * `hosts`, then by `path` (issue #893). The engine refuses a capability whose mounts are
