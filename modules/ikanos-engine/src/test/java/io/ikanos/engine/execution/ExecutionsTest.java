@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 
 import io.ikanos.durable.ExecutionResult;
 import io.ikanos.durable.Failure;
+import io.ikanos.engine.util.OperationStepExecutor.StepFailedException;
 
 /** What a failure recorded by an earlier run of a journaled execution is raised as. */
 class ExecutionsTest {
@@ -46,5 +47,28 @@ class ExecutionsTest {
 
         assertFalse(raised instanceof InputDeclinedException);
         assertEquals("Upstream down", raised.getMessage());
+    }
+
+    @Test
+    void anUpstreamFailureRecordedBeforeARestartShouldBeRaisedAsOneAgain() {
+        // The step journaled its upstream failure, and the process stopped before the round
+        // recorded its response: REST still answers 502, and MCP the same status.
+        RuntimeException raised = Executions.rethrowable(new StepRun(null),
+                new ExecutionResult.Failed(new Failure("StepFailedException",
+                        "Step 'book' failed with HTTP 503")));
+
+        StepFailedException failed = assertInstanceOf(StepFailedException.class, raised);
+        assertEquals("Step 'book' failed with HTTP 503", failed.getMessage());
+        assertEquals("book", failed.getStepName());
+        assertEquals(503, failed.getStatusCode());
+    }
+
+    @Test
+    void anUpstreamFailureWithNoResponseShouldBeRaisedWithNoStatus() {
+        RuntimeException raised = Executions.rethrowable(new StepRun(null),
+                new ExecutionResult.Failed(new Failure("StepFailedException",
+                        "Step 'book' failed: no response received")));
+
+        assertEquals(0, assertInstanceOf(StepFailedException.class, raised).getStatusCode());
     }
 }

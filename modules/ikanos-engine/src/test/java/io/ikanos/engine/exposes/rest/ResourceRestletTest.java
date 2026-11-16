@@ -645,4 +645,17 @@ public class ResourceRestletTest {
     spec.setValue(value);
     return spec;
   }
+
+  @Test
+  void aRoundShouldKeepTheTextualBodiesMcpResourcesReadAsText() {
+    for (String type : new String[] {"application/yaml", "application/x-yaml",
+        "application/vnd.shipyard+yaml", "application/json", "application/problem+json",
+        "application/xml", "text/csv"}) {
+      assertTrue(ResourceRestlet.isText(MediaType.valueOf(type)), type);
+    }
+    for (String type : new String[] {"image/png", "application/octet-stream",
+        "application/pdf"}) {
+      assertFalse(ResourceRestlet.isText(MediaType.valueOf(type)), type);
+    }
+  }
 }

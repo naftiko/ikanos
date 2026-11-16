@@ -1088,6 +1088,27 @@ public class OperationStepExecutor {
                     this, upstreamBody);
         }
 
+        /** The step and status in a message made by {@link #message}. */
+        private static final java.util.regex.Pattern RECORDED = java.util.regex.Pattern.compile(
+                "^Step '([^']*)'.*?(?:with HTTP|connector error) ([0-9]+)");
+
+        /**
+         * The failure an earlier run journaled, from its message alone: a journal keeps a
+         * failure's class and message, so a run restored after a restart still answers it as an
+         * upstream failure. The step and status are read back from the message when it names
+         * them; the upstream body is not journaled.
+         */
+        public static StepFailedException restored(String message) {
+            String step = null;
+            int status = 0;
+            java.util.regex.Matcher matcher = RECORDED.matcher(message != null ? message : "");
+            if (matcher.find()) {
+                step = matcher.group(1);
+                status = Integer.parseInt(matcher.group(2));
+            }
+            return new StepFailedException(step, status, message, null, null);
+        }
+
         private static String message(String stepName, int statusCode) {
             if (statusCode <= 0) {
                 return "Step '" + stepName + "' failed: no response received";
