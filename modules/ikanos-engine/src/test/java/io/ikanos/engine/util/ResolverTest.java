@@ -702,6 +702,31 @@ public class ResolverTest {
       }
 
       @Test
+      public void namespaceVariablesShouldListVariablesThatNameAWholeNamespace() {
+        Map<String, Object> values = Map.of("tenant", Map.of("TOKEN", "s3cr3t"), "id", "42");
+
+        assertEquals(List.of("tenant"),
+            Resolver.namespaceVariables("{{id}}-{{tenant}}-{{tenant.TOKEN}}", values));
+      }
+
+      @Test
+      public void namespaceVariablesShouldIgnoreKeysValuesAndUnboundVariables() {
+        Map<String, Object> values = Map.of("tenant", Map.of("TOKEN", "s3cr3t"), "id", "42");
+
+        assertEquals(List.of(), Resolver.namespaceVariables("{{tenant.TOKEN}}{{id}}{{nope}}",
+            values));
+        assertEquals(List.of(), Resolver.namespaceVariables("{{tenant}}", null));
+        assertEquals(List.of(), Resolver.namespaceVariables("static", values));
+        assertEquals(List.of(), Resolver.namespaceVariables(null, values));
+      }
+
+      @Test
+      public void namespaceVariablesShouldIgnoreVariablesInsideSections() {
+        assertEquals(List.of(), Resolver.namespaceVariables("{{#tenant}}{{TOKEN}}{{/tenant}}",
+            Map.of("tenant", Map.of("TOKEN", "s3cr3t"))));
+      }
+
+      @Test
       public void missingVariablesShouldParseLiteralBraceBeforeSectionTagLikeRendering() {
         // #848: compiled raw, this template fails and the missing "id" would go unnoticed.
         assertEquals(List.of("id"), Resolver.missingVariables(

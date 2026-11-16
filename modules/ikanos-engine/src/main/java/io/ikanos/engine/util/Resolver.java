@@ -406,6 +406,40 @@ public class Resolver {
     }
 
     /**
+     * Lists the variables of a credential template that name a whole bind namespace rather than
+     * one of its keys, such as {@code tenant} in {@code {{tenant}}} when {@code values} holds the
+     * {@code tenant} namespace as a map (#942). Rendering one would write out every value the
+     * namespace holds, so a credential must name a key, as in {@code {{tenant.TOKEN}}}. Variables
+     * inside a section or an inverted section are not listed, as in {@link #emptyVariables}.
+     *
+     * @param template the credential template, may be null
+     * @param values the values available to it, may be null (then nothing is listed)
+     * @return the variables whose value is a map, or an empty list
+     */
+    public static List<String> namespaceVariables(String template, Map<String, Object> values) {
+        if (values == null) {
+            return List.of();
+        }
+        return variablesWhere(template,
+                reference -> lookupVariable(reference, values) instanceof Map);
+    }
+
+    /**
+     * Says that a credential uses the given {@link #namespaceVariables}, never their values.
+     *
+     * @param namespaces the variables that name a bind namespace, not empty
+     * @return such as {@code "uses {{tenant}}, a whole bind namespace rather than one value: name
+     *         one of its keys, as in {{tenant.KEY}}"}
+     */
+    public static String describeNamespaceVariables(List<String> namespaces) {
+        List<String> tags = namespaces.stream().map(name -> "{{" + name + "}}").toList();
+        String what = namespaces.size() == 1 ? "a whole bind namespace" : "whole bind namespaces";
+        return "uses " + String.join(", ", tags) + ", " + what
+                + " rather than one value: name one of its keys, as in {{" + namespaces.get(0)
+                + ".KEY}}";
+    }
+
+    /**
      * The top-level variables of a template, outside sections, that match {@code unusable}, by
      * full reference and in template order.
      */

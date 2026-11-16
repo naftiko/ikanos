@@ -163,7 +163,9 @@ public final class ConsumedAuthentication {
      * Renders a credential template, refusing one that uses a variable with no value: unbound (a
      * typo such as {@code {{TOKN}}}) or bound to a blank value. Rendering alone would turn it into
      * an empty string, or keep the placeholder when there are no parameters, and send that as the
-     * credential (#843). The error names the variables, never a value.
+     * credential (#843). It also refuses one that names a whole bind namespace, such as
+     * {@code {{tenant}}}, which would render every value the namespace holds (#1064). The error
+     * names the variables, never a value.
      *
      * @param template the credential template, may be null
      * @param parameters template parameters, already merged with the bindings
@@ -172,6 +174,13 @@ public final class ConsumedAuthentication {
      * @throws IllegalArgumentException when a variable of the template has no value
      */
     static String render(String template, Map<String, Object> parameters, String credential) {
+        // Bindings come before call parameters: never send a whole namespace's values (#1064)
+        List<String> namespaces = Resolver.namespaceVariables(template, parameters);
+        if (!namespaces.isEmpty()) {
+            throw new IllegalArgumentException("The " + credential + " "
+                    + Resolver.describeNamespaceVariables(namespaces)
+                    + ". The credential is not sent.");
+        }
         List<String> empty = Resolver.emptyVariables(template, parameters);
         if (!empty.isEmpty()) {
             throw new IllegalArgumentException("Missing or empty template parameters in the "
@@ -209,13 +218,14 @@ public final class ConsumedAuthentication {
     /**
      * @param authentication the consumed-side credential, may be null
      * @param parameters template parameters, already merged with the bindings
-     * @return {@code true} when every variable of the credential has a value, so {@link #apply}
-     *         can send it; also {@code true} with no authentication
+     * @return {@code true} when every variable of the credential has one value, so
+     *         {@link #apply} can send it; also {@code true} with no authentication
      */
     public static boolean canRender(AuthenticationSpec authentication,
             Map<String, Object> parameters) {
         return credentials(authentication, "").values().stream()
-                .allMatch(template -> Resolver.emptyVariables(template, parameters).isEmpty());
+                .allMatch(template -> Resolver.emptyVariables(template, parameters).isEmpty()
+                        && Resolver.namespaceVariables(template, parameters).isEmpty());
     }
 
     private static String passwordOrNull(char[] password) {

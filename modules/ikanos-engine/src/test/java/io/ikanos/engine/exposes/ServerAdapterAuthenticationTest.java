@@ -443,6 +443,46 @@ class ServerAdapterAuthenticationTest {
                 verifier.verify("jos\u00e9", "p\u00e4ssw\u00f6rd-\u5bc6".toCharArray()));
     }
 
+    // #1064 review: a credential that names a bind namespace, not one of its keys, would render
+    // every value that namespace holds. The capability refuses to start instead.
+
+    @Test
+    void capabilityShouldRefuseToStartWhenBearerTokenNamesAWholeNamespace() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> adapterWithSecrets("api-key: \"s3cr3t\"\n", """
+                              authentication:
+                                type: "bearer"
+                                token: "sk-{{test-secrets}}"
+                        """));
+
+        assertTrue(e.getMessage().startsWith("The bearer token of the rest adapter"),
+                e.getMessage());
+        assertTrue(e.getMessage().contains("{{test-secrets.KEY}}"), e.getMessage());
+        assertFalse(e.getMessage().contains("s3cr3t"), "The error must not show a secret");
+    }
+
+    @ParameterizedTest(name = "type: {0}")
+    @ValueSource(strings = {"basic", "digest"})
+    void capabilityShouldRefuseToStartWhenPasswordNamesAWholeNamespace(String type) {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> adapterWithSecrets("api-key: \"s3cr3t\"\n", challenge(type, "admin",
+                        "{{test-secrets}}")));
+
+        assertTrue(e.getMessage().startsWith("The " + type + " password of the rest adapter"),
+                e.getMessage());
+        assertTrue(e.getMessage().contains("test-secrets"), e.getMessage());
+        assertFalse(e.getMessage().contains("s3cr3t"), "The error must not show a secret");
+    }
+
+    @Test
+    void capabilityShouldStartWhenBearerTokenNamesANamespacedKey() throws Exception {
+        assertNotNull(adapterWithSecrets("api-key: \"s3cr3t\"\n", """
+                              authentication:
+                                type: "bearer"
+                                token: "{{test-secrets.API_KEY}}"
+                        """));
+    }
+
     // #973 review: basic and digest get the load-time check bearer and apikey have (#856). The
     // capability refuses to start rather than accept an empty or guessable credential.
 

@@ -263,6 +263,11 @@ public class Capability {
         if (!unsupportedAuthentication.isEmpty()) {
             throw new IllegalArgumentException(String.join("; ", unsupportedAuthentication));
         }
+        List<String> namespaceCredentials = ConsumedTemplateValidator.findNamespaceCredentials(
+                spec, this.bindings.get());
+        if (!namespaceCredentials.isEmpty()) {
+            throw new IllegalArgumentException(String.join("; ", namespaceCredentials));
+        }
         for (String warning : ConsumedTemplateValidator.findUnboundCredentials(spec,
                 this.bindings.get())) {
             Context.getCurrentLogger().log(Level.WARNING, warning);

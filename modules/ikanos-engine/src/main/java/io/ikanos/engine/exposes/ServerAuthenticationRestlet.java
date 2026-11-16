@@ -179,13 +179,20 @@ public class ServerAuthenticationRestlet extends Restlet {
     }
 
     /**
-     * Fails when the credential renders blank, and also when any of its variables is unbound or
-     * bound to a blank value: {@code "sk-{{API_KY}}"} renders {@code "sk-"}, a value an attacker
-     * can guess when the prefix is public.
+     * Fails when a variable of the credential names a whole bind namespace, when the credential
+     * renders blank, and also when any of its variables is unbound or bound to a blank value:
+     * {@code "sk-{{API_KY}}"} renders {@code "sk-"}, a value an attacker can guess when the
+     * prefix is public.
      */
     private static void requireNotBlank(String credential, String template,
             Map<String, Object> bindings, String adapter) {
         Map<String, Object> values = bindings != null ? bindings : Map.of();
+        List<String> namespaces = Resolver.namespaceVariables(template, values);
+        if (!namespaces.isEmpty()) {
+            // It would render, and so expect, every value of the namespace (#1064)
+            throw new IllegalArgumentException("The " + credential + " of " + adapter + " "
+                    + Resolver.describeNamespaceVariables(namespaces) + ".");
+        }
         String resolved = Secrets.resolve(template, values);
         List<String> empty = Resolver.emptyVariables(template, values);
         boolean blank = resolved == null || resolved.isBlank();
