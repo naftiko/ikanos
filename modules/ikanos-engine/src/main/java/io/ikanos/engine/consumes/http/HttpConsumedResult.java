@@ -170,10 +170,25 @@ public class HttpConsumedResult implements ConsumedResult, RestletBackedResult {
         Freshness upstream = Freshness.parse(headers.getValues("Cache-Control", ",", true),
                 headers.getFirstValue("Expires", true), headers.getFirstValue("Date", true),
                 headers.getFirstValue("Age", true), sentAt, receivedAt);
-        if (!isSuccessful()) {
+        if (!isSuccessful() || variesOnEverything(headers.getValues("Vary", ",", true))) {
+            // RFC 9111 4.1: an answer with Vary: * never matches a later request, so it is never
+            // reused, whatever its freshness
             return new Freshness(0L, upstream.privateOnly());
         }
         return upstream.agedBy(System.currentTimeMillis() - receivedAt);
+    }
+
+    /** Whether a {@code Vary} header lists {@code *}. */
+    private static boolean variesOnEverything(String vary) {
+        if (vary == null) {
+            return false;
+        }
+        for (String field : vary.split(",")) {
+            if (field.trim().equals("*")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
