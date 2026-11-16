@@ -152,7 +152,8 @@ public class Resolver {
      * <ul>
      * <li>Claims are only read from the engine's {@link CallerRoot}: when an input, a step, a
      * {@code with} key or a binding uses the name {@code auth}, or a dotted key starts with
-     * {@code auth.claims}, reading a claim fails.</li>
+     * {@code auth.claims} ({@code this} steps skipped, see {@link #shadowsCallerClaims}), reading
+     * a claim fails.</li>
      * <li>A claim is read as a single value, {@code {{auth.claims.x}}}, never through a section:
      * not inside another section ({@code {{#x}}...{{/x}}}), where a key {@code auth} of the
      * section's value (a client object, a step output) would be read instead, and not as a section
@@ -194,8 +195,7 @@ public class Resolver {
         }
         if (parameters != null && (!(parameters.get(CALLER_ROOT) == null
                 || parameters.get(CALLER_ROOT) instanceof CallerRoot)
-                || parameters.keySet().stream().anyMatch(
-                        key -> key != null && key.startsWith(CALLER_CLAIMS)))) {
+                || parameters.keySet().stream().anyMatch(Resolver::shadowsCallerClaims))) {
             throw new IllegalArgumentException("An input, a step, a 'with' key or a binding uses"
                     + " the name '" + CALLER_ROOT + "', so {{" + CALLER_CLAIMS + "...}} cannot read"
                     + " the caller's validated claims. Rename it");
@@ -207,6 +207,20 @@ public class Resolver {
         if (!missing.isEmpty()) {
             throw new CallerClaimMissingException(missing);
         }
+    }
+
+    /**
+     * Whether a parameter named {@code key} would be read instead of the caller's claims.
+     * JMustache looks a dotted name up whole before it follows the path, so a key such as
+     * {@code auth.claims.sub}, {@code this.auth.claims.sub} or {@code auth.this.claims.sub}
+     * would replace the claim a template reads under that same name.
+     *
+     * @param key a parameter name, may be null
+     * @return {@code true} when the key, without its {@code this} steps, starts with
+     *         {@link #CALLER_CLAIMS}
+     */
+    public static boolean shadowsCallerClaims(String key) {
+        return key != null && canonicalName(key).startsWith(CALLER_CLAIMS);
     }
 
     /** Name of the claims under {@link #CALLER_ROOT}, as a section over the root reads them. */

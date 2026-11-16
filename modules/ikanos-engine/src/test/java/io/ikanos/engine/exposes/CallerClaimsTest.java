@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.restlet.Request;
 import org.restlet.data.Method;
@@ -69,6 +70,43 @@ class CallerClaimsTest {
         CallerClaims.putInto(parameters, rootOf(new JWTClaimsSet.Builder().subject("a").build()));
 
         assertFalse(parameters.containsKey("auth.claims.sub"));
+    }
+
+    @Test
+    void putIntoShouldRemoveDottedKeysThatWouldShadowTheRootThroughThis() {
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put("this.auth.claims.sub", "mallory");
+        parameters.put("auth.this.claims.sub", "mallory");
+        parameters.put("this.auth.name", "kept");
+
+        CallerClaims.putInto(parameters,
+                rootOf(new JWTClaimsSet.Builder().subject("alice").build()));
+
+        assertEquals(Set.of(Resolver.CALLER_ROOT, "this.auth.name"), parameters.keySet());
+        assertEquals("alice",
+                Resolver.resolveMustacheTemplate("{{this.auth.claims.sub}}", parameters));
+        assertEquals("alice",
+                Resolver.resolveMustacheTemplate("{{auth.this.claims.sub}}", parameters));
+    }
+
+    @Test
+    void structuredAndFormBodiesShouldKeepEveryAliasOfAClaim() {
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put("id", "42");
+        CallerClaims.putInto(parameters, rootOf(new JWTClaimsSet.Builder()
+                .claim("tenant.id", "acme").claim("admin", false).build()));
+
+        for (String alias : List.of("auth.claims", "this.auth.claims", "auth.this.claims")) {
+            Map<String, Object> data = new java.util.LinkedHashMap<>();
+            data.put("tenant", "{{" + alias + ".tenant.id}}");
+            data.put("admin", "{{" + alias + ".admin}}");
+            var body = Resolver.resolveJsonData(data, parameters);
+            assertEquals("acme", body.get("tenant").asString(),
+                    "#998: a dotted claim read as '" + alias + "' must not be left out");
+            assertFalse(body.get("admin").asBoolean());
+            assertEquals("tenant=acme&admin=false",
+                    io.ikanos.engine.consumes.http.FormUrlEncodedBody.encode(data, parameters));
+        }
     }
 
     @Test

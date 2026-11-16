@@ -75,14 +75,14 @@ public final class CallerClaims {
      * Puts the caller root into template parameters, after the request inputs: unless an input
      * already uses the name {@code auth}, in which case the input is kept (as before #998) and
      * {@code {{auth.claims...}}} templates fail rather than read it. Dotted keys starting with
-     * {@code auth.claims}, which a template would read before the root, are removed.
+     * {@code auth.claims}, {@code this} steps skipped (such as {@code this.auth.claims.sub}),
+     * which a template would read before the root, are removed.
      *
      * @param parameters the parameters templates are rendered with, changed in place
      * @param root the caller root from {@link #of}, or {@code null}
      */
     public static void putInto(Map<String, Object> parameters, Map<String, Object> root) {
-        parameters.keySet().removeIf(key -> key != null
-                && key.startsWith(Resolver.CALLER_CLAIMS));
+        parameters.keySet().removeIf(Resolver::shadowsCallerClaims);
         if (root != null && !parameters.containsKey(Resolver.CALLER_ROOT)) {
             parameters.put(Resolver.CALLER_ROOT, root);
         }

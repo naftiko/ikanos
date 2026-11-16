@@ -1653,6 +1653,24 @@ public class ResolverTest {
     }
 
     @Test
+    void requireCallerValuesShouldRefuseADottedKeyShadowingTheRootThroughThis() {
+        // JMustache reads a whole dotted key before the path, 'this' steps included
+        for (String alias : List.of("this.auth.claims.sub", "auth.this.claims.sub")) {
+            Map<String, Object> parameters = callerParameters(Map.of("sub", "alice"));
+            parameters.put(alias, "admin");
+
+            assertThrows(IllegalArgumentException.class,
+                    () -> Resolver.resolveMustacheTemplate("{{" + alias + "}}", parameters),
+                    "#998: an input named '" + alias + "' must not stand in for the claim");
+            assertThrows(IllegalArgumentException.class,
+                    () -> Resolver.resolveValue("{{" + alias + "}}", parameters));
+            assertThrows(IllegalArgumentException.class,
+                    () -> Resolver.resolveJsonData(Map.of("owner", "{{" + alias + "}}"),
+                            parameters));
+        }
+    }
+
+    @Test
     void resolveJsonDataShouldFailWhenAStructuredBodyReadsAMissingCallerClaim() {
         assertThrows(CallerClaimMissingException.class,
                 () -> Resolver.resolveJsonData(Map.of("owner", "{{auth.claims.email}}"),
