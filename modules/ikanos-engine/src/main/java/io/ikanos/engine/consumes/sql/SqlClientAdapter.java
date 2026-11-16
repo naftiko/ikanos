@@ -19,6 +19,7 @@ import java.sql.JDBCType;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -470,11 +471,29 @@ public class SqlClientAdapter extends ClientAdapter {
         return resultSet;
     }
 
+    /**
+     * The type an {@code OUT} is registered as. pgjdbc refuses, at execute, an {@code OUT} whose
+     * column type differs from the registered one, and reports {@code timestamptz} and
+     * {@code timetz} as {@code TIMESTAMP} and {@code TIME}: on PostgreSQL the time-zone types are
+     * registered as those, and {@link SqlRowDocument#out} still reads them as instants at UTC.
+     */
+    static int registeredType(JDBCType type, SqlStatement.Dialect dialect) {
+        if (dialect == SqlStatement.Dialect.POSTGRESQL) {
+            if (type == JDBCType.TIMESTAMP_WITH_TIMEZONE) {
+                return Types.TIMESTAMP;
+            }
+            if (type == JDBCType.TIME_WITH_TIMEZONE) {
+                return Types.TIME;
+            }
+        }
+        return type.getVendorTypeNumber();
+    }
+
     private void registerOuts(CallableStatement call, Procedure procedure) throws SQLException {
         String where = getNamespace() + "." + procedure.name();
         for (SqlOutParameterSpec out : procedure.outs()) {
-            int type = SqlBind.jdbcType(out.getSqlType(), "out parameter '" + out.getName() + "'",
-                    where).getVendorTypeNumber();
+            int type = registeredType(SqlBind.jdbcType(out.getSqlType(),
+                    "out parameter '" + out.getName() + "'", where), jdbcUrl.dialect());
             if (out.getScale() != null) {
                 // without a scale, SQL Server rounds a DECIMAL OUT to 4 decimal places
                 call.registerOutParameter(out.getPosition(), type, out.getScale());
