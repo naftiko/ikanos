@@ -289,6 +289,8 @@ public class McpServerAdapter extends ServerAdapter {
             @SuppressWarnings("unchecked")
             Map<String, Object> callArguments = arguments == null || !arguments.isObject()
                     ? new HashMap<>() : JSON.convertValue(arguments, Map.class);
+            // The caller's claims are not recorded with the task, so a template that reads
+            // {{auth.claims...}} fails as a missing claim rather than run without them (#998)
             return () -> ToolsCallHandler.callTool(this, toolName, callArguments);
         };
     }

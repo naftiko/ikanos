@@ -23,13 +23,19 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
+import org.restlet.Request;
+import org.restlet.data.Method;
+import com.nimbusds.jwt.JWTClaimsSet;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.Capability;
+import io.ikanos.engine.exposes.CallerClaims;
 import io.ikanos.engine.exposes.ServerAdapter;
+import io.ikanos.engine.exposes.OAuth2AuthenticationRestlet;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.spec.util.VersionHelper;
@@ -173,6 +179,37 @@ class McpTasksIntegrationTest {
         assertEquals("complete", task.path("resultType").asString());
         assertEquals(synchronous, task.path("result"));
         assertFalse(task.has("pollIntervalMs"));
+    }
+
+    @Test
+    void aTaskShouldReadTheCallerClaimsOfTheRequestThatCreatedIt() throws Exception {
+        // The tool passes the caller's subject on as the voyage (#998); the task runs on another
+        // thread, so it must carry the claims of the tools/call request over
+        String plain = clearanceCapability(MEMORY, "task");
+        String yaml = plain.replace("        ref: departure.clear-for-departure\n",
+                "        with:\n"
+                        + "          voyageId: \"{{auth.claims.sub}}\"\n"
+                        + "        ref: departure.clear-for-departure\n");
+        assertNotEquals(plain, yaml);
+        McpServerAdapter adapter = load(yaml);
+        Request request = new Request(Method.POST, "http://localhost/mcp");
+        request.getAttributes().put(OAuth2AuthenticationRestlet.VALIDATED_CLAIMS_ATTRIBUTE,
+                new JWTClaimsSet.Builder().subject("captain-nemo").build());
+        Map<String, Object> caller = CallerClaims.of(request);
+
+        String taskId = CallerClaims.runAs(caller, () -> {
+            try {
+                return dispatch(adapter, "tools/call", CLEAR, true).path("result")
+                        .path("taskId").asString();
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        });
+        JsonNode task = awaitTerminal(adapter, taskId);
+
+        assertEquals("completed", task.path("status").asString());
+        assertFalse(task.path("result").path("isError").asBoolean(false), task.toString());
+        assertTrue(task.path("result").toString().contains("captain-nemo"), task.toString());
     }
 
     @Test
