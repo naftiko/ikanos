@@ -278,7 +278,7 @@ final class UpstreamCall {
             params.set("inputResponses", responses != null ? responses : JSON.createObjectNode());
         }
         ObjectNode capabilities = params.putObject("_meta")
-                .putObject("io.modelcontextprotocol/clientCapabilities");
+                .putObject(McpStreamableHttpTransport.META_CLIENT_CAPABILITIES);
         if (mayElicit) {
             capabilities.putObject("elicitation");
         }
