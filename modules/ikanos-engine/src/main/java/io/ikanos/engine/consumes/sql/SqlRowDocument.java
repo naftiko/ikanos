@@ -27,6 +27,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.OffsetTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Locale;
 import tools.jackson.core.JacksonException;
@@ -295,9 +296,17 @@ final class SqlRowDocument {
         if (value instanceof java.sql.Time time) {
             return type == OffsetTime.class
                     ? OffsetTime.ofInstant(Instant.ofEpochMilli(time.getTime()), ZoneOffset.UTC)
-                    : time.toLocalTime();
+                    : localTime(time);
         }
         return value;
+    }
+
+    /**
+     * The local time of a {@code java.sql.Time}, with its milliseconds:
+     * {@code Time.toLocalTime()} keeps whole seconds only.
+     */
+    static LocalTime localTime(java.sql.Time time) {
+        return LocalTime.ofInstant(Instant.ofEpochMilli(time.getTime()), ZoneId.systemDefault());
     }
 
     /**
@@ -340,7 +349,7 @@ final class SqlRowDocument {
             return NODES.stringNode(date.toLocalDate().toString());
         }
         if (value instanceof java.sql.Time time) {
-            return NODES.stringNode(time.toLocalTime().toString());
+            return NODES.stringNode(localTime(time).toString());
         }
         if (value instanceof java.sql.Timestamp timestamp) {
             return NODES.stringNode(timestamp.toLocalDateTime().toString());
