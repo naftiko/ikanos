@@ -1,4 +1,4 @@
-# Spectral fixture — ikanos-mcp-tool-input-examples MUST NOT FIRE:
+# Polychro fixture — ikanos-mcp-tool-input-examples MUST NOT FIRE:
 #   every example is a valid value of its input, including on nested properties,
 #   an integral decimal on an integer input, a numerically equal enum value, and a
 #   quoted integer beyond 2^53, and a quoted number on a string input.

@@ -1,4 +1,4 @@
-# Spectral fixture — ikanos-mcp-tool-input-examples MUST FIRE:
+# Polychro fixture — ikanos-mcp-tool-input-examples MUST FIRE:
 #   a number example that is not a number, an example outside the enum,
 #   a boolean example that is not true/false, an example on an object input, and
 #   numeric text the engine cannot convert (hexadecimal, surrounding spaces), and an
