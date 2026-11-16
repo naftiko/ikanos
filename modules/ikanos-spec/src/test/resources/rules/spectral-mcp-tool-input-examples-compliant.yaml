@@ -1,7 +1,7 @@
 # Spectral fixture — ikanos-mcp-tool-input-examples MUST NOT FIRE:
 #   every example is a valid value of its input, including on nested properties,
 #   an integral decimal on an integer input, a numerically equal enum value, and a
-#   quoted integer beyond 2^53.
+#   quoted integer beyond 2^53, and a quoted number on a string input.
 ikanos: "1.0.0-beta10"
 info:
   display: "MCP tool input examples — compliant"
@@ -50,6 +50,11 @@ capability:
               description: "Ticket number."
               enum: ["9007199254740993"]
               examples: ["9007199254740993"]
+            region:
+              type: string
+              description: "Region code."
+              enum: ["25.0"]
+              examples: ["25.0"]
             page:
               type: boolean
               description: "Whether to page on-call."
