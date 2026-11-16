@@ -49,6 +49,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.util.BytesRef;
@@ -203,8 +204,11 @@ public final class LuceneToolSearchIndex implements ToolSearchIndex {
         if (terms.isEmpty()) {
             return null;
         }
+        // Lucene caps the clauses of one query: keep the first terms that fit, next to the exact
+        // name clause and the two filters, so a long query never fails.
+        int maxTerms = (IndexSearcher.getMaxClauseCount() - 3) / TEXT_FIELDS.size();
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        for (String term : terms) {
+        for (String term : terms.stream().limit(maxTerms).toList()) {
             for (Map.Entry<String, Float> field : TEXT_FIELDS.entrySet()) {
                 builder.add(new BoostQuery(new TermQuery(new Term(field.getKey(), term)),
                         field.getValue()), Occur.SHOULD);
@@ -228,11 +232,9 @@ public final class LuceneToolSearchIndex implements ToolSearchIndex {
     /** Adds the tag and read-only filters, which are mandatory and do not score. */
     private static void addFilters(BooleanQuery.Builder builder, ToolSearchQuery query) {
         if (!query.anyTags().isEmpty()) {
-            BooleanQuery.Builder tags = new BooleanQuery.Builder();
-            query.anyTags().stream().sorted()
-                    .forEach(tag -> tags.add(new TermQuery(new Term(TAG, tag)), Occur.SHOULD));
-            tags.setMinimumNumberShouldMatch(1);
-            builder.add(tags.build(), Occur.FILTER);
+            // One clause whatever the number of tags, so a long tag list never fails.
+            builder.add(new TermInSetQuery(TAG,
+                    query.anyTags().stream().sorted().map(BytesRef::new).toList()), Occur.FILTER);
         }
         if (query.readOnlyOnly()) {
             builder.add(new TermQuery(new Term(READ_ONLY, "true")), Occur.FILTER);

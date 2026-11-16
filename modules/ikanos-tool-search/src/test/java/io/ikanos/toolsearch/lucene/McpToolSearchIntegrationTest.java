@@ -190,6 +190,18 @@ class McpToolSearchIntegrationTest {
     }
 
     @Test
+    void searchToolsShouldReportNonStringTagsAsAToolError() throws Exception {
+        ObjectNode arguments = query("list");
+        arguments.putArray("tags").addObject();
+
+        JsonNode result = search(DEFERRED, arguments);
+
+        assertTrue(result.path("isError").asBoolean());
+        assertEquals("tags must be an array of strings.",
+                result.path("content").get(0).path("text").asString());
+    }
+
+    @Test
     void searchToolsShouldKeepOnlyReadOnlyToolsWhenAsked() throws Exception {
         List<String> names = found(search(DEFERRED, query("incident").put("readOnly", true)));
 

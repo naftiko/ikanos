@@ -16,7 +16,9 @@ package io.ikanos.engine.exposes.mcp.search;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.Iterator;
 import java.util.List;
+import java.util.ServiceConfigurationError;
 import org.junit.jupiter.api.Test;
 
 class ToolSearchProvidersTest {
@@ -44,6 +46,24 @@ class ToolSearchProvidersTest {
     @Test
     void firstShouldReturnNothingWithoutProviders() {
         assertTrue(ToolSearchProviders.first(List.of()).isEmpty());
+    }
+
+    @Test
+    void firstShouldReturnNothingWhenAProviderCannotBeLoaded() {
+        Iterable<ToolSearchIndexFactory> broken = () -> new Iterator<>() {
+            @Override
+            public boolean hasNext() {
+                return true;
+            }
+
+            @Override
+            public ToolSearchIndexFactory next() {
+                throw new ServiceConfigurationError("Provider not found");
+            }
+        };
+
+        assertTrue(ToolSearchProviders.first(broken).isEmpty(),
+                "a broken provider makes search unavailable, it does not fail the endpoint");
     }
 
     @Test
