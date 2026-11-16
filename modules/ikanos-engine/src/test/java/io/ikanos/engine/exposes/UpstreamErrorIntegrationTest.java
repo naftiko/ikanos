@@ -18,7 +18,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.ServerSocket;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -44,6 +43,7 @@ import io.ikanos.engine.exposes.mcp.ProtocolDispatcher;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.spec.util.VersionHelper;
+import io.ikanos.utils.TestUtils;
 
 /**
  * #879: when the upstream answers an error with a body, a single {@code call:}, {@code steps:}
@@ -93,9 +93,10 @@ class UpstreamErrorIntegrationTest {
             exchange.close();
         });
         upstream.start();
-        restPort = freePort();
+        int[] ports = TestUtils.freePorts(2);
+        restPort = ports[0];
         capability = new Capability(IkanosMappers.lenientYaml().readValue(
-                yaml(upstream.getAddress().getPort(), restPort, freePort()), IkanosSpec.class));
+                yaml(upstream.getAddress().getPort(), restPort, ports[1]), IkanosSpec.class));
         capability.start();
     }
 
@@ -328,11 +329,5 @@ class UpstreamErrorIntegrationTest {
             default -> "ref: agg.mapped-" + status + "\n";
         };
         return lines.lines().map(line -> indent + line).reduce("", (a, b) -> a + b + "\n");
-    }
-
-    private static int freePort() throws Exception {
-        try (ServerSocket socket = new ServerSocket(0)) {
-            return socket.getLocalPort();
-        }
     }
 }
