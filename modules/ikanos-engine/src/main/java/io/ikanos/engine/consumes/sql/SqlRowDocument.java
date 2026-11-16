@@ -21,6 +21,7 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -278,8 +279,9 @@ final class SqlRowDocument {
 
     /**
      * Convert a {@code java.sql} date, time or timestamp to the {@code java.time} value
-     * {@link #outTemporal} asked for. A timestamp read for a {@code TIMESTAMP_WITH_TIMEZONE}
-     * keeps its instant, at UTC. Any other value is returned as it is.
+     * {@link #outTemporal} asked for. A timestamp or time read for a time-zone type
+     * ({@code TIMESTAMP_WITH_TIMEZONE}, {@code TIME_WITH_TIMEZONE}) keeps its instant, at UTC.
+     * Any other value is returned as it is.
      */
     static Object temporal(Object value, Class<?> type) {
         if (value instanceof java.sql.Timestamp timestamp) {
@@ -291,7 +293,9 @@ final class SqlRowDocument {
             return date.toLocalDate();
         }
         if (value instanceof java.sql.Time time) {
-            return time.toLocalTime();
+            return type == OffsetTime.class
+                    ? OffsetTime.ofInstant(Instant.ofEpochMilli(time.getTime()), ZoneOffset.UTC)
+                    : time.toLocalTime();
         }
         return value;
     }

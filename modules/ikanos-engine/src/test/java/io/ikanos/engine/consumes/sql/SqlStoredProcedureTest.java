@@ -442,6 +442,41 @@ class SqlStoredProcedureTest {
     }
 
     @Test
+    void readShouldRegisterTimeZoneOutsWithoutTheirZoneOnPostgresql() throws Exception {
+        // pgjdbc reports timestamptz and timetz as TIMESTAMP and TIME, and refuses at execute an
+        // OUT registered as another type
+        url = "jdbc:postgresql://localhost:5432/billing";
+        SqlClientSpec spec = spec(GET_BALANCE.replace("sqlType: DECIMAL }",
+                "sqlType: TIMESTAMP_WITH_TIMEZONE }").replace("sqlType: VARCHAR }",
+                "sqlType: TIME_WITH_TIMEZONE }"));
+        adapter = new SqlClientAdapter(null, spec);
+        Connection connection = org.mockito.Mockito.mock(Connection.class);
+        java.sql.CallableStatement call = org.mockito.Mockito.mock(java.sql.CallableStatement.class);
+        org.mockito.Mockito.when(connection.prepareCall(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(call);
+        org.mockito.Mockito.when(call.getUpdateCount()).thenReturn(-1);
+        org.mockito.Mockito.when(call.getObject(org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.<Class<Object>>any()))
+                .thenThrow(new java.sql.SQLException("Unsupported type conversion"));
+        java.time.Instant instant = java.time.Instant.parse("2026-11-04T09:12:30Z");
+        org.mockito.Mockito.when(call.getObject(2)).thenReturn(java.sql.Timestamp.from(instant));
+        org.mockito.Mockito.when(call.getObject(3))
+                .thenReturn(new java.sql.Time(instant.toEpochMilli()));
+
+        adapter.read(connection, SqlClientAdapter.buildProcedures(spec,
+                SqlStatement.Dialect.POSTGRESQL).get("get-account-balance"), java.util.List.of());
+
+        org.mockito.Mockito.verify(call).registerOutParameter(2, java.sql.Types.TIMESTAMP);
+        org.mockito.Mockito.verify(call).registerOutParameter(3, java.sql.Types.TIME);
+        assertEquals(java.sql.Types.TIMESTAMP_WITH_TIMEZONE, SqlClientAdapter.registeredType(
+                java.sql.JDBCType.TIMESTAMP_WITH_TIMEZONE, SqlStatement.Dialect.STANDARD));
+        assertEquals("2026-11-04T09:12:30Z", SqlRowDocument.out(call, 2,
+                java.sql.JDBCType.TIMESTAMP_WITH_TIMEZONE, "at").asString());
+        assertEquals("09:12:30Z", SqlRowDocument.out(call, 3,
+                java.sql.JDBCType.TIME_WITH_TIMEZONE, "time").asString());
+    }
+
+    @Test
     void constructorShouldRefuseAScaleOnAnOutThatIsNotDecimal() throws Exception {
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> new SqlClientAdapter(null, spec(GET_BALANCE.replace(
