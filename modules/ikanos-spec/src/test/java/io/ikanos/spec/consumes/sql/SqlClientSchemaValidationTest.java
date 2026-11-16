@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.InputStream;
@@ -272,6 +273,15 @@ class SqlClientSchemaValidationTest {
         SqlProcedureSpec procedure = ((SqlClientSpec) spec.getCapability().getConsumes().get(0))
                 .getProcedures().get("get-customer");
         assertEquals(6, procedure.getOutParameters().get("balance").getScale());
+    }
+
+    @Test
+    void runtimeShouldRefuseAFractionalScale() {
+        String yaml = capability(GET_BALANCE.replace("sqlType: DECIMAL }",
+                "sqlType: DECIMAL, scale: 2.5 }"));
+
+        assertThrows(tools.jackson.core.JacksonException.class,
+                () -> YAML.readValue(yaml, IkanosSpec.class));
     }
 
     @Test

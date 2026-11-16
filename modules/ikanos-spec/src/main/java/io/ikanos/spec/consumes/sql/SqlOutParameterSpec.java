@@ -73,7 +73,7 @@ public class SqlOutParameterSpec {
         return scale.get();
     }
 
-    @JsonDeserialize(using = ExactPosition.class)
+    @JsonDeserialize(using = ExactScale.class)
     public void setScale(Integer scale) {
         this.scale.set(scale);
     }
@@ -87,9 +87,8 @@ public class SqlOutParameterSpec {
     }
 
     /**
-     * Reads a position or a scale only when it is an exactly integral number: {@code 2.5} is left
-     * unset, so the missing-position check or the schema rejects it, rather than being truncated
-     * to {@code 2}.
+     * Reads a position only when it is an exactly integral number: {@code 2.5} is left unset, so
+     * the missing-position check rejects it, rather than being truncated to {@code 2}.
      */
     static final class ExactPosition extends ValueDeserializer<Integer> {
 
@@ -98,6 +97,23 @@ public class SqlOutParameterSpec {
             JsonNode node = parser.objectReadContext().readTree(parser);
             return node.canConvertToInt() && node.canConvertToExactIntegral() ? node.asInt()
                     : null;
+        }
+    }
+
+    /**
+     * Reads a scale only when it is an exactly integral number, and refuses any other value: an
+     * unset scale means the driver chooses, so {@code 2.5} must not quietly become one.
+     */
+    static final class ExactScale extends ValueDeserializer<Integer> {
+
+        @Override
+        public Integer deserialize(JsonParser parser, DeserializationContext context) {
+            JsonNode node = parser.objectReadContext().readTree(parser);
+            if (node.canConvertToInt() && node.canConvertToExactIntegral()) {
+                return node.asInt();
+            }
+            return context.reportInputMismatch(Integer.class,
+                    "scale must be an integer of 0 or more, not %s", node);
         }
     }
 }
