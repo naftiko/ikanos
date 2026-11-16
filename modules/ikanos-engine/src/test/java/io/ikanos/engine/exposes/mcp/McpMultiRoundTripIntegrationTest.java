@@ -264,6 +264,35 @@ class McpMultiRoundTripIntegrationTest {
     }
 
     @Test
+    void anInteractiveResourcesReadShouldNeverBeCacheable() throws Exception {
+        // the answers are not in the URI, so cacheScope auto must not make the read shareable
+        McpServerAdapter adapter = load(capability("", "").replace(
+                "    namespace: shipyard-ops\n",
+                "    namespace: shipyard-ops\n    ttlMs: 60000\n    cacheScope: auto\n"));
+        JsonNode asked = send(adapter, "resources/read", READ, true, false).path("result");
+
+        assertEquals("input_required", asked.path("resultType").asString(), asked.toString());
+        assertEquals(0, asked.path("ttlMs").asInt(-1), asked.toString());
+        assertEquals("private", asked.path("cacheScope").asString(), asked.toString());
+
+        ObjectNode retry = (ObjectNode) jsonMapper.readTree(READ);
+        retry.put("requestState", asked.path("requestState").asString());
+        retry.putObject("inputResponses").set(KEY,
+                jsonMapper.readTree("{\"action\":\"accept\",\"content\":{\"confirmed\":true}}"));
+        JsonNode result = send(adapter, "resources/read", retry.toString(), true, false)
+                .path("result");
+
+        assertEquals("complete", result.path("resultType").asString(), result.toString());
+        assertEquals(0, result.path("ttlMs").asInt(-1), result.toString());
+        assertEquals("private", result.path("cacheScope").asString(), result.toString());
+
+        // the same adapter still shares its lists, which no caller's answer shapes
+        JsonNode list = send(adapter, "resources/list", "{}", true, false).path("result");
+        assertEquals(60000, list.path("ttlMs").asInt(-1), list.toString());
+        assertEquals("public", list.path("cacheScope").asString(), list.toString());
+    }
+
+    @Test
     void aToolsCallStateShouldNotOpenAResourcesRead() throws Exception {
         McpServerAdapter adapter = load(capability("", ""));
         String state = call(adapter, CALL, true, false).path("result").path("requestState")

@@ -42,6 +42,12 @@ public record CacheHints(int ttlMs, String cacheScope) {
     /** Default scope: the safe one, never shared across callers. */
     public static final String DEFAULT_SCOPE = CacheScopes.PRIVATE;
 
+    /**
+     * The hints of a read that depends on the caller's elicited answers, or that asks for them:
+     * never reused, whatever the resource or adapter declares.
+     */
+    public static final CacheHints UNCACHEABLE = new CacheHints(0, CacheScopes.PRIVATE);
+
     public CacheHints {
         // MCP 2026-07-28 (SEP-2549): a negative ttlMs is treated as 0, and cacheScope is public
         // or private. The engine does not validate the schema at load time, so both are checked

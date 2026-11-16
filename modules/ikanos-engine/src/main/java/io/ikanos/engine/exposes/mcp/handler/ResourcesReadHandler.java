@@ -23,6 +23,7 @@ import io.ikanos.engine.exposes.mcp.ResourceHandler;
 import io.ikanos.engine.exposes.mcp.SkillHandler;
 import io.ikanos.engine.exposes.mcp.model.HandlerFailureResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerResult;
+import io.ikanos.engine.exposes.mcp.model.HandlerSuccessResult;
 import io.ikanos.engine.exposes.mcp.model.McpHeader;
 import io.ikanos.engine.exposes.mcp.processor.CacheHints;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPostProcessor;
@@ -64,15 +65,23 @@ public class ResourcesReadHandler extends McpCallHandler {
 
         try {
             // A resource with steps may ask for input: multi round-trip, as for tools
-            return inRounds(idNode, params, "Resource '" + uri + "'", uri, null, () -> {
-                try {
-                    return readResource(uri);
-                } catch (RuntimeException e) {
-                    throw e;
-                } catch (Exception e) {
-                    throw new ReadFailure(e);
-                }
-            });
+            HandlerResult outcome = inRounds(idNode, params, "Resource '" + uri + "'", uri, null,
+                    () -> {
+                        try {
+                            return readResource(uri);
+                        } catch (RuntimeException e) {
+                            throw e;
+                        } catch (Exception e) {
+                            throw new ReadFailure(e);
+                        }
+                    });
+            if (outcome instanceof HandlerSuccessResult success
+                    && isInteractive(params, success.result())) {
+                // The content depends on what this caller answered, which the URI does not carry,
+                // and a requestState is bound to its caller: neither may be reused
+                CacheHints.UNCACHEABLE.writeTo(success.result());
+            }
+            return outcome;
         } catch (OperationStepExecutor.StepFailedException e) {
             return new HandlerFailureResult(INTERNAL_ERROR, McpErrors.upstreamError(idNode,
                     "Step failed for resource '" + uri + "'", e));
@@ -84,6 +93,13 @@ public class ResourcesReadHandler extends McpCallHandler {
             return new HandlerFailureResult(INTERNAL_ERROR,
                     McpErrors.internalError(idNode, "Error handling resources/read", cause));
         }
+    }
+
+    /** Whether this read asks for input, or completes with answers the caller gave. */
+    private static boolean isInteractive(JsonNode params, ObjectNode result) {
+        return !params.path("requestState").asString("").isEmpty()
+                || McpResultType.INPUT_REQUIRED.wireValue()
+                        .equals(result.path(McpResultType.FIELD).asString(""));
     }
 
     /** Reads a resource and returns its {@code ReadResourceResult}. */
