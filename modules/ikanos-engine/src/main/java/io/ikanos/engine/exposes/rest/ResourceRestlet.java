@@ -38,6 +38,7 @@ import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.engine.util.Resolver;
 import io.ikanos.engine.util.Secrets;
+import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.OutputParameterSpec;
 import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
 import io.ikanos.spec.consumes.http.AuthenticationSpec;
@@ -54,6 +55,7 @@ import java.io.IOException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -851,7 +853,9 @@ public class ResourceRestlet extends Restlet {
      * Names of the query parameters a forwarded request must not take from the caller: the
      * exposed adapter's API key when its placement is {@code query}, which must not reach the
      * upstream, and the parameters the consumed adapter sets itself, the names in the query of its
-     * {@code baseUri}, the names its {@code in: query} input parameters actually sent (an input
+     * {@code baseUri}, the wire names of its {@code in: query} input parameters that declare a
+     * {@code value} or a {@code template}, which the operator owns even when they resolve to
+     * nothing, the names that its other {@code in: query} input parameters actually sent (one
      * that resolved to no value sends nothing, so the caller's value of that name is kept) and its
      * API key when its placement is {@code query}, which the caller must not repeat or override.
      * The exposed API key name is rendered with the capability bindings; the consumed one with the
@@ -867,9 +871,33 @@ public class ResourceRestlet extends Restlet {
                 ? getCapability().getBindings() : Map.of();
         Set<String> names = new HashSet<>(baseUriQueryNames(httpAdapter.getBaseUri()));
         names.addAll(queryNames(adapterQuery));
+        names.addAll(
+                templatedQueryInputNames(httpAdapter.getHttpClientSpec().getInputParameters()));
         addQueryApiKeyName(getServerSpec().getAuthentication(), bindings, names);
         addQueryApiKeyName(httpAdapter.getHttpClientSpec().getAuthentication(),
                 ConsumedAuthentication.withBindings(parameters, bindings), names);
+        return names;
+    }
+
+    /**
+     * Wire names of the {@code in: query} input parameters that declare a {@code value} or a
+     * {@code template}. The operator owns such a parameter whether or not it resolves to a value,
+     * so the caller can never supply it in its place.
+     *
+     * @return the names, empty when {@code specs} is null
+     */
+    static Set<String> templatedQueryInputNames(List<InputParameterSpec> specs) {
+        Set<String> names = new HashSet<>();
+        if (specs == null) {
+            return names;
+        }
+        for (InputParameterSpec spec : specs) {
+            if ("query".equalsIgnoreCase(spec.getIn())
+                    && (spec.getValue() != null || spec.getTemplate() != null)) {
+                names.add(spec.getWireName() != null && !spec.getWireName().isBlank()
+                        ? spec.getWireName() : spec.getName());
+            }
+        }
         return names;
     }
 

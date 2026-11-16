@@ -256,6 +256,27 @@ public class ForwardQueryIntegrationTest {
     }
 
     @Test
+    void forwardShouldDropACallerParameterWhoseAdapterTemplateResolvesToNothing()
+            throws Exception {
+        // The environment variable is unset, so the org template resolves to nothing and the
+        // adapter sends no org
+        startCapability("", """
+                      inputParameters:
+                        - name: "IKANOS_TEST_FORWARD_ORG_UNSET_953"
+                          in: "environment"
+                        - name: "org"
+                          in: "query"
+                          value: "{{IKANOS_TEST_FORWARD_ORG_UNSET_953}}"
+                """);
+
+        Response response = get("/proxy/items?org=other&limit=5");
+
+        assertEquals(Status.SUCCESS_OK, response.getStatus());
+        // The operator owns org: the caller's value never takes its place
+        assertEquals("limit=5", receivedQuery.get());
+    }
+
+    @Test
     void forwardShouldDropTheConsumedApiKeyWhoseNameAnAdapterInputSets() throws Exception {
         startCapability("", """
                       authentication:
