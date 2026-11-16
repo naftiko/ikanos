@@ -1781,6 +1781,22 @@ public class ResolverTest {
     }
 
     @Test
+    void resolveJsonDataShouldReadAClaimThroughThisFromTheCallerRoot() {
+        Map<String, Object> parameters = callerParameters(Map.of("sub", "alice"));
+        parameters.put("this", Map.of("auth", Map.of("claims", Map.of("sub", "mallory"))));
+
+        assertEquals("alice", Resolver.resolveJsonData(
+                Map.of("owner", "{{this.auth.claims.sub}}"), parameters).get("owner").asString(),
+                "#998: an input named 'this' must not stand in for the caller's claim");
+        assertEquals("alice", Resolver.resolveJsonData(
+                Map.of("owner", "{{auth.this.claims.sub}}"), parameters).get("owner").asString(),
+                "#998: a claim read through 'this' must not be left out");
+        assertThrows(CallerClaimMissingException.class,
+                () -> Resolver.resolveJsonData(Map.of("owner", "{{this.auth.claims.email}}"),
+                        parameters));
+    }
+
+    @Test
     void requireCallerValuesShouldRefuseClaimsReadRelativeToAClientObjectNamedAuth() {
         Map<String, Object> parameters = new HashMap<>();
         parameters.put(Resolver.CALLER_ROOT, Map.of("claims", Map.of("sub", "admin")));

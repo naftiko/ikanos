@@ -131,4 +131,19 @@ class ConsumedApiKeyPlacementTest {
                 new ApiKeyAuthenticationSpec(null, "query", "k1"), null, request, TARGET,
                 Map.of()));
     }
+
+    @Test
+    void applyShouldReplaceEveryClientCopyOfTheHeaderWhateverTheTemplate() {
+        Request request = new Request(Method.GET, TARGET);
+        request.getHeaders().add("x-api-user", "mallory");
+
+        // The value reads the caller's identity through another parameter, not auth.claims
+        ConsumedAuthentication.apply(
+                new ApiKeyAuthenticationSpec("X-Api-User", null, "{{principal}}"), null, request,
+                TARGET, Map.of("principal", "alice"));
+
+        assertEquals(1, request.getHeaders().getValuesArray("X-Api-User", true).length,
+                "#998: an apikey header is sent once, never beside a client copy");
+        assertEquals("alice", request.getHeaders().getFirstValue("X-Api-User", true));
+    }
 }

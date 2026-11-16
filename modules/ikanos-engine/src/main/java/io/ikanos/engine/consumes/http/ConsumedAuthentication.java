@@ -150,7 +150,8 @@ public final class ConsumedAuthentication {
                     // standard header (Authorization #698, Cookie, …) is set through the
                     // property Restlet writes it from, or it would be dropped (#1001). It
                     // replaces every client copy, whatever its case, such as one forwarded through
-                    // trustedHeaders: the value may carry the caller's identity (#998)
+                    // trustedHeaders: the value may carry the caller's identity, read directly or
+                    // through another parameter, and must be the only one sent (#998)
                     StandardRequestHeaders.set(clientRequest, key, value);
                 }
                 break;
