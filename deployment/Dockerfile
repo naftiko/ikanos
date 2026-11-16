@@ -14,6 +14,7 @@ COPY modules/ikanos-engine ./modules/ikanos-engine
 COPY modules/ikanos-cli ./modules/ikanos-cli
 COPY modules/ikanos-docs ./modules/ikanos-docs
 COPY modules/ikanos-tunnel-ziti ./modules/ikanos-tunnel-ziti
+COPY modules/ikanos-tool-search ./modules/ikanos-tool-search
 
 # Build the jar
 RUN mvn clean package -DskipTests

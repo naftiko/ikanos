@@ -225,6 +225,76 @@ class ToolSearchCatalogTest {
                 "call-tool must warn approval prompts when it can reach a destructive tool");
     }
 
+    private static McpSchema.Tool tool(String name, McpSchema.ToolAnnotations annotations) {
+        return McpSchema.Tool.builder(name, Map.of("type", "object")).annotations(annotations)
+                .build();
+    }
+
+    private ToolSearchCatalog catalogOf(McpToolSearchSpec toolSearch, List<McpSchema.Tool> tools,
+            Map<String, List<String>> tags, ToolSearchIndexFactory factory) {
+        serverSpec.setToolSearch(toolSearch);
+        return new ToolSearchCatalog(serverSpec, tools, Map.of(), tags, Optional.of(factory));
+    }
+
+    @Test
+    void pinnedToolsShouldApplyTheMcpDefaultsOfOmittedHints() {
+        List<McpSchema.Tool> tools = List.of(
+                tool("no-hints", null),
+                tool("writes", new McpSchema.ToolAnnotations(null, false, null, null, null, null)),
+                tool("reads", new McpSchema.ToolAnnotations(null, true, null, null, null, null)),
+                tool("safe-write",
+                        new McpSchema.ToolAnnotations(null, false, false, null, null, null)));
+
+        ToolSearchCatalog catalog = catalogOf(null, tools, Map.of(), provider);
+
+        assertEquals(List.of("no-hints", "writes"), names(catalog.pinnedTools()),
+                "a tool without hints is destructive for clients, so it stays listed");
+        assertEquals(List.of("reads", "safe-write"), names(catalog.searchableTools()));
+    }
+
+    @Test
+    void callToolShouldBeDestructiveWhenAToolWithoutHintsIsDeferred() {
+        McpToolSearchSpec spec = toolSearch();
+        spec.setDeferDestructive(true);
+
+        ToolSearchCatalog catalog = catalogOf(spec, List.of(tool("no-hints", null)), Map.of(),
+                provider);
+
+        assertTrue(catalog.metaTools().get(1).annotations().destructiveHint());
+    }
+
+    @Test
+    void searchShouldRequireOneTagOfTheScopeAndOneOfTheQuery() {
+        McpSchema.ToolAnnotations reads =
+                new McpSchema.ToolAnnotations(null, true, null, null, null, null);
+        List<McpSchema.Tool> tools = List.of(tool("deployments-only", reads),
+                tool("kubernetes-only", reads), tool("both", reads));
+        Map<String, List<String>> tags = Map.of("deployments-only", List.of("deployments"),
+                "kubernetes-only", List.of("kubernetes"),
+                "both", List.of("kubernetes", "deployments"));
+        // An index that honours the query's tags and ranks tools in authored order.
+        ToolSearchIndexFactory tagAware = new ToolSearchIndexFactory() {
+            @Override
+            public String type() {
+                return "tag-aware";
+            }
+
+            @Override
+            public ToolSearchIndex create(List<ToolSearchDocument> documents) {
+                return query -> documents.stream()
+                        .filter(document -> query.anyTags().isEmpty()
+                                || document.tags().stream().anyMatch(query.anyTags()::contains))
+                        .map(ToolSearchDocument::name).limit(query.limit()).toList();
+            }
+        };
+
+        ToolSearchCatalog catalog = catalogOf(null, tools, tags, tagAware);
+
+        assertEquals(List.of("both"), catalog.search(
+                new ToolSearchQuery("x", Set.of("deployments"), false, 1), Set.of("kubernetes")),
+                "the limit applies after the scope, and both filters hold");
+    }
+
     @Test
     void callToolShouldNotBeDestructiveWhenDestructiveToolsArePinned() {
         assertFalse(catalog(null).metaTools().get(1).annotations().destructiveHint());

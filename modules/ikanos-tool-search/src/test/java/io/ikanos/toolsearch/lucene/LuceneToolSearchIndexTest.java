@@ -16,6 +16,7 @@ package io.ikanos.toolsearch.lucene;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -64,6 +65,33 @@ class LuceneToolSearchIndexTest {
     @Test
     void searchShouldRankAnExactToolNameFirst() {
         assertEquals("list-deployments", search("list-deployments").getFirst());
+    }
+
+    @Test
+    void searchShouldRankAnExactToolNameFirstOverAStrongerTextMatch() {
+        // The competitor carries every word of the name in its own name and in every other text
+        // field, which outscores the exact name on BM25 alone.
+        String words = "restart kubernetes deployment rollout pods cluster region zone";
+        String exact = String.join("-", words.split(" "));
+        String competitor = exact + "-now";
+        List<ToolSearchDocument> tools = new ArrayList<>(List.of(
+                new ToolSearchDocument(exact, null, null, List.of(), "", false),
+                new ToolSearchDocument(competitor, words, words, List.of(words.split(" ")),
+                        words, false)));
+        for (int i = 0; i < 20; i++) {
+            tools.add(new ToolSearchDocument("other-" + i, null, "Unrelated tool " + i + ".",
+                    List.of(), "", true));
+        }
+        LuceneToolSearchIndex competing = new LuceneToolSearchIndex(tools);
+
+        assertEquals(List.of(exact, competitor),
+                competing.search(new ToolSearchQuery(exact, Set.of(), false, 5)));
+    }
+
+    @Test
+    void searchShouldNotRankAnExactToolNameThatTheFiltersExclude() {
+        assertEquals(List.of("list-deployments"), index.search(
+                new ToolSearchQuery("restart-deployment", Set.of(), true, 5)));
     }
 
     @Test

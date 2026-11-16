@@ -208,16 +208,6 @@ public class ToolsCallHandler extends McpCallHandler {
             }
             tagsNode.forEach(tag -> tags.add(tag.asString()));
         }
-        if (!context.tagFilter().isEmpty()) {
-            if (tags.isEmpty()) {
-                tags.addAll(context.tagFilter());
-            } else {
-                tags.retainAll(context.tagFilter());
-                if (tags.isEmpty()) {
-                    return searchResult(List.of(), catalog);
-                }
-            }
-        }
 
         JsonNode readOnlyNode = args.get("readOnly");
         if (readOnlyNode != null && !readOnlyNode.isNull() && !readOnlyNode.isBoolean()) {
@@ -237,7 +227,9 @@ public class ToolsCallHandler extends McpCallHandler {
         span.setAttribute(TelemetryBootstrap.ATTR_TOOL_SEARCH_FILTERS,
                 filterNames(tagsNode, context, readOnlyNode, limitNode));
         try {
-            List<String> names = catalog.search(new ToolSearchQuery(text, tags, readOnly, limit));
+            // The URL tag filter and the tags argument are two conditions: a tool must meet both.
+            List<String> names = catalog.search(new ToolSearchQuery(text, tags, readOnly, limit),
+                    context.tagFilter());
             return searchResult(names, catalog);
         } catch (ToolSearchUnavailableException e) {
             span.setAttribute(TelemetryBootstrap.ATTR_TOOL_SEARCH_UNAVAILABLE, true);
@@ -339,6 +331,11 @@ public class ToolsCallHandler extends McpCallHandler {
         if (catalog.tool(name).isEmpty()) {
             return toolError("Unknown tool: " + name + ". Use " + catalog.searchToolName()
                     + " to find tools.");
+        }
+        if (!catalog.isSearchable(name)) {
+            // A listed tool is called directly, so the client sees its own approval hints.
+            return toolError(name + " is listed with the other tools: call it directly, not"
+                    + " through " + catalog.callToolName() + ".");
         }
         if (toolArguments != null && !toolArguments.isNull() && !toolArguments.isObject()) {
             return toolError("arguments must be an object.");

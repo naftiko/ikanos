@@ -180,6 +180,16 @@ class McpToolSearchIntegrationTest {
     }
 
     @Test
+    void searchToolsShouldMeetTheUrlTagFilterAndTheTagsArgumentSeparately() throws Exception {
+        ObjectNode arguments = query("restart deployment");
+        arguments.putArray("tags").add("deployments");
+
+        // restart-deployment carries kubernetes and deployments: one tag for each filter.
+        assertTrue(found(search(DEFERRED + "&tags=kubernetes", arguments))
+                .contains("restart-deployment"));
+    }
+
+    @Test
     void searchToolsShouldKeepOnlyReadOnlyToolsWhenAsked() throws Exception {
         List<String> names = found(search(DEFERRED, query("incident").put("readOnly", true)));
 
@@ -284,6 +294,17 @@ class McpToolSearchIntegrationTest {
 
         assertTrue(results.get(0).path("result").path("isError").asBoolean());
         assertEquals("call-tool cannot call search-tools.",
+                results.get(0).path("result").path("content").get(0).path("text").asString());
+    }
+
+    @Test
+    void callToolShouldRefuseAPinnedTool() throws Exception {
+        JsonNode results = callResults(server.callTool(DEFERRED, "call-tool",
+                calls("delete-namespace")));
+
+        assertTrue(results.get(0).path("result").path("isError").asBoolean());
+        assertEquals("delete-namespace is listed with the other tools: call it directly, not"
+                + " through call-tool.",
                 results.get(0).path("result").path("content").get(0).path("text").asString());
     }
 

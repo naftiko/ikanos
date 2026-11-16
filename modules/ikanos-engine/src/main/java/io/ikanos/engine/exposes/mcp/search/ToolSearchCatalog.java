@@ -63,6 +63,7 @@ public final class ToolSearchCatalog {
     private final Map<String, List<String>> tags;
     private final List<McpSchema.Tool> pinned;
     private final List<McpSchema.Tool> searchable;
+    private final Set<String> searchableNames;
     private final List<McpSchema.Tool> metaTools;
     private final AtomicBoolean loggedIgnoredParameter = new AtomicBoolean();
     private final AtomicBoolean loggedMissingProvider = new AtomicBoolean();
@@ -113,6 +114,9 @@ public final class ToolSearchCatalog {
         }
         this.pinned = List.copyOf(pinnedTools);
         this.searchable = List.copyOf(searchableTools);
+        Set<String> searchableNameSet = new LinkedHashSet<>();
+        searchableTools.forEach(tool -> searchableNameSet.add(tool.name()));
+        this.searchableNames = Collections.unmodifiableSet(searchableNameSet);
         this.metaTools = List.of(buildSearchTool(serverSpec.getDescription()), buildCallTool());
     }
 
@@ -191,6 +195,35 @@ public final class ToolSearchCatalog {
             return ToolSearchMode.LISTED;
         }
         return mode;
+    }
+
+    /**
+     * Searches the searchable tools within a scope of tags, such as a tag filter on the endpoint
+     * URL. The scope is a separate condition from the query's own tags: a tool must carry one tag
+     * of each. The index never sees the scope, so every provider applies it the same way.
+     *
+     * @param query the search
+     * @param scopeTags only return tools carrying at least one of these tags; empty means any
+     * @return the matching tool names, best first
+     * @throws ToolSearchUnavailableException when no provider is installed or the provider fails
+     */
+    public List<String> search(ToolSearchQuery query, Set<String> scopeTags) {
+        if (scopeTags == null || scopeTags.isEmpty()) {
+            return search(query);
+        }
+        // Rank every match, then keep the scoped ones, so the limit applies after the scope.
+        List<String> ranked = search(new ToolSearchQuery(query.text(), query.anyTags(),
+                query.readOnlyOnly(), Math.max(1, searchable.size())));
+        List<String> scoped = new ArrayList<>();
+        for (String name : ranked) {
+            if (scoped.size() == query.limit()) {
+                break;
+            }
+            if (tags.getOrDefault(name, List.of()).stream().anyMatch(scopeTags::contains)) {
+                scoped.add(name);
+            }
+        }
+        return scoped;
     }
 
     /**
@@ -362,9 +395,18 @@ public final class ToolSearchCatalog {
         return map;
     }
 
+    /**
+     * Whether a client must treat the tool as destructive, with the MCP defaults for hints left
+     * out: {@code readOnlyHint} false and {@code destructiveHint} true. Only a read-only tool or
+     * one that declares {@code destructiveHint: false} is not.
+     */
     static boolean isDestructive(McpSchema.Tool tool) {
-        return tool.annotations() != null
-                && Boolean.TRUE.equals(tool.annotations().destructiveHint());
+        McpSchema.ToolAnnotations annotations = tool.annotations();
+        if (annotations == null) {
+            return true;
+        }
+        return !Boolean.TRUE.equals(annotations.readOnlyHint())
+                && !Boolean.FALSE.equals(annotations.destructiveHint());
     }
 
     static boolean isReadOnly(McpSchema.Tool tool) {
@@ -410,6 +452,11 @@ public final class ToolSearchCatalog {
     /** @return whether the name is the call meta-tool */
     public boolean isCallTool(String name) {
         return callToolName.equals(name);
+    }
+
+    /** @return whether the tool is found only by searching in deferred mode */
+    public boolean isSearchable(String name) {
+        return searchableNames.contains(name);
     }
 
     /** @return the advertised tool with this name, if any */
