@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -92,6 +93,28 @@ class LuceneToolSearchIndexTest {
     void searchShouldNotRankAnExactToolNameThatTheFiltersExclude() {
         assertEquals(List.of("list-deployments"), index.search(
                 new ToolSearchQuery("restart-deployment", Set.of(), true, 5)));
+    }
+
+    @Test
+    void searchShouldAcceptAQueryWithMoreTermsThanLuceneClauses() {
+        // 300 distinct CJK characters, each its own term: 1,500 text clauses unbounded.
+        StringBuilder text = new StringBuilder();
+        for (int i = 0; i < 300; i++) {
+            text.append((char) (0x4E00 + i)).append(' ');
+        }
+
+        assertEquals(List.of(), search(text.toString().strip()));
+    }
+
+    @Test
+    void searchShouldAcceptMoreTagsThanLuceneClauses() {
+        Set<String> tags = new HashSet<>(Set.of("customers"));
+        for (int i = 0; i < 1100; i++) {
+            tags.add("tag-" + i);
+        }
+
+        assertEquals(List.of("get-customer"),
+                index.search(new ToolSearchQuery("get", tags, false, 5)));
     }
 
     @Test

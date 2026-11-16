@@ -26,6 +26,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import io.ikanos.Capability;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.spec.IkanosSpec;
@@ -146,6 +148,21 @@ class ToolSearchCatalogTest {
                 () -> catalog(spec, Optional.empty()));
         assertTrue(error.getMessage().contains("Add the ikanos-tool-search module"),
                 error.getMessage());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"maxResults, 0", "maxResults, 51", "maxToolCalls, 0", "maxToolCalls, 21"})
+    void constructorShouldFailWhenANumericSettingIsOutOfRange(String setting, int value) {
+        McpToolSearchSpec spec = toolSearch();
+        if (setting.equals("maxResults")) {
+            spec.setMaxResults(value);
+        } else {
+            spec.setMaxToolCalls(value);
+        }
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> catalog(spec));
+        assertTrue(error.getMessage().contains("toolSearch." + setting), error.getMessage());
     }
 
     @Test

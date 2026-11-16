@@ -206,7 +206,12 @@ public class ToolsCallHandler extends McpCallHandler {
             if (!tagsNode.isArray()) {
                 return toolError("tags must be an array of strings.");
             }
-            tagsNode.forEach(tag -> tags.add(tag.asString()));
+            for (JsonNode tag : tagsNode) {
+                if (!tag.isString()) {
+                    return toolError("tags must be an array of strings.");
+                }
+                tags.add(tag.asString());
+            }
         }
 
         JsonNode readOnlyNode = args.get("readOnly");

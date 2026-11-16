@@ -46,8 +46,11 @@ public final class ToolSearchCatalog {
     /** Longest query text accepted, as in Anthropic's BM25 tool search. */
     public static final int MAX_QUERY_LENGTH = 500;
 
-    /** Largest {@code limit} a model may ask for. */
+    /** Largest {@code limit} a model may ask for, and largest {@code maxResults}. */
     public static final int MAX_LIMIT = 50;
+
+    /** Largest {@code maxToolCalls}. */
+    public static final int MAX_TOOL_CALLS = 20;
 
     private final String namespace;
     private final boolean declared;
@@ -137,6 +140,9 @@ public final class ToolSearchCatalog {
             }
             return true;
         }
+        // A Capability built in code skips JSON Schema validation: check its bounds here too.
+        checkRange("maxResults", maxResults, MAX_LIMIT);
+        checkRange("maxToolCalls", maxToolCalls, MAX_TOOL_CALLS);
         for (String name : effective.getAlwaysListed()) {
             if (!toolsByName.containsKey(name)) {
                 throw new IllegalArgumentException("toolSearch.alwaysListed on '" + namespace
@@ -163,6 +169,13 @@ public final class ToolSearchCatalog {
                     + " mode.", namespace);
         }
         return true;
+    }
+
+    private void checkRange(String setting, int value, int max) {
+        if (value < 1 || value > max) {
+            throw new IllegalArgumentException("toolSearch." + setting + " on '" + namespace
+                    + "' is " + value + "; use a value from 1 to " + max + ".");
+        }
     }
 
     /**
