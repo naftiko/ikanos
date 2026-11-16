@@ -18,6 +18,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
+import io.ikanos.engine.exposes.CallerClaims;
 import io.ikanos.engine.exposes.ErrorReference;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.spec.util.IkanosMappers;
@@ -132,8 +133,12 @@ public class ToolsCallHandler extends McpCallHandler {
                     }
                     String entry =
                             "mcp:" + adapter.getMcpServerSpec().getNamespace() + "/" + toolName;
+                    // The task runs on another thread: it keeps the caller's validated claims
+                    // for {{auth.claims...}} templates (#998), taken from this request
+                    Map<String, Object> caller = CallerClaims.current();
                     return new HandlerSuccessResult(adapter.getTaskService().create(entry,
-                            principal, argumentsNode, () -> callTool(toolName, arguments)));
+                            principal, argumentsNode,
+                            () -> CallerClaims.runAs(caller, () -> callTool(toolName, arguments))));
                 }
                 // A client without tasks is answered synchronously only when the flow is expected
                 // to finish within the synchronous budget.
