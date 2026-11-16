@@ -135,9 +135,16 @@ class McpCacheTtlFromUpstreamTest {
     }
 
     @Test
-    void readShouldGiveZeroWhenTheUpstreamAnswersWithAnError() {
-        // a 503 marked no-store must not be reused for the resource's fallback ttlMs
-        assertThat(read("data://failing").path("ttlMs").asInt(-1)).isZero();
+    void readShouldAnswerAnErrorWithoutCacheHintsWhenTheUpstreamFails() {
+        // a 503 marked no-store must not be reused for the resource's fallback ttlMs: the read
+        // answers a JSON-RPC error (#963), and an error carries no cache hints
+        ObjectNode params = JSON.createObjectNode().put("uri", "data://failing");
+        JsonNode response =
+                McpCacheHintsIntegrationTest.respond(adapter, "resources/read", params);
+
+        assertThat(response.path("error").path("code").asInt()).isEqualTo(-32603);
+        assertThat(response.has("result")).isFalse();
+        assertThat(response.findValue("ttlMs")).isNull();
     }
 
     @Test

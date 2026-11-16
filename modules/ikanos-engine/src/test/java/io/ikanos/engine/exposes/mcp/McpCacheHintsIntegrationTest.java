@@ -317,6 +317,13 @@ class McpCacheHintsIntegrationTest {
     }
 
     static JsonNode dispatch(McpServerAdapter adapter, String method, ObjectNode params) {
+        JsonNode response = respond(adapter, method, params);
+        assertThat(response.has("error")).as("error in %s", response).isFalse();
+        return response.path("result");
+    }
+
+    /** Dispatches a request and returns the whole JSON-RPC response, error or result. */
+    static JsonNode respond(McpServerAdapter adapter, String method, ObjectNode params) {
         ObjectNode request = JSON.createObjectNode();
         request.put("jsonrpc", "2.0");
         request.put("id", 1);
@@ -324,8 +331,6 @@ class McpCacheHintsIntegrationTest {
         params.putObject("_meta").put("io.modelcontextprotocol/protocolVersion",
                 ProtocolDispatcher.MCP_PROTOCOL_VERSION);
         request.set("params", params);
-        JsonNode response = new ProtocolDispatcher(adapter).dispatch(request).responseBody();
-        assertThat(response.has("error")).as("error in %s", response).isFalse();
-        return response.path("result");
+        return new ProtocolDispatcher(adapter).dispatch(request).responseBody();
     }
 }

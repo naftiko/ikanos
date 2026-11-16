@@ -1,5 +1,5 @@
-# Spectral fixture — cache hint rules MUST NOT FIRE (#1022): the same shapes as
-# spectral-cache-hints-violations.yaml, with scopes left to auto or private, public
+# Polychro fixture — cache hint rules MUST NOT FIRE (#1022): the same shapes as
+# polychro-cache-hints-violations.yaml, with scopes left to auto or private, public
 # only where nothing depends on the caller (`trust: none`, an input with a literal
 # `value`) or nothing is cached (no REST ttlMs, MCP's default ttlMs of 0), and
 # ttlFromUpstream only on a single HTTP call.
