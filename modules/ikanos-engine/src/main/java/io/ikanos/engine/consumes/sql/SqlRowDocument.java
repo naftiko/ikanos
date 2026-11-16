@@ -26,6 +26,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.OffsetTime;
+import java.time.ZoneOffset;
 import java.util.Locale;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
@@ -267,9 +268,32 @@ final class SqlRowDocument {
         try {
             value = call.getObject(position, type);
         } catch (SQLException | RuntimeException unsupported) {
-            value = call.getString(position);
+            // pgjdbc reads an OUT with getObject(int, Class) only as a ResultSet, and refuses a
+            // getter other than the registered type's, getString included: getObject(int) reads
+            // any registered type
+            value = temporal(call.getObject(position), type);
         }
         return value == null ? NODES.nullNode() : NODES.stringNode(value.toString());
+    }
+
+    /**
+     * Convert a {@code java.sql} date, time or timestamp to the {@code java.time} value
+     * {@link #outTemporal} asked for. A timestamp read for a {@code TIMESTAMP_WITH_TIMEZONE}
+     * keeps its instant, at UTC. Any other value is returned as it is.
+     */
+    static Object temporal(Object value, Class<?> type) {
+        if (value instanceof java.sql.Timestamp timestamp) {
+            return type == OffsetDateTime.class
+                    ? timestamp.toInstant().atOffset(ZoneOffset.UTC)
+                    : timestamp.toLocalDateTime();
+        }
+        if (value instanceof java.sql.Date date) {
+            return date.toLocalDate();
+        }
+        if (value instanceof java.sql.Time time) {
+            return time.toLocalTime();
+        }
+        return value;
     }
 
     /**

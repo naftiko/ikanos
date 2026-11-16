@@ -33,6 +33,7 @@ public class SqlOutParameterSpec {
     private final AtomicReference<String> name = new AtomicReference<>();
     private final AtomicReference<Integer> position = new AtomicReference<>();
     private final AtomicReference<String> sqlType = new AtomicReference<>();
+    private final AtomicReference<Integer> scale = new AtomicReference<>();
     private final AtomicReference<String> description = new AtomicReference<>();
 
     /** @return the map key, set when the procedure is read */
@@ -64,6 +65,19 @@ public class SqlOutParameterSpec {
         this.sqlType.set(sqlType);
     }
 
+    /**
+     * @return the digits after the decimal point a {@code DECIMAL} or {@code NUMERIC} value is
+     *         registered with, or {@code null} to let the driver choose (SQL Server keeps 4)
+     */
+    public Integer getScale() {
+        return scale.get();
+    }
+
+    @JsonDeserialize(using = ExactPosition.class)
+    public void setScale(Integer scale) {
+        this.scale.set(scale);
+    }
+
     public String getDescription() {
         return description.get();
     }
@@ -73,8 +87,9 @@ public class SqlOutParameterSpec {
     }
 
     /**
-     * Reads a position only when it is an exactly integral number: {@code 2.5} is left unset, so
-     * the missing-position check rejects it, rather than being truncated to {@code 2}.
+     * Reads a position or a scale only when it is an exactly integral number: {@code 2.5} is left
+     * unset, so the missing-position check or the schema rejects it, rather than being truncated
+     * to {@code 2}.
      */
     static final class ExactPosition extends ValueDeserializer<Integer> {
 

@@ -237,7 +237,14 @@ public class SqlClientAdapter extends ClientAdapter {
                 throw new IllegalArgumentException(where + " out parameter '" + out.getName()
                         + "' requires a position of 1 or more");
             }
-            SqlBind.jdbcType(out.getSqlType(), "out parameter '" + out.getName() + "'", where);
+            JDBCType type = SqlBind.jdbcType(out.getSqlType(),
+                    "out parameter '" + out.getName() + "'", where);
+            if (out.getScale() != null && (out.getScale() < 0
+                    || (type != JDBCType.DECIMAL && type != JDBCType.NUMERIC))) {
+                throw new IllegalArgumentException(where + " out parameter '" + out.getName()
+                        + "' declares a scale, which only a DECIMAL or NUMERIC of 0 or more"
+                        + " takes");
+            }
             if (outsByPosition.put(position, out) != null) {
                 throw new IllegalArgumentException(where
                         + " declares two out parameters at position " + position);
@@ -466,8 +473,14 @@ public class SqlClientAdapter extends ClientAdapter {
     private void registerOuts(CallableStatement call, Procedure procedure) throws SQLException {
         String where = getNamespace() + "." + procedure.name();
         for (SqlOutParameterSpec out : procedure.outs()) {
-            call.registerOutParameter(out.getPosition(), SqlBind.jdbcType(out.getSqlType(),
-                    "out parameter '" + out.getName() + "'", where).getVendorTypeNumber());
+            int type = SqlBind.jdbcType(out.getSqlType(), "out parameter '" + out.getName() + "'",
+                    where).getVendorTypeNumber();
+            if (out.getScale() != null) {
+                // without a scale, SQL Server rounds a DECIMAL OUT to 4 decimal places
+                call.registerOutParameter(out.getPosition(), type, out.getScale());
+            } else {
+                call.registerOutParameter(out.getPosition(), type);
+            }
         }
     }
 
