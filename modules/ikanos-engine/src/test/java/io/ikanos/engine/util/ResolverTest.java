@@ -285,6 +285,15 @@ public class ResolverTest {
       }
 
       @Test
+      void resolveInputParameterFromRequestShouldKeepEveryValueWhenOneOccurrenceHasNoValue() {
+        // ?ids reads as an empty value, as in an HTML form, and does not drop A and B
+        Request request = new Request(Method.GET, "https://example.com/ships?ids=A&ids&ids=B");
+
+        assertEquals(List.of("A", "", "B"), Resolver.resolveInputParameterFromRequest(
+            queryInput("ids", "array"), request, null, MAPPER));
+      }
+
+      @Test
       void resolveInputParameterFromRequestShouldLeaveAnAbsentArrayQueryParameterAbsent() {
         Request request = new Request(Method.GET, "https://example.com/ships");
 

@@ -14,6 +14,7 @@
 package io.ikanos.engine.util;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -1120,7 +1121,15 @@ public class Resolver {
         }
         if ("array".equalsIgnoreCase(spec.getType())) {
             String[] values = query.getValuesArray(name);
-            return values.length == 0 ? null : List.of(values);
+            if (values.length == 0) {
+                return null;
+            }
+            // A valueless occurrence (?ids=A&ids) is an empty value, as in an HTML form
+            List<String> list = new ArrayList<>(values.length);
+            for (String value : values) {
+                list.add(value != null ? value : "");
+            }
+            return list;
         }
         return query.getFirstValue(name);
     }
