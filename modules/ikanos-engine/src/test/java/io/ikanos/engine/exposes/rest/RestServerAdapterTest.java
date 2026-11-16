@@ -111,7 +111,11 @@ public class RestServerAdapterTest {
                   consumes: []
                 """.formatted(schemaVersion));
 
-        TemplateRoute route = (TemplateRoute) adapter.getRouter().getRoutes().get(0);
+        // The declared resource's route: the adapter attaches its own input-request route first
+        TemplateRoute route = adapter.getRouter().getRoutes().stream()
+                .map(TemplateRoute.class::cast)
+                .filter(r -> r.getTemplate().getPattern().startsWith("/crew/"))
+                .findFirst().orElseThrow();
         Map<String, Object> variables = new HashMap<>();
 
         assertEquals("/crew/{crew-id}", route.getTemplate().getPattern(),
