@@ -290,7 +290,8 @@ public class ToolsCallHandler extends McpCallHandler {
      * direct {@code tools/call} would, so results, errors and telemetry are the same. Calls run
      * in sequence, and a failing call does not stop the others: each gets its own result, with
      * {@code isError} when it failed. Only a malformed request, such as more calls than
-     * {@code maxToolCalls}, is a tool error as a whole.
+     * {@code maxToolCalls}, is a tool error as a whole. The image, audio and resource blocks of
+     * the results also follow the text block in {@code content}, as a direct call returns them.
      */
     ObjectNode callTool(ToolSearchCatalog catalog, JsonNode arguments) {
         JsonNode args = arguments != null ? arguments : MAPPER.createObjectNode();
@@ -314,9 +315,18 @@ public class ToolsCallHandler extends McpCallHandler {
         }
 
         ObjectNode result = MAPPER.createObjectNode();
-        ObjectNode text = result.putArray("content").addObject();
+        ArrayNode content = result.putArray("content");
+        ObjectNode text = content.addObject();
         text.put("type", "text");
         text.put("text", MAPPER.writeValueAsString(structured));
+        // Images, audio and resources stay usable blocks, as a direct call returns them.
+        for (JsonNode entry : results) {
+            for (JsonNode block : entry.path("result").path("content")) {
+                if (!"text".equals(block.path("type").asString(""))) {
+                    content.add(block.deepCopy());
+                }
+            }
+        }
         result.set("structuredContent", structured);
         result.put("isError", false);
         result.put("resultType", "complete");
