@@ -66,6 +66,10 @@ final class UpstreamCall {
 
     private static final String TASKS = "io.modelcontextprotocol/tasks";
 
+    /** The only input request an upstream may send, and its only mode Ikanos passes on. */
+    private static final String ELICITATION_CREATE = "elicitation/create";
+    private static final String FORM = "form";
+
     /** Field of a send and its outcome: the caller's round whose answers it sent. */
     private static final String ANSWERED_IN = "answeredIn";
     private static final ObjectMapper JSON = IkanosMappers.json();
@@ -145,7 +149,7 @@ final class UpstreamCall {
         JsonNode result = call(state, state != null ? responses : null, false);
         String type = resultType(result);
         if (McpResultType.INPUT_REQUIRED.wireValue().equals(type)) {
-            requireDeclared();
+            requireDeclared(result.path("inputRequests"));
             throw questions(result.path("inputRequests"),
                     Map.of(prefix + UPSTREAM_STATE, result.path("requestState")));
         }
@@ -305,7 +309,7 @@ final class UpstreamCall {
             reply.set("pollIntervalMs", result.get("pollIntervalMs"));
             reply.set("ttlMs", result.get("ttlMs"));
         } else if (McpResultType.INPUT_REQUIRED.wireValue().equals(type)) {
-            requireDeclared();
+            requireDeclared(result.path("inputRequests"));
             reply.put("kind", "ask");
             reply.set("inputRequests", result.path("inputRequests"));
             reply.set("requestState", result.path("requestState"));
@@ -349,7 +353,7 @@ final class UpstreamCall {
                         return reply;
                     }
                     case "input_required" -> {
-                        requireDeclared();
+                        requireDeclared(state.path("inputRequests"));
                         ObjectNode reply = task.deepCopy();
                         reply.put("kind", "task-ask");
                         reply.set("inputRequests", state.path("inputRequests"));
@@ -415,10 +419,36 @@ final class UpstreamCall {
         return new InputRequiredException(questions, carry);
     }
 
-    private void requireDeclared() {
+    /**
+     * Fails the call unless the tool may ask and each of its input requests is one Ikanos declared
+     * to the upstream and passes to its caller as its own: an {@code elicitation/create} in form
+     * mode. Any other request, such as {@code sampling/createMessage} or a URL-mode elicitation, is
+     * a capability neither Ikanos nor its caller declared.
+     */
+    private void requireDeclared(JsonNode requests) {
         if (!mayElicit) {
             throw new McpClientException(describe() + " asked for input, which it may only do "
                     + "when the consumed tool declares mayElicit: true");
+        }
+        if (requests.isMissingNode()) {
+            return;
+        }
+        if (!requests.isObject()) {
+            throw new McpClientException(describe() + " sent inputRequests that are not an object");
+        }
+        for (String key : requests.propertyNames()) {
+            JsonNode request = requests.get(key);
+            String method = request.path("method").asString("");
+            if (!ELICITATION_CREATE.equals(method)) {
+                throw new McpClientException(describe() + " asked '" + key + "' with '" + method
+                        + "', but Ikanos only declares elicitation/create to an upstream");
+            }
+            // Form is the mode of a request that names none.
+            String mode = request.path("params").path("mode").asString(FORM);
+            if (!FORM.equals(mode)) {
+                throw new McpClientException(describe() + " asked '" + key + "' with a '" + mode
+                        + "' mode elicitation, but Ikanos only passes form mode to its caller");
+            }
         }
     }
 

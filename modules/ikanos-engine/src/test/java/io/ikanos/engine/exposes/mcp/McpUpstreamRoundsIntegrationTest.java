@@ -60,6 +60,8 @@ public class McpUpstreamRoundsIntegrationTest {
     private volatile String upstreamKey = "confirm";
     /** When set, the upstream answers every call with it. */
     private volatile String fixedReply;
+    /** When set, the upstream answers tools/call with a task that asks with these requests. */
+    private volatile String taskAsks;
 
     private Component upstream;
     private int upstreamPort;
@@ -80,7 +82,9 @@ public class McpUpstreamRoundsIntegrationTest {
                     ObjectNode reply = json.createObjectNode();
                     reply.put("jsonrpc", "2.0");
                     reply.set("id", call.get("id"));
-                    reply.set("result", answer(call.path("params")));
+                    reply.set("result", taskAsks != null
+                            ? taskAnswer(call.path("method").asString())
+                            : answer(call.path("params")));
                     response.setStatus(Status.SUCCESS_OK);
                     response.setEntity(reply.toString(), MediaType.APPLICATION_JSON);
                 } catch (Exception e) {
@@ -89,6 +93,17 @@ public class McpUpstreamRoundsIntegrationTest {
             }
         });
         upstream.start();
+    }
+
+    /** An upstream task that asks with {@link #taskAsks} as soon as it is polled. */
+    private JsonNode taskAnswer(String method) throws Exception {
+        return switch (method) {
+            case "tools/call" -> json.readTree(
+                    "{\"resultType\":\"task\",\"taskId\":\"t1\",\"pollIntervalMs\":250}");
+            case "tasks/get" -> json.readTree("{\"taskId\":\"t1\",\"status\":\"input_required\","
+                    + "\"inputRequests\":" + taskAsks + "}");
+            default -> json.createObjectNode();
+        };
     }
 
     /** Asks with state r1, asks the same key again with state r2, then completes. */
@@ -391,5 +406,77 @@ public class McpUpstreamRoundsIntegrationTest {
     @Test
     void anUpstreamKeyThatIsNoPathShouldBeAnsweredInADurableMode() throws Exception {
         answersAnUpstreamKeyThatIsNoPath(MEMORY);
+    }
+
+    /** An upstream request for sampling, a capability Ikanos never declares to an upstream. */
+    private static final String SAMPLING = "{\"confirm\":{\"method\":\"sampling/createMessage\","
+            + "\"params\":{\"messages\":[],\"maxTokens\":10}}}";
+    /** An upstream URL-mode elicitation, a mode Ikanos never passes to its caller. */
+    private static final String URL_MODE = "{\"confirm\":{\"method\":\"elicitation/create\","
+            + "\"params\":{\"mode\":\"url\",\"message\":\"Sign in\","
+            + "\"url\":\"https://upstream.example.com/sign-in\",\"elicitationId\":\"e1\"}}}";
+
+    /** Calls a tool whose upstream asks with {@code requests}: the call fails, nothing is passed on. */
+    private void refusesAnUpstreamRequest(String durability, String requests, String shown)
+            throws Exception {
+        fixedReply = "{\"resultType\":\"input_required\",\"requestState\":\"r1\","
+                + "\"inputRequests\":" + requests + "}";
+        McpServerAdapter adapter = start(durability);
+
+        JsonNode result = call(adapter, null, null);
+
+        assertNotEquals("input_required", result.path("resultType").asString(),
+                "The request is not passed to the caller: " + result);
+        assertTrue(result.isMissingNode() || result.path("isError").asBoolean(false),
+                "The call fails: " + result);
+        assertFalse(result.toString().contains(shown), result.toString());
+    }
+
+    @Test
+    void anUpstreamSamplingRequestShouldFailTheCallUnderNone() throws Exception {
+        refusesAnUpstreamRequest("", SAMPLING, "sampling/createMessage\",\"params");
+    }
+
+    @Test
+    void anUpstreamSamplingRequestShouldFailTheCallInADurableMode() throws Exception {
+        refusesAnUpstreamRequest(MEMORY, SAMPLING, "sampling/createMessage\",\"params");
+    }
+
+    @Test
+    void anUpstreamUrlModeElicitationShouldFailTheCallUnderNone() throws Exception {
+        refusesAnUpstreamRequest("", URL_MODE, "upstream.example.com/sign-in");
+    }
+
+    @Test
+    void anUpstreamUrlModeElicitationShouldFailTheCallInADurableMode() throws Exception {
+        refusesAnUpstreamRequest(MEMORY, URL_MODE, "upstream.example.com/sign-in");
+    }
+
+    @Test
+    void anUpstreamTaskAskingForSamplingShouldFailTheCall() throws Exception {
+        taskAsks = SAMPLING;
+        McpServerAdapter adapter = start();
+
+        JsonNode result = call(adapter, null, null);
+
+        assertNotEquals("input_required", result.path("resultType").asString(),
+                "The request is not passed to the caller: " + result);
+        assertTrue(result.isMissingNode() || result.path("isError").asBoolean(false),
+                "The call fails: " + result);
+    }
+
+    @Test
+    void anUpstreamFormElicitationNamingItsModeShouldStillBePassedOn() throws Exception {
+        fixedReply = "{\"resultType\":\"input_required\",\"requestState\":\"r1\","
+                + "\"inputRequests\":{\"confirm\":{\"method\":\"elicitation/create\","
+                + "\"params\":{\"mode\":\"form\",\"message\":\"Confirm?\","
+                + "\"requestedSchema\":{\"type\":\"object\",\"properties\":{}}}}}}";
+        McpServerAdapter adapter = start("");
+
+        JsonNode asked = call(adapter, null, null);
+
+        assertEquals("input_required", asked.path("resultType").asString(), asked.toString());
+        assertEquals("Confirm?", asked.path("inputRequests").path(KEY).path("params")
+                .path("message").asString(), asked.toString());
     }
 }
