@@ -45,6 +45,7 @@ import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
 import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.util.IkanosMappers;
+import io.ikanos.spec.util.VersionHelper;
 import tools.jackson.databind.JsonNode;
 
 
@@ -280,7 +281,7 @@ public class OasExportBuilderTest {
     void buildShouldDocumentA202OnAnOperationThatReachesAConsumedToolThatMayAsk()
             throws Exception {
         IkanosSpec spec = io.ikanos.spec.util.IkanosMappers.yaml().readValue("""
-                ikanos: "1.0.0-beta9"
+                ikanos: "%s"
                 info:
                   display: Test
                   description: Consumed MCP questions over REST
@@ -323,7 +324,7 @@ public class OasExportBuilderTest {
                         path: /lookup
                         operations:
                           lookup: { method: GET, call: customs.lookup }
-                """, IkanosSpec.class);
+                """.formatted(VersionHelper.getSchemaVersion()), IkanosSpec.class);
 
         OasExportResult result = builder.build(spec, null);
 
