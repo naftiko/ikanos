@@ -1,4 +1,4 @@
-# Spectral fixture — cache hint rules MUST FIRE (#1022):
+# Polychro fixture — cache hint rules MUST FIRE (#1022):
 #   - ikanos-cache-public-caller-dependent, six times:
 #       REST `list-items` (own public scope, authenticated adapter),
 #       REST `list-offers` (own public scope, header input),
