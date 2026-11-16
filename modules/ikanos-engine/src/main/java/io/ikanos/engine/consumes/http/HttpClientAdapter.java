@@ -242,7 +242,8 @@ public class HttpClientAdapter extends ClientAdapter {
                 clientOp.getInputParameters());
 
         Set<InputParameterSpec> replaced = replacedInputParameters(declared);
-        boolean noCallParameters = parameters.isEmpty();
+        // The caller root alone is no input: the URI is still checked (#998)
+        boolean noCallParameters = Resolver.hasNoInputs(parameters);
         // The URI sees the call parameters and the in: path values only, so a query or header
         // parameter of the same name never changes the path (#978)
         Map<String, Object> uriParameters = new HashMap<>(parameters);

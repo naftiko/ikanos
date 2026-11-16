@@ -1033,7 +1033,11 @@ public class Resolver {
             requireCallerValues(text, parameters);
             java.util.regex.Matcher single = SINGLE_PLACEHOLDER.matcher(text);
             if (single.matches()) {
-                Object value = lookupPath(parameters, single.group(1));
+                String reference = single.group(1);
+                // A caller claim is read as requireCallerValues checked it, 'this' steps skipped,
+                // never through an input named 'this' (#998)
+                Object value = isCallerClaims(reference) ? lookupVariable(reference, parameters)
+                        : lookupPath(parameters, reference);
                 return value == null ? null : toJsonNode(value, jsonMapper);
             }
             if (text.contains("{{")) {

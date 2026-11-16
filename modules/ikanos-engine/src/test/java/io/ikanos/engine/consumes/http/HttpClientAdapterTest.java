@@ -1292,4 +1292,29 @@ public class HttpClientAdapterTest {
         HttpClientAdapter.rejectUnresolved("body", "{\"owner\":\"{{auth.claims.sub}}\"}",
                 parameters);
     }
+
+    @Test
+    void prepareShouldRejectAMissingPathVariableWithOnlyTheCallerRoot() throws Exception {
+        HttpClientAdapter adapter = new HttpClientAdapter(getMockCapability(Map.of()),
+                consumedSpec("""
+                        resources:
+                          pets:
+                            path: "/{{kind}}/id-{{id}}"
+                            inputParameters:
+                              kind:
+                                in: path
+                                value: "pets"
+                            operations:
+                              get-pet:
+                                method: GET
+                        """));
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put(io.ikanos.engine.util.Resolver.CALLER_ROOT,
+                new io.ikanos.engine.util.CallerRoot(Map.of("claims", Map.of("sub", "alice"))));
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> adapter.prepare("get-pet", parameters),
+                "#998: the caller root is no input, so a missing path variable still fails");
+        assertEquals("Unresolved template parameters in URI: [id]", error.getMessage());
+    }
 }
