@@ -270,6 +270,31 @@ class ToolSearchCatalogTest {
     }
 
     @Test
+    void pinnedToolsShouldKeepAppOnlyToolsWhateverTheirHints() {
+        McpSchema.ToolAnnotations reads =
+                new McpSchema.ToolAnnotations(null, true, null, null, null, null);
+        McpSchema.Tool appOnly = McpSchema.Tool.builder("refresh-view", Map.of("type", "object"))
+                .annotations(reads)
+                .meta(Map.of("ui", Map.of("resourceUri", "ui://app/view",
+                        "visibility", List.of("app"))))
+                .build();
+        McpSchema.Tool both = McpSchema.Tool.builder("show-view", Map.of("type", "object"))
+                .annotations(reads)
+                .meta(Map.of("ui", Map.of("resourceUri", "ui://app/view",
+                        "visibility", List.of("model", "app"))))
+                .build();
+        McpToolSearchSpec spec = toolSearch();
+        spec.setDeferDestructive(true);
+
+        ToolSearchCatalog catalog = catalogOf(spec, List.of(appOnly, both, tool("reads", reads)),
+                Map.of(), provider);
+
+        assertEquals(List.of("refresh-view"), names(catalog.pinnedTools()),
+                "the host hides an app-only tool from the model: search must not expose it");
+        assertEquals(List.of("show-view", "reads"), names(catalog.searchableTools()));
+    }
+
+    @Test
     void callToolShouldBeDestructiveWhenAToolWithoutHintsIsDeferred() {
         McpToolSearchSpec spec = toolSearch();
         spec.setDeferDestructive(true);

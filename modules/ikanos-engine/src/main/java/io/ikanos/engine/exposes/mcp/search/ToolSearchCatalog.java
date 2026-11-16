@@ -110,6 +110,9 @@ public final class ToolSearchCatalog {
             tools.stream().filter(ToolSearchCatalog::isDestructive)
                     .forEach(tool -> pinnedNames.add(tool.name()));
         }
+        // An app-only tool is hidden from the model by the host: never let search expose it.
+        tools.stream().filter(ToolSearchCatalog::isAppOnly)
+                .forEach(tool -> pinnedNames.add(tool.name()));
         List<McpSchema.Tool> pinnedTools = new ArrayList<>();
         List<McpSchema.Tool> searchableTools = new ArrayList<>();
         for (McpSchema.Tool tool : tools) {
@@ -420,6 +423,17 @@ public final class ToolSearchCatalog {
         }
         return !Boolean.TRUE.equals(annotations.readOnlyHint())
                 && !Boolean.FALSE.equals(annotations.destructiveHint());
+    }
+
+    /**
+     * Whether the tool's MCP Apps {@code _meta.ui.visibility} leaves out {@code model}, so the
+     * host hides it from the model and only its view may call it.
+     */
+    static boolean isAppOnly(McpSchema.Tool tool) {
+        if (tool.meta() == null || !(tool.meta().get("ui") instanceof Map<?, ?> ui)) {
+            return false;
+        }
+        return ui.get("visibility") instanceof List<?> visibility && !visibility.contains("model");
     }
 
     static boolean isReadOnly(McpSchema.Tool tool) {
