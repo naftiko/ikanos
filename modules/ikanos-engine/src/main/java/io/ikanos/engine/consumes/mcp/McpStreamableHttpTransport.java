@@ -44,8 +44,8 @@ import tools.jackson.core.JacksonException;
  * Stateless MCP {@code 2026-07-28} Streamable HTTP transport over the Restlet client stack.
  *
  * <p>Each call is one JSON-RPC POST: no {@code initialize}, no session id, no stream held open. The
- * request carries the protocol version, the (empty) client capabilities and W3C trace context in
- * {@code params._meta}, and the {@code MCP-Protocol-Version}, {@code Mcp-Method} and (for named
+ * request carries the protocol version, the client capabilities (empty unless the call declares
+ * them) and W3C trace context in {@code params._meta}, and the {@code MCP-Protocol-Version}, {@code Mcp-Method} and (for named
  * calls) {@code Mcp-Name} headers the specification requires to mirror the body. A
  * {@code text/event-stream} reply is read incrementally, event by event, until the JSON-RPC
  * response matching the request id; the stream is then closed without waiting for the upstream
@@ -61,7 +61,8 @@ public class McpStreamableHttpTransport {
 
     /**
      * {@code _meta} key carrying the client capabilities, which every {@code 2026-07-28} request
-     * declares. This client declares none: it handles no {@code input_required} result.
+     * declares. Empty unless the call declares its own, as {@code UpstreamCall} does for the
+     * elicitation capability and the tasks extension.
      */
     public static final String META_CLIENT_CAPABILITIES =
             "io.modelcontextprotocol/clientCapabilities";
@@ -127,7 +128,9 @@ public class McpStreamableHttpTransport {
         long id = ids.incrementAndGet();
         ObjectNode meta = params.withObjectProperty("_meta");
         meta.put(META_PROTOCOL_VERSION, PROTOCOL_VERSION);
-        meta.putObject(META_CLIENT_CAPABILITIES);
+        if (!meta.has(META_CLIENT_CAPABILITIES)) {
+            meta.putObject(META_CLIENT_CAPABILITIES);
+        }
         TelemetryBootstrap.get().getOpenTelemetry().getPropagators().getTextMapPropagator()
                 .inject(OtelRestletBridge.currentContext(), meta, META_SETTER);
 
