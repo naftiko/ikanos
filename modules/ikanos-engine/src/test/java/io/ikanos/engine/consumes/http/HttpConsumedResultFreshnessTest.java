@@ -14,6 +14,7 @@
 package io.ikanos.engine.consumes.http;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import io.ikanos.engine.consumes.Freshness;
 import org.junit.jupiter.api.Test;
 import org.restlet.Request;
 import org.restlet.Response;
@@ -63,6 +64,32 @@ class HttpConsumedResultFreshnessTest {
         long ttl = receivedAgo(10_000L, 60, 30).freshness().ttlMs();
 
         assertThat(ttl).isBetween(19_000L, 20_000L);
+    }
+
+    @Test
+    void freshnessShouldBeZeroWhenTheAnswerVariesOnEverything() {
+        Response response = new Response(new Request());
+        response.setStatus(Status.SUCCESS_OK);
+        response.getHeaders().add("Cache-Control", "private, max-age=300");
+        response.getHeaders().add("Vary", "Accept-Encoding, *");
+        long now = System.currentTimeMillis();
+
+        Freshness freshness = new HttpConsumedResult(null, response, now, now).freshness();
+
+        assertThat(freshness.ttlMs()).isZero();
+        assertThat(freshness.privateOnly()).isTrue();
+    }
+
+    @Test
+    void freshnessShouldKeepItsLifetimeWhenTheAnswerVariesOnNamedHeaders() {
+        Response response = new Response(new Request());
+        response.setStatus(Status.SUCCESS_OK);
+        response.getHeaders().add("Cache-Control", "max-age=300");
+        response.getHeaders().add("Vary", "Accept-Encoding");
+        long now = System.currentTimeMillis();
+
+        assertThat(new HttpConsumedResult(null, response, now, now).freshness().ttlMs())
+                .isBetween(299_000L, 300_000L);
     }
 
     @Test
