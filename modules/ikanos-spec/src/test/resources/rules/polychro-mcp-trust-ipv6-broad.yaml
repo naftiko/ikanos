@@ -1,24 +1,24 @@
 ---
-# Spectral fixture — ikanos-mcp-trust-network-too-broad MUST FIRE.
+# Polychro fixture — ikanos-mcp-trust-network-too-broad MUST FIRE.
 #
-# 0.0.0.0/0 and ::/0 trust every peer, so any caller can set the identity header.
+# ::/0 trusts every IPv6 peer.
 ikanos: "1.0.0-beta10"
 
 info:
-  display: "MCP trust — every address trusted"
+  display: "MCP trust — every IPv6 address trusted"
   description: "Fixture for the MCP trust network rules (issue #483)."
 
 capability:
   exposes:
     - type: "mcp"
-      address: "0.0.0.0"
+      address: "::"
       port: 3001
       namespace: "gateway-mcp"
       description: "MCP server behind an identity-forwarding gateway."
       trust:
         mode: "forwarded"
         agentIdentityHeader: "X-Agent-Id"
-        trustedNetworks: ["0.0.0.0/0", "::/0"]
+        trustedNetworks: ["::/0"]
       tools:
         hello:
           description: "Say hello to the caller."

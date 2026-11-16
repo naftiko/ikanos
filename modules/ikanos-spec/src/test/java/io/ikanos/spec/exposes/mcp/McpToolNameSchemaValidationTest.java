@@ -139,8 +139,8 @@ class McpToolNameSchemaValidationTest {
     @Test
     void schemaShouldAcceptSnakeCaseToolNamesFixture() throws Exception {
         try (InputStream in = McpToolNameSchemaValidationTest.class.getClassLoader()
-                .getResourceAsStream("rules/spectral-mcp-tool-names-compliant.yaml")) {
-            assertNotNull(in, "rules/spectral-mcp-tool-names-compliant.yaml must exist");
+                .getResourceAsStream("rules/polychro-mcp-tool-names-compliant.yaml")) {
+            assertNotNull(in, "rules/polychro-mcp-tool-names-compliant.yaml must exist");
             List<Error> errors = schema.validate(YAML.readTree(in));
             assertTrue(errors.isEmpty(),
                     "The ruleset fixture for #1006 must also pass the schema, got: " + errors);

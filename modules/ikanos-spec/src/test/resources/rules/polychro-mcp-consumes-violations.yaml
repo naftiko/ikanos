@@ -1,4 +1,4 @@
-# Spectral fixture — consumed MCP rules MUST FIRE:
+# Polychro fixture — consumed MCP rules MUST FIRE:
 #   - ikanos-mcp-consumes-endpoint-https, three times:
 #       plain HTTP to a remote host, and two userinfo bypasses whose real host is evil.com
 #   - ikanos-mcp-consumed-tool-hints (tool without hints)

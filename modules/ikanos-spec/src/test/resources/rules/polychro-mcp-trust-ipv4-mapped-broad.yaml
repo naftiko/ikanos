@@ -1,11 +1,11 @@
 ---
-# Spectral fixture — neither MCP trust network rule may fire.
+# Polychro fixture — ikanos-mcp-trust-network-too-broad MUST FIRE.
 #
-# Scoped private ranges on an adapter listening beyond loopback.
+# ::ffff:0.0.0.0/96 is every IPv4 peer, written as IPv4-mapped IPv6.
 ikanos: "1.0.0-beta10"
 
 info:
-  display: "MCP trust — scoped networks"
+  display: "MCP trust — every IPv4-mapped address trusted"
   description: "Fixture for the MCP trust network rules (issue #483)."
 
 capability:
@@ -18,7 +18,7 @@ capability:
       trust:
         mode: "forwarded"
         agentIdentityHeader: "X-Agent-Id"
-        trustedNetworks: ["10.20.0.0/16", "fd00:10::/48"]
+        trustedNetworks: ["::ffff:0.0.0.0/96"]
       tools:
         hello:
           description: "Say hello to the caller."

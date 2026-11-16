@@ -1,5 +1,5 @@
 ---
-# Spectral fixture — ikanos-exposes-hosts-must-bind MUST FIRE.
+# Polychro fixture — ikanos-exposes-hosts-must-bind MUST FIRE.
 #
 # The `hosts` entry references key CUSTOM_DOMAIN, which the `deploy` binding
 # does not declare.

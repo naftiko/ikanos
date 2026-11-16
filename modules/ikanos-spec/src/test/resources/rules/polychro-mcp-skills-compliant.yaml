@@ -1,4 +1,4 @@
-# Spectral fixture — Agent Skills over MCP rules MUST NOT FIRE:
+# Polychro fixture — Agent Skills over MCP rules MUST NOT FIRE:
 #   the skill names the tools it depends on and declares no allowed-tools.
 ikanos: "1.0.0-beta10"
 info:

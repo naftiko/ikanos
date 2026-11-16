@@ -1,5 +1,5 @@
 /**
- * Spectral custom function: capability-no-root-sections
+ * Polychro rule function: capability-no-root-sections
  *
  * A capability document keeps its `consumes`, `exposes`, `aggregates` and `binds`
  * under `capability`. At the root, those sections are only valid in standalone
