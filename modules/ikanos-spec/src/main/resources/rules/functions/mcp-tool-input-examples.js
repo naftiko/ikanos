@@ -9,8 +9,11 @@
  *   - the input is an object or an array (give examples on its `properties` or
  *     `items` instead);
  *   - it is not a number for a `number` input, not an integer for an `integer`
- *     input, or not `true` / `false` for a `boolean` input;
- *   - the input declares `enum` and the example is not one of its values.
+ *     input, or not `true` / `false` for a `boolean` input. Numbers follow the
+ *     syntax the engine converts (no hexadecimal, no surrounding spaces), and an
+ *     integral decimal such as `25.0` is an integer;
+ *   - the input declares `enum` and the example is not one of its values,
+ *     compared as numbers for a `number` or `integer` input (`1` matches `"1.0"`).
  *
  * Walks MCP tool inputs (and their nested `items` / `properties`), aggregate flow
  * inputs, and the `definitions.schemas` of both, in a capability and at the root
@@ -105,23 +108,62 @@ function checkExample(schema, example) {
       + (type === "object" ? "properties" : "items") + " instead";
   }
   const text = String(example);
-  if (type === "number" && !isNumber(text)) {
+  const numeric = type === "number" || type === "integer";
+  const decimal = numeric ? parseDecimal(text) : null;
+  if (type === "number" && !decimal) {
     return "is not a number";
   }
-  if (type === "integer" && !/^-?\d+$/.test(text.trim())) {
+  if (type === "integer" && !(decimal && decimal.exponent >= 0)) {
     return "is not an integer";
   }
   if (type === "boolean" && text !== "true" && text !== "false") {
     return "is not true or false";
   }
-  if (Array.isArray(schema.enum) && !schema.enum.map(String).includes(text)) {
+  if (Array.isArray(schema.enum) && !schema.enum.some((value) => sameValue(value, text, decimal))) {
     return "is not one of the input's enum values";
   }
   return null;
 }
 
-function isNumber(text) {
-  return text.trim() !== "" && Number.isFinite(Number(text));
+/**
+ * Whether an enum value and an example are the same value once the engine emits them with the
+ * input's type: numerically equal for a number or integer input (so `1.0` matches `1`), equal
+ * text otherwise.
+ */
+function sameValue(enumValue, text, decimal) {
+  const enumText = String(enumValue);
+  if (decimal) {
+    const enumDecimal = parseDecimal(enumText);
+    if (enumDecimal) {
+      return enumDecimal.sign === decimal.sign && enumDecimal.digits === decimal.digits
+        && enumDecimal.exponent === decimal.exponent;
+    }
+  }
+  return enumText === text;
+}
+
+/**
+ * Parses the decimal syntax the engine accepts for number and integer values (Java's
+ * `BigDecimal`: an optional sign, digits with an optional point, an optional exponent, no
+ * surrounding spaces), or returns null. The value is kept exact, as digits without leading or
+ * trailing zeros and a power of ten, so arbitrary precision survives and integrality is
+ * `exponent >= 0`. Zero is `{ sign: "", digits: "0", exponent: 0 }`.
+ */
+function parseDecimal(text) {
+  const match = /^([+-]?)(\d*)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/.exec(text);
+  if (!match || (match[2] + (match[3] || "")) === "") {
+    return null;
+  }
+  const fraction = match[3] || "";
+  let digits = (match[2] + fraction).replace(/^0+/, "");
+  if (digits === "") {
+    return { sign: "", digits: "0", exponent: 0 };
+  }
+  let exponent = Number(match[4] || "0") - fraction.length;
+  const trimmed = digits.replace(/0+$/, "");
+  exponent += digits.length - trimmed.length;
+  digits = trimmed;
+  return { sign: match[1] === "-" ? "-" : "", digits, exponent };
 }
 
 function entries(collection) {

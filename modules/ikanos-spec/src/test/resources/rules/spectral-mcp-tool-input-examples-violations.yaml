@@ -1,6 +1,7 @@
 # Spectral fixture — ikanos-mcp-tool-input-examples MUST FIRE:
 #   a number example that is not a number, an example outside the enum,
-#   a boolean example that is not true/false, and an example on an object input.
+#   a boolean example that is not true/false, an example on an object input, and
+#   numeric text the engine cannot convert (hexadecimal, surrounding spaces).
 ikanos: "1.0.0-beta10"
 info:
   display: "MCP tool input examples — violations"
@@ -34,7 +35,11 @@ capability:
             impact:
               type: number
               description: "Share of users affected."
-              examples: [high]
+              examples: [high, "0x10"]
+            replicas:
+              type: integer
+              description: "Replica count."
+              examples: [" 25 "]
             page:
               type: boolean
               description: "Whether to page on-call."

@@ -48,6 +48,6 @@ capability:
                   examples: [payments]
           call: incidents-api.create-incident
           with:
-            severity: $this.incidents.severity
-            service: $this.incidents.service
-            team: $this.incidents.labels.team
+            severity: incidents.severity
+            service: incidents.service
+            team: "{{labels.team}}"
