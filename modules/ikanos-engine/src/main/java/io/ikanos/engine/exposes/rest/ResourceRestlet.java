@@ -414,11 +414,6 @@ public class ResourceRestlet extends Restlet {
     }
 
     /**
-     * Answer a failed request without disclosing internal detail: the caller receives a generic
-     * message and a correlation identifier, the full exception goes to the log under the same
-     * identifier. See {@link ErrorReference}. Package-private so it can be unit-tested directly.
-     */
-    /**
      * Answers an operation whose steps ask the caller for input ({@code elicit}). The REST adapter
      * cannot ask yet: answering on a {@code 202} execution is not specified. The response is
      * {@code 501 Not Implemented}, naming the step, rather than a generic server error.
@@ -433,6 +428,11 @@ public class ResourceRestlet extends Restlet {
                 "Step asked for input over REST", e);
     }
 
+    /**
+     * Answer a failed request without disclosing internal detail: the caller receives a generic
+     * message and a correlation identifier, the full exception goes to the log under the same
+     * identifier. See {@link ErrorReference}. Package-private so it can be unit-tested directly.
+     */
     void sendError(Response response, Status status, String publicMessage, String logContext,
             Throwable cause) {
         String correlationId = ErrorReference.record(Level.WARNING, logContext, cause);
