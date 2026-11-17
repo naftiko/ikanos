@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 
 import io.ikanos.durable.ExecutionResult;
 import io.ikanos.durable.Failure;
+import io.ikanos.engine.consumes.http.StandardRequestHeaders.InvalidPreconditionException;
 import io.ikanos.engine.util.OperationStepExecutor.StepFailedException;
 
 /** What a failure recorded by an earlier run of a journaled execution is raised as. */
@@ -38,6 +39,22 @@ class ExecutionsTest {
 
         assertInstanceOf(InputDeclinedException.class, raised);
         assertEquals("Step 'confirm' was declined", raised.getMessage());
+    }
+
+    @Test
+    void aPreconditionRefusalRecordedBeforeARestartShouldBeRaisedAsOneAgain() {
+        // The step journaled a write refused for its precondition (#1001), and the process
+        // stopped before the round recorded its response: the retry is still bad input (400),
+        // not an internal failure.
+        Failure recorded = StepInterpreter.failureOf(new InvalidPreconditionException(
+                "No value for the If-Match header of a request that is not safe"));
+
+        RuntimeException raised = Executions.rethrowable(new StepRun(null),
+                new ExecutionResult.Failed(recorded));
+
+        assertInstanceOf(InvalidPreconditionException.class, raised);
+        assertEquals("No value for the If-Match header of a request that is not safe",
+                raised.getMessage());
     }
 
     @Test
