@@ -23,8 +23,8 @@
  *
  * <p>See the {@code blueprints/reverse-tunnel-private-network.md} blueprint, §6.3, for the
  * original Architecture Decision Record and §6.4 for the revised Jetty-integration approach
- * adopted in Phase 2: a per-request {@link org.eclipse.jetty.io.Transport} attached by a
- * Jetty request listener, with byte pumping from the Ziti {@link
+ * adopted in Phase 2: a per-request {@link org.eclipse.jetty.io.Transport} attached by
+ * {@code TunnelAwareHttpClientHelper.create} when Restlet creates the Jetty request, with byte pumping from the Ziti {@link
  * java.nio.channels.AsynchronousSocketChannel} into a Jetty
  * {@link org.eclipse.jetty.io.MemoryEndPointPipe}.
  */
