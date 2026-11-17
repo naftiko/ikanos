@@ -56,6 +56,7 @@ function dialectOf(adapter) {
     brackets: name === "sqlserver" || name === "jtds" || name === "sqlite",
     mysql: name === "mysql" || name === "mariadb",
     sqlite: name === "sqlite",
+    oracle: name === "oracle",
   };
 }
 
@@ -115,7 +116,9 @@ function placeholders(sql, dialect = {}) {
         ? c !== "`"
         : c === "'" && i > 0 && /[Ee]/.test(sql[i - 1]) && !/\w/.test(sql[i - 2] || "");
       i = endOfQuoted(sql, i, c, backslash);
-    } else if (!dialect.mysql && c === "$" && !/\w/.test(sql[i - 1] || "") && !/\d/.test(sql[i + 1] || "")) {
+    } else if (dialect.oracle && alternativeQuote(sql, i) > 0) {
+      i = endOfAlternativeQuote(sql, alternativeQuote(sql, i));
+    } else if (!dialect.mysql && c === "$" && !/[\w$]/.test(sql[i - 1] || "") && !/\d/.test(sql[i + 1] || "")) {
       const tag = /^\$\w*\$/.exec(sql.slice(i));
       if (tag) {
         const end = sql.indexOf(tag[0], i + tag[0].length);
@@ -134,6 +137,23 @@ function placeholders(sql, dialect = {}) {
     }
   }
   return found;
+}
+
+/** The index of the opening quote of an Oracle `q'…'` or `nq'…'` literal starting at `i`, or -1. */
+function alternativeQuote(sql, i) {
+  if (/[\w$]/.test(sql[i - 1] || "")) {
+    return -1;
+  }
+  const q = /[Nn]/.test(sql[i]) ? i + 1 : i;
+  return /[Qq]/.test(sql[q] || "") && sql[q + 1] === "'" && q + 2 < sql.length ? q + 1 : -1;
+}
+
+/** The index just past an Oracle alternative-quoted literal whose opening quote is at `quote`. */
+function endOfAlternativeQuote(sql, quote) {
+  const open = sql[quote + 1];
+  const close = { "[": "]", "{": "}", "<": ">", "(": ")" }[open] || open;
+  const end = sql.indexOf(close + "'", quote + 2);
+  return end < 0 ? sql.length : end + 2;
 }
 
 /** `--`, and on MySQL `#`; MySQL needs whitespace after `--`, as the engine reads it. */

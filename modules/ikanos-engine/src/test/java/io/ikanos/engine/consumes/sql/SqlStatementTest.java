@@ -212,6 +212,27 @@ class SqlStatementTest {
     }
 
     @Test
+    void parseShouldReadOracleAlternativeQuotedLiterals() {
+        SqlStatement statement = SqlStatement.parse(
+                "select q'[don't :ignored]', nQ'{a'b :x}', Q'!:y!' from customers where id = :id",
+                SqlStatement.Dialect.ORACLE);
+
+        assertEquals(List.of("id"), statement.placeholders());
+        assertNull(statement.nonReadKeyword());
+        assertThrows(IllegalArgumentException.class, () -> SqlStatement.parse(
+                "select q'[open :x from t", SqlStatement.Dialect.ORACLE));
+    }
+
+    @Test
+    void parseShouldReadQAsAnIdentifierOutsideOracle() {
+        assertEquals(List.of("id"), SqlStatement.parse("select q from t where id = :id",
+                SqlStatement.Dialect.ORACLE).placeholders());
+        // elsewhere q is an identifier and ':x' an ordinary literal
+        assertEquals(List.of(), SqlStatement.parse("select q':x' from t",
+                SqlStatement.Dialect.STANDARD).placeholders());
+    }
+
+    @Test
     void parseShouldKeepPostgresqlArrayBrackets() {
         SqlStatement statement = SqlStatement.parse("select tags[:i] from t",
                 SqlStatement.Dialect.POSTGRESQL);
