@@ -375,6 +375,16 @@ public class ToolsCallHandler extends McpCallHandler {
             return toolError(name + " is listed with the other tools: call it directly, not"
                     + " through " + catalog.callToolName() + ".");
         }
+        if (adapter.getTaskService() != null && adapter.isTaskTool(name)) {
+            // A task needs the tasks extension and its own task ID, which a batch cannot carry.
+            return toolError(name + " runs as a task: call it directly with tools/call, not"
+                    + " through " + catalog.callToolName() + ".");
+        }
+        if (adapter.mayElicit(name)) {
+            // Its input rounds go back to the caller of tools/call, which a batch cannot carry.
+            return toolError(name + " may ask for input: call it directly with tools/call, not"
+                    + " through " + catalog.callToolName() + ".");
+        }
         if (toolArguments != null && !toolArguments.isNull() && !toolArguments.isObject()) {
             return toolError("arguments must be an object.");
         }
