@@ -167,9 +167,6 @@ public final class LuceneToolSearchIndex implements ToolSearchIndex {
     @Override
     public List<String> search(ToolSearchQuery query) {
         BooleanQuery luceneQuery = buildQuery(query);
-        if (luceneQuery == null) {
-            return List.of();
-        }
         try {
             StoredFields stored = searcher.storedFields();
             List<String> names = new ArrayList<>(query.limit());
@@ -179,6 +176,10 @@ public final class LuceneToolSearchIndex implements ToolSearchIndex {
             if (exact.length > 0) {
                 exactName = stored.document(exact[0].doc).get(NAME_KEYWORD);
                 names.add(exactName);
+            }
+            if (luceneQuery == null) {
+                // No searchable term, as in a name of separators only: the exact name alone.
+                return names;
             }
             Sort sort = new Sort(SortField.FIELD_SCORE,
                     new SortField(NAME_SORT, SortField.Type.STRING));
