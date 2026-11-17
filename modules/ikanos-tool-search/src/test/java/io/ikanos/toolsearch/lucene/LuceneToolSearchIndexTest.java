@@ -90,6 +90,23 @@ class LuceneToolSearchIndexTest {
     }
 
     @Test
+    void searchShouldFindAToolNamedWithSeparatorsOnly() {
+        // "--" and "_" are valid tool names, yet the analyser finds no term in them.
+        LuceneToolSearchIndex separators = new LuceneToolSearchIndex(List.of(
+                new ToolSearchDocument("--", null, "A tool named with hyphens only.", List.of(),
+                        "", false),
+                new ToolSearchDocument("_", null, "A tool named with an underscore only.",
+                        List.of(), "", false)));
+
+        assertEquals(List.of("--"),
+                separators.search(new ToolSearchQuery("--", Set.of(), false, 5)));
+        assertEquals(List.of("_"),
+                separators.search(new ToolSearchQuery("_", Set.of(), false, 5)));
+        assertEquals(List.of(),
+                separators.search(new ToolSearchQuery("---", Set.of(), false, 5)));
+    }
+
+    @Test
     void searchShouldNotRankAnExactToolNameThatTheFiltersExclude() {
         assertEquals(List.of("list-deployments"), index.search(
                 new ToolSearchQuery("restart-deployment", Set.of(), true, 5)));
