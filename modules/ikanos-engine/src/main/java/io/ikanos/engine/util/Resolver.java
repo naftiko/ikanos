@@ -1202,13 +1202,16 @@ public class Resolver {
             boolean conditionalWrite = precondition
                     && clientRequest.getMethod() != null
                     && !clientRequest.getMethod().isSafe();
-            // Whatever the method: an If-Range the request carries keeps its Range
+            // Whatever the method: an If-Range the request carries keeps its Range. An earlier
+            // input with the same wire name counts too: it is only sent once all are resolved
             boolean carried = precondition
-                    && StandardRequestHeaders.carriesPrecondition(clientRequest, wireName);
+                    && (StandardRequestHeaders.carriesPrecondition(clientRequest, wireName)
+                            || resolvesHeader(resolved, wireName));
             // A consumed input is required unless it says required: false; only MCP tool
             // inputs default to optional (#977)
             boolean guardsWrite = conditionalWrite && spec.isRequiredOrDefault(true) && !carried;
-            boolean unresolved = template != null
+            // Only a precondition is checked: rendering the template again costs a pass
+            boolean unresolved = template != null && precondition
                     && (!missingVariables(template, parameters).isEmpty()
                             || rendersEmptyVariable(template, parameters));
             if (guardsWrite && unresolved) {
@@ -1373,6 +1376,24 @@ public class Resolver {
                 logger.debug("Skipping parameter '{}' due to resolution error", spec.getName(), e);
             }
         }
+    }
+
+    /**
+     * @return {@code true} when an input already in {@code resolved} sends the header
+     *         {@code wireName} with a non-blank value
+     */
+    private static boolean resolvesHeader(List<ResolvedInputParameter> resolved,
+            String wireName) {
+        for (ResolvedInputParameter parameter : resolved) {
+            InputParameterSpec spec = parameter.spec();
+            String name = spec.getWireName() != null && !spec.getWireName().isBlank()
+                    ? spec.getWireName() : spec.getName();
+            if ("header".equalsIgnoreCase(spec.getIn()) && wireName.equalsIgnoreCase(name)
+                    && parameter.value() != null && !parameter.value().toString().isBlank()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static StandardRequestHeaders.InvalidPreconditionException unresolvedPrecondition(

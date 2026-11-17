@@ -245,6 +245,52 @@ public class HeadersTest {
     }
 
     @Test
+    public void resolveInputParametersShouldKeepAnEarlierIfMatchOfTheSameWireName() {
+        Request request = new Request(Method.PUT, "https://api.example.com/v1/items/1");
+        InputParameterSpec revision = header("revision", "\"v1\"");
+        revision.setWireName("If-Match");
+        InputParameterSpec etag = header("etag-header", "{{etag}}");
+        etag.setWireName("If-Match");
+
+        Resolver.resolveInputParametersToRequest(request, List.of(revision, etag),
+                new HashMap<>(Map.of("other", "x")));
+
+        assertEquals(1, request.getConditions().getMatch().size(),
+                "an earlier input already sets If-Match: the write stays conditional");
+    }
+
+    @Test
+    public void resolveInputParametersShouldKeepTheRangeOfAnEarlierIfRangeOfTheSameWireName() {
+        Request request = new Request(Method.GET, "https://api.example.com/v1/items/1");
+        InputParameterSpec version = header("version", "\"v1\"");
+        version.setWireName("If-Range");
+        InputParameterSpec etag = header("etag-header", "{{etag}}");
+        etag.setWireName("If-Range");
+
+        Resolver.resolveInputParametersToRequest(request,
+                List.of(header("Range", "bytes=0-9"), version, etag),
+                new HashMap<>(Map.of("other", "x")));
+
+        assertEquals(1, request.getRanges().size(),
+                "the If-Range of the earlier input still guards the Range");
+        assertNotNull(request.getConditions().getRangeTag());
+    }
+
+    @Test
+    public void setShouldKeepTheBoundaryOfAMultipartBodyWhenAContentTypeIsSet() {
+        Request request = new Request(Method.POST, "https://api.example.com/v1/upload");
+        org.restlet.data.MediaType upload =
+                org.restlet.data.MediaType.valueOf("multipart/form-data; boundary=abc");
+        request.setEntity(new org.restlet.representation.StringRepresentation("--abc--", upload));
+
+        StandardRequestHeaders.set(request, "Content-Type", "multipart/form-data");
+
+        assertEquals("abc", request.getEntity().getMediaType().getParameters()
+                .getFirstValue("boundary"),
+                "a forwarded upload keeps the boundary its bytes were written with");
+    }
+
+    @Test
     public void resolveInputParametersShouldNotSendTheRangeOfAGetWhoseIfRangeHasNoParameters() {
         Request request = new Request(Method.GET, "https://api.example.com/v1/items/1");
         request.setRanges(new java.util.ArrayList<>(List.of(new org.restlet.data.Range(0, 10))));
