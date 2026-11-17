@@ -77,6 +77,15 @@ public class RestInputTypesIntegrationTest {
         assertEquals(Status.CLIENT_ERROR_BAD_REQUEST, send("/find?filter=%22NO%22").getStatus());
     }
 
+    @Test
+    void handleShouldReadAQueryInputAsTheOperationRedeclaresIt() throws Exception {
+        // The resource declares filter as an object, the operation as a string: the operation's
+        // declaration wins, as in the OpenAPI export, so a plain string is not rejected as JSON
+        JsonNode body = get("/status?filter=active");
+
+        assertEquals("active", body.path("filter").asString());
+    }
+
     private JsonNode get(String path) throws Exception {
         Response response = send(path);
 

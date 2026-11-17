@@ -137,9 +137,14 @@ public class OperationStepExecutor {
             }
         }
 
-        // Resource-level input parameters
+        // Resource-level input parameters, except those the operation declares again: the
+        // operation's declaration wins, as in the OpenAPI export, so a value is never checked
+        // against a type the operation replaced
         if (resourceSpec != null && resourceSpec.getInputParameters() != null) {
             for (InputParameterSpec spec : resourceSpec.getInputParameters()) {
+                if (redeclares(serverOp, spec)) {
+                    continue;
+                }
                 Object v = Resolver.resolveInputParameterFromRequest(spec, request, root, mapper);
                 if (v != null) {
                     params.put(spec.getName(), v);
@@ -158,6 +163,29 @@ public class OperationStepExecutor {
         }
 
         return params;
+    }
+
+    /**
+     * Whether an operation declares an input of the same name and location as a resource input,
+     * which it then replaces. An input without {@code in} is read from the query.
+     */
+    private static boolean redeclares(RestServerOperationSpec serverOp,
+            InputParameterSpec resourceInput) {
+        if (serverOp == null || serverOp.getInputParameters() == null) {
+            return false;
+        }
+        String in = locationOf(resourceInput);
+        for (InputParameterSpec own : serverOp.getInputParameters()) {
+            if (own.getName() != null && own.getName().equals(resourceInput.getName())
+                    && locationOf(own).equals(in)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String locationOf(InputParameterSpec input) {
+        return input.getIn() != null ? input.getIn() : "query";
     }
 
     /**

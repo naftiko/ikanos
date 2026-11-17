@@ -58,3 +58,23 @@ capability:
               flag:
                 type: string
                 value: "{{filter.flag}}"
+      # An operation input that replaces the resource input of the same name and location
+      status:
+        path: /status
+        inputParameters:
+          filter:
+            in: query
+            type: object
+            description: Filter on ship fields
+        operations:
+          status:
+            method: GET
+            inputParameters:
+              filter:
+                in: query
+                type: string
+                description: Name of a status
+            outputParameters:
+              filter:
+                type: string
+                value: "{{filter}}"
