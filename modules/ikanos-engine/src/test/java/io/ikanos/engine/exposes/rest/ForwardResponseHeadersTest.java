@@ -558,6 +558,68 @@ public class ForwardResponseHeadersTest {
                 : to.getEntity().getLocationRef(), header);
     }
 
+    // --- Location: a signing (awsSigV4) adapter's query-string signature and session token ---
+
+    private static ForwardResponseHeaders.Exposure signed() {
+        return new ForwardResponseHeaders.Exposure(null, Set.of(), false, true);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "http://upstream:9090/v1/items/42?X-Amz-Algorithm=AWS4-HMAC-SHA256"
+                    + "&X-Amz-Credential=AKIDEXAMPLE%2F20261117%2Fus-east-1%2Fs3%2Faws4_request"
+                    + "&X-Amz-Signature=5d672d79c15b13162d9279b0855cfba6789a8edb4c82c400e06b5924",
+            "https://bucket.s3.amazonaws.com/report.pdf?X-Amz-Security-Token=FwoGZXIvYXdzEXAMPLE",
+            "/v1/items/42?x-amz-signature=abc",
+            "?X-Amz-Security-Token=FwoGZXIvYXdzEXAMPLE",
+            "//cdn.example/x?X%2DAmz%2DSignature=abc"})
+    public void relayedLocationShouldDropAnAmzQueryWhenTheAdapterSignsWithAwsSigV4(String raw) {
+        assertNull(ForwardResponseHeaders.relayedLocation(raw, BASE_URI + "/items", BASE_URI,
+                incoming(), signed()));
+    }
+
+    @Test
+    public void relayedLocationShouldKeepAnAmzQueryWhenTheAdapterDoesNotSign() {
+        assertEquals("https://bucket.s3.amazonaws.com/report.pdf?X-Amz-Signature=abc",
+                ForwardResponseHeaders.relayedLocation(
+                        "https://bucket.s3.amazonaws.com/report.pdf?X-Amz-Signature=abc",
+                        BASE_URI + "/items", BASE_URI, incoming(),
+                        new ForwardResponseHeaders.Exposure(null, Set.of(), false)));
+    }
+
+    @Test
+    public void relayedLocationShouldKeepAnAmzQueryTheCallerSentWhenTheAdapterSigns() {
+        assertEquals("/proxy/items/42?X-Amz-Meta-Note=draft",
+                ForwardResponseHeaders.relayedLocation(
+                        "http://upstream:9090/v1/items/42?X-Amz-Meta-Note=draft",
+                        BASE_URI + "/items?X-Amz-Meta-Note=draft", BASE_URI,
+                        incoming("http://localhost:8080/proxy/items?X-Amz-Meta-Note=draft",
+                                "items"),
+                        signed()));
+        assertEquals("/proxy/items/42?page=2", ForwardResponseHeaders.relayedLocation(
+                "http://upstream:9090/v1/items/42?page=2", BASE_URI + "/items", BASE_URI,
+                incoming(), signed()));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"Location", "Content-Location"})
+    public void relayShouldDropALocationEchoingTheSessionTokenWhenTheAdapterSigns(
+            String header) {
+        Response from = upstreamResponse();
+        from.setStatus(Status.REDIRECTION_FOUND);
+        from.getHeaders().add(header,
+                BASE_URI + "/items/42?X-Amz-Security-Token=FwoGZXIvYXdzEXAMPLE");
+        from.setEntity(new StringRepresentation("{}"));
+        Response to = new Response(incoming());
+        to.setEntity(from.getEntity());
+
+        ForwardResponseHeaders.relay(from, to, List.of(), BASE_URI, false, new HashSet<>(),
+                signed());
+
+        assertNull("Location".equals(header) ? to.getLocationRef()
+                : to.getEntity().getLocationRef(), header);
+    }
+
     @Test
     public void injectedQueryNamesShouldBeEmptyWithoutAnUpstreamQuery() {
         assertTrue(ForwardResponseHeaders.injectedQueryNames(null, "page=1").isEmpty());

@@ -121,6 +121,26 @@ public class AwsSigV4IntegrationTest {
                 router.attach("/documents", new Restlet() {
                     @Override
                     public void handle(Request request, Response response) {
+                        if (request.getResourceRef().getPath().contains("/presign")) {
+                            // An upstream that hands back a presigned URL built from the
+                            // signature and session token it received
+                            received.set(request);
+                            Series<Header> headers = request.getHeaders();
+                            String authorization =
+                                    headers.getFirstValue("Authorization", true);
+                            String signature = authorization
+                                    .substring(authorization.indexOf("Signature=") + 10);
+                            String token =
+                                    headers.getFirstValue("X-Amz-Security-Token", true);
+                            response.redirectSeeOther(request.getResourceRef().getPath()
+                                    .endsWith("-elsewhere") ? "http://127.0.0.1:1/report.pdf"
+                                            + "?X-Amz-Signature=" + signature
+                                            + "&X-Amz-Security-Token=" + token
+                                    : "http://localhost:" + upstreamPort
+                                            + "/documents/report.pdf?X-Amz-Signature="
+                                            + signature + "&X-Amz-Security-Token=" + token);
+                            return;
+                        }
                         if (request.getResourceRef().getPath().endsWith("/moved")) {
                             received.set(request);
                             response.redirectTemporary(
@@ -339,6 +359,30 @@ public class AwsSigV4IntegrationTest {
         assertEquals("/documents/uploads/report.txt", received.get().getResourceRef().getPath());
         assertEquals(AwsSigV4Helper.UNSIGNED_PAYLOAD,
                 received.get().getHeaders().getFirstValue("x-amz-content-sha256", true));
+        assertSignatureMatches("s3", false);
+    }
+
+    /**
+     * The forward relays an upstream redirect to the caller, but a signing adapter's upstream must
+     * never hand the caller a query-string signature or the session token through it, whether the
+     * location points back under the forwarded prefix or to another host.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"presign", "presign-elsewhere"})
+    void forwardShouldDropARedirectLocationEchoingTheSignatureWhenTheTargetSignsWithAwsSigV4(
+            String where) throws Exception {
+        start(auth(null) + "        sessionToken: \"FwoGZXIvYXdzEXAMPLETOKEN\"\n");
+
+        HttpResponse<String> response = HttpClient.newHttpClient().send(HttpRequest
+                .newBuilder(URI.create("http://localhost:" + restPort
+                        + "/files/report.pdf/" + where))
+                .GET().build(), HttpResponse.BodyHandlers.ofString());
+
+        assertEquals(303, response.statusCode(), response.body());
+        assertEquals("FwoGZXIvYXdzEXAMPLETOKEN",
+                received.get().getHeaders().getFirstValue("X-Amz-Security-Token", true));
+        assertTrue(response.headers().firstValue("Location").isEmpty(),
+                () -> "Location relayed: " + response.headers().firstValue("Location"));
         assertSignatureMatches("s3", false);
     }
 
