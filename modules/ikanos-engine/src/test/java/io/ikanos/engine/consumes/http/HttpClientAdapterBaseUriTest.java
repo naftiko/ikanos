@@ -101,4 +101,24 @@ class HttpClientAdapterBaseUriTest {
         assertEquals(null, HttpClientAdapter.resolveBaseUri("api", null, Map.of()));
         assertEquals("", HttpClientAdapter.resolveBaseUri("api", "", Map.of()));
     }
+
+    /** A section and an unescaped tag are valid Mustache, as rendering parses it. */
+    @Test
+    void resolveBaseUriShouldAcceptASectionAndAnUnescapedTag() {
+        Map<String, Object> bindings = Map.of("HOST", "api.example.com", "PORT", "8443");
+
+        assertEquals("https://api.example.com:8443",
+                HttpClientAdapter.resolveBaseUri("api",
+                        "https://{{HOST}}{{#PORT}}:{{PORT}}{{/PORT}}", bindings));
+        assertEquals("https://api.example.com",
+                HttpClientAdapter.resolveBaseUri("api", "https://{{&HOST}}", bindings));
+    }
+
+    @Test
+    void resolveBaseUriShouldRefuseAnUnclosedSection() {
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> HttpClientAdapter.resolveBaseUri("api", "https://{{#HOST}}x",
+                        Map.of("HOST", "api.example.com")));
+        assertTrue(error.getMessage().contains("not a valid template"), error.getMessage());
+    }
 }
