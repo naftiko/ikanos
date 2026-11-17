@@ -1156,7 +1156,9 @@ public class Resolver {
      *
      * <p>A templated precondition header ({@code If-Match}, {@code If-None-Match},
      * {@code If-Unmodified-Since}, {@code If-Range}) of a request whose method is not safe must
-     * resolve too: omitting it would make the write unconditional, so the call fails (#1001).</p>
+     * resolve too: omitting it would make the write unconditional, so the call fails (#1001). A
+     * template that cannot be rendered counts as unresolved. The call fails only once every input
+     * is resolved, and only when no input with the same wire name, earlier or later, sets it.</p>
      *
      * @param clientRequest the request the values are for, whose method tells whether a
      *        precondition guards a write; {@code null} when there is none
@@ -1176,6 +1178,10 @@ public class Resolver {
         applyEnvironmentParameters(specs, parameters);
         Set<String> supplied = parameters == null ? Set.of()
                 : new HashSet<>(parameters.keySet());
+        // A precondition with no value is only refused once every input is resolved: a later
+        // input with the same wire name can still set it (#1001)
+        Set<String> refusedPreconditions = new java.util.LinkedHashSet<>();
+        boolean ifRangeRefused = false;
 
         for (InputParameterSpec spec : specs) {
             String pathTemplate = "path".equalsIgnoreCase(spec.getIn())
@@ -1215,18 +1221,17 @@ public class Resolver {
                     && (!missingVariables(template, parameters).isEmpty()
                             || rendersEmptyVariable(template, parameters));
             if (guardsWrite && unresolved) {
-                throw unresolvedPrecondition(wireName);
+                refusedPreconditions.add(wireName);
+                continue;
             }
             if (unresolved && carried) {
                 // The precondition already on the request is kept as is
                 continue;
             }
-            if (unresolved && clientRequest != null && !notSent.contains(spec)
-                    && "header".equalsIgnoreCase(spec.getIn())
-                    && "If-Range".equalsIgnoreCase(wireName)) {
+            if (unresolved && "If-Range".equalsIgnoreCase(wireName)) {
                 // Left out, the If-Range would let a Range return part of a changed
                 // representation: the request asks for the whole one instead (#1001)
-                StandardRequestHeaders.refuseIfRange(clientRequest);
+                ifRangeRefused = true;
                 continue;
             }
             if (unresolved && conditionalWrite) {
@@ -1244,6 +1249,13 @@ public class Resolver {
                             + " parameter '" + spec.getName() + "': rendering failed", e);
                 }
                 logger.debug("Skipping parameter '{}' due to resolution error", spec.getName(), e);
+                // A precondition that cannot be rendered has no value, as one whose variable is
+                // missing: skipping it must not make a write unconditional (#1001)
+                if (guardsWrite) {
+                    refusedPreconditions.add(wireName);
+                } else if (precondition && !carried && "If-Range".equalsIgnoreCase(wireName)) {
+                    ifRangeRefused = true;
+                }
                 continue;
             }
             if (carried && (val == null || val.toString().isBlank())) {
@@ -1254,12 +1266,11 @@ public class Resolver {
             // not safe: sending the write without it would make it unconditional (#1001)
             if (conditionalWrite && (val == null || val.toString().isBlank())) {
                 if (guardsWrite) {
-                    throw unresolvedPrecondition(wireName);
-                }
-                if (!carried && val != null && "If-Range".equalsIgnoreCase(wireName)) {
+                    refusedPreconditions.add(wireName);
+                } else if (val != null && "If-Range".equalsIgnoreCase(wireName)) {
                     // required: false and sent blank: left out, but its Range must not go
                     // alone, as for a blank If-Range of a safe request (#1001)
-                    StandardRequestHeaders.refuseIfRange(clientRequest);
+                    ifRangeRefused = true;
                 }
                 continue;
             }
@@ -1300,6 +1311,14 @@ public class Resolver {
                 }
                 logger.debug("Skipping parameter '{}' due to resolution error", spec.getName(), e);
             }
+        }
+        for (String wireName : refusedPreconditions) {
+            if (!resolvesHeader(resolved, wireName)) {
+                throw unresolvedPrecondition(wireName);
+            }
+        }
+        if (ifRangeRefused && !resolvesHeader(resolved, "If-Range")) {
+            StandardRequestHeaders.refuseIfRange(clientRequest);
         }
         return resolved;
     }
