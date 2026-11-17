@@ -663,12 +663,19 @@ rules:
       the capability loads.
     severity: error
     recommended: true
+    # Every procedure is targeted and the condition is in the schema: `procedures` is a
+    # map, and Polychro applies a JSONPath filter (`[?(...)]`) to array elements only.
     given:
-      - "$.consumes[?(@.type == 'sql')].procedures[?(@.storedProcedure)]"
-      - "$.capability.consumes[?(@.type == 'sql')].procedures[?(@.storedProcedure)]"
+      - "$.consumes[?(@.type == 'sql')].procedures.*"
+      - "$.capability.consumes[?(@.type == 'sql')].procedures.*"
     then:
-      field: "readOnly"
-      function: defined
+      function: schema
+      functionOptions:
+        schema:
+          if:
+            required: ["storedProcedure"]
+          then:
+            required: ["readOnly"]
 
   ikanos-sql-stored-procedure-parameters:
     message: "{{error}}"
