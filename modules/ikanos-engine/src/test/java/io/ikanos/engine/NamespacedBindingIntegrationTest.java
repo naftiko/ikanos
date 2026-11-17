@@ -184,12 +184,12 @@ class NamespacedBindingIntegrationTest {
         restPort = freePort();
         String yaml = """
                 ikanos: "%s"
-                binds:
-                  - namespace: "tenant"
-                    location: "%s"
-                    keys:
-                      TOKEN: "token"
                 capability:
+                  binds:
+                    - namespace: "tenant"
+                      location: "%s"
+                      keys:
+                        TOKEN: "token"
                   consumes:
                     - namespace: up
                       type: http
@@ -257,14 +257,14 @@ class NamespacedBindingIntegrationTest {
                 """.formatted(exposedToken);
         String yaml = """
                 ikanos: "%s"
-                binds:
-                  - namespace: "secrets"
-                    location: "%s"
-                    keys:
-                      TOKEN: "token"
-                      EXPOSED: "exposed"
-                      PORT: "port"
                 capability:
+                  binds:
+                    - namespace: "secrets"
+                      location: "%s"
+                      keys:
+                        TOKEN: "token"
+                        EXPOSED: "exposed"
+                        PORT: "port"
                   consumes:
                     - namespace: up
                       type: http
