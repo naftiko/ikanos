@@ -187,6 +187,18 @@ class McpToolInputSchemaValidationTest {
     }
 
     @Test
+    void schemaShouldAcceptExamplesBesideADefault() throws Exception {
+        List<Error> errors = validateTool("""
+                limit:
+                  type: "integer"
+                  description: "Page size."
+                  default: 20
+                  examples: [50]
+                """);
+        assertTrue(errors.isEmpty(), "Expected no errors, got: " + errors);
+    }
+
+    @Test
     void schemaShouldRejectAnObjectExample() throws Exception {
         List<Error> errors = validateTool("""
                 labels:
