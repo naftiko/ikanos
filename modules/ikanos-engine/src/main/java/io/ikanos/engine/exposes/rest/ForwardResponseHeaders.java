@@ -89,6 +89,9 @@ public final class ForwardResponseHeaders {
             "if-match", "if-modified-since", "if-none-match", "if-range", "if-unmodified-since",
             "max-forwards", "range", "referer", "user-agent");
 
+    /** How many times a query value is percent-decoded to find a URL or query nested in it. */
+    static final int MAX_NESTED_DECODINGS = 4;
+
     /** The prefix, in lower case, of the query parameters of an AWS query-string signature. */
     static final String AMZ_QUERY_PREFIX = "x-amz-";
 
@@ -501,8 +504,10 @@ public final class ForwardResponseHeaders {
      * ({@code //cdn.example/x}), which is sent with the scheme of the upstream request, so a
      * caller on plain HTTP is not sent to plain HTTP.</li>
      * <li>A value whose query names the consumed adapter's query-placed {@code apikey}, wherever
-     * it points: dropped, so an upstream that echoes its request URI never hands the caller that
-     * credential.</li>
+     * it points, whatever the case of the name, and also inside a URL or query nested in one of
+     * its values, even percent-encoded ({@code ?next=%2Fa%3Fapi_key%3D...}): dropped, so an
+     * upstream that echoes its request URI never hands the caller that credential. A value still
+     * encoded after {@value #MAX_NESTED_DECODINGS} decodings is dropped too.</li>
      * <li>When the consumed adapter signs with {@code awsSigV4}, a value whose query carries an
      * {@code X-Amz-*} parameter the caller did not send with that value, wherever it points:
      * dropped. The request is signed in headers, so such a parameter is a query-string signature
@@ -573,15 +578,11 @@ public final class ForwardResponseHeaders {
                 : value.getRawQuery() != null ? value.getRawQuery()
                         : incoming.getResourceRef().getQuery();
         String fragment = sameDocument ? value.getRawFragment() : resolved.getRawFragment();
-        if (!Collections.disjoint(queryNames(value.getRawQuery()),
-                exposure.injectedQueryNames())) {
-            // An upstream that echoes the request URI would hand the caller what the engine
-            // added to it, such as a query-placed credential
-            return null;
-        }
-        if (exposure.signed() && carriesAmzQuery(value.getRawQuery(),
+        if (exposesProtectedParameter(value.getRawQuery(), exposure,
                 incoming.getResourceRef().getQuery())) {
-            // A signing adapter's upstream could hand back a presigned URL or its session token
+            // An upstream that echoes the request URI would hand the caller what the engine
+            // added to it, such as a query-placed credential, and a signing adapter's upstream
+            // could hand back a presigned URL or its session token
             return null;
         }
         String host = host(resolved);
@@ -793,6 +794,76 @@ public final class ForwardResponseHeaders {
     }
 
     /**
+     * @return whether the query of a location can hand the caller a protected parameter: one the
+     *         engine added to the upstream request ({@code exposure.injectedQueryNames()}), or,
+     *         when the consumed adapter signs with {@code awsSigV4}, an {@code X-Amz-*} one.
+     *         Names match whatever their case, at the top level or in a URL or query nested in
+     *         a value, even percent-encoded ({@code ?next=%2Fa%3Fapi_key%3D...}). A query with a
+     *         value still encoded after {@value #MAX_NESTED_DECODINGS} decodings cannot be
+     *         checked, so it counts as one when there is something to protect.
+     */
+    static boolean exposesProtectedParameter(String rawQuery, Exposure exposure,
+            String incomingQuery) {
+        if (rawQuery == null) {
+            return false;
+        }
+        Set<String> injected = new HashSet<>();
+        for (String name : exposure.injectedQueryNames()) {
+            injected.add(name.toLowerCase(Locale.ROOT));
+        }
+        if (injected.isEmpty() && !exposure.signed()) {
+            return false;
+        }
+        for (String name : queryNames(rawQuery)) {
+            if (injected.contains(name.toLowerCase(Locale.ROOT))) {
+                return true;
+            }
+        }
+        Set<String> nested = nestedQueryNames(rawQuery);
+        if (nested == null || !Collections.disjoint(nested, injected)) {
+            return true;
+        }
+        return exposure.signed() && (carriesAmzQuery(rawQuery, incomingQuery)
+                || nested.stream().anyMatch(name -> name.startsWith(AMZ_QUERY_PREFIX)));
+    }
+
+    /**
+     * @return the names, in lower case, of the parameters of a URL or query nested in the values
+     *         of {@code rawQuery}, as written and after each percent-decoding, or {@code null}
+     *         when a value still changes after {@value #MAX_NESTED_DECODINGS} decodings
+     */
+    static Set<String> nestedQueryNames(String rawQuery) {
+        Set<String> names = new HashSet<>();
+        if (rawQuery == null) {
+            return names;
+        }
+        for (String pair : rawQuery.split("[&;]")) {
+            int equals = pair.indexOf('=');
+            if (equals < 0) {
+                continue;
+            }
+            String text = pair.substring(equals + 1);
+            for (int decodings = 0;; decodings++) {
+                for (String part : text.split("[?&;#]")) {
+                    int partEquals = part.indexOf('=');
+                    if (partEquals > 0) {
+                        names.add(part.substring(0, partEquals).toLowerCase(Locale.ROOT));
+                    }
+                }
+                String decoded = decodeQueryPart(text);
+                if (decoded.equals(text)) {
+                    break;
+                }
+                if (decodings == MAX_NESTED_DECODINGS) {
+                    return null;
+                }
+                text = decoded;
+            }
+        }
+        return names;
+    }
+
+    /**
      * @return whether {@code rawQuery} has an {@code X-Amz-*} parameter, whatever its case, with a
      *         value the caller did not send in {@code incomingQuery}
      */
@@ -828,9 +899,14 @@ public final class ForwardResponseHeaders {
         return pairs;
     }
 
+    /**
+     * Decodes the percent-escapes of {@code raw}, keeping {@code +} as a literal plus sign: the
+     * engine encodes a query as RFC 3986 does, a space as {@code %20}
+     * ({@code Resolver.appendQueryParameter}), so {@code a+b} and {@code a%20b} differ.
+     */
     private static String decodeQueryPart(String raw) {
         try {
-            return URLDecoder.decode(raw, StandardCharsets.UTF_8);
+            return URLDecoder.decode(raw.replace("+", "%2B"), StandardCharsets.UTF_8);
         } catch (IllegalArgumentException e) {
             return raw;
         }
