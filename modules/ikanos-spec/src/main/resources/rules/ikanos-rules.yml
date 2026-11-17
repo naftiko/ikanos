@@ -626,15 +626,26 @@ rules:
       in the editor.
     severity: error
     recommended: true
+    # Every procedure is targeted and the condition is in the schema: `procedures` is a
+    # map, and Polychro applies a JSONPath filter (`[?(...)]`) to array elements only.
     given:
-      - "$.consumes[?(@.type == 'sql')].procedures[?(@.readOnly != false)].statement"
-      - "$.capability.consumes[?(@.type == 'sql')].procedures[?(@.readOnly != false)].statement"
+      - "$.consumes[?(@.type == 'sql')].procedures.*"
+      - "$.capability.consumes[?(@.type == 'sql')].procedures.*"
     then:
-      function: pattern
+      function: schema
       functionOptions:
-        # No /.../i literal: Polychro compiles the pattern as written, so letters
-        # match in either case through character classes
-        match: "^(\\s|\\(|--[^\\n]*\\n|#[^\\n]*\\n|/\\*[\\s\\S]*?\\*/)*([Ss][Ee][Ll][Ee][Cc][Tt]|[Ww][Ii][Tt][Hh]|[Vv][Aa][Ll][Uu][Ee][Ss])\\b"
+        schema:
+          if:
+            required: ["statement"]
+            not:
+              required: ["readOnly"]
+              properties:
+                readOnly: { const: false }
+          then:
+            properties:
+              statement:
+                # No /.../i literal: letters match in either case through character classes
+                pattern: "^(\\s|\\(|--[^\\n]*\\n|#[^\\n]*\\n|/\\*[\\s\\S]*?\\*/)*([Ss][Ee][Ll][Ee][Cc][Tt]|[Ww][Ii][Tt][Hh]|[Vv][Aa][Ll][Uu][Ee][Ss])\\b"
 
   ikanos-sql-write-statement:
     message: "A SQL write `statement` must be INSERT, UPDATE, DELETE or MERGE (or a WITH that runs one)."
@@ -645,15 +656,24 @@ rules:
       through `storedProcedure`, not a CALL statement.
     severity: error
     recommended: true
+    # Every procedure is targeted and the condition is in the schema: `procedures` is a
+    # map, and Polychro applies a JSONPath filter (`[?(...)]`) to array elements only.
     given:
-      - "$.consumes[?(@.type == 'sql')].procedures[?(@.readOnly == false)].statement"
-      - "$.capability.consumes[?(@.type == 'sql')].procedures[?(@.readOnly == false)].statement"
+      - "$.consumes[?(@.type == 'sql')].procedures.*"
+      - "$.capability.consumes[?(@.type == 'sql')].procedures.*"
     then:
-      function: pattern
+      function: schema
       functionOptions:
-        # No /.../i literal: Polychro compiles the pattern as written, so letters
-        # match in either case through character classes
-        match: "^(\\s|--[^\\n]*\\n|#[^\\n]*\\n|/\\*[\\s\\S]*?\\*/)*([Ii][Nn][Ss][Ee][Rr][Tt]|[Uu][Pp][Dd][Aa][Tt][Ee]|[Dd][Ee][Ll][Ee][Tt][Ee]|[Mm][Ee][Rr][Gg][Ee]|[Ww][Ii][Tt][Hh])\\b"
+        schema:
+          if:
+            required: ["statement", "readOnly"]
+            properties:
+              readOnly: { const: false }
+          then:
+            properties:
+              statement:
+                # No /.../i literal: letters match in either case through character classes
+                pattern: "^(\\s|--[^\\n]*\\n|#[^\\n]*\\n|/\\*[\\s\\S]*?\\*/)*([Ii][Nn][Ss][Ee][Rr][Tt]|[Uu][Pp][Dd][Aa][Tt][Ee]|[Dd][Ee][Ll][Ee][Tt][Ee]|[Mm][Ee][Rr][Gg][Ee]|[Ww][Ii][Tt][Hh])\\b"
 
   ikanos-sql-write-exposure:
     message: "{{error}}"
