@@ -438,10 +438,16 @@ final class SqlStatement {
      * @return whether the keyword at {@code i} is a clause of another statement, not its own.
      *     {@code DO} ({@code ON CONFLICT DO UPDATE}) counts everywhere but on SQL Server, where it
      *     is no reserved word: {@code … WHERE id = do DELETE FROM t} compares a column named
-     *     {@code do}, then runs a second statement.
+     *     {@code do}, then runs a second statement. The two words must follow each other with
+     *     only spaces between: in {@code NEXT VALUE FOR [seq]) DELETE FROM t}, a quoted
+     *     identifier and a parenthesis separate them, and the {@code DELETE} is a statement.
      */
     boolean isClause(int i) {
-        String previous = i > 0 ? keywords.get(i - 1) : "";
+        if (i == 0 || !sql.substring(offsets.get(i - 1), offsets.get(i)).strip()
+                .equalsIgnoreCase(keywords.get(i - 1))) {
+            return false;
+        }
+        String previous = keywords.get(i - 1);
         return "THEN".equals(previous) || "FOR".equals(previous) || "KEY".equals(previous)
                 || ("DO".equals(previous) && dialect != Dialect.SQLSERVER);
     }

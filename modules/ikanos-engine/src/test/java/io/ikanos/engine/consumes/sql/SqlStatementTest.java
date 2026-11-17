@@ -258,6 +258,14 @@ class SqlStatementTest {
     }
 
     @Test
+    void writeOperationShouldRefuseADeleteAfterAQuotedIdentifierThatFollowsFor() {
+        // NEXT VALUE FOR [seq]: FOR is not directly before DELETE, which starts a second statement
+        assertThrows(IllegalArgumentException.class, () -> SqlStatement.parse(
+                "INSERT INTO audit (seqno) VALUES (NEXT VALUE FOR [seq]) DELETE FROM orders",
+                SqlStatement.Dialect.SQLSERVER).writeOperation());
+    }
+
+    @Test
     void writeOperationShouldAcceptAnUpsertWhoseUpdateIsAClause() {
         assertEquals("INSERT", SqlStatement.parse(
                 "insert into t (id, n) values ({{id}}, 1) on duplicate key update n = n + 1")
