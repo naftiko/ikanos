@@ -82,6 +82,17 @@ capability:
           flag:
             type: string
             value: "{{filter.flag}}"
+      list-ships:
+        description: List ships, one page at a time.
+        inputParameters:
+          limit:
+            type: integer
+            default: 10
+            description: Number of ships per page
+        outputParameters:
+          page-size:
+            type: string
+            value: "{{page-size}}"
   exposes:
   - type: rest
     address: localhost
@@ -136,3 +147,12 @@ capability:
                 in: header
                 type: string
                 description: IMO number of the ship
+      # An inherited input's default applies before the operation's with mappings read it
+      paged:
+        path: /paged
+        operations:
+          list:
+            method: GET
+            ref: fleet.list-ships
+            with:
+              page-size: "{{limit}}"

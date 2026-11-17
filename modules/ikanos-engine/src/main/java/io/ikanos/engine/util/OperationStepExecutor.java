@@ -184,6 +184,9 @@ public class OperationStepExecutor {
                     params.put(spec.getName(), v);
                 }
             }
+            // Their defaults apply now, as for an MCP tool's arguments, so that the operation's
+            // with mappings read them too
+            params = InputDefaults.apply(inheritedInputs, params);
         }
 
         return params;
