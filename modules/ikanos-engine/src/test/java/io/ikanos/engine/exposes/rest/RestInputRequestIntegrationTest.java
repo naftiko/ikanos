@@ -72,6 +72,8 @@ public class RestInputRequestIntegrationTest {
 
     private final ObjectMapper json = IkanosMappers.json();
     private final AtomicInteger bookings = new AtomicInteger();
+    private final java.util.List<String> callers =
+            java.util.Collections.synchronizedList(new java.util.ArrayList<>());
 
     @TempDir
     Path directory;
@@ -97,6 +99,14 @@ public class RestInputRequestIntegrationTest {
                         response.setStatus(Status.SUCCESS_OK);
                         response.setEntity("{\"slotId\":\"slot-" + n + "\"}",
                                 MediaType.APPLICATION_JSON);
+                    }
+                });
+                router.attach("/departures", new Restlet() {
+                    @Override
+                    public void handle(Request request, Response response) {
+                        callers.add(request.getHeaders().getFirstValue("X-Caller", true));
+                        response.setStatus(Status.SUCCESS_OK);
+                        response.setEntity("{}", MediaType.APPLICATION_JSON);
                     }
                 });
                 return router;
@@ -127,6 +137,15 @@ public class RestInputRequestIntegrationTest {
                         operations:
                           book-slot:
                             method: POST
+                      departures:
+                        path: /departures
+                        operations:
+                          log-departure:
+                            method: POST
+                            inputParameters:
+                              X-Caller:
+                                in: header
+                                value: "{{auth.claims.sub}}"
                   aggregates:
                   - namespace: departure
                     flows:
@@ -159,6 +178,25 @@ public class RestInputRequestIntegrationTest {
                               confirmed:
                                 type: boolean
                                 description: Whether the slot is kept
+                        mappings:
+                        - target: confirmed
+                          value: $.confirm.confirmed
+                        outputParameters:
+                          confirmed:
+                            type: boolean
+                      confirm-then-log:
+                        description: Ask to confirm a departure, then log it for the caller.
+                        steps:
+                          confirm:
+                            type: elicit
+                            message: Confirm the departure?
+                            fields:
+                              confirmed:
+                                type: boolean
+                                description: Whether the departure is confirmed
+                          log:
+                            type: call
+                            call: port.log-departure
                         mappings:
                         - target: confirmed
                           value: $.confirm.confirmed
@@ -552,6 +590,34 @@ public class RestInputRequestIntegrationTest {
             Response done = sendAs(adapter, Method.POST, location, ANSWER, "alice", "token-2");
             assertEquals(Status.SUCCESS_OK, done.getStatus(),
                     "The same subject, its token refreshed: " + control);
+        }
+    }
+
+    private static final String LOGGED = """
+                  logged:
+                    path: /logged
+                    operations:
+                      logged:
+                        method: POST
+                        ref: departure.confirm-then-log
+            """;
+
+    @Test
+    void anAnswerShouldReadTheCallerClaimsOfTheRequestThatAnswered() throws Exception {
+        // #998 after #958: the answer replays the operation from saved parameters, which must not
+        // carry the caller root as a plain map; it is rebuilt from the answer's validated token
+        for (String control : new String[] {NONE, MEMORY}) {
+            callers.clear();
+            RestServerAdapter adapter = rest(loadYaml(capability(control, LOGGED)));
+            Response asked = sendAs(adapter, Method.POST, "/logged", null, "alice", "token-1");
+            assertEquals(Status.SUCCESS_ACCEPTED, asked.getStatus(), control);
+
+            Response done = sendAs(adapter, Method.POST, asked.getLocationRef().getPath(),
+                    answer(asked, "accept"), "alice", "token-2");
+
+            assertEquals(Status.SUCCESS_OK, done.getStatus(),
+                    control + ": " + done.getEntity().getText());
+            assertEquals(java.util.List.of("alice"), callers, control);
         }
     }
 

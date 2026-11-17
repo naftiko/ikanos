@@ -14,12 +14,16 @@
 package io.ikanos.engine.exposes.mcp;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.net.ServerSocket;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.AfterEach;
@@ -38,6 +42,9 @@ import org.restlet.routing.Router;
 
 import io.ikanos.Capability;
 import io.ikanos.durable.ExecutionId;
+import com.nimbusds.jwt.JWTClaimsSet;
+import io.ikanos.engine.exposes.CallerClaims;
+import io.ikanos.engine.exposes.OAuth2AuthenticationRestlet;
 import io.ikanos.engine.exposes.ServerAdapter;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.IkanosMappers;
@@ -102,6 +109,10 @@ public class McpTaskInputIntegrationTest {
     }
 
     private Capability load() throws Exception {
+        return new Capability(yamlMapper.readValue(yaml(), IkanosSpec.class));
+    }
+
+    private String yaml() {
         String path = directory.resolve("durable").toString().replace('\\', '/');
         String yaml = """
                 ikanos: "%s"
@@ -166,7 +177,7 @@ public class McpTaskInputIntegrationTest {
                       store:
                         path: "%s"
                 """.formatted(VersionHelper.getSchemaVersion(), port, path);
-        return new Capability(yamlMapper.readValue(yaml, IkanosSpec.class));
+        return yaml;
     }
 
     private static McpServerAdapter mcp(Capability capability) {
@@ -252,6 +263,49 @@ public class McpTaskInputIntegrationTest {
         } finally {
             capability.getDurability().close();
         }
+    }
+
+    @Test
+    void anAnsweredTaskShouldReadTheCallerClaimsOfTheRequestThatAnswered() throws Exception {
+        // #998 after #958: tasks/update runs the tool again on another thread, so it must carry
+        // the claims of the answering request over, as tools/call does for the first round
+        String plain = yaml();
+        String yaml = plain.replace("        ref: departure.clear-for-departure\n",
+                "        with:\n"
+                        + "          voyageId: \"{{auth.claims.sub}}\"\n"
+                        + "        ref: departure.clear-for-departure\n");
+        assertNotEquals(plain, yaml);
+        Capability capability = new Capability(yamlMapper.readValue(yaml, IkanosSpec.class));
+        Request request = new Request(org.restlet.data.Method.POST, "http://localhost/mcp");
+        request.getAttributes().put(OAuth2AuthenticationRestlet.VALIDATED_CLAIMS_ATTRIBUTE,
+                new JWTClaimsSet.Builder().subject("captain-nemo").build());
+        Map<String, Object> caller = CallerClaims.of(request);
+        try {
+            McpServerAdapter adapter = mcp(capability);
+            String taskId = asCaller(caller, () -> create(adapter));
+            JsonNode waiting = awaitSettled(adapter, taskId);
+            assertEquals("input_required", waiting.path("status").asString(), waiting.toString());
+
+            asCaller(caller, () -> update(adapter, taskId, KEY, ACCEPT));
+
+            JsonNode done = awaitSettled(adapter, taskId);
+            assertEquals("completed", done.path("status").asString(), done.toString());
+            assertFalse(done.path("result").path("isError").asBoolean(false), done.toString());
+            assertTrue(done.path("result").toString().contains("\"confirmed\":true"),
+                    done.toString());
+        } finally {
+            capability.getDurability().close();
+        }
+    }
+
+    private static <T> T asCaller(Map<String, Object> caller, Callable<T> work) {
+        return CallerClaims.runAs(caller, () -> {
+            try {
+                return work.call();
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        });
     }
 
     @Test

@@ -41,6 +41,7 @@ import java.util.function.BiFunction;
 import java.util.logging.Level;
 import java.time.Clock;
 import io.ikanos.engine.execution.Durability;
+import io.ikanos.engine.exposes.CallerClaims;
 import io.ikanos.engine.exposes.mcp.handler.ToolsCallHandler;
 import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.engine.consumes.sql.SqlWriteExposure;
@@ -289,9 +290,13 @@ public class McpServerAdapter extends ServerAdapter {
             @SuppressWarnings("unchecked")
             Map<String, Object> callArguments = arguments == null || !arguments.isObject()
                     ? new HashMap<>() : JSON.convertValue(arguments, Map.class);
-            // The caller's claims are not recorded with the task, so a template that reads
-            // {{auth.claims...}} fails as a missing claim rather than run without them (#998)
-            return () -> ToolsCallHandler.callTool(this, toolName, callArguments);
+            // The caller's claims are not recorded with the task (#998). A tasks/update answer
+            // runs it with the claims of the request that answered, validated by the transport;
+            // a task resumed at startup has none, so a template that reads {{auth.claims...}}
+            // fails as a missing claim rather than run without them.
+            Map<String, Object> caller = CallerClaims.current();
+            return () -> CallerClaims.runAs(caller,
+                    () -> ToolsCallHandler.callTool(this, toolName, callArguments));
         };
     }
 
