@@ -207,6 +207,20 @@ class McpToolInputSchemaTest {
     }
 
     @Test
+    void forParametersShouldEmitExamplesBesideADefault() throws Exception {
+        JsonNode limit = schemaOf("""
+                - name: limit
+                  type: integer
+                  description: "Page size."
+                  default: 20
+                  examples: [50]
+                """).path("properties").path("limit");
+
+        assertEquals(JSON.readTree("20"), limit.path("default"));
+        assertEquals("[50]", JSON.writeValueAsString(limit.path("examples")));
+    }
+
+    @Test
     void forParametersShouldEmitExamplesOnNestedProperties() throws Exception {
         JsonNode schema = schemaOf("""
                 - name: labels
