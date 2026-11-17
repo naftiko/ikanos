@@ -14,21 +14,20 @@ info:
   display: "Customer 360 — SQL client example"
   description: "Join ERP customer rows with CRM ownership and re-expose the result."
 
-binds:
-  - namespace: "erp-db"
-    description: "ERP database connection."
-    location: "file:///./shared/secrets.yaml"
-    keys:
-      JDBC_URL: "erp-jdbc-url"
-      DB_USER: "erp-db-user"
-      DB_PASSWORD: "erp-db-password"
-  - namespace: "secrets"
-    description: "CRM credential."
-    location: "file:///./shared/secrets.yaml"
-    keys:
-      CRM_TOKEN: "crm-bearer-token"
-
 capability:
+  binds:
+    - namespace: "erp-db"
+      description: "ERP database connection."
+      location: "file:///./shared/secrets.yaml"
+      keys:
+        JDBC_URL: "erp-jdbc-url"
+        DB_USER: "erp-db-user"
+        DB_PASSWORD: "erp-db-password"
+    - namespace: "secrets"
+      description: "CRM credential."
+      location: "file:///./shared/secrets.yaml"
+      keys:
+        CRM_TOKEN: "crm-bearer-token"
   consumes:
     - type: "sql"
       namespace: "erp"
