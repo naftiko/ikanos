@@ -516,8 +516,46 @@ public class ForwardResponseHeadersTest {
     @Test
     public void injectedQueryNamesShouldNameWhatTheEngineAddedToTheUpstreamQuery() {
         assertEquals(Set.of("api_key", "tenant"), ForwardResponseHeaders.injectedQueryNames(
-                "page=2&api%5Fkey=s3cret&tenant=t1", "page=1"),
+                "page=2&api%5Fkey=s3cret&tenant=t1", "page=2"),
                 "an apikey and an adapter input are added by the engine, page by the caller");
+    }
+
+    @Test
+    public void injectedQueryNamesShouldNameAParameterWhoseValueTheEngineReplacedOrAdded() {
+        assertEquals(Set.of("api_key"), ForwardResponseHeaders.injectedQueryNames(
+                "api_key=ignored&api_key=s3cret&page=1", "api_key=ignored&page=1"),
+                "a caller parameter of the same name must not unprotect the adapter's credential");
+        assertEquals(Set.of("api_key"), ForwardResponseHeaders.injectedQueryNames(
+                "api_key=s3cret", "api_key=ignored"));
+    }
+
+    @Test
+    public void injectedQueryNamesShouldNotNameAParameterTheCallerSentAsIs() {
+        assertTrue(ForwardResponseHeaders.injectedQueryNames("q=a+b&page=1", "page=1&q=a%20b")
+                .isEmpty());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"Location", "Content-Location"})
+    public void relayShouldDropALocationEchoingACredentialWhoseNameTheCallerAlsoSent(
+            String header) {
+        Response from = new Response(new Request(Method.POST,
+                BASE_URI + "/items?api_key=ignored&api_key=s3cret"));
+        from.getHeaders().add(header, BASE_URI + "/items/42?api_key=s3cret");
+        from.setEntity(new StringRepresentation("{}"));
+        Request request = incoming("http://localhost:8080/proxy/items?api_key=ignored", "items");
+        Response to = new Response(request);
+        to.setEntity(from.getEntity());
+
+        ForwardResponseHeaders.relay(from, to, List.of(), BASE_URI, true, new HashSet<>(),
+                new ForwardResponseHeaders.Exposure(null,
+                        ForwardResponseHeaders.injectedQueryNames(
+                                from.getRequest().getResourceRef().getQuery(),
+                                request.getResourceRef().getQuery()),
+                        false));
+
+        assertNull("Location".equals(header) ? to.getLocationRef()
+                : to.getEntity().getLocationRef(), header);
     }
 
     @Test

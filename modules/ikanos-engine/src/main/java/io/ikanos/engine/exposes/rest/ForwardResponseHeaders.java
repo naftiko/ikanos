@@ -23,6 +23,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.logging.Level;
 import org.restlet.Context;
@@ -746,24 +747,56 @@ public final class ForwardResponseHeaders {
             if (rawName.isEmpty()) {
                 continue;
             }
-            try {
-                names.add(URLDecoder.decode(rawName, StandardCharsets.UTF_8));
-            } catch (IllegalArgumentException e) {
-                names.add(rawName);
+            names.add(decodeQueryPart(rawName));
+        }
+        return names;
+    }
+
+    /**
+     * @return the names of the query parameters of {@code upstreamQuery} with a value the caller
+     *         did not send in {@code incomingQuery}: the engine added or replaced them, an
+     *         {@code apikey}, an adapter input or a binding, so they can carry a secret. Values
+     *         are compared, not only names, so that a caller parameter of the same name, such as
+     *         {@code ?api_key=ignored}, never unprotects the adapter's own value.
+     */
+    static Set<String> injectedQueryNames(String upstreamQuery, String incomingQuery) {
+        Set<Map.Entry<String, String>> sent = queryPairs(incomingQuery);
+        Set<String> names = new HashSet<>();
+        for (Map.Entry<String, String> pair : queryPairs(upstreamQuery)) {
+            if (!sent.contains(pair)) {
+                names.add(pair.getKey());
             }
         }
         return names;
     }
 
     /**
-     * @return the names of the query parameters of {@code upstreamQuery} that the caller did not
-     *         send in {@code incomingQuery}: the engine added them, an {@code apikey}, an adapter
-     *         input or a binding, so they can carry a secret
+     * @return the name and value of each parameter of {@code rawQuery}, percent-decoded (a
+     *         malformed escape is kept as written), or an empty set when it is {@code null}
      */
-    static Set<String> injectedQueryNames(String upstreamQuery, String incomingQuery) {
-        Set<String> names = queryNames(upstreamQuery);
-        names.removeAll(queryNames(incomingQuery));
-        return names;
+    private static Set<Map.Entry<String, String>> queryPairs(String rawQuery) {
+        Set<Map.Entry<String, String>> pairs = new HashSet<>();
+        if (rawQuery == null) {
+            return pairs;
+        }
+        for (String pair : rawQuery.split("[&;]")) {
+            int equals = pair.indexOf('=');
+            String rawName = equals < 0 ? pair : pair.substring(0, equals);
+            if (rawName.isEmpty()) {
+                continue;
+            }
+            pairs.add(Map.entry(decodeQueryPart(rawName),
+                    equals < 0 ? "" : decodeQueryPart(pair.substring(equals + 1))));
+        }
+        return pairs;
+    }
+
+    private static String decodeQueryPart(String raw) {
+        try {
+            return URLDecoder.decode(raw, StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException e) {
+            return raw;
+        }
     }
 
     /**
