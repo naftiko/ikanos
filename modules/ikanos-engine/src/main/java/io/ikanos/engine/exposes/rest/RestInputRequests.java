@@ -37,6 +37,7 @@ import io.ikanos.engine.execution.Durability;
 import io.ikanos.engine.execution.Elicitation;
 import io.ikanos.engine.execution.ExecutionInputs;
 import io.ikanos.engine.execution.InputRequiredException;
+import io.ikanos.engine.exposes.AccessControl;
 import io.ikanos.engine.exposes.mcp.AgentIdentityResolver;
 import io.ikanos.engine.exposes.mcp.InlineRounds;
 import io.ikanos.engine.exposes.mcp.InputRequests;
@@ -172,6 +173,12 @@ public final class RestInputRequests {
                         .findFirst().orElse(null);
         if (operation == null) {
             gone(response);
+            return;
+        }
+        // Each round needs the operation's scopes or claims, as its first one did: a token of
+        // the same subject that lost them may not answer, replay or cancel it (#999)
+        if (!AccessControl.enforce(AccessControl.effective(restlet.getServerSpec(),
+                restlet.getResourceSpec(), operation), request, response)) {
             return;
         }
         Method method = request.getMethod();

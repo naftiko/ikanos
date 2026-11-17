@@ -129,6 +129,14 @@ public class RestAuthorizationIntegrationTest {
                               realm_access.groups: ["staff"]
                           forward:
                             targetNamespace: "up"
+                        approvals:
+                          path: "/approvals"
+                          authorization:
+                            scopes: ["records.write"]
+                          operations:
+                            approve:
+                              method: "POST"
+                              ref: "review.approve"
                         health:
                           path: "/health"
                           operations:
@@ -137,6 +145,25 @@ public class RestAuthorizationIntegrationTest {
                               outputParameters:
                                 - type: "string"
                                   value: "ok"
+                  aggregates:
+                    - namespace: "review"
+                      flows:
+                        approve:
+                          description: "Ask the caller to confirm an approval."
+                          steps:
+                            confirm:
+                              type: "elicit"
+                              message: "Approve the record?"
+                              fields:
+                                confirmed:
+                                  type: "boolean"
+                                  description: "Whether the record is approved"
+                          mappings:
+                            - target: "confirmed"
+                              value: "$.confirm.confirmed"
+                          outputParameters:
+                            confirmed:
+                              type: "boolean"
                   consumes:
                     - type: "http"
                       namespace: "up"
@@ -229,6 +256,50 @@ public class RestAuthorizationIntegrationTest {
     }
 
     @Test
+    public void answerToAnInputRequestShouldBeRefusedWhenTokenLacksTheOperationScope()
+            throws Exception {
+        HttpResponse<String> asked = send("POST", "/approvals", token(new JWTClaimsSet.Builder()
+                .subject("alice").claim("scope", "records.write")));
+        assertEquals(202, asked.statusCode(), asked.body());
+        String location = asked.headers().firstValue("Location").orElseThrow();
+
+        // The same subject, now with a token that lost the operation's scope
+        HttpResponse<String> answered = answer(location, token(new JWTClaimsSet.Builder()
+                .subject("alice").claim("scope", "records.read")));
+
+        assertEquals(403, answered.statusCode(), answered.body());
+        String challenge = answered.headers().firstValue("WWW-Authenticate").orElse("");
+        assertTrue(challenge.contains("error=\"insufficient_scope\""), challenge);
+        assertTrue(challenge.contains("scope=\"records.write\""), challenge);
+    }
+
+    @Test
+    public void answerToAnInputRequestShouldRunWhenTokenCarriesTheOperationScope()
+            throws Exception {
+        HttpResponse<String> asked = send("POST", "/approvals", token(new JWTClaimsSet.Builder()
+                .subject("alice").claim("scope", "records.write")));
+        assertEquals(202, asked.statusCode(), asked.body());
+        String location = asked.headers().firstValue("Location").orElseThrow();
+
+        HttpResponse<String> answered = answer(location, token(new JWTClaimsSet.Builder()
+                .subject("alice").claim("scope", "records.write")));
+
+        assertEquals(200, answered.statusCode(), answered.body());
+        assertTrue(answered.body().contains("true"), answered.body());
+    }
+
+    @Test
+    public void operationThatMayAskShouldBeRefusedBeforeItAsksWhenTokenLacksItsScope()
+            throws Exception {
+        HttpResponse<String> response = send("POST", "/approvals", token(
+                new JWTClaimsSet.Builder().subject("alice").claim("scope", "records.read")));
+
+        assertEquals(403, response.statusCode(), response.body());
+        assertFalse(response.headers().firstValue("Location").isPresent(),
+                "A refused call must not open an input request");
+    }
+
+    @Test
     public void resourceWithoutAuthorizationShouldAcceptAnyValidToken() throws Exception {
         HttpResponse<String> response = send("GET", "/health",
                 token(new JWTClaimsSet.Builder().subject("alice")));
@@ -260,10 +331,22 @@ public class RestAuthorizationIntegrationTest {
         HttpRequest request = HttpRequest
                 .newBuilder(URI.create("http://127.0.0.1:" + port + path))
                 .header("Authorization", "Bearer " + token)
-                .method(method, "PUT".equals(method)
+                .method(method, "PUT".equals(method) || "POST".equals(method)
                         ? HttpRequest.BodyPublishers.ofString("{}")
                         : HttpRequest.BodyPublishers.noBody())
                 .header("Content-Type", "application/json")
+                .build();
+        return client.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> answer(String location, String token) throws Exception {
+        HttpRequest request = HttpRequest
+                .newBuilder(URI.create("http://127.0.0.1:" + port).resolve(location))
+                .header("Authorization", "Bearer " + token)
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString("{\"inputResponses\":{"
+                        + "\"steps/confirm\":{\"action\":\"accept\","
+                        + "\"content\":{\"confirmed\":true}}}}"))
                 .build();
         return client.send(request, HttpResponse.BodyHandlers.ofString());
     }
