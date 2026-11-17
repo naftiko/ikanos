@@ -36,10 +36,14 @@ public class InputParameterSpec extends StructureSpec<InputParameterSpec> {
     private volatile String template;
 
     /**
-     * Whether this parameter is required, or {@code null} when the parameter does not say. Only
+     * Whether this parameter is required, or {@code null} when the parameter does not say.
      * {@code McpToolInputParameter} (MCP tool inputs, consumed MCP tool arguments and aggregate
-     * flow inputs) can declare it, and there it defaults to {@code false} (#977). Readers of other
-     * parameter kinds pick their own default with {@link #isRequiredOrDefault(boolean)}.
+     * flow inputs) declares it, and there it defaults to {@code false} (#977).
+     * {@code ConsumedInputParameter} (consumed HTTP inputs) declares it too, but only a
+     * precondition header input ({@code If-Match}, {@code If-None-Match},
+     * {@code If-Unmodified-Since}, {@code If-Range}) of a request that is not safe reads it, and
+     * there it defaults to {@code true} (#1001). Readers pick their own default with
+     * {@link #isRequiredOrDefault(boolean)}.
      */
     private volatile Boolean required;
 
