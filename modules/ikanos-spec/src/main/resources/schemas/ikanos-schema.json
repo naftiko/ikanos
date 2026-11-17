@@ -3485,7 +3485,7 @@
     },
     "SqlConnection": {
       "type": "object",
-      "description": "JDBC connection of a `ConsumesSql` entry. Placeholders (`{{JDBC_URL}}`, `jdbc:postgresql://{{DB_HOST}}/erp`) are resolved once at load time from `binds`, never from call parameters; an unbound placeholder fails the capability at startup. Driver properties that load classes, read local files or run scripts (`allowLoadLocalInfile`, `allowUrlInLocalInfile`, `autoDeserialize`, `socketFactory`, `sslfactory`, `sslhostnameverifier`, `loggerFile`, `INIT`) are refused in `url` and `properties`.",
+      "description": "JDBC connection of a `ConsumesSql` entry. Placeholders (`{{JDBC_URL}}`, `jdbc:postgresql://{{DB_HOST}}/erp`) are resolved once at load time from `binds`, never from call parameters; an unbound placeholder fails the capability at startup. Driver properties that load classes, read local files or run scripts (`allowLoadLocalInfile`, `allowUrlInLocalInfile`, `autoDeserialize`, `socketFactory`, `sslfactory`, `sslhostnameverifier`, `loggerFile`, `INIT`, SQLite's `enable_load_extension`) are refused in `url` and `properties`.",
       "properties": {
         "url": {
           "type": "string",
