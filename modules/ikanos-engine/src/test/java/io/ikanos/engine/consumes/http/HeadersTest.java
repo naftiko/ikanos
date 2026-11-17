@@ -277,6 +277,88 @@ public class HeadersTest {
     }
 
     @Test
+    public void resolveInputParametersShouldRefuseAPutWhoseIfMatchCannotBeRendered() {
+        Request request = new Request(Method.PUT, "https://api.example.com/v1/items/1");
+
+        // An unclosed section: the template cannot be rendered
+        assertThrows(StandardRequestHeaders.InvalidPreconditionException.class,
+                () -> Resolver.resolveInputParametersToRequest(request,
+                        List.of(ifMatch("{{#etag}}")), new HashMap<>(Map.of("etag", "v1"))),
+                "#1001: skipping the If-Match would make the write unconditional");
+    }
+
+    @Test
+    public void resolveInputParametersShouldLeaveOutAnOptionalIfMatchThatCannotBeRendered() {
+        Request request = new Request(Method.PUT, "https://api.example.com/v1/items/1");
+        InputParameterSpec optional = ifMatch("{{#etag}}");
+        optional.setRequired(false);
+
+        Resolver.resolveInputParametersToRequest(request, List.of(optional),
+                new HashMap<>(Map.of("etag", "v1")));
+
+        assertEquals(0, request.getConditions().getMatch().size(), "required: false");
+    }
+
+    @Test
+    public void resolveInputParametersShouldNotSendTheRangeOfAGetWhoseIfRangeCannotBeRendered() {
+        Request request = new Request(Method.GET, "https://api.example.com/v1/items/1");
+        InputParameterSpec ifRange = header("version", "{{#etag}}");
+        ifRange.setWireName("If-Range");
+
+        Resolver.resolveInputParametersToRequest(request,
+                List.of(header("Range", "bytes=0-9"), ifRange),
+                new HashMap<>(Map.of("etag", "v1")));
+
+        assertEquals(0, request.getRanges().size(),
+                "sent alone, the Range would no longer depend on the representation");
+    }
+
+    @Test
+    public void resolveInputParametersShouldKeepALaterIfMatchOfTheSameWireName() {
+        Request request = new Request(Method.PUT, "https://api.example.com/v1/items/1");
+        InputParameterSpec etag = header("etag-header", "{{etag}}");
+        etag.setWireName("If-Match");
+        InputParameterSpec revision = header("revision", "\"v1\"");
+        revision.setWireName("If-Match");
+
+        Resolver.resolveInputParametersToRequest(request, List.of(etag, revision),
+                new HashMap<>(Map.of("other", "x")));
+
+        assertEquals(1, request.getConditions().getMatch().size(),
+                "a later input sets If-Match: the write stays conditional");
+    }
+
+    @Test
+    public void resolveInputParametersShouldKeepTheRangeOfALaterIfRangeOfTheSameWireName() {
+        Request request = new Request(Method.GET, "https://api.example.com/v1/items/1");
+        InputParameterSpec etag = header("etag-header", "{{etag}}");
+        etag.setWireName("If-Range");
+        InputParameterSpec version = header("version", "\"v1\"");
+        version.setWireName("If-Range");
+
+        Resolver.resolveInputParametersToRequest(request,
+                List.of(header("Range", "bytes=0-9"), etag, version),
+                new HashMap<>(Map.of("other", "x")));
+
+        assertEquals(1, request.getRanges().size(),
+                "the If-Range of the later input still guards the Range");
+        assertNotNull(request.getConditions().getRangeTag());
+    }
+
+    @Test
+    public void resolveInputParametersShouldStillRefuseAPutWhenNoIfMatchOfTheWireNameResolves() {
+        Request request = new Request(Method.PUT, "https://api.example.com/v1/items/1");
+        InputParameterSpec etag = header("etag-header", "{{etag}}");
+        etag.setWireName("If-Match");
+        InputParameterSpec revision = header("revision", "{{revision}}");
+        revision.setWireName("If-Match");
+
+        assertThrows(StandardRequestHeaders.InvalidPreconditionException.class,
+                () -> Resolver.resolveInputParametersToRequest(request,
+                        List.of(etag, revision), new HashMap<>(Map.of("other", "x"))));
+    }
+
+    @Test
     public void setShouldKeepTheBoundaryOfAMultipartBodyWhenAContentTypeIsSet() {
         Request request = new Request(Method.POST, "https://api.example.com/v1/upload");
         org.restlet.data.MediaType upload =
