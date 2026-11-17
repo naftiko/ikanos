@@ -13,6 +13,7 @@
  */
 package io.ikanos.engine.execution;
 
+import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.ObjectMapper;
 import io.ikanos.durable.store.PayloadCodec;
 import io.ikanos.spec.util.IkanosMappers;
@@ -23,7 +24,10 @@ import io.ikanos.spec.util.IkanosMappers;
  */
 public final class JsonPayloadCodec implements PayloadCodec {
 
-    private final ObjectMapper mapper = IkanosMappers.json();
+    /** Reads decimals exactly, so a SQL NUMERIC restored from the journal is not rounded. */
+    private final ObjectMapper mapper = IkanosMappers.jsonBuilder()
+            .enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+            .build();
 
     @Override
     public byte[] encode(Object value) {
