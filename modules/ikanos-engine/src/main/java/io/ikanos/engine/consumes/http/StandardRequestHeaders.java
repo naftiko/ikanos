@@ -375,17 +375,24 @@ public final class StandardRequestHeaders {
     /**
      * Applies to the body of {@code request} the {@code Content-Type} a header input set before
      * the body existed. Without a body there is nothing to describe, so nothing is sent, and a
-     * body the engine encoded (see {@link #ENCODED_BODY}) keeps its own media type.
+     * body the engine encoded (see {@link #ENCODED_BODY}) keeps its own media type, and so does
+     * a multipart body, such as a caller's upload in forward mode: its media type carries the
+     * boundary its bytes were written with.
      */
     public static void applyContentType(Request request) {
         Object pending = request.getAttributes().get(PENDING_CONTENT_TYPE);
         if (pending instanceof ContentType contentType && request.getEntity() != null
-                && !Boolean.TRUE.equals(request.getAttributes().get(ENCODED_BODY))) {
+                && !Boolean.TRUE.equals(request.getAttributes().get(ENCODED_BODY))
+                && !isMultipart(request.getEntity().getMediaType())) {
             request.getEntity().setMediaType(contentType.getMediaType());
             if (contentType.getCharacterSet() != null) {
                 request.getEntity().setCharacterSet(contentType.getCharacterSet());
             }
         }
+    }
+
+    private static boolean isMultipart(org.restlet.data.MediaType mediaType) {
+        return mediaType != null && "multipart".equalsIgnoreCase(mediaType.getMainType());
     }
 
     /**
