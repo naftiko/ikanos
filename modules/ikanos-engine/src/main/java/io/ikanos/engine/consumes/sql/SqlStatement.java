@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * An authored SQL statement, parsed once when the adapter is built.
@@ -439,18 +440,31 @@ final class SqlStatement {
      *     {@code DO} ({@code ON CONFLICT DO UPDATE}) counts everywhere but on SQL Server, where it
      *     is no reserved word: {@code … WHERE id = do DELETE FROM t} compares a column named
      *     {@code do}, then runs a second statement. The two words must follow each other with
-     *     only spaces between: in {@code NEXT VALUE FOR [seq]) DELETE FROM t}, a quoted
-     *     identifier and a parenthesis separate them, and the {@code DELETE} is a statement.
+     *     only spaces and comments between: in {@code NEXT VALUE FOR [seq]) DELETE FROM t}, a
+     *     quoted identifier and a parenthesis separate them, and the {@code DELETE} is a
+     *     statement.
      */
     boolean isClause(int i) {
-        if (i == 0 || !sql.substring(offsets.get(i - 1), offsets.get(i)).strip()
-                .equalsIgnoreCase(keywords.get(i - 1))) {
+        if (i == 0) {
+            return false;
+        }
+        String between = sql.substring(offsets.get(i - 1), offsets.get(i));
+        between = (dialect == Dialect.MYSQL ? MYSQL_COMMENT : COMMENT).matcher(between)
+                .replaceAll(" ");
+        if (!between.strip().equalsIgnoreCase(keywords.get(i - 1))) {
             return false;
         }
         String previous = keywords.get(i - 1);
         return "THEN".equals(previous) || "FOR".equals(previous) || "KEY".equals(previous)
                 || ("DO".equals(previous) && dialect != Dialect.SQLSERVER);
     }
+
+    /** A block or line comment; a nested block comment is left partly in place, and refused. */
+    private static final Pattern COMMENT = Pattern.compile("/\\*[\\s\\S]*?\\*/|--[^\\r\\n]*");
+
+    /** A comment on MySQL and MariaDB, where {@code #} also starts a line comment. */
+    private static final Pattern MYSQL_COMMENT =
+            Pattern.compile("/\\*[\\s\\S]*?\\*/|--[^\\r\\n]*|#[^\\r\\n]*");
 
     /**
      * Refuse a {@code MERGE} branch {@code WHEN NOT MATCHED BY SOURCE} with no {@code AND}

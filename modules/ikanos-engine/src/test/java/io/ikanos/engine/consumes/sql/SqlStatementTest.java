@@ -266,6 +266,19 @@ class SqlStatementTest {
     }
 
     @Test
+    void writeOperationShouldReadAClauseAcrossAComment() {
+        assertEquals("INSERT", SqlStatement.parse("insert into t (id, n) values ({{id}}, 1)"
+                + " on conflict (id) do /* update existing */ update set n = t.n + 1",
+                SqlStatement.Dialect.POSTGRESQL).writeOperation());
+        assertEquals("MERGE", SqlStatement.parse("merge into t using s on t.id = s.id"
+                + " when matched then -- refresh\n update set t.n = s.n",
+                SqlStatement.Dialect.SQLSERVER).writeOperation());
+        assertEquals("INSERT", SqlStatement.parse("insert into t (id, n) values ({{id}}, 1)"
+                + " on duplicate key # bump\n update n = n + 1",
+                SqlStatement.Dialect.MYSQL).writeOperation());
+    }
+
+    @Test
     void writeOperationShouldAcceptAnUpsertWhoseUpdateIsAClause() {
         assertEquals("INSERT", SqlStatement.parse(
                 "insert into t (id, n) values ({{id}}, 1) on duplicate key update n = n + 1")
