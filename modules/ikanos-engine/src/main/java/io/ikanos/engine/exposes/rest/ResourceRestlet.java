@@ -42,6 +42,7 @@ import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.OutputParameterSpec;
 import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
 import io.ikanos.spec.consumes.http.AuthenticationSpec;
+import io.ikanos.spec.consumes.http.AwsSigV4AuthenticationSpec;
 import io.ikanos.spec.exposes.rest.RestServerForwardSpec;
 import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
 import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
@@ -723,6 +724,10 @@ public class ResourceRestlet extends Restlet {
                         String query = filterForwardedQuery(request.getResourceRef().getQuery(),
                                 forwardExcludedQueryNames(httpAdapter, parameters,
                                         appendedQuery(baseRef, resolvedRef)));
+                        if (query != null && !query.isEmpty() && signsWithAwsSigV4(
+                                httpAdapter.getHttpClientSpec().getAuthentication())) {
+                            return refuseCallerQuery(response, forwardSpec.getTargetNamespace());
+                        }
                         clientRequest.setResourceRef(withCallerQuery(httpAdapter.getBaseUri(),
                                 normalizedPath, baseRef, resolvedRef, query));
 
@@ -760,6 +765,31 @@ public class ResourceRestlet extends Restlet {
         }
 
         return false;
+    }
+
+    /**
+     * @return {@code true} when a consumed adapter with this authentication signs its calls with
+     *         {@code awsSigV4}
+     */
+    static boolean signsWithAwsSigV4(AuthenticationSpec authentication) {
+        return authentication instanceof AwsSigV4AuthenticationSpec;
+    }
+
+    /**
+     * Answers {@code 400} to a forwarded request that carries a query parameter for a target that
+     * signs with {@code awsSigV4}. The signature would cover the caller's query with the
+     * operator's credentials, and S3 reads a query name such as {@code acl}, {@code tagging} or
+     * {@code versionId} as part of the operation, so a caller could turn a forwarded read or
+     * write into another one. The adapter's own query input parameters and the query of its
+     * {@code baseUri} are not the caller's, and still go out; the parameters the forward drops
+     * anyway, such as the exposed API key, don't count.
+     */
+    private boolean refuseCallerQuery(Response response, String targetNamespace) {
+        response.setStatus(Status.CLIENT_ERROR_BAD_REQUEST);
+        response.setEntity("A forward to '" + targetNamespace + "' takes no query parameter: the"
+                + " target signs with awsSigV4, so the query would be signed with the operator's"
+                + " credentials.", MediaType.TEXT_PLAIN);
+        return true;
     }
 
     /**
