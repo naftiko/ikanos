@@ -146,6 +146,21 @@ public class HeadersTest {
     }
 
     @ParameterizedTest
+    @ValueSource(strings = {"\"{{etag}}\"", "W/\"{{etag}}\"", "{{#etag}}{{etag}}{{/etag}}",
+            "{{order.etag}}"})
+    public void resolveInputParametersShouldLeaveOutAnUnresolvedIfMatchOfAGet(String template) {
+        Request request = new Request(Method.GET, "https://api.example.com/v1/items/1");
+
+        // Other parameters are present, so the template is rendered rather than skipped whole
+        Resolver.resolveInputParametersToRequest(request, List.of(ifMatch(template)),
+                new ConcurrentHashMap<>(Map.of("other", "x", "order", Map.of())));
+
+        assertTrue(request.getConditions().getMatch().isEmpty(),
+                "#1001: an unresolved precondition of a safe request is left out, never sent "
+                        + "as an empty entity tag the upstream could answer with 412");
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {"{{etag}}", "required"})
     public void resolveInputParametersShouldKeepAnIfMatchTheRequestAlreadyCarries(
             String template) {

@@ -1158,7 +1158,8 @@ public class Resolver {
      * {@code If-Unmodified-Since}, {@code If-Range}) of a request whose method is not safe must
      * resolve too: omitting it would make the write unconditional, so the call fails (#1001). A
      * template that cannot be rendered counts as unresolved. The call fails only once every input
-     * is resolved, and only when no input with the same wire name, earlier or later, sets it.</p>
+     * is resolved, and only when no input with the same wire name, earlier or later, sets it. On a
+     * safe request, such a precondition is left out rather than sent with an empty value.</p>
      *
      * @param clientRequest the request the values are for, whose method tells whether a
      *        precondition guards a write; {@code null} when there is none
@@ -1234,8 +1235,9 @@ public class Resolver {
                 ifRangeRefused = true;
                 continue;
             }
-            if (unresolved && conditionalWrite) {
-                // required: false: left out, as the input declares
+            if (unresolved) {
+                // A safe request, or required: false: left out. Rendered, it could send an empty
+                // entity tag such as "" that the upstream would answer with 412
                 continue;
             }
             Object val;

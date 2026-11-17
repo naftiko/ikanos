@@ -399,6 +399,64 @@ public class OasImportWriterTest {
         }
     }
 
+    /**
+     * #1001: a precondition header input is required unless it says {@code required: false}, so
+     * an optional {@code If-Match} of the OpenAPI document must stay optional once the imported
+     * capability is written and loaded again, while a required one keeps the default.
+     */
+    @Test
+    void toDocumentShouldKeepAnOptionalPreconditionHeaderOptionalWhenReadBack() throws Exception {
+        String oas = """
+                openapi: 3.0.3
+                info:
+                  title: Items
+                  version: "1"
+                servers:
+                  - url: https://api.demo.io
+                paths:
+                  /items:
+                    put:
+                      operationId: update-items
+                      parameters:
+                        - name: If-Match
+                          in: header
+                          required: false
+                          schema:
+                            type: string
+                        - name: If-Unmodified-Since
+                          in: header
+                          required: true
+                          schema:
+                            type: string
+                        - name: X-Request-Id
+                          in: header
+                          required: false
+                          schema:
+                            type: string
+                      responses:
+                        "204":
+                          description: Updated
+                """;
+        OpenAPI openApi = new OpenAPIParser().readContents(oas, null, null).getOpenAPI();
+        HttpClientSpec imported = new OasImportConverter().convert(openApi).getHttpClient();
+
+        JsonNode document = writer.toDocument(imported);
+        assertTrue(schemaErrors(document).isEmpty(), "got: " + schemaErrors(document));
+        String yaml = IkanosMappers.yaml().writeValueAsString(document);
+        HttpClientSpec reread = (HttpClientSpec) IkanosMappers.lenientYaml()
+                .readValue(yaml, io.ikanos.spec.IkanosSpec.class).getConsumes().get(0);
+
+        Map<String, InputParameterSpec> inputs = new java.util.HashMap<>();
+        reread.getResources().values().forEach(resource -> resource.getOperations().values()
+                .forEach(operation -> operation.getInputParameters()
+                        .forEach(input -> inputs.put(input.getName(), input))));
+        assertFalse(inputs.get("If-Match").isRequiredOrDefault(true),
+                "An optional If-Match must not become required on reload: " + yaml);
+        assertTrue(inputs.get("If-Unmodified-Since").isRequiredOrDefault(true), yaml);
+        assertNull(inputs.get("X-Request-Id").getDeclaredRequired(),
+                "Only a precondition header carries required: " + yaml);
+    }
+
     private static java.util.Set<String> locations(List<InputParameterSpec> params) {
         java.util.Set<String> result = new java.util.TreeSet<>();
         params.forEach(p -> result.add(p.getName() + "@" + p.getIn()));

@@ -26,6 +26,7 @@ import io.ikanos.durable.Runner;
 import io.ikanos.durable.core.DirectRunner;
 import io.ikanos.engine.consumes.ConsumedInvocation;
 import io.ikanos.engine.consumes.ConsumedResult;
+import io.ikanos.engine.consumes.http.StandardRequestHeaders;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.spec.util.OperationStepElicitSpec;
 import tools.jackson.databind.JsonNode;
@@ -228,6 +229,12 @@ public final class Executions {
             if (OperationStepExecutor.StepFailedException.class.getSimpleName()
                     .equals(failed.failure().errorClass())) {
                 return OperationStepExecutor.StepFailedException.restored(
+                        failed.failure().message());
+            }
+            // A refused precondition too, so a retry after a restart is still bad input (#1001)
+            if (StandardRequestHeaders.InvalidPreconditionException.class.getSimpleName()
+                    .equals(failed.failure().errorClass())) {
+                return new StandardRequestHeaders.InvalidPreconditionException(
                         failed.failure().message());
             }
             return new IllegalStateException(failed.failure().message());

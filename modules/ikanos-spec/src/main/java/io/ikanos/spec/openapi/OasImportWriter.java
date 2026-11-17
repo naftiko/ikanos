@@ -15,7 +15,9 @@ package io.ikanos.spec.openapi;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
@@ -41,8 +43,9 @@ import io.ikanos.spec.util.VersionHelper;
  * <ul>
  *   <li>resources, operations and parameters are maps keyed by name, without a {@code name}
  *       property;</li>
- *   <li>input parameters keep only {@code in}, {@code value} and the query serialization
- *       fields {@code wireName}, {@code style} and {@code explode}
+ *   <li>input parameters keep only {@code in}, {@code value}, the query serialization
+ *       fields {@code wireName}, {@code style} and {@code explode}, and {@code required: false}
+ *       on an optional precondition header, which is otherwise required (#1001)
  *       ({@code ConsumedInputParameter}); an {@code in: path} parameter without a {@code value}
  *       is left out, since the path variable takes the call parameter of the same name; on a
  *       resource or an operation, an {@code in: query} parameter with none of the other fields is
@@ -174,6 +177,17 @@ public class OasImportWriter {
         return result;
     }
 
+    /** The preconditions a consumed header input must send on a write unless optional. */
+    private static final Set<String> PRECONDITION_HEADERS = Set.of("if-match", "if-none-match",
+            "if-unmodified-since", "if-range");
+
+    private static boolean isPreconditionHeader(InputParameterSpec param) {
+        String name = param.getWireName() != null && !param.getWireName().isBlank()
+                ? param.getWireName() : param.getName();
+        return "header".equalsIgnoreCase(param.getIn()) && name != null
+                && PRECONDITION_HEADERS.contains(name.toLowerCase(Locale.ROOT));
+    }
+
     private static void putInputParameters(ObjectNode parent, List<InputParameterSpec> params,
             boolean queryParameterList, Map<String, InputParameterSpec> broaderPath) {
         if (params == null || params.isEmpty()) {
@@ -197,6 +211,11 @@ public class OasImportWriter {
             putIfPresent(input, "style", param.getStyle());
             if (param.getExplode() != null) {
                 input.put("explode", param.getExplode());
+            }
+            // A precondition header input is required unless it says otherwise (#1001): an
+            // optional one in the OpenAPI document must stay optional once imported
+            if (isPreconditionHeader(param) && !param.isRequiredOrDefault(true)) {
+                input.put("required", false);
             }
             inputs.set(param.getName(), input);
         }
