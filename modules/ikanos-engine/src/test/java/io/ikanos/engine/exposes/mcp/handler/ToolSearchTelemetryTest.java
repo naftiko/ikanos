@@ -38,6 +38,7 @@ import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.util.IkanosMappers;
+import io.ikanos.spec.util.VersionHelper;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.metrics.data.LongPointData;
 import io.opentelemetry.sdk.metrics.data.MetricData;
@@ -46,6 +47,7 @@ import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
 import io.opentelemetry.sdk.trace.data.SpanData;
 import org.restlet.Request;
 import org.restlet.data.Method;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -180,14 +182,53 @@ class ToolSearchTelemetryTest {
         assertEquals(1, counter("ikanos.mcp.tool_search.total", "error"));
     }
 
+    /** Two mock tools: calling them builds their result from static values, with no upstream. */
+    private static final String MOCK_TOOLS = """
+            ikanos: "%s"
+            info:
+              display: "Mock tools"
+              description: "Tools that answer from static values"
+            capability:
+              exposes:
+              - type: mcp
+                address: localhost
+                port: 0
+                namespace: ops
+                description: Operations tools.
+                tools:
+                  list-alerts:
+                    description: List the alerts that are firing.
+                    hints:
+                      readOnly: true
+                    outputParameters:
+                    - type: string
+                      value: "no alert"
+                  get-incident:
+                    description: Get an incident by its id.
+                    hints:
+                      readOnly: true
+                    outputParameters:
+                    - type: string
+                      value: "INC-1042"
+            """.formatted(VersionHelper.getSchemaVersion());
+
     @Test
-    void callToolShouldCountEachToolItCalls() {
+    void callToolShouldCountEachToolItCalls() throws Exception {
+        IkanosSpec spec = IkanosMappers.yaml().readValue(MOCK_TOOLS, IkanosSpec.class);
+        McpServerAdapter mocks =
+                (McpServerAdapter) new Capability(spec).getServerAdapters().getFirst();
+        ToolSearchCatalog catalog = new ToolSearchCatalog(mocks.getMcpServerSpec(),
+                mocks.getTools(), mocks.getToolLabels(), mocks.getToolTags(), Optional.empty());
         ObjectNode arguments = JSON.createObjectNode();
         arguments.putArray("calls").add(JSON.createObjectNode().put("name", "list-alerts"))
                 .add(JSON.createObjectNode().put("name", "get-incident"));
 
-        handler.callTool(catalogReturning(List.of()), arguments);
+        ObjectNode result = new ToolsCallHandler(mocks, List.of(), List.of(), List.of())
+                .callTool(catalog, arguments);
 
+        for (JsonNode call : result.path("structuredContent").path("results")) {
+            assertFalse(call.path("result").path("isError").asBoolean(), result.toString());
+        }
         assertEquals(2, counter("ikanos.mcp.tool_search.calls.total", null));
     }
 

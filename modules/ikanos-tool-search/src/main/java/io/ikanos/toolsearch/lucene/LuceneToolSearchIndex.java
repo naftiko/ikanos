@@ -175,15 +175,18 @@ public final class LuceneToolSearchIndex implements ToolSearchIndex {
             List<String> names = new ArrayList<>(query.limit());
             // An exact tool name comes first whatever the BM25 scores, when the filters keep it.
             ScoreDoc[] exact = searcher.search(exactNameQuery(query), 1).scoreDocs;
+            String exactName = null;
             if (exact.length > 0) {
-                names.add(stored.document(exact[0].doc).get(NAME_KEYWORD));
+                exactName = stored.document(exact[0].doc).get(NAME_KEYWORD);
+                names.add(exactName);
             }
             Sort sort = new Sort(SortField.FIELD_SCORE,
                     new SortField(NAME_SORT, SortField.Type.STRING));
             ScoreDoc[] hits = searcher.search(luceneQuery, query.limit(), sort).scoreDocs;
             for (ScoreDoc hit : hits) {
                 String name = stored.document(hit.doc).get(NAME_KEYWORD);
-                if (names.size() < query.limit() && !names.contains(name)) {
+                // Each hit is a distinct tool: only the exact name put first can repeat.
+                if (names.size() < query.limit() && !name.equals(exactName)) {
                     names.add(name);
                 }
             }
