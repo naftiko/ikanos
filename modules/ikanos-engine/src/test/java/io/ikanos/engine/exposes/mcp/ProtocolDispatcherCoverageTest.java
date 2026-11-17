@@ -246,6 +246,81 @@ class ProtocolDispatcherCoverageTest {
                 dispatcher.requirementFor(call).getScopes());
     }
 
+    /**
+     * {@code tasks/update}, {@code tasks/get} and {@code tasks/cancel} of a task answer to the
+     * authorization of the tool the task runs, so a token of the same owner that lost the
+     * tool's scopes cannot resume it; another owner's task gets the adapter's (#999).
+     */
+    @Test
+    void requirementForShouldGiveATaskMethodTheAuthorizationOfTheTaskTool() throws Exception {
+        String yaml = "ikanos: " + VersionHelper.getSchemaVersion() + "\n" + """
+                info:
+                  display: Task tool authorization
+                  description: A task of a protected tool
+                  tags: [Test]
+                  created: '2026-11-17'
+                  modified: '2026-11-17'
+                capability:
+                  exposes:
+                  - type: mcp
+                    address: localhost
+                    port: 9103
+                    namespace: records-mcp
+                    authentication:
+                      type: oauth2
+                      authorizationServerUri: https://idp.example.org
+                      resource: https://app.example.org/mcp
+                      scopes: [records.read, records.write]
+                    authorization:
+                      scopes: [records.read]
+                    tools:
+                      update-record:
+                        description: Update a record.
+                        authorization:
+                          scopes: [records.write]
+                        outputParameters:
+                        - type: string
+                          value: ok
+                  - type: control
+                    address: localhost
+                    port: 0
+                    durability:
+                      mode: memory
+                """;
+        Capability capability = new Capability(
+                IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class));
+        McpServerAdapter adapter = (McpServerAdapter) capability.getServerAdapters().stream()
+                .filter(McpServerAdapter.class::isInstance).findFirst().orElseThrow();
+        ProtocolDispatcher dispatcher = new ProtocolDispatcher(adapter);
+        org.restlet.Request alice = requestOf("alice");
+        String owner = AgentIdentityResolver.ownerOf("records-mcp", alice,
+                java.util.Optional.empty());
+        String taskId = adapter.getTaskService().create("mcp:records-mcp/update-record", owner,
+                JSON.createObjectNode(), JSON::createObjectNode).path("taskId")
+                .asString(null);
+        assertNotNull(taskId);
+
+        for (String method : java.util.List.of("tasks/update", "tasks/get", "tasks/cancel")) {
+            JsonNode request = JSON.readTree("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\""
+                    + method + "\",\"params\":{\"taskId\":\"" + taskId + "\"}}");
+            assertEquals(java.util.List.of("records.write"),
+                    dispatcher.requirementFor(request, alice).getScopes(), method);
+            // Another owner's task: the adapter's, so the answer never tells it exists
+            assertEquals(java.util.List.of("records.read"),
+                    dispatcher.requirementFor(request, requestOf("bob")).getScopes(), method);
+        }
+    }
+
+    private static org.restlet.Request requestOf(String subject) {
+        org.restlet.Request request = new org.restlet.Request(org.restlet.data.Method.POST,
+                "http://localhost/mcp");
+        request.getAttributes().put(
+                io.ikanos.engine.exposes.OAuth2AuthenticationRestlet.VALIDATED_CLAIMS_ATTRIBUTE,
+                new com.nimbusds.jwt.JWTClaimsSet.Builder().issuer("https://idp.example.org")
+                        .subject(subject).build());
+        return request;
+    }
+
     private static ProtocolDispatcher dispatcherFrom(String resourcePath) throws Exception {
         ObjectMapper yaml = IkanosMappers.lenientYaml();
         IkanosSpec spec = yaml.readValue(new File(resourcePath), IkanosSpec.class);

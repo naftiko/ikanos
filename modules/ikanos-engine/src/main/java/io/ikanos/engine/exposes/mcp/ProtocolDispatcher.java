@@ -20,6 +20,9 @@ import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.engine.exposes.AccessControl;
 import io.ikanos.engine.exposes.mcp.handler.McpCallHandler;
 import io.ikanos.engine.exposes.mcp.handler.McpCallHandlersFactory;
+import io.ikanos.engine.exposes.mcp.handler.TasksCancelHandler;
+import io.ikanos.engine.exposes.mcp.handler.TasksGetHandler;
+import io.ikanos.engine.exposes.mcp.handler.TasksUpdateHandler;
 import io.ikanos.engine.exposes.mcp.handler.ToolsCallHandler;
 import io.ikanos.engine.exposes.mcp.model.DispatchResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerFailureResult;
@@ -40,6 +43,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.logging.Level;
 
 import static io.ikanos.engine.exposes.mcp.model.JsonRpcError.INTERNAL_ERROR;
@@ -73,12 +77,17 @@ public class ProtocolDispatcher {
      */
     public static final List<String> SUPPORTED_PROTOCOL_VERSIONS = List.of(MCP_PROTOCOL_VERSION);
 
+    /** Methods that act on a task, which answer to the authorization of the task's tool. */
+    private static final Set<String> TASK_METHODS = Set.of(TasksGetHandler.METHOD_NAME,
+            TasksUpdateHandler.METHOD_NAME, TasksCancelHandler.METHOD_NAME);
+
     private final ObjectMapper mapper;
     private final Map<String, McpCallHandler> mcpHandlers = new HashMap<>();
     private final String capabilityName;
     private final AgentIdentityResolver identityResolver;
     private final String namespace;
     private final McpServerSpec serverSpec;
+    private final McpServerAdapter adapter;
 
     /**
      * Writes {@link #SUPPORTED_PROTOCOL_VERSIONS} into {@code node} as a JSON array named
@@ -103,6 +112,7 @@ public class ProtocolDispatcher {
         this.mapper = IkanosMappers.json();
         this.capabilityName = resolveCapabilityName(adapter);
         this.serverSpec = adapter.getMcpServerSpec();
+        this.adapter = adapter;
         this.identityResolver = new AgentIdentityResolver(
                 adapter.getMcpServerSpec() != null ? adapter.getMcpServerSpec().getTrust() : null);
         this.namespace = adapter.getMcpServerSpec() != null
@@ -275,15 +285,48 @@ public class ProtocolDispatcher {
      * @return the requirement, or {@code null} when none applies
      */
     AuthorizationSpec requirementFor(JsonNode request) {
+        return requirementFor(request, null);
+    }
+
+    /**
+     * Returns the scopes or claims the caller's token must carry for this JSON-RPC request, as
+     * {@link #requirementFor(JsonNode)} does, and also, for {@code tasks/get},
+     * {@code tasks/update} and {@code tasks/cancel} of a task the caller owns, the requirement
+     * of the tool that task runs: a token of the same owner that lost the tool's scopes or
+     * claims may not read, answer or cancel it. Another owner's task, or an unknown ID, gets the
+     * adapter's requirement, so the answer never tells whether that task exists.
+     *
+     * @param request the parsed JSON-RPC request
+     * @param httpRequest the inbound HTTP request, which names the task's owner
+     * @return the requirement, or {@code null} when none applies
+     */
+    AuthorizationSpec requirementFor(JsonNode request, Request httpRequest) {
         if (serverSpec == null) {
             return null;
         }
         McpServerToolSpec tool = null;
-        if (request != null
-                && ToolsCallHandler.METHOD_NAME.equals(request.path("method").asString(""))) {
+        String method = request != null ? request.path("method").asString("") : "";
+        if (ToolsCallHandler.METHOD_NAME.equals(method)) {
             tool = toolNamed(request.path("params").path("name").asString(""));
+        } else if (httpRequest != null && TASK_METHODS.contains(method)) {
+            tool = taskTool(request.path("params").path("taskId").asString(null), httpRequest);
         }
         return AccessControl.effective(serverSpec, tool);
+    }
+
+    /** The tool a task of the caller runs, or {@code null} for an unknown or foreign task. */
+    private McpServerToolSpec taskTool(String taskId, Request httpRequest) {
+        McpTaskService tasks = adapter.getTaskService();
+        if (tasks == null || taskId == null) {
+            return null;
+        }
+        // The owner the task was created under: from the token under oauth2, as in dispatch
+        String owner = AgentIdentityResolver.ownerOf(namespace, httpRequest, Optional.empty());
+        String prefix = "mcp:" + namespace + "/";
+        return tasks.entryOf(taskId, owner)
+                .filter(entry -> entry.startsWith(prefix))
+                .map(entry -> toolNamed(entry.substring(prefix.length())))
+                .orElse(null);
     }
 
     /**

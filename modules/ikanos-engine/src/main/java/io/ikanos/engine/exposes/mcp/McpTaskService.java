@@ -464,6 +464,15 @@ public final class McpTaskService {
         return true;
     }
 
+    /**
+     * The entry of a task of this principal ({@code mcp:<namespace>/<tool>}), so its tool's
+     * authorization can be checked; empty for an unknown ID and for another principal's task.
+     */
+    public Optional<String> entryOf(String taskId, String principal) {
+        ExecutionRecord record = find(taskId, principal);
+        return record == null ? Optional.empty() : Optional.ofNullable(record.entry());
+    }
+
     private ExecutionRecord find(String taskId, String principal) {
         if (taskId == null) {
             return null;

@@ -25,6 +25,7 @@ import org.restlet.Response;
 import org.restlet.data.MediaType;
 import org.restlet.data.Status;
 import com.nimbusds.jwt.JWTClaimsSet;
+import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.consumes.http.AuthenticationSpec;
 import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
 import io.ikanos.spec.exposes.AuthorizationSpec;
@@ -268,6 +269,37 @@ public final class AccessControl {
             throw new IllegalArgumentException("Exposed adapter '" + adapter.getNamespace()
                     + "': " + String.join("; ", errors));
         }
+    }
+
+    /**
+     * Runs {@link #validate} on every REST and MCP adapter of a document, for
+     * {@code ikanos validate}, which must refuse what loading the capability refuses (#999).
+     *
+     * @return the error of each adapter whose {@code authorization} blocks are invalid, empty
+     *         when all are valid
+     */
+    public static List<String> findErrors(IkanosSpec spec) {
+        List<ServerSpec> exposes = new ArrayList<>();
+        if (spec != null && spec.getCapability() != null
+                && spec.getCapability().getExposes() != null) {
+            exposes.addAll(spec.getCapability().getExposes());
+        }
+        if (spec != null && spec.getExposes() != null) {
+            exposes.addAll(spec.getExposes());
+        }
+        List<String> errors = new ArrayList<>();
+        for (ServerSpec adapter : exposes) {
+            try {
+                if (adapter instanceof RestServerSpec rest) {
+                    validate(rest, false, declaredIn(rest));
+                } else if (adapter instanceof McpServerSpec mcp) {
+                    validate(mcp, mcp.isStdio(), declaredIn(mcp));
+                }
+            } catch (IllegalArgumentException e) {
+                errors.add(e.getMessage());
+            }
+        }
+        return errors;
     }
 
     /**
