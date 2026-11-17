@@ -531,8 +531,40 @@ public class ForwardResponseHeadersTest {
 
     @Test
     public void injectedQueryNamesShouldNotNameAParameterTheCallerSentAsIs() {
-        assertTrue(ForwardResponseHeaders.injectedQueryNames("q=a+b&page=1", "page=1&q=a%20b")
+        assertTrue(ForwardResponseHeaders.injectedQueryNames("q=a%20b&page=1", "page=1&q=a%20b")
                 .isEmpty());
+        assertTrue(ForwardResponseHeaders.injectedQueryNames("q=a%2Bb", "q=a+b").isEmpty());
+    }
+
+    /** The engine encodes a space as %20 (RFC 3986): a caller's plus sign is a literal plus. */
+    @Test
+    public void injectedQueryNamesShouldNameAParameterWhoseSpaceTheCallerSentAsAPlus() {
+        assertEquals(Set.of("api_key"),
+                ForwardResponseHeaders.injectedQueryNames("api_key=a%20b", "api_key=a+b"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "http://upstream:9090/v1/items/42?API_KEY=s3cret",
+            "http://upstream:9090/v1/items/42?Api%5FKey=s3cret",
+            "https://login.example/?return_url=https%3A%2F%2Fapi.example%2Fx%3Fapi_key%3Ds3cret",
+            "https://login.example/?return_url=https%253A%252F%252Fapi.example%252Fx%253FAPI_KEY"
+                    + "%253Ds3cret",
+            "https://login.example/?next=/x?api_key=s3cret",
+            "/v1/items/42?state=a%3D1%26api_key%3Ds3cret",
+            "https://login.example/?n=%25252525252525252525"})
+    public void relayedLocationShouldDropAnInjectedNameRenamedOrNestedInAValue(String raw) {
+        assertNull(ForwardResponseHeaders.relayedLocation(raw, BASE_URI + "/items", BASE_URI,
+                incoming(), new ForwardResponseHeaders.Exposure(null, Set.of("api_key"),
+                        false)));
+    }
+
+    @Test
+    public void relayedLocationShouldKeepANestedUrlWithoutAnInjectedName() {
+        String raw = "https://login.example/?return_url=https%3A%2F%2Fapi.example%2Fx%3Fpage%3D2";
+        assertEquals(raw, ForwardResponseHeaders.relayedLocation(raw, BASE_URI + "/items",
+                BASE_URI, incoming(), new ForwardResponseHeaders.Exposure(null,
+                        Set.of("api_key"), false)));
     }
 
     @ParameterizedTest
@@ -572,7 +604,9 @@ public class ForwardResponseHeadersTest {
             "https://bucket.s3.amazonaws.com/report.pdf?X-Amz-Security-Token=FwoGZXIvYXdzEXAMPLE",
             "/v1/items/42?x-amz-signature=abc",
             "?X-Amz-Security-Token=FwoGZXIvYXdzEXAMPLE",
-            "//cdn.example/x?X%2DAmz%2DSignature=abc"})
+            "//cdn.example/x?X%2DAmz%2DSignature=abc",
+            "https://login.example/?next=https%3A%2F%2Fb.s3.amazonaws.com%2Fk%3FX-Amz-Signature"
+                    + "%3Dabc"})
     public void relayedLocationShouldDropAnAmzQueryWhenTheAdapterSignsWithAwsSigV4(String raw) {
         assertNull(ForwardResponseHeaders.relayedLocation(raw, BASE_URI + "/items", BASE_URI,
                 incoming(), signed()));
