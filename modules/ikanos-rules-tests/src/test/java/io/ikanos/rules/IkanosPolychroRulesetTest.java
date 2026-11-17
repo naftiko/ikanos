@@ -802,7 +802,7 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void sqlWriteStatementRuleShouldFireForATruncate() {
-        ProcessResult result = lintFixture("rules/spectral-sql-consumes-violations.yaml");
+        LintResult result = lintFixture("rules/polychro-sql-consumes-violations.yaml");
         assertEquals(1, findings(result, "ikanos-sql-write-statement"),
             "Expected ikanos-sql-write-statement on empty-orders." + System.lineSeparator()
                 + result.output());
@@ -810,7 +810,7 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void sqlWriteExposureRuleShouldFireForAReadOnlyToolAndARestGet() {
-        ProcessResult result = lintFixtureAtSeverity("rules/spectral-sql-consumes-violations.yaml",
+        LintResult result = lintFixtureAtSeverity("rules/polychro-sql-consumes-violations.yaml",
             "warn");
         assertEquals(2, findings(result, "ikanos-sql-write-exposure"),
             "Expected ikanos-sql-write-exposure on the MCP tool and the REST GET."
@@ -819,8 +819,8 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void sqlWriteExposureRuleShouldFollowStepsRefsResourcesAndFlows() {
-        ProcessResult result = lintFixtureAtSeverity(
-            "rules/spectral-sql-write-exposure-indirect.yaml", "warn");
+        LintResult result = lintFixtureAtSeverity(
+            "rules/polychro-sql-write-exposure-indirect.yaml", "warn");
         assertEquals(4, findings(result, "ikanos-sql-write-exposure"),
             "Expected ikanos-sql-write-exposure on the step, the ref, the resource and the safe"
                 + " flow." + System.lineSeparator() + result.output());
@@ -828,8 +828,8 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void sqlWriteExposureRuleShouldFireForWriteToolsInheritingReadOnly() {
-        ProcessResult result = lintFixtureAtSeverity(
-            "rules/spectral-sql-write-exposure-inherited-violations.yaml", "warn");
+        LintResult result = lintFixtureAtSeverity(
+            "rules/polychro-sql-write-exposure-inherited-violations.yaml", "warn");
         assertEquals(3, findings(result, "ikanos-sql-write-exposure"),
             "Expected ikanos-sql-write-exposure on the call, the step and the ref tools."
                 + System.lineSeparator() + result.output());
@@ -837,8 +837,8 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void sqlWriteExposureRuleShouldNotFireForWriteToolsOverridingInheritedReadOnly() {
-        ProcessResult result = lintFixtureAtSeverity(
-            "rules/spectral-sql-write-exposure-inherited-compliant.yaml", "warn");
+        LintResult result = lintFixtureAtSeverity(
+            "rules/polychro-sql-write-exposure-inherited-compliant.yaml", "warn");
         assertEquals(0, findings(result, "ikanos-sql-write-exposure"),
             "Expected no ikanos-sql-write-exposure." + System.lineSeparator() + result.output());
     }

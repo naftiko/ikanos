@@ -23,7 +23,7 @@ capability:
         mark-shipped:
           description: Marks one paid order as shipped.
           readOnly: false
-          statement: update orders set status = 'SHIPPED' where id = :id and status = 'PAID'
+          statement: update orders set status = 'SHIPPED' where id = {{id}} and status = 'PAID'
           inputParameters:
             id: { type: string }
           outputParameters:
