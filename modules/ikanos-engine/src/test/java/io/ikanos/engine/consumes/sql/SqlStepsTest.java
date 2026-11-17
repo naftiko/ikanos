@@ -13,6 +13,7 @@
  */
 package io.ikanos.engine.consumes.sql;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -127,6 +128,9 @@ class SqlStepsTest {
         String text = ((McpSchema.TextContent) result.content().get(0)).text();
         assertFalse(Boolean.TRUE.equals(result.isError()), text);
         assertTrue(text.contains("12345678901234567890.12"), text);
+        Object total = ((Map<?, ?>) result.structuredContent()).get("total");
+        assertEquals(0, new java.math.BigDecimal("12345678901234567890.12")
+                .compareTo(new java.math.BigDecimal(String.valueOf(total))), String.valueOf(total));
     }
 
     @Test
