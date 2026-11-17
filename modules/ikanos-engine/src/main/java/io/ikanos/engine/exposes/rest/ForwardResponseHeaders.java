@@ -89,6 +89,9 @@ public final class ForwardResponseHeaders {
             "if-match", "if-modified-since", "if-none-match", "if-range", "if-unmodified-since",
             "max-forwards", "range", "referer", "user-agent");
 
+    /** The prefix, in lower case, of the query parameters of an AWS query-string signature. */
+    static final String AMZ_QUERY_PREFIX = "x-amz-";
+
     /** Dot segments, plain or percent-encoded, in lower case. */
     static final Set<String> DOT_SEGMENTS = Set.of("..", ".", "%2e%2e", ".%2e", "%2e.", "%2e");
 
@@ -199,8 +202,16 @@ public final class ForwardResponseHeaders {
      *        location whose query names one is dropped. Never {@code null}.
      * @param authenticated whether the exposed adapter authenticates its callers: the answer is
      *        then marked {@code private}, since the upstream never sees that credential
+     * @param signed whether the consumed adapter signs with {@code awsSigV4}: a location whose
+     *        query carries an {@code X-Amz-*} parameter the caller did not send is then dropped,
+     *        so a presigned URL or an echoed session token never reaches the caller
      */
-    record Exposure(String resourcePath, Set<String> injectedQueryNames, boolean authenticated) {
+    record Exposure(String resourcePath, Set<String> injectedQueryNames, boolean authenticated,
+            boolean signed) {
+
+        Exposure(String resourcePath, Set<String> injectedQueryNames, boolean authenticated) {
+            this(resourcePath, injectedQueryNames, authenticated, false);
+        }
     }
 
     /**
@@ -492,6 +503,12 @@ public final class ForwardResponseHeaders {
      * <li>A value whose query names the consumed adapter's query-placed {@code apikey}, wherever
      * it points: dropped, so an upstream that echoes its request URI never hands the caller that
      * credential.</li>
+     * <li>When the consumed adapter signs with {@code awsSigV4}, a value whose query carries an
+     * {@code X-Amz-*} parameter the caller did not send with that value, wherever it points:
+     * dropped. The request is signed in headers, so such a parameter is a query-string signature
+     * ({@code X-Amz-Signature}, {@code X-Amz-Credential}) or a session token
+     * ({@code X-Amz-Security-Token}) the upstream wrote, which could act with the adapter's
+     * credential.</li>
      * <li>A value with a percent-encoded dot segment as sent, even one a later {@code ..}
      * removes during resolution: dropped, like a value whose resolved path keeps one.</li>
      * <li>A value that resolves to no host, such as {@code http:/admin} or {@code urn:x}:
@@ -560,6 +577,11 @@ public final class ForwardResponseHeaders {
                 exposure.injectedQueryNames())) {
             // An upstream that echoes the request URI would hand the caller what the engine
             // added to it, such as a query-placed credential
+            return null;
+        }
+        if (exposure.signed() && carriesAmzQuery(value.getRawQuery(),
+                incoming.getResourceRef().getQuery())) {
+            // A signing adapter's upstream could hand back a presigned URL or its session token
             return null;
         }
         String host = host(resolved);
@@ -768,6 +790,21 @@ public final class ForwardResponseHeaders {
             }
         }
         return names;
+    }
+
+    /**
+     * @return whether {@code rawQuery} has an {@code X-Amz-*} parameter, whatever its case, with a
+     *         value the caller did not send in {@code incomingQuery}
+     */
+    static boolean carriesAmzQuery(String rawQuery, String incomingQuery) {
+        Set<Map.Entry<String, String>> sent = queryPairs(incomingQuery);
+        for (Map.Entry<String, String> pair : queryPairs(rawQuery)) {
+            if (pair.getKey().toLowerCase(Locale.ROOT).startsWith(AMZ_QUERY_PREFIX)
+                    && !sent.contains(pair)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

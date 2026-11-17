@@ -802,7 +802,9 @@ public class ResourceRestlet extends Restlet {
                                         ForwardResponseHeaders.injectedQueryNames(
                                                 clientRequest.getResourceRef().getQuery(),
                                                 request.getResourceRef().getQuery()),
-                                        getServerSpec().getAuthentication() != null));
+                                        getServerSpec().getAuthentication() != null,
+                                        httpAdapter.getHttpClientSpec().getAuthentication()
+                                                instanceof AwsSigV4AuthenticationSpec));
                         response.commit();
                         return true;
                     } catch (StandardRequestHeaders.InvalidPreconditionException e) {
