@@ -26,6 +26,7 @@ import java.net.http.HttpResponse;
 import java.nio.file.Path;
 import java.util.Base64;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -552,6 +553,65 @@ public class RestInputRequestIntegrationTest {
             assertEquals(Status.SUCCESS_OK, done.getStatus(),
                     "The same subject, its token refreshed: " + control);
         }
+    }
+
+    /** A GET operation that asks, declared cacheable by any cache for a minute. */
+    private static final String CACHED = """
+                  cached:
+                    path: /cached
+                    operations:
+                      cached:
+                        method: GET
+                        ttlMs: 60000
+                        cacheScope: public
+                        ref: departure.confirm-departure
+            """;
+
+    /** The {@code Cache-Control} directives of {@code response}, and its {@code Vary}. */
+    private static String caching(Response response) {
+        return response.getCacheDirectives().stream()
+                .map(directive -> directive.getValue() == null ? directive.getName()
+                        : directive.getName() + "=" + directive.getValue())
+                .collect(Collectors.joining(", "))
+                + " | Vary: " + response.getDimensions();
+    }
+
+    private static final String NO_STORE = "no-store | Vary: []";
+
+    @Test
+    void anAnswerThatAsksOrCompletesWithAnswersShouldNeverBeStoredUnderNone() throws Exception {
+        RestServerAdapter adapter = rest(loadYaml(capability(NONE, CACHED)));
+        Response asked = send(adapter, Method.GET, "/cached", null);
+        assertEquals(Status.SUCCESS_ACCEPTED, asked.getStatus());
+        assertEquals(NO_STORE, caching(asked),
+                "A public cache would hand this caller's handle to another caller");
+
+        Response done = send(adapter, Method.POST, asked.getLocationRef().getPath(), ANSWER);
+        assertEquals(Status.SUCCESS_OK, done.getStatus());
+        assertEquals(NO_STORE, caching(done),
+                "The answer depends on what this caller answered, which the URL does not carry");
+    }
+
+    @Test
+    void anAnswerThatAsksOrCompletesWithAnswersShouldNeverBeStoredInADurableMode()
+            throws Exception {
+        RestServerAdapter adapter = rest(loadYaml(capability(MEMORY, CACHED)));
+        Response asked = send(adapter, Method.GET, "/cached", null);
+        assertEquals(Status.SUCCESS_ACCEPTED, asked.getStatus());
+        assertEquals(NO_STORE, caching(asked));
+        String location = asked.getLocationRef().getPath();
+
+        Response replayed = send(adapter, Method.GET, location, null);
+        assertEquals(Status.SUCCESS_ACCEPTED, replayed.getStatus());
+        assertEquals(NO_STORE, caching(replayed));
+
+        Response done = send(adapter, Method.POST, location, ANSWER);
+        assertEquals(Status.SUCCESS_OK, done.getStatus());
+        assertEquals(NO_STORE, caching(done));
+
+        Response recorded = send(adapter, Method.GET, location, null);
+        assertEquals(Status.SUCCESS_OK, recorded.getStatus());
+        assertEquals(NO_STORE, caching(recorded));
     }
 
     /** An operation that asks, with a body parameter the handle carries under none. */

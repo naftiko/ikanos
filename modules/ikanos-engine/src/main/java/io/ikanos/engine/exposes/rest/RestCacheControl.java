@@ -44,6 +44,10 @@ import io.ikanos.spec.exposes.rest.RestServerSpec;
  * answer that reads an input from outside the URL, or an API key from a header other than
  * {@code Authorization}, sends {@code Vary: *}, since that header is not part of the cache key and
  * Restlet cannot name arbitrary headers in {@code Vary}.</p>
+ *
+ * <p>An operation that asks its caller for input answers in rounds ({@link RestInputRequests}):
+ * its {@code 202}, and every answer on its handle, carry {@code no-store} only
+ * ({@link #noStore}).</p>
  */
 final class RestCacheControl {
 
@@ -96,6 +100,21 @@ final class RestCacheControl {
                 || apiKeyHeader(server) != null) {
             response.getDimensions().add(Dimension.UNSPECIFIED);
         }
+    }
+
+    /**
+     * Mark {@code response} as never stored: {@code Cache-Control: no-store} and nothing else, no
+     * {@code Vary}. For the answers of an operation that asks its caller for input, the
+     * {@code 202} with its handle and every answer on that handle, whatever {@code ttlMs} and
+     * {@code cacheScope} declare: the handle is bound to one caller (under {@code none} it is the
+     * only credential), and an answer that completes the rounds depends on what that caller
+     * answered, which the URL does not carry.
+     */
+    static void noStore(Response response) {
+        List<CacheDirective> directives = response.getCacheDirectives();
+        directives.clear();
+        directives.add(CacheDirective.noStore());
+        response.getDimensions().clear();
     }
 
     /**

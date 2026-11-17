@@ -59,6 +59,10 @@ import tools.jackson.databind.node.ObjectNode;
  * restored rather than run again; {@code GET} on the handle replays the last answer and
  * {@code DELETE} cancels. Under {@code none}, the handle carries the operation's input
  * parameters and the answers so far, and each answer replays the operation from the start.</p>
+ *
+ * <p>The {@code 202} and every answer on the handle carry {@code Cache-Control: no-store} only,
+ * whatever the operation's {@code ttlMs} and {@code cacheScope} declare
+ * ({@link RestCacheControl#noStore}).</p>
  */
 public final class RestInputRequests {
 
@@ -140,6 +144,9 @@ public final class RestInputRequests {
             public void handle(Request request, Response response) {
                 Object handle = request.getAttributes().get("handle");
                 answer(request, response, handle != null ? handle.toString() : "");
+                // Every answer on a handle is this caller's: its questions or what its answers
+                // completed, never to be served to another caller from a cache
+                RestCacheControl.noStore(response);
             }
         };
     }
@@ -297,6 +304,8 @@ public final class RestInputRequests {
         response.setStatus(Status.SUCCESS_ACCEPTED);
         response.setLocationRef(mount + PREFIX + handle);
         response.setEntity(body.toString(), MediaType.APPLICATION_JSON);
+        // The handle is bound to this caller, whatever the operation's ttlMs and cacheScope say
+        RestCacheControl.noStore(response);
     }
 
     private static void write(JsonNode outcome, Response response) {
