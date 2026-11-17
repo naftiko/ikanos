@@ -18,6 +18,7 @@ import java.net.URISyntaxException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -184,7 +185,7 @@ public final class ForwardResponseHeaders {
     static void relay(Response from, Response to, List<String> trustedResponseHeaders,
             String upstreamBaseUri, boolean relayChallenges, Set<String> warned) {
         relay(from, to, trustedResponseHeaders, upstreamBaseUri, relayChallenges, warned,
-                new Exposure(null, null, false));
+                new Exposure(null, Set.of(), false));
     }
 
     /**
@@ -192,12 +193,13 @@ public final class ForwardResponseHeaders {
      *
      * @param resourcePath the path template of the exposed resource, or {@code null} when
      *        unknown: the text after {@code {{path}}} is kept around a rewritten location
-     * @param credentialQueryKey the name of the query parameter that carries the consumed
-     *        adapter's {@code apikey}, or {@code null}: a location whose query names it is dropped
+     * @param injectedQueryNames the names of the query parameters the engine added to the
+     *        upstream request (an {@code apikey}, an adapter input), which can carry a secret: a
+     *        location whose query names one is dropped. Never {@code null}.
      * @param authenticated whether the exposed adapter authenticates its callers: the answer is
      *        then marked {@code private}, since the upstream never sees that credential
      */
-    record Exposure(String resourcePath, String credentialQueryKey, boolean authenticated) {
+    record Exposure(String resourcePath, Set<String> injectedQueryNames, boolean authenticated) {
     }
 
     /**
@@ -521,13 +523,14 @@ public final class ForwardResponseHeaders {
     static String relayedLocation(String raw, String upstreamRequestUri, String upstreamBaseUri,
             Request incoming) {
         return relayedLocation(raw, upstreamRequestUri, upstreamBaseUri, incoming,
-                new Exposure(null, null, false));
+                new Exposure(null, Set.of(), false));
     }
 
     /**
      * Same, for the exposed resource and consumed adapter {@code exposure} describes: a value
-     * whose query names the adapter's query-placed {@code apikey} is dropped, wherever it points,
-     * and the text after {@code {{path}}} in the resource path is kept around a rewritten path.
+     * whose query names a query parameter the engine added to the upstream request is dropped,
+     * wherever it points, and the text around {@code {{path}}} in the resource path is kept
+     * around a rewritten path.
      */
     static String relayedLocation(String raw, String upstreamRequestUri, String upstreamBaseUri,
             Request incoming, Exposure exposure) {
@@ -552,9 +555,10 @@ public final class ForwardResponseHeaders {
                 : value.getRawQuery() != null ? value.getRawQuery()
                         : incoming.getResourceRef().getQuery();
         String fragment = sameDocument ? value.getRawFragment() : resolved.getRawFragment();
-        if (hasQueryParameter(value.getRawQuery(), exposure.credentialQueryKey())) {
-            // An upstream that echoes the request URI would hand the caller the adapter's own
-            // query-placed credential
+        if (!Collections.disjoint(queryNames(value.getRawQuery()),
+                exposure.injectedQueryNames())) {
+            // An upstream that echoes the request URI would hand the caller what the engine
+            // added to it, such as a query-placed credential
             return null;
         }
         String host = host(resolved);
@@ -601,6 +605,10 @@ public final class ForwardResponseHeaders {
             // base URI itself has no exposed counterpart: neither /proxy nor /proxy/ matches
             // /proxy/{path}
             return null;
+        } else {
+            // The forward target is the base URI, "/" and the forwarded path, so the suffix
+            // without its first "/" is what the route captures after the exposed prefix
+            suffix = suffix.substring(1);
         }
         String rewritten = exposed + suffix + tail;
         if (rewritten.isEmpty()) {
@@ -724,34 +732,46 @@ public final class ForwardResponseHeaders {
     }
 
     /**
-     * @return {@code true} when {@code rawQuery} has a parameter named {@code name}, compared
-     *         after percent-decoding, or {@code false} when either is {@code null}
+     * @return the names of the parameters of {@code rawQuery}, percent-decoded (a malformed
+     *         escape is kept as written), or an empty set when it is {@code null}
      */
-    static boolean hasQueryParameter(String rawQuery, String name) {
-        if (rawQuery == null || name == null || name.isEmpty()) {
-            return false;
+    static Set<String> queryNames(String rawQuery) {
+        Set<String> names = new HashSet<>();
+        if (rawQuery == null) {
+            return names;
         }
         for (String pair : rawQuery.split("[&;]")) {
             int equals = pair.indexOf('=');
             String rawName = equals < 0 ? pair : pair.substring(0, equals);
+            if (rawName.isEmpty()) {
+                continue;
+            }
             try {
-                if (name.equals(URLDecoder.decode(rawName, StandardCharsets.UTF_8))) {
-                    return true;
-                }
+                names.add(URLDecoder.decode(rawName, StandardCharsets.UTF_8));
             } catch (IllegalArgumentException e) {
-                // A malformed escape: compared as written
-                if (name.equals(rawName)) {
-                    return true;
-                }
+                names.add(rawName);
             }
         }
-        return false;
+        return names;
+    }
+
+    /**
+     * @return the names of the query parameters of {@code upstreamQuery} that the caller did not
+     *         send in {@code incomingQuery}: the engine added them, an {@code apikey}, an adapter
+     *         input or a binding, so they can carry a secret
+     */
+    static Set<String> injectedQueryNames(String upstreamQuery, String incomingQuery) {
+        Set<String> names = queryNames(upstreamQuery);
+        names.removeAll(queryNames(incomingQuery));
+        return names;
     }
 
     /**
      * @return the static text after {@code {{path}}} in the path template of the exposed resource
      *         ({@code /file} for {@code /proxy/{{path}}/file}), or an empty string when there is
-     *         none or the template is unknown
+     *         none or the template is unknown. The text before it needs no template: it is read
+     *         from the incoming path, whatever separator it ends with ({@code /proxy/item-},
+     *         {@code /proxy//}).
      */
     static String pathTail(String resourcePath) {
         if (resourcePath == null) {
@@ -762,8 +782,9 @@ public final class ForwardResponseHeaders {
     }
 
     /**
-     * @return the path of the incoming request without its forwarded {@code {{path}}} part and
-     *         any trailing slash, or {@code null} when the path does not end with that part
+     * @return the path of the incoming request up to its forwarded {@code {{path}}} part, the
+     *         separator before it included ({@code /proxy/} for {@code /proxy/items}), or
+     *         {@code null} when the path does not end with that part
      */
     static String exposedPath(Request incoming) {
         return exposedPath(incoming, "");
@@ -790,14 +811,13 @@ public final class ForwardResponseHeaders {
         }
         Object forwarded = incoming.getAttributes().get("path");
         String forwardedPath = forwarded == null ? "" : forwarded.toString();
-        if (!forwardedPath.isEmpty()) {
-            String end = "/" + forwardedPath + tail;
-            if (!path.endsWith(end)) {
-                return null;
-            }
-            path = path.substring(0, path.length() - end.length());
+        String end = forwardedPath + tail;
+        if (!path.endsWith(end)) {
+            return null;
         }
-        return stripTrailingSlashes(path);
+        String prefix = path.substring(0, path.length() - end.length());
+        // An empty forwarded path leaves no separator to read: the forward target adds "/"
+        return forwardedPath.isEmpty() ? stripTrailingSlashes(prefix) + "/" : prefix;
     }
 
     /**

@@ -491,7 +491,7 @@ public class ForwardResponseHeadersTest {
         assertEquals("/proxy/items/42/file", ForwardResponseHeaders.relayedLocation(
                 BASE_URI + "/items/42", BASE_URI + "/items", BASE_URI,
                 incoming("http://localhost:8080/proxy/items/file", "items"),
-                new ForwardResponseHeaders.Exposure("/proxy/{{path}}/file", null, false)),
+                new ForwardResponseHeaders.Exposure("/proxy/{{path}}/file", Set.of(), false)),
                 "/proxy/items/42/file forwards to /v1/items/42 under /proxy/{{path}}/file");
     }
 
@@ -500,7 +500,7 @@ public class ForwardResponseHeadersTest {
         assertNull(ForwardResponseHeaders.relayedLocation(BASE_URI + "/items/42",
                 BASE_URI + "/items", BASE_URI,
                 incoming("http://localhost:8080/proxy/items/x", "items"),
-                new ForwardResponseHeaders.Exposure("/proxy/{{path}}/{{id}}", null, false)));
+                new ForwardResponseHeaders.Exposure("/proxy/{{path}}/{{id}}", Set.of(), false)));
     }
 
     @ParameterizedTest
@@ -510,39 +510,36 @@ public class ForwardResponseHeadersTest {
     public void relayedLocationShouldDropALocationThatCarriesTheAdaptersQueryCredential(
             String raw) {
         assertNull(ForwardResponseHeaders.relayedLocation(raw, BASE_URI + "/items", BASE_URI,
-                incoming(), new ForwardResponseHeaders.Exposure(null, "api_key", false)), raw);
+                incoming(), new ForwardResponseHeaders.Exposure(null, Set.of("api_key"), false)), raw);
     }
 
     @Test
-    public void credentialQueryKeyShouldNameTheQueryParameterOfAnApiKey() {
-        io.ikanos.spec.consumes.http.HttpClientSpec spec =
-                new io.ikanos.spec.consumes.http.HttpClientSpec("up", BASE_URI,
-                        new io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec(
-                                "{{KEY_NAME}}", "query", "s3cret"));
-        io.ikanos.engine.consumes.http.HttpClientAdapter adapter =
-                new io.ikanos.engine.consumes.http.HttpClientAdapter(null, spec);
-
-        assertEquals("api_key", ResourceRestlet.credentialQueryKey(adapter,
-                new java.util.HashMap<>(java.util.Map.of("KEY_NAME", "api_key"))));
+    public void injectedQueryNamesShouldNameWhatTheEngineAddedToTheUpstreamQuery() {
+        assertEquals(Set.of("api_key", "tenant"), ForwardResponseHeaders.injectedQueryNames(
+                "page=2&api%5Fkey=s3cret&tenant=t1", "page=1"),
+                "an apikey and an adapter input are added by the engine, page by the caller");
     }
 
     @Test
-    public void credentialQueryKeyShouldBeNullForAnApiKeySentInAHeader() {
-        io.ikanos.spec.consumes.http.HttpClientSpec spec =
-                new io.ikanos.spec.consumes.http.HttpClientSpec("up", BASE_URI,
-                        new io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec(
-                                "X-API-Key", "header", "s3cret"));
+    public void injectedQueryNamesShouldBeEmptyWithoutAnUpstreamQuery() {
+        assertTrue(ForwardResponseHeaders.injectedQueryNames(null, "page=1").isEmpty());
+    }
 
-        assertNull(ResourceRestlet.credentialQueryKey(
-                new io.ikanos.engine.consumes.http.HttpClientAdapter(null, spec),
-                new java.util.HashMap<>()));
+    @ParameterizedTest
+    @CsvSource({"/proxy/item-{{path}}, http://localhost:8080/proxy/item-abc, abc, /proxy/item-def",
+            "/proxy//{{path}}, http://localhost:8080/proxy//abc, abc, /proxy//def"})
+    public void relayedLocationShouldKeepThePrefixBeforePathAsRouted(String template,
+            String uri, String forwarded, String expected) {
+        assertEquals(expected, ForwardResponseHeaders.relayedLocation(BASE_URI + "/def",
+                BASE_URI + "/abc", BASE_URI, incoming(uri, forwarded),
+                new ForwardResponseHeaders.Exposure(template, Set.of(), false)), template);
     }
 
     @Test
     public void relayedLocationShouldKeepALocationWhoseQueryHasNoCredential() {
         assertEquals("/proxy/items/42?page=2", ForwardResponseHeaders.relayedLocation(
                 BASE_URI + "/items/42?page=2", BASE_URI + "/items", BASE_URI, incoming(),
-                new ForwardResponseHeaders.Exposure(null, "api_key", false)));
+                new ForwardResponseHeaders.Exposure(null, Set.of("api_key"), false)));
     }
 
     @Test
@@ -570,7 +567,7 @@ public class ForwardResponseHeadersTest {
         Response to = new Response(incoming());
 
         ForwardResponseHeaders.relay(from, to, List.of(), BASE_URI, true, new HashSet<>(),
-                new ForwardResponseHeaders.Exposure(null, null, true));
+                new ForwardResponseHeaders.Exposure(null, Set.of(), true));
 
         assertEquals(List.of(CacheDirective.maxAge(60), CacheDirective.privateInfo()),
                 to.getCacheDirectives(),
@@ -582,7 +579,7 @@ public class ForwardResponseHeadersTest {
         Response to = new Response(incoming());
 
         ForwardResponseHeaders.relay(upstreamResponse(), to, List.of(), BASE_URI, true,
-                new HashSet<>(), new ForwardResponseHeaders.Exposure(null, null, true));
+                new HashSet<>(), new ForwardResponseHeaders.Exposure(null, Set.of(), true));
 
         assertEquals(List.of(CacheDirective.privateInfo()), to.getCacheDirectives());
     }
@@ -594,7 +591,7 @@ public class ForwardResponseHeadersTest {
         Response to = new Response(incoming());
 
         ForwardResponseHeaders.relay(from, to, List.of(), BASE_URI, true, new HashSet<>(),
-                new ForwardResponseHeaders.Exposure(null, null, true));
+                new ForwardResponseHeaders.Exposure(null, Set.of(), true));
 
         assertEquals(List.of(CacheDirective.noStore()), to.getCacheDirectives());
     }
@@ -607,7 +604,7 @@ public class ForwardResponseHeadersTest {
         to.setStatus(Status.REDIRECTION_NOT_MODIFIED);
 
         ForwardResponseHeaders.relay(from, to, List.of(), BASE_URI, true, new HashSet<>(),
-                new ForwardResponseHeaders.Exposure(null, null, true));
+                new ForwardResponseHeaders.Exposure(null, Set.of(), true));
 
         assertTrue(to.getCacheDirectives().isEmpty(),
                 "a cache would replace its stored Cache-Control with the 304's");
