@@ -15,8 +15,11 @@ package io.ikanos.engine.consumes.http;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.restlet.Request;
+import org.restlet.data.MediaType;
 import org.restlet.data.Method;
+import org.restlet.engine.header.ContentType;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.consumes.ClientSpec;
@@ -80,11 +83,53 @@ public final class ConsumedHeaderValidator {
                     for (HttpClientOperationSpec operation : resource.getOperations().values()) {
                         check(operation.getInputParameters(), ns + "." + operation.getName(),
                                 errors);
+                        checkEncodedBody(operation, ns + "." + operation.getName(), errors);
                     }
                 }
             }
         }
         return errors;
+    }
+
+    /**
+     * Refuses a static {@code Content-Type} input declared on an operation whose
+     * {@code multipartForm} or {@code formUrlEncoded} body the engine encodes, when it does not
+     * describe that encoding ({@code multipart/*}, {@code application/x-www-form-urlencoded}).
+     * The body keeps the media type the engine sets, with its multipart boundary, so such an
+     * input could never be sent (#1001). A templated value is checked per call, and an input
+     * inherited from the adapter or the resource, which still describes the bodies of other
+     * operations, is not refused.
+     */
+    private static void checkEncodedBody(HttpClientOperationSpec operation, String where,
+            List<String> errors) {
+        if (operation.getInputParameters() == null
+                || !HttpClientAdapter.encodesBody(operation.getBody())) {
+            return;
+        }
+        for (InputParameterSpec parameter : operation.getInputParameters()) {
+            String name = parameter.getWireName() != null && !parameter.getWireName().isBlank()
+                    ? parameter.getWireName() : parameter.getName();
+            String value = parameter.getValue() != null ? parameter.getValue()
+                    : parameter.getTemplate();
+            if (!"header".equalsIgnoreCase(parameter.getIn())
+                    || !"Content-Type".equalsIgnoreCase(name) || value == null
+                    || value.contains("{{")) {
+                continue;
+            }
+            MediaType mediaType;
+            try {
+                mediaType = new ContentType(value.trim()).getMediaType();
+            } catch (RuntimeException e) {
+                // check() reports a value that is not a media type
+                continue;
+            }
+            if (!HttpClientAdapter.describesEncodedBody(operation.getBody(), mediaType)) {
+                errors.add(where + " header input '" + name + "' can never be sent: it does not "
+                        + "describe the operation's " + ((Map<?, ?>) operation.getBody())
+                                .get("type")
+                        + " body, whose media type the engine sets");
+            }
+        }
     }
 
     private static void check(List<InputParameterSpec> parameters, String where,
