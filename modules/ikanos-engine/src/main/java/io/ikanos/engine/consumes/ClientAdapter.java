@@ -121,7 +121,9 @@ public abstract class ClientAdapter extends Adapter {
                 missing.add(name);
             }
         }
-        if (!missing.isEmpty() || resolved.contains("{{")) {
+        // A "{{" left once the placeholders are removed is a malformed template. The resolved
+        // value is not searched: a bound secret may itself contain "{{".
+        if (!missing.isEmpty() || PLACEHOLDER.matcher(value).replaceAll("").contains("{{")) {
             throw new IllegalArgumentException("consumes '" + namespace + "' " + field
                     + " references unbound variables " + missing
                     + ". Declare them in a binds entry.");

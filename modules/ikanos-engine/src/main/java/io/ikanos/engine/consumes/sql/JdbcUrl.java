@@ -34,7 +34,7 @@ final class JdbcUrl {
 
     /**
      * Driver properties that load classes, read local files, deserialize objects or run scripts
-     * (PostgreSQL, MySQL Connector/J, MariaDB, SQL Server, H2). The URL comes from the operator, so
+     * (PostgreSQL, MySQL Connector/J, MariaDB, SQL Server, H2, SQLite). The URL comes from the operator, so
      * refusing them is defense in depth, in the URL and in {@code connection.properties} alike.
      * Compared case-insensitively.
      */
@@ -54,7 +54,9 @@ final class JdbcUrl {
             "socketfactoryclass", "socketfactoryconstructorarg", "trustmanagerclass",
             "trustmanagerconstructorarg", "accesstokencallbackclass",
             // H2
-            "init");
+            "init",
+            // SQLite (Xerial): lets SELECT load_extension(...) load a native library
+            "enable_load_extension");
 
     /**
      * A property name: after {@code ?&;:} (query string and {@code ;key=value} forms) or after
@@ -129,6 +131,7 @@ final class JdbcUrl {
             case "postgresql" -> SqlStatement.Dialect.POSTGRESQL;
             case "sqlserver", "jtds" -> SqlStatement.Dialect.SQLSERVER;
             case "sqlite" -> SqlStatement.Dialect.SQLITE;
+            case "oracle" -> SqlStatement.Dialect.ORACLE;
             default -> SqlStatement.Dialect.STANDARD;
         };
     }
@@ -164,7 +167,8 @@ final class JdbcUrl {
             host = hostOf(hostForm.group(1));
             database = emptyToNull(hostForm.group(2));
         } else if (afterSystem.startsWith("@")) {
-            String[] parts = afterSystem.substring(1).split("[:/]");
+            // Drop the properties first: their values, such as a password, are never a name.
+            String[] parts = afterSystem.substring(1).split("[?;]", 2)[0].split("[:/]");
             host = parts.length > 0 ? emptyToNull(parts[0]) : null;
             database = parts.length > 2 ? emptyToNull(parts[2]) : null;
         } else if (!afterSystem.isEmpty()) {

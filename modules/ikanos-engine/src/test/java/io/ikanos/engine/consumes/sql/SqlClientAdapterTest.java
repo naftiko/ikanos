@@ -428,6 +428,27 @@ class SqlClientAdapterTest {
     }
 
     @Test
+    void poolConfigShouldKeepABoundPasswordThatContainsBraces() throws Exception {
+        SqlClientSpec spec = spec(GET_CUSTOMER);
+        spec.getConnection().setPassword("{{DB_PASSWORD}}");
+        io.ikanos.Capability capability = org.mockito.Mockito.mock(io.ikanos.Capability.class);
+        org.mockito.Mockito.when(capability.getBindings())
+                .thenReturn(Map.of("DB_PASSWORD", "pa{{ss}}word"));
+
+        HikariConfig config = new SqlClientAdapter(capability, spec).poolConfig();
+
+        assertEquals("pa{{ss}}word", config.getPassword());
+    }
+
+    @Test
+    void constructorShouldRefuseAMalformedConnectionPlaceholder() throws Exception {
+        SqlClientSpec spec = spec(GET_CUSTOMER);
+        spec.getConnection().setPassword("{{DB_PASSWORD");
+
+        assertThrows(IllegalArgumentException.class, () -> new SqlClientAdapter(null, spec));
+    }
+
+    @Test
     void constructorShouldRefuseAnUnboundDriverProperty() throws Exception {
         SqlClientSpec spec = spec(GET_CUSTOMER);
         spec.getConnection().setProperties(Map.of("password", "{{DB_PASSWORD}}"));
