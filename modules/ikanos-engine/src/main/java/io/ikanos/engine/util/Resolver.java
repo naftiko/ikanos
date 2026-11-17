@@ -713,6 +713,12 @@ public class Resolver {
      * namespace holds, so a credential must name a key, as in {@code {{tenant.TOKEN}}}. Variables
      * inside a section or an inverted section are not listed, as in {@link #emptyVariables}.
      *
+     * <p>A caller claim read from the engine's {@link CallerRoot}, such as
+     * {@code {{auth.claims.tenant}}}, is not listed either: whether it is an object depends on the
+     * caller's token (a nested claim, or a dotted claim such as {@code tenant.id}), not on the
+     * configuration, so {@link #requireCallerValues} refuses it as a claim the token does not
+     * carry as one value (#998).</p>
+     *
      * @param template the credential template, may be null
      * @param values the values available to it, may be null (then nothing is listed)
      * @return the variables whose value is a map, or an empty list
@@ -721,8 +727,15 @@ public class Resolver {
         if (values == null) {
             return List.of();
         }
+        boolean callerRoot = values.get(CALLER_ROOT) instanceof CallerRoot;
         return variablesWhere(template,
-                reference -> lookupVariable(reference, values) instanceof Map);
+                reference -> !(callerRoot && readsOneCallerClaim(reference))
+                        && lookupVariable(reference, values) instanceof Map);
+    }
+
+    /** Whether {@code name} reads one claim under {@link #CALLER_CLAIMS}, {@code this} skipped. */
+    private static boolean readsOneCallerClaim(String name) {
+        return canonicalName(name).startsWith(CALLER_CLAIMS + ".");
     }
 
     /**

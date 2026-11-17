@@ -242,6 +242,65 @@ class ConsumedAuthenticationUnresolvedTest {
         assertTrue(ConsumedAuthentication.canRender(bearer("{{tenant.TOKEN}}"), parameters));
     }
 
+    // #998 after #1064: the namespace refusal is a configuration error and comes first, whatever
+    // the caller; a claim that is an object for this caller is the caller's, and a bind namespace
+    // named auth never stands in for the caller root.
+
+    @Test
+    void bearerTokenNamingANamespaceShouldBeRefusedBeforeTheCallerClaimsAreChecked() {
+        Request request = request();
+        Map<String, Object> parameters = ConsumedAuthentication.withBindings(callerWith(Map.of()),
+                Map.of("tenant", Map.of("TOKEN", "s3cr3t")));
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> ConsumedAuthentication.apply(bearer("{{tenant}}-{{auth.claims.sub}}"), null,
+                        request, TARGET, parameters));
+
+        assertFalse(e instanceof io.ikanos.engine.util.CallerClaimMissingException,
+                "A namespace credential is a configuration error, not the caller's: " + e);
+        assertTrue(e.getMessage().contains("{{tenant}}"), e.getMessage());
+        assertNull(request.getChallengeResponse());
+    }
+
+    @Test
+    void bearerTokenReadingACallerClaimThatIsAnObjectShouldBeTheCallersError() {
+        Request request = request();
+        Map<String, Object> parameters = ConsumedAuthentication.withBindings(
+                callerWith(Map.of("tenant", Map.of("id", "acme"))), null);
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> ConsumedAuthentication.apply(bearer("{{auth.claims.tenant}}"), null,
+                        request, TARGET, parameters));
+
+        assertTrue(e instanceof io.ikanos.engine.util.CallerClaimMissingException,
+                "Not a bind namespace: the token does not carry the claim as one value: " + e);
+        assertNull(request.getChallengeResponse());
+    }
+
+    @Test
+    void bearerTokenReadingCallerClaimsShouldNotReadABindNamespaceNamedAuth() {
+        Request request = request();
+        Map<String, Object> parameters = ConsumedAuthentication.withBindings(
+                callerWith(Map.of("sub", "alice")),
+                Map.of("auth", Map.of("claims", "s3cr3t")));
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> ConsumedAuthentication.apply(bearer("{{auth.claims.sub}}"), null, request,
+                        TARGET, parameters));
+
+        assertFalse(e instanceof io.ikanos.engine.util.CallerClaimMissingException, e.toString());
+        assertTrue(e.getMessage().contains("Rename it"), e.getMessage());
+        assertFalse(e.getMessage().contains("s3cr3t"), "The error must not show a secret");
+        assertNull(request.getChallengeResponse());
+    }
+
+    private static Map<String, Object> callerWith(Map<String, Object> claims) {
+        Map<String, Object> parameters = new java.util.HashMap<>();
+        parameters.put(io.ikanos.engine.util.Resolver.CALLER_ROOT,
+                new io.ikanos.engine.util.CallerRoot(Map.of("claims", claims)));
+        return parameters;
+    }
+
     private static Request request() {
         return new Request(Method.GET, TARGET);
     }

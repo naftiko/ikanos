@@ -975,6 +975,31 @@ public class ResolverTest {
       }
 
       @Test
+      public void namespaceVariablesShouldNotListACallerClaimThatIsAnObject() {
+        // #998 after #1064: whether a claim is an object depends on the caller's token, so it is
+        // left to requireCallerValues; the caller root itself and auth.claims stay listed
+        Map<String, Object> values = new HashMap<>();
+        values.put(Resolver.CALLER_ROOT, new CallerRoot(
+            Map.of("claims", Map.of("tenant", Map.of("id", "acme")))));
+        values.put("tenant", Map.of("TOKEN", "s3cr3t"));
+
+        assertEquals(List.of(), Resolver.namespaceVariables(
+            "{{auth.claims.tenant}}{{auth.this.claims.tenant}}", values));
+        assertEquals(List.of("tenant", "auth.claims", "auth"), Resolver.namespaceVariables(
+            "{{tenant}}{{auth.claims}}{{auth}}", values));
+      }
+
+      @Test
+      public void namespaceVariablesShouldListAnAuthClaimsPathOfABindNamespace() {
+        // A bind namespace named auth is no caller root: its maps stay listed
+        Map<String, Object> values = Map.of(Resolver.CALLER_ROOT,
+            Map.of("claims", Map.of("tenant", Map.of("TOKEN", "s3cr3t"))));
+
+        assertEquals(List.of("auth.claims.tenant"),
+            Resolver.namespaceVariables("{{auth.claims.tenant}}", values));
+      }
+
+      @Test
       public void referencedNamesShouldIncludeSectionsAndWhatTheyHold() {
         assertEquals(List.of("auth", "token", "vault", "fallback"), Resolver.referencedNames(
             "{{#auth}}{{token}}{{/auth}}-{{vault.key}}{{^vault}}{{fallback}}{{/vault}}"));
