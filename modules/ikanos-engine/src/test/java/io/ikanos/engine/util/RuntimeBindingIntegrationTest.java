@@ -96,11 +96,11 @@ class RuntimeBindingIntegrationTest {
         restPort = freePort();
         capability = new Capability(IkanosMappers.lenientYaml().readValue("""
                 ikanos: "%s"
-                binds:
-                  - namespace: "env"
-                    keys:
-                      TOKEN: "%s"
                 capability:
+                  binds:
+                    - namespace: "env"
+                      keys:
+                        TOKEN: "%s"
                   exposes:
                     - type: rest
                       address: "localhost"
@@ -154,11 +154,11 @@ class RuntimeBindingIntegrationTest {
         restPort = freePort();
         String yaml = """
                 ikanos: "%s"
-                binds:
-                  - namespace: "env"
-                    keys:
-                      TOKEN: "%s"
                 capability:
+                  binds:
+                    - namespace: "env"
+                      keys:
+                        TOKEN: "%s"
                   consumes:
                     - namespace: up
                       type: http
