@@ -3,8 +3,7 @@
 #   a placeholder used twice and a colon inside a string literal), and every
 #   input used through its placeholder or its key. A PostgreSQL URL nests block
 #   comments, a SQL Server URL reads [...] as an identifier, and a MySQL URL
-#   reads # as a comment. An Oracle URL reads q'[...]' as a literal, and a
-#   PostgreSQL identifier may hold $$ without starting a dollar-quoted string.
+#   reads # as a comment.
 ikanos: "1.0.0-beta10"
 info:
   display: "Consumed SQL rules — compliant"
@@ -61,11 +60,13 @@ capability:
           statement: select /* outer /* inner */ :ignored */ name from customers where id = :id
           inputParameters:
             id: { type: string }
+        # A PostgreSQL identifier may hold $$ without starting a dollar-quoted string.
         dollar-identifier:
           description: A $ inside an identifier does not open a dollar-quoted string.
           statement: select a$$tag$column from events where id = :id
           inputParameters:
             id: { type: string }
+    # An Oracle URL reads q'[...]' as a literal.
     - type: sql
       namespace: fin
       description: "Oracle database, read with an alternative-quoted literal."
