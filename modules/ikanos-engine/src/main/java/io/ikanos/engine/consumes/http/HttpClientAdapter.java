@@ -85,8 +85,8 @@ public class HttpClientAdapter extends ClientAdapter {
      *
      * <p>When {@code spec.getTunnel()} is non-null AND {@code tunnels} contains an entry for
      * the tunnel's type, the underlying Restlet {@link Client} is created with a custom
-     * {@link TunnelAwareHttpClientHelper} that installs a Jetty request listener routing
-     * matching hosts through the tunnel. Otherwise it uses {@link IkanosHttpClientHelper} on the
+     * {@link TunnelAwareHttpClientHelper}, whose {@code create} attaches the tunnel transport
+     * when Restlet creates the Jetty request, routing matching hosts through the tunnel. Otherwise it uses {@link IkanosHttpClientHelper} on the
      * direct internet path, as the 2-arg constructor does.
      *
      * @param capability the owning capability
