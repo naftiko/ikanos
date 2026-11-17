@@ -23,7 +23,7 @@ capability:
       procedures:
         get-order:
           description: Reads one order.
-          statement: select id, status from orders where id = :id
+          statement: select id, status from orders where id = {{id}}
           inputParameters:
             id: { type: string }
           outputParameters:
@@ -31,7 +31,7 @@ capability:
         mark-shipped:
           description: Marks one paid order as shipped.
           readOnly: false
-          statement: update orders set status = 'SHIPPED' where id = :id and status = 'PAID'
+          statement: update orders set status = 'SHIPPED' where id = {{id}} and status = 'PAID'
           inputParameters:
             id: { type: string }
           outputParameters:
@@ -39,7 +39,7 @@ capability:
         cancel:
           description: Deletes one unpaid order.
           readOnly: false
-          statement: delete from orders where id = :id and status = 'NEW'
+          statement: delete from orders where id = {{id}} and status = 'NEW'
           inputParameters:
             id: { type: string }
           outputParameters:
