@@ -27,6 +27,7 @@ import io.ikanos.engine.consumes.ConsumedQueryParameterValidator;
 import io.ikanos.engine.consumes.ConsumedTemplateValidator;
 import io.ikanos.engine.consumes.http.ConsumedHeaderValidator;
 import io.ikanos.engine.definitions.DefinitionsExpander;
+import io.ikanos.engine.exposes.AccessControl;
 import io.ikanos.engine.exposes.mcp.InferredToolCallResolver;
 import io.ikanos.engine.exposes.rest.ForwardTrustedHeadersValidator;
 import io.ikanos.engine.exposes.rest.ForwardResponseHeaders;
@@ -147,6 +148,10 @@ public class ValidateCommand implements Callable<Integer> {
             // warning only.
             List<String> defaultErrors =
                     spec != null ? InputDefaults.findErrors(spec) : List.of();
+            // An authorization the engine would refuse at load: on an adapter without oauth2,
+            // on stdio, empty, or naming a scope authentication.scopes does not list (#999).
+            List<String> authorizationErrors =
+                    spec != null ? AccessControl.findErrors(spec) : List.of();
             List<String> warnings = new ArrayList<>(definitions.warnings());
             if (spec != null) {
                 warnings.addAll(InputDefaults.findWarnings(spec));
@@ -156,7 +161,8 @@ public class ValidateCommand implements Callable<Integer> {
             if (schemaValid && templateErrors.isEmpty() && queryParameterErrors.isEmpty()
                     && headerErrors.isEmpty() && forwardErrors.isEmpty()
                     && definitions.errors().isEmpty()
-                    && inferredCallErrors.isEmpty() && defaultErrors.isEmpty()) {
+                    && inferredCallErrors.isEmpty() && defaultErrors.isEmpty()
+                    && authorizationErrors.isEmpty()) {
                 System.out.println("✓ Validation successful!");
                 System.out.println("  File: " + filePath);
                 System.out.println("  Status: OK");
@@ -214,6 +220,11 @@ public class ValidateCommand implements Callable<Integer> {
                 }
                 for (String error : defaultErrors) {
                     System.err.println("\n  [" + errorCount + "] Invalid input default: "
+                            + error);
+                    errorCount++;
+                }
+                for (String error : authorizationErrors) {
+                    System.err.println("\n  [" + errorCount + "] Invalid authorization: "
                             + error);
                     errorCount++;
                 }

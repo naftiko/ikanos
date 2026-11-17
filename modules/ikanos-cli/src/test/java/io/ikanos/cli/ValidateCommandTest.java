@@ -175,6 +175,80 @@ public class ValidateCommandTest {
     }
 
     /** A capability whose MCP tool declares one input parameter, written as {@code param}. */
+    @Test
+    public void callShouldFailWhenNestedAuthorizationSitsOnAnAdapterWithoutOAuth2() {
+        Path yaml = authorizationCapability("", "records.read");
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        String err = errCapture.toString();
+        assertEquals(1, exitCode, "#999: authorization needs oauth2\n" + err + outCapture);
+        assertTrue(err.contains("Invalid authorization"), err);
+        assertTrue(err.contains("needs 'authentication: oauth2'"), err);
+    }
+
+    @Test
+    public void callShouldFailWhenAuthorizationScopeIsNotInAuthenticationScopes() {
+        Path yaml = authorizationCapability(OAUTH2, "records.admin");
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        String err = errCapture.toString();
+        assertEquals(1, exitCode, "#999: a required scope must be recognized\n" + err + outCapture);
+        assertTrue(err.contains("'records.admin'"), err);
+        assertTrue(err.contains("not listed in 'authentication.scopes'"), err);
+    }
+
+    @Test
+    public void callShouldSucceedWhenAuthorizationScopeIsRecognized() {
+        Path yaml = authorizationCapability(OAUTH2, "records.read");
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        assertEquals(0, exitCode, errCapture.toString() + outCapture);
+    }
+
+    private static final String OAUTH2 = """
+                  authentication:
+                    type: "oauth2"
+                    authorizationServerUri: "https://idp.example.com"
+                    resource: "https://api.example.com"
+                    scopes: ["records.read"]
+            """;
+
+    private Path authorizationCapability(String authentication, String scope) {
+        Path yaml = tempDir.resolve("authorization.yaml");
+        assertDoesNotThrow(() -> Files.writeString(yaml, """
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - type: "http"
+                      namespace: "crm"
+                      baseUri: "https://crm.example.com"
+                      resources:
+                        records:
+                          path: "/records"
+                          operations:
+                            list-records:
+                              method: "GET"
+                  exposes:
+                    - type: "rest"
+                      port: 8080
+                      namespace: "records-api"
+                %s
+                      resources:
+                        records:
+                          path: "/records"
+                          operations:
+                            list-records:
+                              method: "GET"
+                              call: "crm.list-records"
+                              authorization:
+                                scopes: ["%s"]
+                """.formatted(IKANOS, authentication, scope)));
+        return yaml;
+    }
+
     private Path toolInputCapability(String param) {
         Path yaml = tempDir.resolve("tool-input-default.yaml");
         assertDoesNotThrow(() -> Files.writeString(yaml, """

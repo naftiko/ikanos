@@ -87,7 +87,7 @@ public class McpServerResource extends ServerResource {
             // Refuse a token that lacks the tool's (or adapter's) scopes or claims before
             // dispatching: the OAuth2 restlet in front turns the denial into a 403 with an
             // insufficient_scope challenge, so the client can step up its authorization (#999).
-            if (!AccessControl.enforce(dispatcher.requirementFor(root), getRequest(),
+            if (!AccessControl.enforce(dispatcher.requirementFor(root, getRequest()), getRequest(),
                     getResponse())) {
                 return new StringRepresentation("Forbidden", MediaType.TEXT_PLAIN);
             }
