@@ -14,6 +14,7 @@
 package io.ikanos.engine.consumes.sql;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -23,6 +24,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -190,5 +192,77 @@ class SqlClientAdapterIntegrationTest {
                 () -> new Capability(YAML.readValue(broken, IkanosSpec.class)));
 
         assertTrue(String.valueOf(e.getMessage()).contains("drop-products"), e.getMessage());
+    }
+
+    /**
+     * #1064: a connection URL and credentials may name their bindings by namespace and key, as in
+     * {@code {{secrets.DB_PASSWORD}}}. They resolve, and the capability starts and answers.
+     */
+    @Test
+    void capabilityShouldStartWithConnectionFieldsNamedByNamespace() throws Exception {
+        int namespacedPort = freePort();
+        Capability namespaced = new Capability(YAML.readValue(
+                namespacedYaml("{{secrets.DB_PASSWORD}}", namespacedPort), IkanosSpec.class));
+        try {
+            namespaced.start();
+            HttpRequest request = HttpRequest.newBuilder(
+                    URI.create("http://localhost:" + namespacedPort + "/products")).GET().build();
+            HttpResponse<String> response = HttpClient.newHttpClient().send(request,
+                    HttpResponse.BodyHandlers.ofString());
+
+            assertEquals(200, response.statusCode(), response.body());
+            assertEquals(2, JSON.readTree(response.body()).size(), response.body());
+        } finally {
+            namespaced.stop();
+        }
+    }
+
+    /**
+     * #1064: a connection credential that names a whole bind namespace would render every value
+     * it holds. The capability refuses to load, and the error shows no value.
+     */
+    @Test
+    void capabilityShouldRefuseAConnectionPasswordNamingAWholeNamespace() throws Exception {
+        String yaml = namespacedYaml("{{secrets}}", 0);
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> new Capability(YAML.readValue(yaml, IkanosSpec.class)));
+
+        assertTrue(e.getMessage().contains("connection.password"), e.getMessage());
+        assertTrue(e.getMessage().contains("{{secrets.KEY}}"), e.getMessage());
+        assertFalse(e.getMessage().contains("s3cret"), "the error must not show a secret");
+    }
+
+    /**
+     * The integration capability, with its connection URL, user and password read from a
+     * {@code secrets} bind namespace.
+     */
+    private String namespacedYaml(String password, int port) throws Exception {
+        String path = dir.resolve("catalog.db").toString().replace('\\', '/');
+        Path secretsFile = dir.resolve("secrets.yaml");
+        Files.writeString(secretsFile, """
+                path: "%s"
+                user: "catalog"
+                password: "s3cret"
+                """.formatted(path));
+        String binds = """
+                capability:
+                  binds:
+                    - namespace: "secrets"
+                      location: "%s"
+                      keys:
+                        DB_PATH: "path"
+                        DB_USER: "user"
+                        DB_PASSWORD: "password"
+                """.formatted(secretsFile.toUri());
+        String connection = """
+                        url: "jdbc:sqlite:{{secrets.DB_PATH}}"
+                        username: "{{secrets.DB_USER}}"
+                        password: "%s"
+                """.formatted(password);
+        String urlLine = "        url: \"jdbc:sqlite:" + path + "\"\n";
+        String yaml = yaml("jdbc:sqlite:" + path, port);
+        assertTrue(yaml.contains(urlLine), yaml);
+        return yaml.replace("capability:\n", binds).replace(urlLine, connection);
     }
 }

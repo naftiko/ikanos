@@ -128,6 +128,12 @@ public abstract class ClientAdapter extends Adapter {
                     + " references unbound variables " + missing
                     + ". Declare them in a binds entry.");
         }
+        // A whole bind namespace would render every value it holds, as in {{secrets}} (#1064)
+        List<String> namespaces = Resolver.namespaceVariables(value, scope);
+        if (!namespaces.isEmpty()) {
+            throw new IllegalArgumentException("consumes '" + namespace + "' " + field + " "
+                    + Resolver.describeNamespaceVariables(namespaces));
+        }
         return resolved;
     }
 
