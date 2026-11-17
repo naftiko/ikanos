@@ -82,7 +82,9 @@ final class SqlStatement {
         /** SQL Server: nested block comments, {@code […]} identifiers, unseparated batches. */
         SQLSERVER,
         /** SQLite: {@code […]} identifiers. */
-        SQLITE;
+        SQLITE,
+        /** Oracle: alternative-quoted literals ({@code q'[…]'}, {@code nq'{…}'}). */
+        ORACLE;
 
         boolean nestedComments() {
             return this == POSTGRESQL || this == SQLSERVER;
@@ -249,6 +251,10 @@ final class SqlStatement {
             } else if (c == ';') {
                 ended = true;
                 i++;
+            } else if (dialect == Dialect.ORACLE && alternativeQuote(sql, i) > 0) {
+                int end = endOfAlternativeQuote(sql, alternativeQuote(sql, i));
+                out.append(sql, i, end);
+                i = end;
             } else if (isWordStart(c)) {
                 // $ continues an unquoted identifier (audit$delete is one name), though not a
                 // named placeholder
@@ -269,6 +275,40 @@ final class SqlStatement {
             }
         }
         return new SqlStatement(sql, dialect, out.toString().strip(), placeholders, keywords);
+    }
+
+    /**
+     * @return the index of the opening quote of an Oracle alternative-quoted literal
+     *     ({@code q'…'} or {@code nq'…'}) that starts at word start {@code i}, or {@code -1}
+     */
+    private static int alternativeQuote(String sql, int i) {
+        int q = i;
+        if ((sql.charAt(q) == 'n' || sql.charAt(q) == 'N') && q + 1 < sql.length()) {
+            q++;
+        }
+        boolean quoted = (sql.charAt(q) == 'q' || sql.charAt(q) == 'Q')
+                && q + 2 < sql.length() && sql.charAt(q + 1) == '\'';
+        return quoted ? q + 1 : -1;
+    }
+
+    /**
+     * @return the index just past an Oracle alternative-quoted literal whose opening quote is at
+     *     {@code quote}: it closes with its delimiter, or the matching bracket, then a quote
+     */
+    private static int endOfAlternativeQuote(String sql, int quote) {
+        char open = sql.charAt(quote + 1);
+        char close = switch (open) {
+            case '[' -> ']';
+            case '{' -> '}';
+            case '<' -> '>';
+            case '(' -> ')';
+            default -> open;
+        };
+        int end = sql.indexOf(String.valueOf(close) + '\'', quote + 2);
+        if (Character.isWhitespace(open) || end < 0) {
+            throw new IllegalArgumentException("statement has an unterminated quoted string");
+        }
+        return end + 2;
     }
 
     /**
