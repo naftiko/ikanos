@@ -11,6 +11,8 @@ permissions:
 
 jobs:
   publish:
+    # Fork runs are untrusted input for a job with write permissions: we skip them
+    if: github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - name: Download badge artifact
@@ -22,15 +24,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Deploy badges to badges branch
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./badges-output
-          publish_branch: badges
-          destination_dir: .
-          keep_files: true
-          user_name: 'github-actions[bot]'
-          user_email: 'github-actions[bot]@users.noreply.github.com'
+        uses: naftiko/.github/.github/actions/deploy-badges@0350704a80b6163ae2b46862796952e69584374e # naftiko/.github#7
 
       - name: Download PR comment artifact
         if: github.event.workflow_run.event == 'pull_request'

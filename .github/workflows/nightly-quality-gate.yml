@@ -515,17 +515,29 @@ jobs:
           write_badge "ikanos-trivy.json"        "trivy"         "$TRIVY_MSG"    "$TRIVY_COLOR"
           write_badge "ikanos-gitleaks.json"     "gitleaks"      "$LEAKS_MSG"    "$LEAKS_COLOR"
 
-      - name: Deploy badges to badges branch
+      - name: Upload badge artifact
         if: ${{ !cancelled() }}
-        uses: peaceiris/actions-gh-pages@v4
+        uses: actions/upload-artifact@v7
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./badges-output
-          publish_branch: badges
-          destination_dir: .
-          keep_files: true
-          user_name: 'github-actions[bot]'
-          user_email: 'github-actions[bot]@users.noreply.github.com'
+          name: badges-output
+          path: badges-output/
+          retention-days: 1
+
+  deploy-badges:
+    name: Deploy badges to badges branch
+    needs: test-and-analyze
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download badge artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: badges-output
+          path: badges-output
+
+      - name: Deploy badges to badges branch
+        uses: naftiko/.github/.github/actions/deploy-badges@0350704a80b6163ae2b46862796952e69584374e # naftiko/.github#7
 
   integration-tests:
     uses: ./.github/workflows/validate-tuto-examples.yml
