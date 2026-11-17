@@ -149,6 +149,12 @@ final class RestoredResult implements ConsumedResult {
         return body;
     }
 
+    /** The body is the journaled tree: reparsing its text would round its decimals. */
+    @Override
+    public boolean nativeDocument() {
+        return true;
+    }
+
     @Override
     public byte[] bytes(long maxBytes) throws IOException {
         if (body == null) {
