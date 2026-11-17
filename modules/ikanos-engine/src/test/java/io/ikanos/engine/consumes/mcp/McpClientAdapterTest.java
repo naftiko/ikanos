@@ -792,6 +792,39 @@ class McpClientAdapterTest {
     }
 
     @Test
+    void aCancelShouldAuthenticateWithTheCallerClaimsOfTheInvocation() throws Exception {
+        // #998 after #958: the sealed caller root opens as a plain map, which a claim read
+        // refuses; the sealed mark makes it the caller root again
+        StubClient client = new StubClient();
+        client.answer = req -> json(200, rpcResult(req, "{}"));
+        McpClientAdapter adapter = new McpClientAdapter(capabilityWithBearerToken(),
+                spec("{{auth.claims.sub}}", ""), client);
+
+        String sealed = adapter.sealCredentials(Map.of("auth",
+                new io.ikanos.engine.util.CallerRoot(Map.of("claims", Map.of("sub", "alice"))),
+                "invoice-id", "INV-1"));
+        adapter.cancelTask("task-1", sealed);
+
+        assertEquals(1, client.requests.size(), "The cancel reaches the upstream");
+        assertEquals("alice", client.requests.get(0).getChallengeResponse().getRawValue());
+    }
+
+    @Test
+    void aCancelShouldNotReadClaimsFromAnInputNamedAuth() throws Exception {
+        StubClient client = new StubClient();
+        client.answer = req -> json(200, rpcResult(req, "{}"));
+        McpClientAdapter adapter = new McpClientAdapter(capabilityWithBearerToken(),
+                spec("{{auth.claims.sub}}", ""), client);
+
+        String sealed = adapter.sealCredentials(
+                Map.of("auth", Map.of("claims", Map.of("sub", "mallory"))));
+        adapter.cancelTask("task-1", sealed);
+
+        assertTrue(client.requests.isEmpty(),
+                "Only the engine's caller root is read as claims, never an input named auth");
+    }
+
+    @Test
     void onlyTheParametersTheCredentialsUseShouldBeSealed() throws Exception {
         Capability capability = capabilityWithBearerToken();
         McpClientAdapter adapter = new McpClientAdapter(capability, spec(""), new StubClient());

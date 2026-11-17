@@ -38,10 +38,13 @@ import io.ikanos.engine.execution.Elicitation;
 import io.ikanos.engine.execution.ExecutionInputs;
 import io.ikanos.engine.execution.InputRequiredException;
 import io.ikanos.engine.exposes.AccessControl;
+import io.ikanos.engine.exposes.CallerClaims;
 import io.ikanos.engine.exposes.mcp.AgentIdentityResolver;
 import io.ikanos.engine.exposes.mcp.InlineRounds;
 import io.ikanos.engine.exposes.mcp.InputRequests;
 import io.ikanos.engine.exposes.mcp.McpRequestState;
+import io.ikanos.engine.util.CallerRoot;
+import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
 import io.ikanos.spec.util.IkanosMappers;
 import tools.jackson.core.JacksonException;
@@ -126,7 +129,9 @@ public final class RestInputRequests {
             Response response, Map<String, Object> parameters) {
         String principal = principal(request);
         ObjectNode bound = bound(restlet, operation);
-        JsonNode arguments = MAPPER.valueToTree(parameters);
+        // The caller's claims (#998) are never written into the handle or the journal: an answer
+        // rebuilds them from its own validated token
+        JsonNode arguments = MAPPER.valueToTree(withoutCallerRoot(parameters));
         if (inline != null) {
             InlineRounds.Round round = inline.run(entry(restlet, operation), principal, arguments,
                     null, 0, null, () -> restlet.runForRounds(operation, parameters));
@@ -200,6 +205,7 @@ public final class RestInputRequests {
             @SuppressWarnings("unchecked")
             Map<String, Object> parameters =
                     MAPPER.convertValue(bound.path("parameters"), Map.class);
+            CallerClaims.putInto(parameters, CallerClaims.of(request));
             replay(restlet, operation, parameters, answers, state.carried().deepCopy(), principal,
                     (ObjectNode) bound, response);
             return;
@@ -248,10 +254,25 @@ public final class RestInputRequests {
         Map<String, Object> parameters = inline.arguments(id)
                 .map(arguments -> (Map<String, Object>) MAPPER.convertValue(arguments, Map.class))
                 .orElseGet(LinkedHashMap::new);
+        CallerClaims.putInto(parameters, CallerClaims.of(request));
         InlineRounds.Round round = inline.run(entry(restlet, operation), principal, null, id,
                 state.round(), responses,
                 () -> restlet.runForRounds(operation, parameters));
         render(round, principal, (ObjectNode) bound, response);
+    }
+
+    /**
+     * The parameters without the caller root ({@link CallerRoot}), which is no input: once
+     * serialized it would come back as a plain map, which a claim read refuses, and it would keep
+     * the caller's claims in the handle or the journal. An input named {@code auth} is kept.
+     */
+    static Map<String, Object> withoutCallerRoot(Map<String, Object> parameters) {
+        if (parameters == null || !(parameters.get(Resolver.CALLER_ROOT) instanceof CallerRoot)) {
+            return parameters;
+        }
+        Map<String, Object> inputs = new LinkedHashMap<>(parameters);
+        inputs.remove(Resolver.CALLER_ROOT);
+        return inputs;
     }
 
     /** Under {@code none}: runs the operation from the start with the answers so far. */

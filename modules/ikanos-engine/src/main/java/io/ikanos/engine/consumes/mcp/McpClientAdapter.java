@@ -45,6 +45,7 @@ import io.ikanos.engine.consumes.ConsumedOperationView;
 import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.engine.consumes.http.ConsumedAuthentication;
 import io.ikanos.engine.util.InputDefaults;
+import io.ikanos.engine.util.CallerRoot;
 import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.consumes.mcp.McpClientSpec;
@@ -216,11 +217,40 @@ public class McpClientAdapter extends ClientAdapter {
             for (String name : Resolver.referencedNames(template)) {
                 if (!bindings.containsKey(name) && templates.get(name) != null) {
                     used.put(name, templates.get(name));
+                    if (templates.get(name) instanceof CallerRoot) {
+                        // Opened, it is a plain map: say it was the caller root (#998)
+                        used.put(SEALED_CALLER_ROOT, Boolean.TRUE);
+                    }
                 }
             }
         }
         return used.isEmpty() ? null
                 : SealedCredentials.seal(capability.getSealingKey(), getNamespace(), used);
+    }
+
+    /**
+     * Key of the sealed parameters that says the {@link Resolver#CALLER_ROOT} entry was the
+     * engine's {@link CallerRoot}. It is no template name, so no template reads it, and only the
+     * engine seals it: the sealed parameters are authenticated under the capability's key.
+     */
+    static final String SEALED_CALLER_ROOT = "@callerRoot";
+
+    /**
+     * Opens what {@link #sealCredentials} sealed, with the caller root a {@link CallerRoot} again,
+     * so a credential that reads {@code {{auth.claims...}}} authenticates the cancel as it did the
+     * call (#998). Only the sealed mark makes it one: an input named {@code auth} stays a map.
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> openCredentials(Capability capability, String credentials) {
+        Map<String, Object> parameters =
+                SealedCredentials.open(capability.getSealingKey(), getNamespace(), credentials);
+        // Only a map read from the payload holds the mark; one that failed to open is Map.of()
+        if (parameters != null && parameters.containsKey(SEALED_CALLER_ROOT)
+                && Boolean.TRUE.equals(parameters.remove(SEALED_CALLER_ROOT))
+                && parameters.get(Resolver.CALLER_ROOT) instanceof Map<?, ?> root) {
+            parameters.put(Resolver.CALLER_ROOT, new CallerRoot((Map<String, Object>) root));
+        }
+        return parameters;
     }
 
     /**
@@ -233,7 +263,7 @@ public class McpClientAdapter extends ClientAdapter {
     void cancelTask(String taskId, String credentials) {
         Capability capability = getCapability();
         Map<String, Object> parameters = credentials == null || capability == null ? null
-                : SealedCredentials.open(capability.getSealingKey(), getNamespace(), credentials);
+                : openCredentials(capability, credentials);
         Map<String, Object> templates = ConsumedAuthentication.withBindings(parameters,
                 capability != null ? capability.getBindings() : null);
         ObjectNode params = JSON.createObjectNode();
