@@ -357,8 +357,27 @@ class SqlWriteTest {
                     id: { type: integer }
                 """);
 
-        assertTrue(SqlClientAdapter.buildProcedures(spec, SqlStatement.Dialect.STANDARD).get("upsert").jdbcSql()
-                .endsWith(";"));
+        assertTrue(SqlClientAdapter.buildProcedures(spec, SqlStatement.Dialect.SQLSERVER)
+                .get("upsert").jdbcSql().endsWith(";"));
+    }
+
+    @Test
+    void buildProceduresShouldStripTheTerminatorOfAMergeOutsideSqlServer() throws Exception {
+        SqlClientSpec spec = spec("""
+                upsert:
+                  description: Upserts one order.
+                  readOnly: false
+                  statement: "merge into orders o using (values ({{id}})) s (id) on o.id = s.id when matched then update set status = 'SEEN';"
+                  inputParameters:
+                    id: { type: integer }
+                """);
+
+        for (SqlStatement.Dialect dialect : java.util.List.of(SqlStatement.Dialect.STANDARD,
+                SqlStatement.Dialect.POSTGRESQL)) {
+            String jdbcSql = SqlClientAdapter.buildProcedures(spec, dialect).get("upsert")
+                    .jdbcSql();
+            assertTrue(!jdbcSql.endsWith(";"), dialect + ": " + jdbcSql);
+        }
     }
 
     @Test
@@ -372,7 +391,7 @@ class SqlWriteTest {
                     id: { type: integer }
                 """);
 
-        String jdbcSql = SqlClientAdapter.buildProcedures(spec, SqlStatement.Dialect.STANDARD)
+        String jdbcSql = SqlClientAdapter.buildProcedures(spec, SqlStatement.Dialect.SQLSERVER)
                 .get("upsert").jdbcSql();
         assertTrue(jdbcSql.endsWith("-- upsert\n;"), jdbcSql);
     }

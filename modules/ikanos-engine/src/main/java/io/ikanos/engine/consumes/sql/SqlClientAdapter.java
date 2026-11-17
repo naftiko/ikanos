@@ -222,8 +222,10 @@ public class SqlClientAdapter extends ClientAdapter {
             positions.add(inputs.size());
         }
         // SQL Server requires MERGE to end with ';': keep the one the author wrote, on a line of
-        // its own so that a trailing line comment cannot swallow it
+        // its own so that a trailing line comment cannot swallow it. Other drivers, such as
+        // Oracle's, refuse a terminator, so it stays stripped there.
         String jdbcSql = "MERGE".equals(operation) && statement.terminated()
+                && dialect == SqlStatement.Dialect.SQLSERVER
                 ? statement.jdbcSql() + "\n;" : statement.jdbcSql();
         return new Procedure(procedure.getName(), procedure, statement, jdbcSql,
                 List.copyOf(inputs), List.copyOf(positions), List.of(),
