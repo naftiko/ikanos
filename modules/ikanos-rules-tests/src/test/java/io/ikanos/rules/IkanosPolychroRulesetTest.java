@@ -536,10 +536,10 @@ public class IkanosPolychroRulesetTest {
             "rules/polychro-mcp-tool-input-examples-violations.yaml", "info");
         long findings = result.output().lines()
             .filter(line -> line.contains("ikanos-mcp-tool-input-examples")).count();
-        assertEquals(8, findings,
+        assertEquals(9, findings,
             "Expected one finding per invalid example (enum, number, hexadecimal number,"
-                + " spaced integer, large unquoted integer, number on a string input,"
-                + " boolean, object).\n"
+                + " spaced integer, large unquoted integer, decimal integer enum value,"
+                + " number on a string input, boolean, object).\n"
                 + result.output());
     }
 

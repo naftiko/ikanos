@@ -3,7 +3,8 @@
 #   a boolean example that is not true/false, an example on an object input, and
 #   numeric text the engine cannot convert (hexadecimal, surrounding spaces), and an
 #   unquoted integer beyond 2^53, which the YAML reader rounds, and an unquoted
-#   number on a string input.
+#   number on a string input, and an integer example against an integer enum value
+#   written as a decimal, which the engine advertises as a string.
 ikanos: "1.0.0-beta10"
 info:
   display: "MCP tool input examples — violations"
@@ -46,6 +47,11 @@ capability:
               type: integer
               description: "Ticket number."
               examples: [9007199254740993]
+            page_size:
+              type: integer
+              description: "Page size."
+              enum: ["50.0"]
+              examples: [50]
             region:
               type: string
               description: "Region code."

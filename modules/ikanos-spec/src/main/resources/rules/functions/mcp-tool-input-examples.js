@@ -137,7 +137,7 @@ function checkExample(schema, example) {
   // same holds for a number in the enum of a string input, whose authored text is lost.
   if (Array.isArray(schema.enum) && !schema.enum.some(isInexact)
       && !(textual && schema.enum.some((value) => typeof value === "number"))
-      && !schema.enum.some((value) => sameValue(value, text, decimal))) {
+      && !schema.enum.some((value) => sameValue(value, text, decimal, type))) {
     return "is not one of the input's enum values";
   }
   return null;
@@ -154,10 +154,15 @@ function isInexact(value) {
 /**
  * Whether an enum value and an example are the same value once the engine emits them with the
  * input's type: numerically equal for a number or integer input (so `1.0` matches `1`), equal
- * text otherwise.
+ * text otherwise. On an integer input, the engine emits only an enum value written as a plain
+ * integer (`BigInteger` syntax) as a number; any other, such as `"50.0"`, stays a string, so it
+ * matches no example.
  */
-function sameValue(enumValue, text, decimal) {
+function sameValue(enumValue, text, decimal, type) {
   const enumText = String(enumValue);
+  if (type === "integer" && !/^[+-]?\d+$/.test(enumText)) {
+    return false;
+  }
   if (decimal) {
     const enumDecimal = parseDecimal(enumText);
     if (enumDecimal) {
