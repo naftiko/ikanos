@@ -82,6 +82,14 @@ public final class StandardRequestHeaders {
         }
     }
 
+    /**
+     * Request attribute set once an {@code If-Range} of the request was refused. A {@code Range}
+     * without its {@code If-Range} could return part of a changed representation, so from then
+     * on the request carries no {@code Range}, whichever source (trusted header, adapter or
+     * operation input) sets it and in whatever order.
+     */
+    static final String IF_RANGE_REFUSED = "io.ikanos.engine.ifRangeRefused";
+
     /** How the elements of a list-valued header are separated, for {@link #elements}. */
     enum Syntax {
         /** Comma-separated, with quoted strings. */
@@ -154,7 +162,7 @@ public final class StandardRequestHeaders {
         SETTERS.put("If-Range", StandardRequestHeaders::setIfRange);
         SETTERS.put("Max-Forwards",
                 (request, value) -> request.setMaxForwards(Integer.parseInt(value.trim())));
-        SETTERS.put("Range", (request, value) -> request.setRanges(ranges(value)));
+        SETTERS.put("Range", StandardRequestHeaders::setRange);
         SETTERS.put("Referer", (request, value) -> request.setReferrerRef(value.trim()));
         SETTERS.put("User-Agent", (request, value) -> request.getClientInfo().setAgent(value));
         SETTERS.put("Via", (request, value) -> replace(request.getRecipientsInfo(),
@@ -230,6 +238,11 @@ public final class StandardRequestHeaders {
         try {
             setter.accept(request, value);
         } catch (RuntimeException e) {
+            if ("If-Range".equalsIgnoreCase(name)) {
+                // Sent alone, the Range would no longer depend on the representation (#1001)
+                request.getAttributes().put(IF_RANGE_REFUSED, Boolean.TRUE);
+                request.setRanges(new ArrayList<>());
+            }
             throw new IllegalArgumentException("Invalid value for the " + name + " header");
         }
     }
@@ -294,6 +307,17 @@ public final class StandardRequestHeaders {
      */
     public static String notSendableReason(String name) {
         return name == null ? null : NOT_SENDABLE.get(name);
+    }
+
+    /**
+     * Sets the ranges of {@code value}, unless an {@code If-Range} of the request was refused
+     * (see {@link #IF_RANGE_REFUSED}): the request then asks for the whole representation.
+     */
+    static void setRange(Request request, String value) {
+        List<Range> parsed = ranges(value);
+        if (!Boolean.TRUE.equals(request.getAttributes().get(IF_RANGE_REFUSED))) {
+            request.setRanges(parsed);
+        }
     }
 
     static void setIfRange(Request request, String value) {
