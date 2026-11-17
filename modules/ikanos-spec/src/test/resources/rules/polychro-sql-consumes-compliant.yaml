@@ -8,15 +8,15 @@ ikanos: "1.0.0-beta10"
 info:
   display: "Consumed SQL rules — compliant"
   description: "Fixture that satisfies every consumed SQL Polychro rule."
-binds:
-  - namespace: erp-db
-    description: "ERP database connection."
-    location: "file:///./shared/secrets.yaml"
-    keys:
-      JDBC_URL: "erp-jdbc-url"
-      DB_USER: "erp-db-user"
-      DB_PASSWORD: "erp-db-password"
 capability:
+  binds:
+    - namespace: erp-db
+      description: "ERP database connection."
+      location: "file:///./shared/secrets.yaml"
+      keys:
+        JDBC_URL: "erp-jdbc-url"
+        DB_USER: "erp-db-user"
+        DB_PASSWORD: "erp-db-password"
   consumes:
     - type: sql
       namespace: erp
