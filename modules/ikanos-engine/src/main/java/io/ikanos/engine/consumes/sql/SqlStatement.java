@@ -71,6 +71,15 @@ final class SqlStatement {
             "RESTORE", "RETURN", "REVERT", "REVOKE", "ROLLBACK", "SAVE", "SET", "SETUSER",
             "SHUTDOWN", "TRUNCATE", "UPDATETEXT", "USE", "WAITFOR", "WHILE", "WRITETEXT");
 
+    /**
+     * T-SQL words that start a statement but are not reserved, so not in
+     * {@link #SQLSERVER_STATEMENT_KEYWORDS}: {@code ENABLE TRIGGER} and {@code DISABLE TRIGGER}.
+     * SQL Server runs {@code SELECT 1 DISABLE TRIGGER ALL ON t} as two statements, so a read that
+     * holds one of them right before {@code TRIGGER} is refused. Alone, they stay usable as
+     * column names.
+     */
+    static final Set<String> SQLSERVER_TRIGGER_KEYWORDS = Set.of("ENABLE", "DISABLE");
+
     /** How a statement is read: the lexical rules that differ between databases. */
     enum Dialect {
         /** Standard SQL lexing, for databases not listed below. */
@@ -143,9 +152,13 @@ final class SqlStatement {
         if (!READ_STARTS.contains(firstKeyword())) {
             return firstKeyword().isEmpty() ? "(empty)" : firstKeyword();
         }
-        for (String keyword : keywords) {
+        for (int i = 0; i < keywords.size(); i++) {
+            String keyword = keywords.get(i);
             if (NON_READ_KEYWORDS.contains(keyword) || (dialect == Dialect.SQLSERVER
-                    && SQLSERVER_STATEMENT_KEYWORDS.contains(keyword))) {
+                    && (SQLSERVER_STATEMENT_KEYWORDS.contains(keyword)
+                            || (SQLSERVER_TRIGGER_KEYWORDS.contains(keyword)
+                                    && i + 1 < keywords.size()
+                                    && "TRIGGER".equals(keywords.get(i + 1)))))) {
                 return keyword;
             }
         }
