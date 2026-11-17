@@ -424,6 +424,126 @@ public class AwsSigV4IntegrationTest {
                 + (authentication == null ? "" : "      authentication:\n" + authentication);
     }
 
+    /**
+     * S3 reads a query name such as acl, tagging or versionId as part of the operation, and the
+     * caller's query would be signed with the operator's credentials: a forward to an awsSigV4
+     * target refuses a caller query with 400, and nothing reaches the upstream.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"acl", "tagging", "versionId=3", "prefix=a", "acl&x-id=PutObjectAcl"})
+    void forwardShouldRefuseACallerQueryWhenTheTargetSignsWithAwsSigV4(String query)
+            throws Exception {
+        start(auth(null));
+
+        HttpResponse<String> response = forward("/files/report.txt?" + query);
+
+        assertEquals(400, response.statusCode(), response.body());
+        assertTrue(response.body().contains("awsSigV4"), response.body());
+        assertNull(received.get(), "The upstream should not have been called");
+    }
+
+    /** A forwarded call without a query is still signed and sent. */
+    @Test
+    void forwardShouldSignACallWithoutAQueryWhenTheTargetSignsWithAwsSigV4() throws Exception {
+        start(auth(null));
+
+        HttpResponse<String> response = forward("/files/report.txt");
+
+        assertEquals(200, response.statusCode(), response.body());
+        assertEquals("/documents/report.txt", received.get().getResourceRef().getPath());
+        assertNull(received.get().getResourceRef().getQuery());
+        assertSignatureMatches("s3", false);
+    }
+
+    /**
+     * The query of the base URI and the adapter's own query input parameters are the operator's,
+     * not the caller's: they still go out, signed.
+     */
+    @Test
+    void forwardShouldSignTheAdapterQueryWhenTheTargetSignsWithAwsSigV4() throws Exception {
+        startSignedForward("", "?list-type=2", """
+                      inputParameters:
+                        - name: "max-keys"
+                          in: "query"
+                          value: "10"
+                """);
+
+        HttpResponse<String> response = forward("/files/reports");
+
+        assertEquals(200, response.statusCode(), response.body());
+        assertEquals("/documents/reports", received.get().getResourceRef().getPath());
+        assertEquals("list-type=2&max-keys=10", received.get().getResourceRef().getQuery());
+        assertSignatureMatches("s3", false);
+    }
+
+    /**
+     * The exposed API key, sent in the query, never reaches the upstream, so it is not a caller
+     * query for the target; any other parameter beside it still is.
+     */
+    @Test
+    void forwardShouldAcceptOnlyTheExposedApiKeyInTheQueryWhenTheTargetSignsWithAwsSigV4()
+            throws Exception {
+        startSignedForward("""
+                      authentication:
+                        type: "apikey"
+                        key: "api_key"
+                        value: "ikanos-secret"
+                        placement: "query"
+                """, "", "");
+
+        HttpResponse<String> refused = forward("/files/report.txt?api_key=ikanos-secret&acl");
+        assertEquals(400, refused.statusCode(), refused.body());
+        assertNull(received.get(), "The upstream should not have been called");
+
+        HttpResponse<String> response = forward("/files/report.txt?api_key=ikanos-secret");
+        assertEquals(200, response.statusCode(), response.body());
+        assertNull(received.get().getResourceRef().getQuery());
+        assertSignatureMatches("s3", false);
+    }
+
+    /** Sends a GET to the exposed adapter on {@link #restPort}. */
+    private HttpResponse<String> forward(String pathAndQuery) throws Exception {
+        return HttpClient.newHttpClient().send(HttpRequest
+                .newBuilder(URI.create("http://localhost:" + restPort + pathAndQuery)).GET()
+                .build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    /**
+     * Starts a capability forwarding {@code /files/...} to {@code store}, which signs for S3.
+     *
+     * @param exposedAuthentication the exposed adapter's authentication block, or empty
+     * @param baseUriQuery a query appended to the base URI, such as {@code ?list-type=2}, or empty
+     * @param consumedExtras YAML added to the consumed adapter, or empty
+     */
+    private void startSignedForward(String exposedAuthentication, String baseUriQuery,
+            String consumedExtras) throws Exception {
+        restPort = findFreePort();
+        String yaml = """
+                ikanos: "%s"
+                capability:
+                  exposes:
+                    - type: "rest"
+                      address: "localhost"
+                      port: %d
+                      namespace: "proxy"
+                %s
+                      resources:
+                        - path: "/files/{{path}}"
+                          forward:
+                            targetNamespace: "store"
+                  consumes:
+                    - type: "http"
+                      namespace: "store"
+                      baseUri: "http://localhost:%d/documents%s"
+                %s
+                      authentication:
+                %s
+                """.formatted(VersionHelper.getSchemaVersion(), restPort, exposedAuthentication,
+                        upstreamPort, baseUriQuery, consumedExtras, auth(null));
+        capability = new Capability(IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class));
+        capability.start();
+    }
+
     /** A consumed MCP adapter signs its JSON-RPC POST, payload hash included, like HTTP. */
     @Test
     void mcpTransportShouldSignTheCallWhenTheConsumedMcpAdapterUsesAwsSigV4() throws Exception {
