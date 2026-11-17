@@ -392,6 +392,46 @@ public class OasExportBuilderTest {
     }
 
     @Test
+    void buildShouldDocumentNoStoreOnlyOnTheAnswersOfAnOperationThatAsks() {
+        IkanosSpec spec = minimalSpec("Test", null);
+        RestServerSpec rest = getRestServer(spec);
+        rest.setTtlMs(60_000);
+        rest.setCacheScope("public");
+        java.util.LinkedHashMap<String, io.ikanos.spec.util.OperationStepSpec> steps =
+                new java.util.LinkedHashMap<>();
+        steps.put("confirm", new io.ikanos.spec.util.OperationStepElicitSpec("confirm",
+                "Confirm?", Map.of("ok", Map.of("type", "boolean"))));
+        RestServerResourceSpec cached = resourceWithOperation("/cached", "cached", "GET",
+                "cached", null);
+        firstOp(cached).setSteps(steps);
+        addResource(rest, cached);
+        RestServerResourceSpec written = resourceWithOperation("/written", "written", "POST",
+                "written", null);
+        firstOp(written).setSteps(steps);
+        addResource(rest, written);
+
+        OasExportResult result = builder.build(spec, null);
+
+        for (Operation asking : List.of(
+                result.getOpenApi().getPaths().get("/cached").getGet(),
+                result.getOpenApi().getPaths().get("/written").getPost())) {
+            asking.getResponses().forEach((status, response) -> {
+                io.swagger.v3.oas.models.headers.Header cacheControl =
+                        response.getHeaders() == null ? null
+                                : response.getHeaders().get("Cache-Control");
+                if ("202".equals(status)) {
+                    assertNotNull(cacheControl, "The 202 says it is never stored");
+                    assertTrue(cacheControl.getDescription().contains("`no-store`"),
+                            cacheControl.getDescription());
+                } else {
+                    assertNull(cacheControl, status
+                            + ": an operation that asks never sends the ordinary policy");
+                }
+            });
+        }
+    }
+
+    @Test
     void buildShouldDocumentA202OnAnOperationThatReachesAConsumedToolThatMayAsk()
             throws Exception {
         IkanosSpec spec = io.ikanos.spec.util.IkanosMappers.yaml().readValue("""

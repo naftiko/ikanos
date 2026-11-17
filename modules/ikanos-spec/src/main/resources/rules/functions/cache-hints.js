@@ -14,7 +14,8 @@
  *   (a positive `ttlMs` on the operation or the adapter), the adapter authenticates
  *   its callers or an input is read from outside the URL (`in: header`, or the
  *   body, where an input without `in` is read), unless the input has a literal
- *   `value`, which never reads the request. It can be intended, so it warns.
+ *   `value`, which never reads the request. Inputs from `inputParameterSets` count
+ *   as the engine expands them. It can be intended, so it warns.
  * - `ttl-from-upstream-no-effect`: `ttlFromUpstream: true` on an MCP resource
  *   whose read does not come from a single HTTP answer: a static `location`,
  *   `steps`, or a call to an MCP consumed adapter. (A resource cannot call an
@@ -60,9 +61,11 @@ function scan(exposes, basePath, check, context, results) {
 }
 
 function restCallerDependent(adapter, path, results) {
-  const adapterInput = inputOutsideUrl(adapter.inputParameters);
+  const sets = adapter.definitions && typeof adapter.definitions === "object"
+    ? adapter.definitions.inputParameterSets : null;
+  const adapterInput = inputOutsideUrl(effectiveInputs(adapter, null));
   for (const [resKey, resource] of entries(adapter.resources)) {
-    const resourceInput = inputOutsideUrl(resource && resource.inputParameters);
+    const resourceInput = inputOutsideUrl(effectiveInputs(resource, sets));
     for (const [opKey, operation] of entries(resource && resource.operations)) {
       if (!operation || String(operation.method).toUpperCase() !== "GET") {
         continue;
@@ -73,7 +76,8 @@ function restCallerDependent(adapter, path, results) {
       if (scope !== "public" || !(ttlMs > 0)) {
         continue;
       }
-      const input = inputOutsideUrl(operation.inputParameters) || resourceInput || adapterInput;
+      const input = inputOutsideUrl(effectiveInputs(operation, sets))
+        || resourceInput || adapterInput;
       if (!adapter.authentication && !input) {
         continue;
       }
@@ -175,17 +179,51 @@ function callTargetReason(call, context) {
 }
 
 /**
+ * The inputs of a REST resource or operation as the engine runs them, as
+ * `[name, input]` pairs: the entries of its `inputParameterSets` (from the adapter's
+ * `definitions`), in order, then its own `inputParameters`, an own entry replacing a
+ * set's entry of the same name whole (as `DefinitionsExpander` does). An unknown set
+ * contributes nothing; `ikanos-definitions-references` reports it.
+ */
+function effectiveInputs(unit, sets) {
+  if (!unit || typeof unit !== "object") {
+    return [];
+  }
+  const own = byName(entries(unit.inputParameters));
+  const ownNames = new Set(own.map(([name]) => name));
+  const fromSets = [];
+  for (const setName of asArray(unit.inputParameterSets)) {
+    const set = sets && typeof sets === "object" && typeof setName === "string"
+      && Object.prototype.hasOwnProperty.call(sets, setName) ? sets[setName] : null;
+    for (const [name, param] of byName(entries(set))) {
+      if (!ownNames.has(name)) {
+        fromSets.push([name, param]);
+      }
+    }
+  }
+  return [...fromSets, ...own];
+}
+
+/** `[key, input]` entries as `[name, input]`: an input's `name`, else its key. */
+function byName(inputEntries) {
+  return inputEntries.map(([key, param]) => [
+    param && typeof param === "object" && typeof param.name === "string" ? param.name : String(key),
+    param,
+  ]);
+}
+
+/**
  * Name of the first input read from outside the URL (header or body), or null. An
  * input with a literal `value` (not a JSONPath) never reads the request: it does not count.
  */
-function inputOutsideUrl(inputParameters) {
-  for (const [key, param] of entries(inputParameters)) {
+function inputOutsideUrl(inputs) {
+  for (const [name, param] of inputs) {
     if (!param || typeof param !== "object" || hasLiteralValue(param)) {
       continue;
     }
     const location = typeof param.in === "string" ? param.in.toLowerCase() : "body";
     if (!URL_LOCATIONS.has(location)) {
-      return param.name || key;
+      return name;
     }
   }
   return null;

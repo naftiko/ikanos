@@ -1,8 +1,9 @@
 # Polychro fixture — cache hint rules MUST NOT FIRE (#1022): the same shapes as
 # polychro-cache-hints-violations.yaml, with scopes left to auto or private, public
 # only where nothing depends on the caller (`trust: none`, an input with a literal
-# `value`) or nothing is cached (no REST ttlMs, MCP's default ttlMs of 0), and
-# ttlFromUpstream only on a single HTTP call.
+# `value`, a set's header input replaced whole by an own query input) or nothing
+# is cached (no REST ttlMs, MCP's default ttlMs of 0), and ttlFromUpstream only on
+# a single HTTP call.
 ikanos: "1.0.0-beta10"
 info:
   display: "Cache hints compliant"
@@ -128,6 +129,33 @@ capability:
                   in: "header"
                   type: "string"
                   value: "acme"
+              call: "shop.list-items"
+    - type: "rest"
+      port: 8087
+      namespace: "query-tenant-rest"
+      ttlMs: 60000
+      cacheScope: "public"
+      definitions:
+        inputParameterSets:
+          tenant:
+            tenant:
+              in: "header"
+              type: "string"
+              description: "The caller's tenant."
+      resources:
+        coupons:
+          path: "/tenant-coupons"
+          description: "The set's header input is replaced whole by a query input."
+          inputParameterSets: ["tenant"]
+          inputParameters:
+            tenant:
+              in: "query"
+              type: "string"
+              description: "The tenant, part of the URL."
+          operations:
+            list-tenant-coupons:
+              method: "GET"
+              description: "List coupons of a tenant."
               call: "shop.list-items"
     - type: "mcp"
       port: 8085

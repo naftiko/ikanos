@@ -33,7 +33,6 @@ import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.media.StringSchema;
 import io.swagger.v3.oas.models.parameters.Parameter;
 import io.swagger.v3.oas.models.parameters.RequestBody;
-import io.swagger.v3.oas.models.headers.Header;
 import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.headers.Header;
 import io.ikanos.spec.aggregates.AggregateSpec;
@@ -226,11 +225,28 @@ public class OasExportBuilder {
 
     /**
      * Document the {@code Cache-Control} header the engine sends on the successful answers of a
-     * {@code GET} operation whose {@code ttlMs} (or its adapter's) is set (#1021).
+     * {@code GET} operation whose {@code ttlMs} (or its adapter's) is set (#1021). An operation
+     * that may ask its caller answers in rounds instead: its {@code 202} is always
+     * {@code no-store}, whatever {@code ttlMs} and {@code cacheScope} say, and the ordinary policy
+     * is never sent.
      */
     void documentCacheControl(RestServerSpec restServer, RestServerOperationSpec opSpec,
             Operation operation) {
-        if (!"GET".equalsIgnoreCase(opSpec.getMethod()) || operation.getResponses() == null) {
+        if (operation.getResponses() == null) {
+            return;
+        }
+        if (operationMayAsk(opSpec)) {
+            ApiResponse accepted = operation.getResponses().get("202");
+            if (accepted != null) {
+                accepted.addHeaderObject("Cache-Control", new Header()
+                        .description("Always `no-store`, whatever `ttlMs` and `cacheScope` say:"
+                                + " the `Location` handle is bound to this caller. Every answer"
+                                + " on the handle is `no-store` too.")
+                        .schema(new StringSchema()));
+            }
+            return;
+        }
+        if (!"GET".equalsIgnoreCase(opSpec.getMethod())) {
             return;
         }
         Integer ttlMs = opSpec.getTtlMs() != null ? opSpec.getTtlMs() : restServer.getTtlMs();
@@ -331,14 +347,19 @@ public class OasExportBuilder {
             responses.addApiResponse("204", new ApiResponse()
                     .description("No content"));
         }
-        if (opSpec.getRef() != null ? mayAsk(opSpec.getRef(), null, new HashSet<>())
-                : targetAsks(callTarget(opSpec.getCall()), new HashSet<>())
-                        || mayAsk(null, opSpec.getSteps(), new HashSet<>())) {
+        if (operationMayAsk(opSpec)) {
             responses.addApiResponse("202", inputRequiredResponse());
         }
         operation.setResponses(responses);
 
         return operation;
+    }
+
+    /** Whether an operation may ask its caller for input, and so answers in rounds. */
+    private boolean operationMayAsk(RestServerOperationSpec opSpec) {
+        return opSpec.getRef() != null ? mayAsk(opSpec.getRef(), null, new HashSet<>())
+                : targetAsks(callTarget(opSpec.getCall()), new HashSet<>())
+                        || mayAsk(null, opSpec.getSteps(), new HashSet<>());
     }
 
     Parameter buildParameter(InputParameterSpec inputParam) {

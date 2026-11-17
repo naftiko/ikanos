@@ -1,8 +1,10 @@
 # Polychro fixture — cache hint rules MUST FIRE (#1022):
-#   - ikanos-cache-public-caller-dependent, six times:
+#   - ikanos-cache-public-caller-dependent, eight times:
 #       REST `list-items` (own public scope, authenticated adapter),
 #       REST `list-offers` (own public scope, header input),
 #       REST `list-deals` (public scope inherited from its adapter, body input),
+#       REST `list-coupons` and `list-vouchers` (header input from an input
+#       parameter set, on the resource and on the operation),
 #       the authenticated MCP adapter and its resource `orders`,
 #       the MCP adapter that identifies its callers with `trust: forwarded`
 #   - ikanos-cache-ttl-from-upstream-no-effect, five times: a static resource, a
@@ -86,6 +88,37 @@ capability:
               inputParameters:
                 filter:
                   type: "string"
+              call: "shop.list-items"
+    - type: "rest"
+      port: 8087
+      namespace: "tenant-rest"
+      ttlMs: 60000
+      cacheScope: "public"
+      definitions:
+        inputParameterSets:
+          tenant:
+            tenant:
+              in: "header"
+              type: "string"
+              description: "The caller's tenant."
+      resources:
+        coupons:
+          path: "/coupons"
+          description: "Coupons of the caller's tenant."
+          inputParameterSets: ["tenant"]
+          operations:
+            list-coupons:
+              method: "GET"
+              description: "List coupons."
+              call: "shop.list-items"
+        vouchers:
+          path: "/vouchers"
+          description: "Vouchers of the caller's tenant."
+          operations:
+            list-vouchers:
+              method: "GET"
+              description: "List vouchers."
+              inputParameterSets: ["tenant"]
               call: "shop.list-items"
     - type: "mcp"
       port: 8081
