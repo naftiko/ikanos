@@ -116,6 +116,21 @@ public class RestRefInheritedInputsIntegrationTest {
                 "own inputs replace the flow's: imo must not be read from the query string");
     }
 
+    @Test
+    void handleShouldApplyAnInheritedInputDefaultBeforeTheWithMappings() throws Exception {
+        JsonNode body = send(Method.GET, "/paged", null, null);
+
+        assertEquals("10", body.path("page-size").asString(),
+                "the flow's default for limit must reach the operation's with mapping");
+    }
+
+    @Test
+    void handleShouldPassAnInheritedInputToTheWithMappings() throws Exception {
+        JsonNode body = send(Method.GET, "/paged?limit=25", null, null);
+
+        assertEquals("25", body.path("page-size").asString());
+    }
+
     private JsonNode send(Method method, String path, String jsonBody, String imoHeader)
             throws Exception {
         Request request = new Request(method, new Reference("http://localhost:9212" + path));
