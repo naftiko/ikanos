@@ -321,6 +321,10 @@
         "explode": {
           "type": "boolean",
           "description": "For `form` style: `true` (default) sends one parameter per list element (`status[]=a&status[]=b`); `false` sends one comma-separated value (`ids=a,b`)."
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Whether a precondition header input (`If-Match`, `If-None-Match`, `If-Unmodified-Since`, `If-Range`) must have a value on a request whose method is not safe. Defaults to `true`: such a write fails with `400` when the input resolves to no value, since sending it without its precondition would make it unconditional. Set `false` to leave the header out instead. Other consumed inputs ignore it."
         }
       },
       "required": [

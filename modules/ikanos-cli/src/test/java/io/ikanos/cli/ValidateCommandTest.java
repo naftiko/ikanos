@@ -652,6 +652,53 @@ public class ValidateCommandTest {
         assertTrue(err.contains("If-Match"), err);
     }
 
+    /**
+     * #1001: a precondition header input is required by default, and {@code required: false} is
+     * the documented way to keep it optional, so the schema must accept it on a consumed input.
+     */
+    @Test
+    public void callShouldAcceptRequiredFalseOnAConsumedHeaderInput() {
+        Path yaml = tempDir.resolve("optional-if-match.yaml");
+        assertDoesNotThrow(() -> Files.writeString(yaml, """
+                ikanos: "%s"
+                info:
+                  display: "Conditional writes"
+                  description: "Sends an If-Match only when the caller gives one"
+                capability:
+                  consumes:
+                    - namespace: "up"
+                      type: "http"
+                      baseUri: "https://api.example.com"
+                      resources:
+                        items:
+                          path: "/items"
+                          operations:
+                            update:
+                              method: "PUT"
+                              inputParameters:
+                                If-Match:
+                                  in: "header"
+                                  value: "{{etag}}"
+                                  required: false
+                  exposes:
+                    - type: "rest"
+                      port: 3000
+                      namespace: "demo"
+                      resources:
+                        items:
+                          path: "/items"
+                          operations:
+                            put:
+                              method: "PUT"
+                              call: "up.update"
+                """.formatted(IKANOS)));
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        assertEquals(0, exitCode, "#1001: required: false keeps a precondition input optional "
+                + "and must validate. " + errCapture + outCapture);
+    }
+
     @Test
     public void callShouldRejectOAuth2OnAConsumedAdapter() {
         Path yaml = tempDir.resolve("oauth2-consumes.yaml");
