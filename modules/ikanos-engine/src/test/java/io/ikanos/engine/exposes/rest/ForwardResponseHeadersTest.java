@@ -455,8 +455,7 @@ public class ForwardResponseHeadersTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"http://upstream:9090/v1/items/42", "/v1/items", "items/42",
-            "http://upstream:9090/v1/"})
+    @ValueSource(strings = {"http://upstream:9090/v1/items/42", "/v1/items", "items/42"})
     public void relayedLocationShouldDropALocationBelowTheBaseUriUnderAResourceWithoutPath(
             String raw) {
         assertNull(ForwardResponseHeaders.relayedLocation(raw, BASE_URI, BASE_URI,
@@ -464,11 +463,162 @@ public class ForwardResponseHeadersTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"http://upstream:9090/v1, /status", "http://upstream:9090/v1?page=2, /status?page=2"})
+    @CsvSource({"http://upstream:9090/v1, /status", "http://upstream:9090/v1?page=2, /status?page=2",
+            "http://upstream:9090/v1/, /status", "/v1/, /status"})
     public void relayedLocationShouldRewriteTheBaseUriUnderAResourceWithoutPath(String raw,
             String expected) {
         assertEquals(expected, ForwardResponseHeaders.relayedLocation(raw, BASE_URI, BASE_URI,
                 incomingWithoutPath("http://localhost:8080/status")));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"http://upstream:9090/", "http://upstream:9090", "/"})
+    public void relayedLocationShouldRewriteTheRootBaseUriUnderAResourceWithoutPath(String raw) {
+        assertEquals("/status", ForwardResponseHeaders.relayedLocation(raw,
+                "http://upstream:9090", "http://upstream:9090",
+                incomingWithoutPath("http://localhost:8080/status")), raw);
+    }
+
+    @Test
+    public void relayedLocationShouldKeepTheTrailingSlashOfAResourceWithoutPath() {
+        assertEquals("/status/", ForwardResponseHeaders.relayedLocation(BASE_URI, BASE_URI,
+                BASE_URI, incomingWithoutPath("http://localhost:8080/status/")),
+                "the exposed route /status/ is written as routed");
+    }
+
+    @Test
+    public void relayedLocationShouldKeepTheTextAfterPathInTheResourcePath() {
+        assertEquals("/proxy/items/42/file", ForwardResponseHeaders.relayedLocation(
+                BASE_URI + "/items/42", BASE_URI + "/items", BASE_URI,
+                incoming("http://localhost:8080/proxy/items/file", "items"),
+                new ForwardResponseHeaders.Exposure("/proxy/{{path}}/file", null, false)),
+                "/proxy/items/42/file forwards to /v1/items/42 under /proxy/{{path}}/file");
+    }
+
+    @Test
+    public void relayedLocationShouldDropALocationWhenTheTextAfterPathHasAVariable() {
+        assertNull(ForwardResponseHeaders.relayedLocation(BASE_URI + "/items/42",
+                BASE_URI + "/items", BASE_URI,
+                incoming("http://localhost:8080/proxy/items/x", "items"),
+                new ForwardResponseHeaders.Exposure("/proxy/{{path}}/{{id}}", null, false)));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"http://upstream:9090/v1/items/42?api_key=s3cret",
+            "/v1/items/42?page=2&api_key=s3cret", "?api_key=s3cret",
+            "http://other.example/x?api%5Fkey=s3cret", "//other.example/x?api_key=s3cret"})
+    public void relayedLocationShouldDropALocationThatCarriesTheAdaptersQueryCredential(
+            String raw) {
+        assertNull(ForwardResponseHeaders.relayedLocation(raw, BASE_URI + "/items", BASE_URI,
+                incoming(), new ForwardResponseHeaders.Exposure(null, "api_key", false)), raw);
+    }
+
+    @Test
+    public void credentialQueryKeyShouldNameTheQueryParameterOfAnApiKey() {
+        io.ikanos.spec.consumes.http.HttpClientSpec spec =
+                new io.ikanos.spec.consumes.http.HttpClientSpec("up", BASE_URI,
+                        new io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec(
+                                "{{KEY_NAME}}", "query", "s3cret"));
+        io.ikanos.engine.consumes.http.HttpClientAdapter adapter =
+                new io.ikanos.engine.consumes.http.HttpClientAdapter(null, spec);
+
+        assertEquals("api_key", ResourceRestlet.credentialQueryKey(adapter,
+                new java.util.HashMap<>(java.util.Map.of("KEY_NAME", "api_key"))));
+    }
+
+    @Test
+    public void credentialQueryKeyShouldBeNullForAnApiKeySentInAHeader() {
+        io.ikanos.spec.consumes.http.HttpClientSpec spec =
+                new io.ikanos.spec.consumes.http.HttpClientSpec("up", BASE_URI,
+                        new io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec(
+                                "X-API-Key", "header", "s3cret"));
+
+        assertNull(ResourceRestlet.credentialQueryKey(
+                new io.ikanos.engine.consumes.http.HttpClientAdapter(null, spec),
+                new java.util.HashMap<>()));
+    }
+
+    @Test
+    public void relayedLocationShouldKeepALocationWhoseQueryHasNoCredential() {
+        assertEquals("/proxy/items/42?page=2", ForwardResponseHeaders.relayedLocation(
+                BASE_URI + "/items/42?page=2", BASE_URI + "/items", BASE_URI, incoming(),
+                new ForwardResponseHeaders.Exposure(null, "api_key", false)));
+    }
+
+    @Test
+    public void relayedLocationShouldKeepTheUpstreamSchemeOfASchemeRelativeLocation() {
+        assertEquals("https://cdn.example/download?token=t",
+                ForwardResponseHeaders.relayedLocation("//cdn.example/download?token=t",
+                        "https://upstream:9090/v1/items", "https://upstream:9090/v1",
+                        incoming()),
+                "the caller must not resolve it against the scheme it reached the gateway with");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/v1/%2e%2e/../admin", "/v1/items/%2E%2e/../../admin",
+            "http://upstream:9090/v1/.%2e/../admin"})
+    public void relayedLocationShouldDropAnEncodedDotSegmentThatAPlainDotDotRemoves(String raw) {
+        assertNull(location(raw), raw);
+    }
+
+    @Test
+    public void relayShouldMarkTheAnswerToAnAuthenticatedCallerPrivate() {
+        Response from = upstreamResponse();
+        from.getCacheDirectives().add(CacheDirective.publicInfo());
+        from.getCacheDirectives().add(CacheDirective.maxAge(60));
+        from.getCacheDirectives().add(CacheDirective.sharedMaxAge(120));
+        Response to = new Response(incoming());
+
+        ForwardResponseHeaders.relay(from, to, List.of(), BASE_URI, true, new HashSet<>(),
+                new ForwardResponseHeaders.Exposure(null, null, true));
+
+        assertEquals(List.of(CacheDirective.maxAge(60), CacheDirective.privateInfo()),
+                to.getCacheDirectives(),
+                "a shared cache must not serve it to a caller without the gateway credential");
+    }
+
+    @Test
+    public void relayShouldMarkTheAnswerToAnAuthenticatedCallerPrivateWithoutDirectives() {
+        Response to = new Response(incoming());
+
+        ForwardResponseHeaders.relay(upstreamResponse(), to, List.of(), BASE_URI, true,
+                new HashSet<>(), new ForwardResponseHeaders.Exposure(null, null, true));
+
+        assertEquals(List.of(CacheDirective.privateInfo()), to.getCacheDirectives());
+    }
+
+    @Test
+    public void relayShouldKeepNoStoreForAnAuthenticatedCaller() {
+        Response from = upstreamResponse();
+        from.getCacheDirectives().add(CacheDirective.noStore());
+        Response to = new Response(incoming());
+
+        ForwardResponseHeaders.relay(from, to, List.of(), BASE_URI, true, new HashSet<>(),
+                new ForwardResponseHeaders.Exposure(null, null, true));
+
+        assertEquals(List.of(CacheDirective.noStore()), to.getCacheDirectives());
+    }
+
+    @Test
+    public void relayShouldAddNoDirectiveToANotModifiedWithoutDirectives() {
+        Response from = upstreamResponse();
+        from.setStatus(Status.REDIRECTION_NOT_MODIFIED);
+        Response to = new Response(incoming());
+        to.setStatus(Status.REDIRECTION_NOT_MODIFIED);
+
+        ForwardResponseHeaders.relay(from, to, List.of(), BASE_URI, true, new HashSet<>(),
+                new ForwardResponseHeaders.Exposure(null, null, true));
+
+        assertTrue(to.getCacheDirectives().isEmpty(),
+                "a cache would replace its stored Cache-Control with the 304's");
+    }
+
+    @Test
+    public void relayShouldNotMarkTheAnswerPrivateWhenTheExposedAdapterHasNoAuthentication() {
+        Response from = upstreamResponse();
+        from.getCacheDirectives().add(CacheDirective.publicInfo());
+
+        assertEquals(List.of(CacheDirective.publicInfo()), relayed(from).getCacheDirectives());
     }
 
     @ParameterizedTest

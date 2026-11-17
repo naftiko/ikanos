@@ -15,6 +15,8 @@ package io.ikanos.engine.exposes.rest;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -181,6 +183,29 @@ public final class ForwardResponseHeaders {
      */
     static void relay(Response from, Response to, List<String> trustedResponseHeaders,
             String upstreamBaseUri, boolean relayChallenges, Set<String> warned) {
+        relay(from, to, trustedResponseHeaders, upstreamBaseUri, relayChallenges, warned,
+                new Exposure(null, null, false));
+    }
+
+    /**
+     * What the relay needs to know about the exposed resource and the consumed adapter.
+     *
+     * @param resourcePath the path template of the exposed resource, or {@code null} when
+     *        unknown: the text after {@code {{path}}} is kept around a rewritten location
+     * @param credentialQueryKey the name of the query parameter that carries the consumed
+     *        adapter's {@code apikey}, or {@code null}: a location whose query names it is dropped
+     * @param authenticated whether the exposed adapter authenticates its callers: the answer is
+     *        then marked {@code private}, since the upstream never sees that credential
+     */
+    record Exposure(String resourcePath, String credentialQueryKey, boolean authenticated) {
+    }
+
+    /**
+     * Same, for the exposed resource and consumed adapter {@code exposure} describes.
+     */
+    static void relay(Response from, Response to, List<String> trustedResponseHeaders,
+            String upstreamBaseUri, boolean relayChallenges, Set<String> warned,
+            Exposure exposure) {
         Request incoming = to.getRequest();
         // RFC 9110 section 7.6.1: an intermediary removes every field the Connection header
         // nominates, whatever the allow-list says.
@@ -192,7 +217,8 @@ public final class ForwardResponseHeaders {
         String location = nominated.contains("location") ? null
                 : from.getHeaders().getFirstValue(HeaderConstants.HEADER_LOCATION, true);
         String relayedLocation = location == null ? null
-                : relayedLocation(location, upstreamRequestUri, upstreamBaseUri, incoming);
+                : relayedLocation(location, upstreamRequestUri, upstreamBaseUri, incoming,
+                        exposure);
         if (location != null && relayedLocation == null) {
             logDropped(HeaderConstants.HEADER_LOCATION, from, warned);
         }
@@ -206,7 +232,7 @@ public final class ForwardResponseHeaders {
             if (contentLocation != null || entity.getLocationRef() != null) {
                 String relayedContentLocation = contentLocation == null ? null
                         : relayedLocation(contentLocation, upstreamRequestUri, upstreamBaseUri,
-                                incoming);
+                                incoming, exposure);
                 if (contentLocation != null && relayedContentLocation == null) {
                     logDropped(HeaderConstants.HEADER_CONTENT_LOCATION, from, warned);
                 }
@@ -247,6 +273,9 @@ public final class ForwardResponseHeaders {
         if (Status.REDIRECTION_NOT_MODIFIED.equals(from.getStatus())) {
             keepExpiresOfNotModified(from, to, nominated);
         }
+        if (exposure.authenticated()) {
+            markPrivate(to);
+        }
 
         if (trustedResponseHeaders == null) {
             return;
@@ -269,6 +298,35 @@ public final class ForwardResponseHeaders {
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Marks the answer to a caller the exposed adapter authenticated as {@code private}, so a
+     * shared cache never serves it to a caller without that credential: the upstream never sees
+     * the credential, so its {@code public}, {@code s-maxage} or plain {@code max-age} cannot
+     * account for it. {@code public}, {@code s-maxage} and a {@code private} limited to some
+     * fields are removed, and {@code private} is added unless {@code no-store} is there. A
+     * {@code 304} without directives gets none: a cache would replace its stored
+     * {@code Cache-Control} with them (RFC 9111 section 4.3.4), and the stored answer was already
+     * marked {@code private}.
+     */
+    static void markPrivate(Response to) {
+        List<CacheDirective> directives = to.getCacheDirectives();
+        if (directives.isEmpty() && Status.REDIRECTION_NOT_MODIFIED.equals(to.getStatus())) {
+            return;
+        }
+        directives.removeIf(directive -> {
+            String name = directive.getName() == null ? ""
+                    : directive.getName().toLowerCase(Locale.ROOT);
+            return name.equals("public") || name.equals("s-maxage")
+                    || (name.equals("private") && directive.getValue() != null);
+        });
+        boolean kept = directives.stream().anyMatch(directive -> directive.getName() != null
+                && (directive.getName().equalsIgnoreCase("private")
+                        || directive.getName().equalsIgnoreCase("no-store")));
+        if (!kept) {
+            directives.add(CacheDirective.privateInfo());
         }
     }
 
@@ -425,14 +483,23 @@ public final class ForwardResponseHeaders {
      * <li>Any other value on the upstream host, whatever its form (relative, scheme-relative,
      * another scheme or port, outside the base path): dropped, so the upstream host, and paths
      * that would point into the gateway's own namespace, never reach the caller.</li>
-     * <li>A value on another host: relayed unchanged.</li>
+     * <li>A value on another host: relayed unchanged, except a scheme-relative one
+     * ({@code //cdn.example/x}), which is sent with the scheme of the upstream request, so a
+     * caller on plain HTTP is not sent to plain HTTP.</li>
+     * <li>A value whose query names the consumed adapter's query-placed {@code apikey}, wherever
+     * it points: dropped, so an upstream that echoes its request URI never hands the caller that
+     * credential.</li>
+     * <li>A value with a percent-encoded dot segment as sent, even one a later {@code ..}
+     * removes during resolution: dropped, like a value whose resolved path keeps one.</li>
      * <li>A value that resolves to no host, such as {@code http:/admin} or {@code urn:x}:
      * dropped. A client can read a scheme-qualified reference without an authority as relative
      * to the gateway (RFC 3986 section 5.2.2, non-strict), outside the exposed resource.</li>
      * <li>A value or base URI that cannot be parsed: dropped.</li>
      * <li>Under a resource without {@code {{path}}}, which forwards to the base URI only, a value
      * below the base URI: dropped, since no exposed path routes to it. A value equal to the base
-     * URI is rewritten to the exposed path.</li>
+     * URI, with or without a trailing slash, is rewritten to the exposed path as routed.</li>
+     * <li>Under a resource whose path has text after {@code {{path}}}, such as
+     * {@code /proxy/{{path}}/file}, that text follows the rewritten path.</li>
      * <li>Under a resource with {@code {{path}}}, a value equal to the base URI (with or without
      * a trailing slash): dropped, since its route needs a non-empty forwarded path.</li>
      * <li>A value whose rewritten path would start with {@code //}, which only happens under a
@@ -453,6 +520,17 @@ public final class ForwardResponseHeaders {
      */
     static String relayedLocation(String raw, String upstreamRequestUri, String upstreamBaseUri,
             Request incoming) {
+        return relayedLocation(raw, upstreamRequestUri, upstreamBaseUri, incoming,
+                new Exposure(null, null, false));
+    }
+
+    /**
+     * Same, for the exposed resource and consumed adapter {@code exposure} describes: a value
+     * whose query names the adapter's query-placed {@code apikey} is dropped, wherever it points,
+     * and the text after {@code {{path}}} in the resource path is kept around a rewritten path.
+     */
+    static String relayedLocation(String raw, String upstreamRequestUri, String upstreamBaseUri,
+            Request incoming, Exposure exposure) {
         URI base = parse(upstreamBaseUri);
         URI value = parse(raw.trim());
         if (base == null || value == null || host(base) == null) {
@@ -474,16 +552,26 @@ public final class ForwardResponseHeaders {
                 : value.getRawQuery() != null ? value.getRawQuery()
                         : incoming.getResourceRef().getQuery();
         String fragment = sameDocument ? value.getRawFragment() : resolved.getRawFragment();
+        if (hasQueryParameter(value.getRawQuery(), exposure.credentialQueryKey())) {
+            // An upstream that echoes the request URI would hand the caller the adapter's own
+            // query-placed credential
+            return null;
+        }
         String host = host(resolved);
         if (host == null) {
             return null;
         }
         if (!host.equalsIgnoreCase(host(base))) {
-            return raw;
+            // A scheme-relative reference keeps the scheme of the upstream request, not the one
+            // the caller reached the gateway with, which could downgrade https to http
+            return value.getScheme() == null ? resolved.toString() : raw;
         }
         String basePath = stripTrailingSlashes(base.getRawPath());
         String path = resolved.getRawPath() == null ? "" : resolved.getRawPath();
-        if (hasDotSegment(path)) {
+        // An encoded dot segment is checked on the value as sent too: a later plain ".." can
+        // remove it during resolution, while a WHATWG parser decodes it and climbs further
+        if (hasDotSegment(path) || (value.getRawPath() != null
+                && hasEncodedDotSegment(value.getRawPath()))) {
             return null;
         }
         boolean under = path.equals(basePath) || (path.startsWith(basePath)
@@ -492,24 +580,29 @@ public final class ForwardResponseHeaders {
                 || port(resolved) != port(base)) {
             return null;
         }
-        String exposed = exposedPath(incoming);
+        String tail = pathTail(exposure.resourcePath());
+        String exposed = exposedPath(incoming, tail);
         if (exposed == null) {
             return null;
         }
         String suffix = path.substring(basePath.length());
-        if (!incoming.getAttributes().containsKey("path") && !suffix.isEmpty()) {
-            // A resource without {{path}} forwards to the base URI only and routes no sub-path,
-            // so a location below the base URI has no exposed counterpart
-            return null;
-        }
-        if (incoming.getAttributes().containsKey("path")
-                && (suffix.isEmpty() || suffix.equals("/"))) {
+        boolean forwardsPath = incoming.getAttributes().containsKey("path");
+        if (!forwardsPath) {
+            if (!suffix.isEmpty() && !suffix.equals("/")) {
+                // A resource without {{path}} forwards to the base URI only and routes no
+                // sub-path, so a location below the base URI has no exposed counterpart
+                return null;
+            }
+            // The base URI, with or without a trailing slash, is the exposed path as routed
+            suffix = "";
+            tail = "";
+        } else if (suffix.isEmpty() || suffix.equals("/")) {
             // Under {{path}}, the route needs a non-empty path after the exposed one, so the
             // base URI itself has no exposed counterpart: neither /proxy nor /proxy/ matches
             // /proxy/{path}
             return null;
         }
-        String rewritten = exposed + suffix;
+        String rewritten = exposed + suffix + tail;
         if (rewritten.isEmpty()) {
             rewritten = "/";
         }
@@ -617,21 +710,92 @@ public final class ForwardResponseHeaders {
     }
 
     /**
+     * @return {@code true} when a raw path segment is a percent-encoded dot segment
+     *         ({@code %2e%2e}, {@code .%2e}, {@code %2e.}, {@code %2e}, in any case)
+     */
+    static boolean hasEncodedDotSegment(String rawPath) {
+        for (String segment : rawPath.split("/", -1)) {
+            if (segment.indexOf('%') >= 0
+                    && DOT_SEGMENTS.contains(segment.toLowerCase(Locale.ROOT))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @return {@code true} when {@code rawQuery} has a parameter named {@code name}, compared
+     *         after percent-decoding, or {@code false} when either is {@code null}
+     */
+    static boolean hasQueryParameter(String rawQuery, String name) {
+        if (rawQuery == null || name == null || name.isEmpty()) {
+            return false;
+        }
+        for (String pair : rawQuery.split("[&;]")) {
+            int equals = pair.indexOf('=');
+            String rawName = equals < 0 ? pair : pair.substring(0, equals);
+            try {
+                if (name.equals(URLDecoder.decode(rawName, StandardCharsets.UTF_8))) {
+                    return true;
+                }
+            } catch (IllegalArgumentException e) {
+                // A malformed escape: compared as written
+                if (name.equals(rawName)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @return the static text after {@code {{path}}} in the path template of the exposed resource
+     *         ({@code /file} for {@code /proxy/{{path}}/file}), or an empty string when there is
+     *         none or the template is unknown
+     */
+    static String pathTail(String resourcePath) {
+        if (resourcePath == null) {
+            return "";
+        }
+        int start = resourcePath.indexOf("{{path}}");
+        return start < 0 ? "" : resourcePath.substring(start + "{{path}}".length());
+    }
+
+    /**
      * @return the path of the incoming request without its forwarded {@code {{path}}} part and
      *         any trailing slash, or {@code null} when the path does not end with that part
      */
     static String exposedPath(Request incoming) {
+        return exposedPath(incoming, "");
+    }
+
+    /**
+     * Same, when the resource path has {@code tail} after {@code {{path}}}: the path must end
+     * with the forwarded part followed by {@code tail}, and both are removed. The path of a
+     * resource without {@code {{path}}} is returned as routed, a trailing slash included.
+     *
+     * @return the exposed prefix, or {@code null} when the path does not have that form, or
+     *         when {@code tail} holds another variable, which cannot be rebuilt
+     */
+    static String exposedPath(Request incoming, String tail) {
         String path = incoming.getResourceRef().getPath();
         if (path == null) {
+            return null;
+        }
+        if (!incoming.getAttributes().containsKey("path")) {
+            return path;
+        }
+        if (tail.contains("{{")) {
             return null;
         }
         Object forwarded = incoming.getAttributes().get("path");
         String forwardedPath = forwarded == null ? "" : forwarded.toString();
         if (!forwardedPath.isEmpty()) {
-            if (!path.endsWith("/" + forwardedPath)) {
+            String end = "/" + forwardedPath + tail;
+            if (!path.endsWith(end)) {
                 return null;
             }
-            path = path.substring(0, path.length() - forwardedPath.length() - 1);
+            path = path.substring(0, path.length() - end.length());
         }
         return stripTrailingSlashes(path);
     }

@@ -797,7 +797,10 @@ public class ResourceRestlet extends Restlet {
                         response.setEntity(clientResponse.getEntity());
                         ForwardResponseHeaders.relay(clientResponse, response,
                                 forwardSpec.getTrustedResponseHeaders(), httpAdapter.getBaseUri(),
-                                !ownCredential, droppedLocationWarnings);
+                                !ownCredential, droppedLocationWarnings,
+                                new ForwardResponseHeaders.Exposure(getResourceSpec().getPath(),
+                                        credentialQueryKey(httpAdapter, parameters),
+                                        getServerSpec().getAuthentication() != null));
                         response.commit();
                         return true;
                     } catch (StandardRequestHeaders.InvalidPreconditionException e) {
@@ -842,6 +845,26 @@ public class ResourceRestlet extends Restlet {
                 + " target signs with awsSigV4, so the query would be signed with the operator's"
                 + " credentials.", MediaType.TEXT_PLAIN);
         return true;
+    }
+
+    /**
+     * @return the name of the query parameter that carries the consumed adapter's
+     *         {@code apikey}, rendered like {@code ConsumedAuthentication} renders it, or
+     *         {@code null} when the adapter sends no credential in the query
+     */
+    static String credentialQueryKey(HttpClientAdapter httpAdapter,
+            Map<String, Object> parameters) {
+        if (!(httpAdapter.getHttpClientSpec()
+                .getAuthentication() instanceof ApiKeyAuthenticationSpec apiKey)
+                || !apiKey.isQueryPlacement() || apiKey.getKey() == null) {
+            return null;
+        }
+        try {
+            return Secrets.resolve(apiKey.getKey(), parameters);
+        } catch (RuntimeException e) {
+            // The call itself would have failed on this key: nothing was sent
+            return null;
+        }
     }
 
     /**
