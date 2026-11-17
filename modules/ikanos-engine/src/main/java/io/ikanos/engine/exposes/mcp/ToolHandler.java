@@ -42,6 +42,7 @@ import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.context.Scope;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.core.JacksonException;
 import io.ikanos.spec.util.IkanosMappers;
@@ -57,6 +58,10 @@ import io.ikanos.engine.execution.InputRequiredException;
 public class ToolHandler {
 
     private static final ObjectMapper JSON = IkanosMappers.json();
+    /** Reads mapped output into structuredContent so its decimals, such as SQL NUMERICs, stay exact. */
+    private static final ObjectMapper EXACT_JSON = IkanosMappers.jsonBuilder()
+            .enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+            .build();
 
     private final Capability capability;
     private final Map<String, McpServerToolSpec> toolSpecs;
@@ -196,11 +201,11 @@ public class ToolHandler {
             return null;
         }
         try {
-            JsonNode node = JSON.readTree(mapped);
+            JsonNode node = EXACT_JSON.readTree(mapped);
             if (node == null || !node.isObject()) {
                 return null;
             }
-            return JSON.convertValue(node, new TypeReference<Map<String, Object>>() {});
+            return EXACT_JSON.convertValue(node, new TypeReference<Map<String, Object>>() {});
         } catch (JacksonException | IllegalArgumentException e) {
             Context.getCurrentLogger().log(Level.FINE,
                     "Mapped output of tool '" + toolName + "' is not a JSON object", e);
