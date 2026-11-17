@@ -178,6 +178,22 @@ class SqlStatementTest {
     }
 
     @Test
+    void nonReadKeywordShouldRefuseATriggerStatementAppendedToASqlServerRead() {
+        assertEquals("DISABLE", SqlStatement.parse(
+                "SELECT 1 WHERE 1=1 DISABLE TRIGGER ALL ON dbo.customers",
+                SqlStatement.Dialect.SQLSERVER).nonReadKeyword());
+        assertEquals("ENABLE", SqlStatement.parse(
+                "select 1 enable /* audit */ trigger audit on customers",
+                SqlStatement.Dialect.SQLSERVER).nonReadKeyword());
+    }
+
+    @Test
+    void nonReadKeywordShouldAcceptEnableAndDisableAsSqlServerColumns() {
+        assertNull(SqlStatement.parse("select enable, disable from features where id = :id",
+                SqlStatement.Dialect.SQLSERVER).nonReadKeyword());
+    }
+
+    @Test
     void nonReadKeywordShouldAcceptAnOffsetFetchReadOnSqlServer() {
         assertNull(SqlStatement.parse("select id from t order by id offset 10 rows"
                 + " fetch next 5 rows only", SqlStatement.Dialect.SQLSERVER).nonReadKeyword());
