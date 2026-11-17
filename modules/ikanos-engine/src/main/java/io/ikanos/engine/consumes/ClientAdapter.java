@@ -15,12 +15,11 @@ package io.ikanos.engine.consumes;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+
+import com.samskivert.mustache.Mustache;
 
 import io.ikanos.Capability;
 import io.ikanos.engine.Adapter;
@@ -44,9 +43,6 @@ public abstract class ClientAdapter extends Adapter {
     private final AtomicReference<Capability> capability = new AtomicReference<>();
 
     private final AtomicReference<ClientSpec> spec = new AtomicReference<>();
-
-    private static final Pattern PLACEHOLDER =
-            Pattern.compile("\\{\\{\\{?\\s*([^{}#^/!&>=]+?)\\s*\\}?\\}\\}");
 
     public ClientAdapter(Capability capability, ClientSpec spec) {
         this.capability.set(capability);
@@ -102,7 +98,8 @@ public abstract class ClientAdapter extends Adapter {
      * @param value the value as written, may be null
      * @param bindings the capability bindings, may be null
      * @return the resolved value
-     * @throws IllegalArgumentException when a placeholder is not bound. The resolved value is not
+     * @throws IllegalArgumentException when the template is malformed, a placeholder is not
+     *     bound or names a whole bind namespace. The resolved value is not
      *     echoed, as it may come from a secret store.
      */
     protected static String resolveFromBindings(String namespace, String field, String value,
@@ -110,20 +107,22 @@ public abstract class ClientAdapter extends Adapter {
         if (value == null || !value.contains("{{")) {
             return value;
         }
-        Map<String, Object> scope = bindings != null ? bindings : Map.of();
-        String resolved = Resolver.resolveMustacheTemplate(value, scope);
-        List<String> missing = new ArrayList<>();
-        Matcher placeholder = PLACEHOLDER.matcher(value);
-        while (placeholder.find()) {
-            String name = placeholder.group(1).trim();
-            // As Mustache looks it up, so {{secrets.PORT}} is found under its namespace (#942)
-            if (Resolver.lookupVariable(name, scope) == null && !missing.contains(name)) {
-                missing.add(name);
-            }
+        // Parsed as rendering parses it, so a section ({{#PORT}}:{{PORT}}{{/PORT}}) or an
+        // unescaped tag ({{&HOST}}) is accepted. The resolved value is never searched: a bound
+        // secret may itself contain "{{".
+        String error = Resolver.templateError(value);
+        if (error == null && hasUnclosedTag(value)) {
+            error = "unclosed tag";
         }
-        // A "{{" left once the placeholders are removed is a malformed template. The resolved
-        // value is not searched: a bound secret may itself contain "{{".
-        if (!missing.isEmpty() || PLACEHOLDER.matcher(value).replaceAll("").contains("{{")) {
+        if (error != null) {
+            throw new IllegalArgumentException("consumes '" + namespace + "' " + field
+                    + " is not a valid template: " + error);
+        }
+        Map<String, Object> scope = bindings != null ? bindings : Map.of();
+        // Looked up as Mustache does, so {{secrets.PORT}} is found under its namespace (#942).
+        // A variable inside a section is optional, as when it renders.
+        List<String> missing = Resolver.unresolvedVariables(value, scope);
+        if (!missing.isEmpty()) {
             throw new IllegalArgumentException("consumes '" + namespace + "' " + field
                     + " references unbound variables " + missing
                     + ". Declare them in a binds entry.");
@@ -134,7 +133,42 @@ public abstract class ClientAdapter extends Adapter {
             throw new IllegalArgumentException("consumes '" + namespace + "' " + field + " "
                     + Resolver.describeNamespaceVariables(namespaces));
         }
-        return resolved;
+        return Resolver.resolveMustacheTemplate(value, scope);
+    }
+
+    /**
+     * JMustache keeps an unclosed tag, such as {@code {{DB_PASSWORD}, as literal text, so it
+     * compiles. A "{{" left in the template's text, sections included, is such a tag.
+     */
+    private static boolean hasUnclosedTag(String template) {
+        boolean[] found = new boolean[1];
+        Resolver.compileTemplate(template).visit(new Mustache.Visitor() {
+            @Override
+            public void visitText(String text) {
+                found[0] |= text.contains("{{");
+            }
+
+            @Override
+            public void visitVariable(String name) {
+                // a closed tag
+            }
+
+            @Override
+            public boolean visitInclude(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean visitSection(String name) {
+                return true;
+            }
+
+            @Override
+            public boolean visitInvertedSection(String name) {
+                return true;
+            }
+        });
+        return found[0];
     }
 
     public Capability getCapability() {
