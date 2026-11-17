@@ -735,13 +735,13 @@ public class IkanosPolychroRulesetTest {
     // Consumed SQL rules (#1051)
     // ────────────────────────────────────────────────────────────────
 
-    private long findings(ProcessResult result, String ruleId) {
+    private long findings(LintResult result, String ruleId) {
         return result.output().lines().filter(line -> line.contains(ruleId)).count();
     }
 
     @Test
     public void sqlNoInlineCredentialsRuleShouldFireForLiteralUsernameAndPassword() {
-        ProcessResult result = lintFixture("rules/spectral-sql-consumes-violations.yaml");
+        LintResult result = lintFixture("rules/polychro-sql-consumes-violations.yaml");
         assertEquals(2, findings(result, "ikanos-sql-no-inline-credentials"),
             "Expected ikanos-sql-no-inline-credentials on username and password.\n"
                 + result.output());
@@ -749,7 +749,7 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void sqlStatementReadOnlyRuleShouldFireForADeleteStatement() {
-        ProcessResult result = lintFixture("rules/spectral-sql-consumes-violations.yaml");
+        LintResult result = lintFixture("rules/polychro-sql-consumes-violations.yaml");
         assertEquals(1, findings(result, "ikanos-sql-statement-read-only"),
             "Expected ikanos-sql-statement-read-only on the DELETE statement.\n"
                 + result.output());
@@ -757,7 +757,7 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void sqlPlaceholdersBoundRuleShouldFireForUnmatchedPlaceholderAndUnusedInput() {
-        ProcessResult result = lintFixture("rules/spectral-sql-consumes-violations.yaml");
+        LintResult result = lintFixture("rules/polychro-sql-consumes-violations.yaml");
         assertEquals(2, findings(result, "ikanos-sql-placeholders-bound"),
             "Expected ikanos-sql-placeholders-bound on :custId and on customer-id.\n"
                 + result.output());
@@ -765,7 +765,7 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void sqlRulesShouldNotFireForBoundCredentialsAndMatchedReadStatements() {
-        ProcessResult result = lintFixtureAtSeverity("rules/spectral-sql-consumes-compliant.yaml",
+        LintResult result = lintFixtureAtSeverity("rules/polychro-sql-consumes-compliant.yaml",
             "info");
         assertTrue(!result.output().contains("ikanos-sql-"),
             "Expected no consumed SQL findings.\n" + result.output());
@@ -773,7 +773,7 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void sqlNoUrlCredentialsRuleShouldFireForAPasswordInTheUrl() {
-        ProcessResult result = lintFixture("rules/spectral-sql-credentials-violations.yaml");
+        LintResult result = lintFixture("rules/polychro-sql-credentials-violations.yaml");
         assertEquals(2, findings(result, "ikanos-sql-no-url-credentials"),
             "Expected ikanos-sql-no-url-credentials on password= and on user:password@.\n"
                 + result.output());
@@ -781,7 +781,7 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void sqlNoInlineCredentialsRuleShouldFireForALiteralPasswordProperty() {
-        ProcessResult result = lintFixture("rules/spectral-sql-credentials-violations.yaml");
+        LintResult result = lintFixture("rules/polychro-sql-credentials-violations.yaml");
         assertEquals(1, findings(result, "ikanos-sql-no-inline-credentials"),
             "Expected ikanos-sql-no-inline-credentials on connection.properties.password.\n"
                 + result.output());
@@ -789,7 +789,7 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void sqlStatementReadOnlyRuleShouldAcceptAParenthesizedSelect() {
-        ProcessResult result = lintFixture("rules/spectral-sql-credentials-violations.yaml");
+        LintResult result = lintFixture("rules/polychro-sql-credentials-violations.yaml");
         assertEquals(0, findings(result, "ikanos-sql-statement-read-only"),
             "Expected no ikanos-sql-statement-read-only on (select ...).\n" + result.output());
     }
