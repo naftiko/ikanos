@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import io.ikanos.Capability;
 import io.ikanos.spec.IkanosSpec;
@@ -155,6 +156,40 @@ class ConsumedHeaderValidatorTest {
                           in: header
                           value: "json"
                 """, "", "")).size());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"multipartForm, multipart/form-data, 0", "multipartForm, multipart/mixed, 0",
+            "multipartForm, application/json, 1",
+            "formUrlEncoded, application/x-www-form-urlencoded; charset=UTF-8, 0",
+            "formUrlEncoded, multipart/form-data, 1"})
+    void findErrorsShouldRefuseAContentTypeInputThatDoesNotDescribeAnEncodedBody(String type,
+            String contentType, int expectedErrors) throws Exception {
+        String body = """
+                              body:
+                                type: %s
+                                data: %s
+                """.formatted(type, "multipartForm".equals(type)
+                ? "[{name: f, value: x}]" : "{a: b}");
+        List<String> errors = ConsumedHeaderValidator.findErrors(spec("", "", """
+                              inputParameters:
+                                Content-Type:
+                                  in: header
+                                  value: "%s"
+                """.formatted(contentType) + body));
+
+        assertEquals(expectedErrors, errors.size(), errors.toString());
+        if (expectedErrors > 0) {
+            assertTrue(errors.get(0).contains("up.list") && errors.get(0).contains(type),
+                    errors.get(0));
+        }
+        // Inherited from the adapter, it still describes the bodies of other operations
+        assertTrue(ConsumedHeaderValidator.findErrors(spec("""
+                      inputParameters:
+                        Content-Type:
+                          in: header
+                          value: "application/json"
+                """, "", body)).isEmpty());
     }
 
     @Test

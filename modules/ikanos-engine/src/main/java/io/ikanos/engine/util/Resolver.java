@@ -363,7 +363,7 @@ public class Resolver {
     }
 
     /** Written for a variable with no usable value, so it can be found in the output. */
-    private static final String EMPTY_VARIABLE = " empty ";
+    private static final String EMPTY_VARIABLE = "\0empty\0";
 
     /**
      * Tells whether rendering {@code template} with {@code parameters} writes a variable that has
@@ -1192,20 +1192,29 @@ public class Resolver {
             String template = spec.getValue() != null ? spec.getValue() : spec.getTemplate();
             String wireName = spec.getWireName() != null && !spec.getWireName().isBlank()
                     ? spec.getWireName() : spec.getName();
-            // A templated precondition of an unsafe request that cannot be resolved is refused,
-            // like one that cannot be parsed: omitting it would make the write unconditional
-            // (#1001)
+            // A precondition of an unsafe request that has no value is refused, like one that
+            // cannot be parsed: omitting it would make the write unconditional (#1001). Not when
+            // the input says required: false, nor when the request already carries that
+            // precondition, such as the caller's own trusted header in forward mode
             boolean conditionalWrite = clientRequest != null && !notSent.contains(spec)
                     && "header".equalsIgnoreCase(spec.getIn())
                     && StandardRequestHeaders.isConditional(wireName)
                     && clientRequest.getMethod() != null
                     && !clientRequest.getMethod().isSafe();
-            boolean guardsWrite = template != null && conditionalWrite;
+            boolean carried = conditionalWrite
+                    && StandardRequestHeaders.carriesPrecondition(clientRequest, wireName);
+            // A consumed input is required unless it says required: false; only MCP tool
+            // inputs default to optional (#977)
+            boolean guardsWrite = conditionalWrite && spec.isRequiredOrDefault(true) && !carried;
             boolean unresolved = template != null
                     && (!missingVariables(template, parameters).isEmpty()
                             || rendersEmptyVariable(template, parameters));
             if (guardsWrite && unresolved) {
                 throw unresolvedPrecondition(wireName);
+            }
+            if (unresolved && carried) {
+                // The precondition already on the request is kept as is
+                continue;
             }
             if (unresolved && clientRequest != null && !notSent.contains(spec)
                     && "header".equalsIgnoreCase(spec.getIn())
@@ -1213,6 +1222,10 @@ public class Resolver {
                 // Left out, the If-Range would let a Range return part of a changed
                 // representation: the request asks for the whole one instead (#1001)
                 StandardRequestHeaders.refuseIfRange(clientRequest);
+                continue;
+            }
+            if (unresolved && conditionalWrite) {
+                // required: false: left out, as the input declares
                 continue;
             }
             Object val;
@@ -1228,16 +1241,13 @@ public class Resolver {
                 logger.debug("Skipping parameter '{}' due to resolution error", spec.getName(), e);
                 continue;
             }
-            if (guardsWrite && (val == null || val.toString().isBlank())) {
-                throw unresolvedPrecondition(wireName);
-            }
             // A required precondition the caller left out (or sent empty) of a request that is
             // not safe: sending the write without it would make it unconditional (#1001)
-            // A consumed input is required unless it says required: false; only MCP tool
-            // inputs default to optional (#977)
-            if (template == null && spec.isRequiredOrDefault(true) && conditionalWrite
-                    && (val == null || val.toString().isBlank())) {
-                throw unresolvedPrecondition(wireName);
+            if (conditionalWrite && (val == null || val.toString().isBlank())) {
+                if (guardsWrite) {
+                    throw unresolvedPrecondition(wireName);
+                }
+                continue;
             }
             if (val == null) {
                 if (pathOverride) {

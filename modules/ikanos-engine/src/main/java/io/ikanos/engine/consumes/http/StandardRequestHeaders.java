@@ -27,6 +27,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import org.restlet.Request;
 import org.restlet.data.ClientInfo;
+import org.restlet.data.Conditions;
 import org.restlet.data.Cookie;
 import org.restlet.data.Metadata;
 import org.restlet.data.Method;
@@ -311,6 +312,25 @@ public final class StandardRequestHeaders {
      */
     public static boolean isConditional(String name) {
         return CONDITIONAL_HEADERS.contains(name);
+    }
+
+    /**
+     * @return {@code true} when {@code request} already carries the precondition {@code name}
+     *         ({@code If-Match}, {@code If-None-Match}, {@code If-Unmodified-Since} or
+     *         {@code If-Range}), such as a caller's trusted header copied in forward mode
+     */
+    public static boolean carriesPrecondition(Request request, String name) {
+        Conditions conditions = request.getConditions();
+        if ("If-Match".equalsIgnoreCase(name)) {
+            return !conditions.getMatch().isEmpty();
+        } else if ("If-None-Match".equalsIgnoreCase(name)) {
+            return !conditions.getNoneMatch().isEmpty();
+        } else if ("If-Unmodified-Since".equalsIgnoreCase(name)) {
+            return conditions.getUnmodifiedSince() != null;
+        } else if ("If-Range".equalsIgnoreCase(name)) {
+            return conditions.getRangeTag() != null || conditions.getRangeDate() != null;
+        }
+        return false;
     }
 
     /**
