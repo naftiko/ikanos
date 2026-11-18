@@ -276,6 +276,14 @@ class SqlStatementTest {
         assertEquals("INSERT", SqlStatement.parse("insert into t (id, n) values ({{id}}, 1)"
                 + " on duplicate key # bump\n update n = n + 1",
                 SqlStatement.Dialect.MYSQL).writeOperation());
+        assertEquals("INSERT", SqlStatement.parse("insert into t (id, n) values ({{id}}, 1)"
+                + " on duplicate key --\u0001bump\n update n = n + 1",
+                SqlStatement.Dialect.MYSQL).writeOperation());
+        // MySQL reads -- before anything but a space or a control character as two minus signs,
+        // so they stand between the two words, and the UPDATE is no clause
+        assertThrows(IllegalArgumentException.class, () -> SqlStatement.parse(
+                "insert into t (id, n) values ({{id}}, 1) on duplicate key -- \n"
+                        + " update n = n + 1", SqlStatement.Dialect.MYSQL).writeOperation());
     }
 
     @Test
