@@ -102,6 +102,50 @@ public final class ForwardResponseHeaders {
     static final Set<String> VARY_DIMENSIONS = Set.of("accept", "accept-charset",
             "accept-encoding", "accept-language", "authorization", "user-agent", "origin", "*");
 
+    /**
+     * Why a header was not relayed, logged with the header name and the status but never the
+     * value, which can carry the upstream host or a credential.
+     */
+    enum Drop {
+        /** The value, or the forward target's {@code baseUri}, cannot be parsed. */
+        UNPARSEABLE("it, or the forward target's baseUri, cannot be parsed"),
+        /** Its query names a parameter the engine added, or an {@code X-Amz-*} one. */
+        PROTECTED_QUERY("it carries a query parameter the engine added to the upstream request,"
+                + " such as a query-placed credential, or a signing adapter's X-Amz-* parameter"),
+        /** It resolves to no host ({@code http:/admin}, {@code urn:...}). */
+        NO_HOST("it names no host"),
+        /** Its path has a dot segment that could leave the base once followed. */
+        DOT_SEGMENT("its path has a dot segment"),
+        /** It points at the upstream host outside the {@code baseUri}. */
+        OUTSIDE_BASE("it points at the upstream outside the forward target's baseUri"),
+        /** No route of the exposed resource matches it. */
+        NO_ROUTE("no route of the exposed resource matches it"),
+        /** Rewritten under a resource exposed at the root, it would name another host. */
+        SCHEME_RELATIVE("rewritten, it would start with // and name another host");
+
+        private final String reason;
+
+        Drop(String reason) {
+            this.reason = reason;
+        }
+
+        /** @return the reason, as logged */
+        String reason() {
+            return reason;
+        }
+    }
+
+    /**
+     * The outcome of {@link #relayLocation}: the value to send, or {@code null} with why it was
+     * dropped.
+     */
+    record Relayed(String value, Drop dropped) {
+
+        static Relayed drop(Drop reason) {
+            return new Relayed(null, reason);
+        }
+    }
+
     private ForwardResponseHeaders() {}
 
     /**
@@ -233,13 +277,13 @@ public final class ForwardResponseHeaders {
 
         String location = nominated.contains("location") ? null
                 : from.getHeaders().getFirstValue(HeaderConstants.HEADER_LOCATION, true);
-        String relayedLocation = location == null ? null
-                : relayedLocation(location, upstreamRequestUri, upstreamBaseUri, incoming,
+        Relayed relayedLocation = location == null ? new Relayed(null, null)
+                : relayLocation(location, upstreamRequestUri, upstreamBaseUri, incoming,
                         exposure);
-        if (location != null && relayedLocation == null) {
-            logDropped(HeaderConstants.HEADER_LOCATION, from, warned);
+        if (relayedLocation.dropped() != null) {
+            logDropped(HeaderConstants.HEADER_LOCATION, from, warned, relayedLocation.dropped());
         }
-        to.setLocationRef(verbatim(relayedLocation));
+        to.setLocationRef(verbatim(relayedLocation.value()));
 
         Representation entity = to.getEntity();
         if (entity != null) {
@@ -247,13 +291,15 @@ public final class ForwardResponseHeaders {
                     : from.getHeaders().getFirstValue(HeaderConstants.HEADER_CONTENT_LOCATION,
                             true);
             if (contentLocation != null || entity.getLocationRef() != null) {
-                String relayedContentLocation = contentLocation == null ? null
-                        : relayedLocation(contentLocation, upstreamRequestUri, upstreamBaseUri,
+                Relayed relayedContentLocation = contentLocation == null
+                        ? new Relayed(null, null)
+                        : relayLocation(contentLocation, upstreamRequestUri, upstreamBaseUri,
                                 incoming, exposure);
-                if (contentLocation != null && relayedContentLocation == null) {
-                    logDropped(HeaderConstants.HEADER_CONTENT_LOCATION, from, warned);
+                if (relayedContentLocation.dropped() != null) {
+                    logDropped(HeaderConstants.HEADER_CONTENT_LOCATION, from, warned,
+                            relayedContentLocation.dropped());
                 }
-                entity.setLocationRef(verbatim(relayedContentLocation));
+                entity.setLocationRef(verbatim(relayedContentLocation.value()));
             }
             removeNominatedEntityHeaders(entity, nominated);
         }
@@ -304,17 +350,67 @@ public final class ForwardResponseHeaders {
             }
         }
         listed.removeAll(nominated);
+        String incomingQuery = incoming == null || incoming.getResourceRef() == null ? null
+                : incoming.getResourceRef().getQuery();
         for (String key : listed) {
             if (SET_COOKIE.equals(key)) {
                 to.getCookieSettings().addAll(from.getCookieSettings());
             } else if (!RELAYED_BY_DEFAULT.contains(key) && !HOP_BY_HOP.contains(key)
                     && !NOT_RELAYABLE.contains(key)) {
                 for (Header header : from.getHeaders()) {
-                    if (header.getName().equalsIgnoreCase(key)) {
+                    if (!header.getName().equalsIgnoreCase(key)) {
+                        continue;
+                    }
+                    // A listed header can carry a URI as well as Location does (Link, Refresh,
+                    // an extension header): an upstream that builds it from its request URI
+                    // would hand the caller what the engine added to the query
+                    if (carriesProtectedParameter(header.getValue(), exposure, incomingQuery)) {
+                        // Named as listed, so the upstream's spelling cannot grow `warned`
+                        logDropped(key, from, warned, Drop.PROTECTED_QUERY);
+                    } else {
                         to.getHeaders().add(header.getName(), header.getValue());
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * @return whether a listed header's value can hand the caller a protected query parameter
+     *         (see {@link #exposesProtectedParameter}): the value as a whole is read as a query,
+     *         and so is the text after each {@code ?} in it, up to a space, {@code >}, a quote or
+     *         a comma, as written and after each percent-decoding. A value still encoded after
+     *         {@value #MAX_NESTED_DECODINGS} decodings counts as one when there is something to
+     *         protect.
+     */
+    static boolean carriesProtectedParameter(String value, Exposure exposure,
+            String incomingQuery) {
+        if (value == null || (exposure.injectedQueryNames().isEmpty() && !exposure.signed())) {
+            return false;
+        }
+        String text = value;
+        for (int decodings = 0;; decodings++) {
+            if (exposesProtectedParameter(text, exposure, incomingQuery)) {
+                return true;
+            }
+            for (int mark = text.indexOf('?'); mark >= 0; mark = text.indexOf('?', mark + 1)) {
+                int end = mark + 1;
+                while (end < text.length() && " \t>\"',".indexOf(text.charAt(end)) < 0) {
+                    end++;
+                }
+                if (exposesProtectedParameter(text.substring(mark + 1, end), exposure,
+                        incomingQuery)) {
+                    return true;
+                }
+            }
+            String decoded = decodeQueryPart(text);
+            if (decoded.equals(text)) {
+                return false;
+            }
+            if (decodings == MAX_NESTED_DECODINGS) {
+                return true;
+            }
+            text = decoded;
         }
     }
 
@@ -422,21 +518,23 @@ public final class ForwardResponseHeaders {
     }
 
     /**
-     * Logs that a location header was not relayed, naming the header and the upstream status but
-     * never the value, which can carry the upstream host. The first redirect or {@code 201}
-     * without its location for a given resource and header is worth a warning; anything else is
-     * logged at {@code FINE}.
+     * Logs that a header was not relayed, naming the header, the upstream status and the reason
+     * but never the value, which can carry the upstream host or a credential. The first redirect
+     * or {@code 201} without its location for a given resource and header is worth a warning, and
+     * so is the first drop of a header listed in {@code trustedResponseHeaders}, whatever the
+     * status; anything else is logged at {@code FINE}.
      *
-     * @param warned the headers already warned about, owned by the exposed resource
+     * @param warned the headers already warned about, owned by the exposed resource; its keys are
+     *        header names from the response or the configuration, so it stays bounded
      */
-    static void logDropped(String headerName, Response from, Set<String> warned) {
+    static void logDropped(String headerName, Response from, Set<String> warned, Drop reason) {
         int status = from.getStatus() == null ? 0 : from.getStatus().getCode();
-        boolean warnable = (status >= 300 && status < 400) || status == 201;
-        Level level = warnable && warned.add(headerName) ? Level.WARNING
-                : Level.FINE;
+        boolean location = headerName.equalsIgnoreCase(HeaderConstants.HEADER_LOCATION)
+                || headerName.equalsIgnoreCase(HeaderConstants.HEADER_CONTENT_LOCATION);
+        boolean warnable = !location || (status >= 300 && status < 400) || status == 201;
+        Level level = warnable && warned.add(headerName) ? Level.WARNING : Level.FINE;
         Context.getCurrentLogger().log(level, () -> "Forward mode did not relay the upstream "
-                + headerName + " header of a " + status + " response: it points at the "
-                + "upstream outside the forward target's baseUri, or cannot be parsed.");
+                + headerName + " header of a " + status + " response: " + reason.reason() + ".");
     }
 
     /**
@@ -557,10 +655,21 @@ public final class ForwardResponseHeaders {
      */
     static String relayedLocation(String raw, String upstreamRequestUri, String upstreamBaseUri,
             Request incoming, Exposure exposure) {
+        return relayLocation(raw, upstreamRequestUri, upstreamBaseUri, incoming, exposure)
+                .value();
+    }
+
+    /**
+     * Same, with why the value is dropped.
+     *
+     * @return the value to send, or no value and the reason it is dropped
+     */
+    static Relayed relayLocation(String raw, String upstreamRequestUri, String upstreamBaseUri,
+            Request incoming, Exposure exposure) {
         URI base = parse(upstreamBaseUri);
         URI value = parse(raw.trim());
         if (base == null || value == null || host(base) == null) {
-            return null;
+            return Relayed.drop(Drop.UNPARSEABLE);
         }
         URI requestUri = parse(upstreamRequestUri);
         URI target = requestUri != null && requestUri.isAbsolute() ? requestUri : base;
@@ -572,7 +681,8 @@ public final class ForwardResponseHeaders {
                 && (value.getRawPath() == null || value.getRawPath().isEmpty());
         URI resolved = resolve(target, sameDocument ? target : value);
         if (resolved == null) {
-            return null;
+            // resolve() gives null for a value without an authority once resolved
+            return Relayed.drop(Drop.NO_HOST);
         }
         String query = !sameDocument ? resolved.getRawQuery()
                 : value.getRawQuery() != null ? value.getRawQuery()
@@ -583,16 +693,16 @@ public final class ForwardResponseHeaders {
             // An upstream that echoes the request URI would hand the caller what the engine
             // added to it, such as a query-placed credential, and a signing adapter's upstream
             // could hand back a presigned URL or its session token
-            return null;
+            return Relayed.drop(Drop.PROTECTED_QUERY);
         }
         String host = host(resolved);
         if (host == null) {
-            return null;
+            return Relayed.drop(Drop.NO_HOST);
         }
         if (!host.equalsIgnoreCase(host(base))) {
             // A scheme-relative reference keeps the scheme of the upstream request, not the one
             // the caller reached the gateway with, which could downgrade https to http
-            return value.getScheme() == null ? resolved.toString() : raw;
+            return new Relayed(value.getScheme() == null ? resolved.toString() : raw, null);
         }
         String basePath = stripTrailingSlashes(base.getRawPath());
         String path = resolved.getRawPath() == null ? "" : resolved.getRawPath();
@@ -600,18 +710,18 @@ public final class ForwardResponseHeaders {
         // remove it during resolution, while a WHATWG parser decodes it and climbs further
         if (hasDotSegment(path) || (value.getRawPath() != null
                 && hasEncodedDotSegment(value.getRawPath()))) {
-            return null;
+            return Relayed.drop(Drop.DOT_SEGMENT);
         }
         boolean under = path.equals(basePath) || (path.startsWith(basePath)
                 && (basePath.isEmpty() || path.charAt(basePath.length()) == '/'));
         if (!under || !resolved.getScheme().equalsIgnoreCase(base.getScheme())
                 || port(resolved) != port(base)) {
-            return null;
+            return Relayed.drop(Drop.OUTSIDE_BASE);
         }
         String tail = pathTail(exposure.resourcePath());
         String exposed = exposedPath(incoming, tail);
         if (exposed == null) {
-            return null;
+            return Relayed.drop(Drop.NO_ROUTE);
         }
         String suffix = path.substring(basePath.length());
         boolean forwardsPath = incoming.getAttributes().containsKey("path");
@@ -619,7 +729,7 @@ public final class ForwardResponseHeaders {
             if (!suffix.isEmpty() && !suffix.equals("/")) {
                 // A resource without {{path}} forwards to the base URI only and routes no
                 // sub-path, so a location below the base URI has no exposed counterpart
-                return null;
+                return Relayed.drop(Drop.NO_ROUTE);
             }
             // The base URI, with or without a trailing slash, is the exposed path as routed
             suffix = "";
@@ -628,7 +738,7 @@ public final class ForwardResponseHeaders {
             // Under {{path}}, the route needs a non-empty path after the exposed one, so the
             // base URI itself has no exposed counterpart: neither /proxy nor /proxy/ matches
             // /proxy/{path}
-            return null;
+            return Relayed.drop(Drop.NO_ROUTE);
         } else {
             // The forward target is the base URI, "/" and the forwarded path, so the suffix
             // without its first "/" is what the route captures after the exposed prefix
@@ -641,7 +751,7 @@ public final class ForwardResponseHeaders {
         if (rewritten.startsWith("//")) {
             // Under a resource exposed at the root, a path that starts with an empty segment
             // would be written as a scheme-relative reference, naming another host
-            return null;
+            return Relayed.drop(Drop.SCHEME_RELATIVE);
         }
         if (query != null) {
             rewritten += "?" + query;
@@ -649,7 +759,7 @@ public final class ForwardResponseHeaders {
         if (fragment != null) {
             rewritten += "#" + fragment;
         }
-        return rewritten;
+        return new Relayed(rewritten, null);
     }
 
     /**
