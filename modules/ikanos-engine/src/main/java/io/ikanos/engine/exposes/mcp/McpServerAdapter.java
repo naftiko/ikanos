@@ -43,6 +43,7 @@ import java.time.Clock;
 import io.ikanos.engine.execution.Durability;
 import io.ikanos.engine.exposes.mcp.handler.ToolsCallHandler;
 import io.ikanos.spec.util.IkanosMappers;
+import io.ikanos.engine.consumes.sql.SqlWriteExposure;
 import io.ikanos.engine.execution.Elicitation;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -117,6 +118,7 @@ public class McpServerAdapter extends ServerAdapter {
                 continue;
             }
 
+            checkReadOnlyHint(capability, serverSpec, toolSpec);
             this.tools.add(buildMcpTool(toolSpec));
             if (toolSpec.getDisplay() != null) {
                 this.toolLabels.put(toolSpec.getName(), toolSpec.getDisplay());
@@ -289,6 +291,28 @@ public class McpServerAdapter extends ServerAdapter {
                     ? new HashMap<>() : JSON.convertValue(arguments, Map.class);
             return () -> ToolsCallHandler.callTool(this, toolName, callArguments);
         };
+    }
+
+    /**
+     * Refuse a tool advertised to clients as read-only, by its own {@code hints}, its flow's
+     * semantics or the exposes block's default {@code hints}, that reaches a SQL procedure
+     * declared {@code readOnly: false}: a client would call it without asking, and it writes.
+     */
+    static void checkReadOnlyHint(Capability capability, McpServerSpec serverSpec,
+            McpServerToolSpec toolSpec) {
+        McpToolHintsSpec hints = serverSpec.resolveToolHints(toolSpec);
+        if (hints == null || !Boolean.TRUE.equals(hints.getReadOnly())) {
+            return;
+        }
+        String write = SqlWriteExposure.writeReached(capability, toolSpec.getRef(),
+                toolSpec.getCall(), toolSpec.getSteps());
+        if (write != null) {
+            throw new IllegalArgumentException("MCP tool '" + toolSpec.getName()
+                    + "' of namespace '" + serverSpec.getNamespace() + "' resolves"
+                    + " hints.readOnly: true, declared or inherited from the exposes block, but"
+                    + " reaches the SQL write procedure '" + write + "'; declare"
+                    + " hints.readOnly: false on the tool");
+        }
     }
 
     /**

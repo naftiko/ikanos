@@ -2,7 +2,7 @@
 # The MCP exposes block declares `hints: { readOnly: true }` as the default of
 # every tool, and the tools below declare no readOnly of their own, so each
 # resolves readOnly: true.
-# MUST FIRE ikanos-sql-write-exposure (warn) three times:
+# MUST FIRE ikanos-sql-write-exposure (error) three times:
 #   - a tool with no hints that calls the write
 #   - a tool whose hints set another field only, reaching the write in a step
 #   - a tool reaching the write through `ref` to a flow without semantics
