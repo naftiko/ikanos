@@ -15,8 +15,14 @@ package io.ikanos.toolsearch.lucene;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.util.List;
+import java.util.ServiceConfigurationError;
+import java.util.ServiceLoader;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import io.ikanos.engine.exposes.mcp.search.ToolSearchDocument;
@@ -31,6 +37,34 @@ class LuceneToolSearchIndexFactoryTest {
         ToolSearchIndexFactory factory = ToolSearchProviders.find().orElseThrow();
 
         assertInstanceOf(LuceneToolSearchIndexFactory.class, factory);
+    }
+
+    @Test
+    void discoveryShouldFailWithAClearReasonWhenLuceneIsAbsent() throws Exception {
+        // The plain module jar without Lucene: this module's classes, and no org.apache.lucene
+        URL moduleClasses = LuceneToolSearchIndexFactory.class.getProtectionDomain()
+                .getCodeSource().getLocation();
+        ClassLoader withoutLucene = new ClassLoader(getClass().getClassLoader()) {
+            @Override
+            protected Class<?> loadClass(String name, boolean resolve)
+                    throws ClassNotFoundException {
+                if (name.startsWith("org.apache.lucene.")
+                        || name.startsWith("io.ikanos.toolsearch.")) {
+                    throw new ClassNotFoundException(name);
+                }
+                return super.loadClass(name, resolve);
+            }
+        };
+        try (URLClassLoader plainJar = new URLClassLoader(new URL[] {moduleClasses},
+                withoutLucene)) {
+            ServiceConfigurationError error = assertThrows(ServiceConfigurationError.class,
+                    () -> ServiceLoader.load(ToolSearchIndexFactory.class, plainJar)
+                            .iterator().next());
+
+            Throwable cause = error.getCause();
+            assertInstanceOf(IllegalStateException.class, cause, String.valueOf(cause));
+            assertTrue(cause.getMessage().contains("-all jar"), cause.getMessage());
+        }
     }
 
     @Test
