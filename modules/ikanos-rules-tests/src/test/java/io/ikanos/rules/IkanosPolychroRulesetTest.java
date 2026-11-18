@@ -772,6 +772,19 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
+    public void sqlPlaceholdersBoundRuleShouldReadAMySqlDoubleDashAsTheEngineDoes() {
+        LintResult result = lintFixture("rules/polychro-sql-mysql-comments.yaml");
+        assertEquals(1, findings(result, "ikanos-sql-placeholders-bound"),
+            "Expected ikanos-sql-placeholders-bound on {{status}} only.\n" + result.output());
+        assertTrue(result.output().contains("{{status}}"),
+            "Expected the finding on {{status}}, after -- and a no-break space.\n"
+                + result.output());
+        assertTrue(!result.output().contains("{{note}}"),
+            "Expected no finding on {{note}}, after -- and a control character.\n"
+                + result.output());
+    }
+
+    @Test
     public void sqlRulesShouldNotFireForBoundCredentialsAndMatchedReadStatements() {
         LintResult result = lintFixtureAtSeverity("rules/polychro-sql-consumes-compliant.yaml",
             "info");

@@ -188,7 +188,11 @@ function endOfAlternativeQuote(sql, quote) {
   return end < 0 ? sql.length : end + 2;
 }
 
-/** `--`, and on MySQL `#`; MySQL needs whitespace after `--`, as the engine reads it. */
+/**
+ * `--`, and on MySQL `#`. MySQL needs a space or a control character after `--`, as the engine
+ * reads it: an ASCII character up to the space, or DEL. Any other character, a Unicode space
+ * included, makes `--` two minus signs there.
+ */
 function startsLineComment(sql, i, mysql) {
   if (mysql && sql[i] === "#") {
     return true;
@@ -196,7 +200,11 @@ function startsLineComment(sql, i, mysql) {
   if (sql[i] !== "-" || sql[i + 1] !== "-") {
     return false;
   }
-  return !mysql || i + 2 >= sql.length || /\s/.test(sql[i + 2]);
+  if (!mysql || i + 2 >= sql.length) {
+    return true;
+  }
+  const next = sql.charCodeAt(i + 2);
+  return next <= 0x20 || next === 0x7f;
 }
 
 /** The index just past the comment at `start`; nested comments count when the dialect nests them. */
