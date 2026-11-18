@@ -471,9 +471,12 @@ final class SqlStatement {
     /** A block or line comment; a nested block comment is left partly in place, and refused. */
     private static final Pattern COMMENT = Pattern.compile("/\\*[\\s\\S]*?\\*/|--[^\\r\\n]*");
 
-    /** A comment on MySQL and MariaDB, where {@code #} also starts a line comment. */
-    private static final Pattern MYSQL_COMMENT =
-            Pattern.compile("/\\*[\\s\\S]*?\\*/|--[^\\r\\n]*|#[^\\r\\n]*");
+    /**
+     * A comment on MySQL and MariaDB, where {@code #} also starts a line comment and {@code --}
+     * starts one only before a space or a control character, as the parse reads it.
+     */
+    private static final Pattern MYSQL_COMMENT = Pattern.compile(
+            "/\\*[\\s\\S]*?\\*/|--(?=[\\x00-\\x20\\x7F]|$)[^\\r\\n]*|#[^\\r\\n]*");
 
     /**
      * Refuse a {@code MERGE} branch {@code WHEN NOT MATCHED BY SOURCE} with no {@code AND}
