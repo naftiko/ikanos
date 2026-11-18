@@ -1,0 +1,81 @@
+ikanos: 1.0.0-beta10
+info:
+  display: Question after a SQL write under none
+  description: >-
+    Negative fixture: under the none mode, one flow marks an order shipped
+    with a SQL write procedure, then asks for a confirmation. The answer
+    replays the steps, so the write would run again. A second flow reads
+    with a SQL procedure before asking, which is harmless.
+    MUST FIRE ikanos-elicit-after-unsafe-requires-durability once, on the
+    first flow's question.
+capability:
+  consumes:
+  - type: sql
+    namespace: erp
+    description: ERP database.
+    connection:
+      url: "{{JDBC_URL}}"
+      username: "{{DB_USER}}"
+      password: "{{DB_PASSWORD}}"
+    procedures:
+      get-order:
+        description: Reads one order.
+        statement: select id, status from orders where id = {{id}}
+        inputParameters:
+          id: { type: string }
+      mark-shipped:
+        description: Marks one paid order as shipped.
+        readOnly: false
+        statement: update orders set status = 'SHIPPED' where id = {{id}} and status = 'PAID'
+        inputParameters:
+          id: { type: string }
+  aggregates:
+  - display: order flows
+    namespace: orders
+    flows:
+      ship-then-confirm:
+        description: Ships an order, then asks for a confirmation
+        inputParameters:
+          id: { type: string, description: Order id }
+        steps:
+          ship:
+            type: call
+            call: erp.mark-shipped
+            with:
+              id: orders.id
+          confirm:
+            type: elicit
+            message: Confirm the shipment
+            fields:
+              confirmed:
+                type: boolean
+      read-then-confirm:
+        description: Reads an order, then asks for a confirmation
+        inputParameters:
+          id: { type: string, description: Order id }
+        steps:
+          read:
+            type: call
+            call: erp.get-order
+            with:
+              id: orders.id
+          confirm:
+            type: elicit
+            message: Confirm the order
+            fields:
+              confirmed:
+                type: boolean
+  exposes:
+  - type: mcp
+    address: localhost
+    port: 9318
+    namespace: orders-mcp
+    description: Order tools
+    tools:
+      ship-then-confirm:
+        description: Ship an order, then confirm
+        ref: orders.ship-then-confirm
+        hints: { readOnly: false }
+      read-then-confirm:
+        description: Read an order, then confirm
+        ref: orders.read-then-confirm
