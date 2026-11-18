@@ -657,6 +657,57 @@ class DefinitionsExpanderTest {
                 errors);
     }
 
+    @Test
+    void expandAllShouldReportExamplesBesideSchema() throws Exception {
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    severity: { type: string, enum: [sev1, sev2] }
+                """, """
+                open-incident:
+                  description: "Open an incident."
+                  inputParameters:
+                    severity: { schema: severity, description: "S.", examples: [sev2] }
+                    levels:
+                      type: array
+                      description: "Levels."
+                      items: { schema: severity, examples: [sev1] }
+                  call: erp.open-incident
+                """);
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        assertEquals(2, errors.size(), errors.toString());
+        assertTrue(errors.get(0).contains("'schema: severity' takes no other key than"
+                + " 'description', 'required' and 'default', found [examples]"), errors.toString());
+        assertTrue(errors.get(1).contains("'schema: severity' takes no other key than"
+                + " 'description', found [examples]"), errors.toString());
+    }
+
+    /** Examples declared in a schema are checked where the schema expands, on the tool input. */
+    @Test
+    void expandAllShouldCarryASchemaExampleToBeCheckedOnTheInput() throws Exception {
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    severity: { type: string, enum: [sev1, sev2], examples: [sev9] }
+                    page-size: { type: integer, examples: [25.0] }
+                """, """
+                open-incident:
+                  description: "Open an incident."
+                  inputParameters:
+                    severity: { schema: severity, description: "S." }
+                    size: { schema: page-size, description: "Rows." }
+                  call: erp.open-incident
+                """);
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+
+        assertTrue(result.errors().isEmpty(), result.errors().toString());
+        assertEquals(List.of("MCP tool 'tools.open-incident' input parameter 'severity': example"
+                + " 'sev9' is not one of the enum values"), InputDefaults.findExampleErrors(spec));
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"true", "false"})
     void expandAllShouldReportARequiredFlagBesideANestedSchema(String required)
