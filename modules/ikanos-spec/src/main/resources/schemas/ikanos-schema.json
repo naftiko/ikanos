@@ -2778,7 +2778,7 @@
         },
         "ref": {
           "type": "string",
-          "description": "Reference to an aggregate flow. Format: {aggregate-namespace}.{flow-name}. The flow provides the execution, so `call`, `steps` and `mappings` are not allowed next to `ref`; `inputParameters`, `with` and `outputParameters` adapt the flow, and an explicit `description` overrides the inherited one. When neither the operation nor its resource declares `inputParameters`, the operation accepts the flow's: an input named by a placeholder of the resource path is a path parameter, the others are query parameters for `GET` and `DELETE` and members of the JSON body for the other methods. Own inputs replace the flow's.",
+          "description": "Reference to an aggregate flow. Format: {aggregate-namespace}.{flow-name}. The flow provides the execution, so `call`, `steps` and `mappings` are not allowed next to `ref`; `inputParameters`, `with` and `outputParameters` adapt the flow, and an explicit `description` overrides the inherited one. When neither the operation nor its resource declares `inputParameters`, the operation accepts the flow's: an input named by a placeholder of the resource path is a path parameter, the others are query parameters for `GET`, `DELETE` and `HEAD` and members of the JSON body for the other methods. Own inputs replace the flow's.",
           "pattern": "^[a-zA-Z0-9-]+\\.[a-zA-Z0-9-]+$"
         },
         "call": {
