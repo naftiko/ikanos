@@ -69,6 +69,7 @@ import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
 import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.exposes.ServerSpec;
+import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Builds an OpenAPI {@link OpenAPI} POJO from a Ikanos capability spec's REST adapter.
@@ -692,8 +693,8 @@ public class OasExportBuilder {
      * The schema of an input parameter, with the JSON Schema subset an input can declare (an
      * aggregate flow input, which a {@code ref} operation inherits, declares the most): type,
      * {@code items}, {@code properties} and their {@code required} names,
-     * {@code additionalProperties}, {@code enum}, {@code format}, {@code minimum} and
-     * {@code maximum}. An array always gets {@code items}, which OpenAPI 3.0
+     * {@code additionalProperties}, {@code enum}, {@code format}, {@code minimum},
+     * {@code maximum} and {@code default}. An array always gets {@code items}, which OpenAPI 3.0
      * requires: the declared ones, or an empty schema (#1078).
      */
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -732,6 +733,11 @@ public class OasExportBuilder {
         }
         if (inputParam.getMaximum() != null) {
             schema.setMaximum(new BigDecimal(inputParam.getMaximum().toString()));
+        }
+        if (inputParam.getDefaultValue() != null) {
+            // The value tools/list advertises, which a REST operation applies too
+            schema.setDefault(IkanosMappers.json().convertValue(inputParam.getDefaultValue(),
+                    Object.class));
         }
         return schema;
     }
