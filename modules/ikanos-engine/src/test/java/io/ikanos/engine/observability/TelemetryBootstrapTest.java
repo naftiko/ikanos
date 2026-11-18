@@ -220,6 +220,50 @@ public class TelemetryBootstrapTest {
     }
 
     @Test
+    void startClientSpanShouldRecordTheUrlWithoutQueryValuesOrUserInformation() {
+        initWithInMemoryExporter();
+
+        Span span = TelemetryBootstrap.get().startClientSpan("GET",
+                "https://reader:s3cret@api.example.com/forecast?api_key=k3y&city=Paris#top",
+                "weather-api");
+        span.end();
+
+        String recorded = stringAttribute(exporter.getFinishedSpanItems().get(0).getAttributes(),
+                TelemetryBootstrap.ATTR_HTTP_URL);
+        assertEquals("https://REDACTED:REDACTED@api.example.com/forecast"
+                + "?api_key=REDACTED&city=REDACTED", recorded);
+        assertFalse(recorded.contains("s3cret"));
+        assertFalse(recorded.contains("k3y"));
+        assertFalse(recorded.contains("Paris"));
+    }
+
+    @Test
+    void redactUrlShouldKeepAUrlWithoutQueryOrUserInformation() {
+        assertEquals("http://api.example.com/users/a@b.com",
+                TelemetryBootstrap.redactUrl("http://api.example.com/users/a@b.com"));
+        assertEquals("http://api.example.com:8080",
+                TelemetryBootstrap.redactUrl("http://api.example.com:8080"));
+        assertEquals("flow://orders.get", TelemetryBootstrap.redactUrl("flow://orders.get"));
+    }
+
+    @Test
+    void redactUrlShouldRedactEveryQueryElement() {
+        assertEquals("http://h/p?a=REDACTED&b=REDACTED&REDACTED&c=REDACTED",
+                TelemetryBootstrap.redactUrl("http://h/p?a=1&b=&token&c=x=y"));
+        assertEquals("http://h/p?", TelemetryBootstrap.redactUrl("http://h/p?"));
+        assertEquals("http://h/p?a=REDACTED&&b=REDACTED",
+                TelemetryBootstrap.redactUrl("http://h/p?a=1&&b=2"));
+    }
+
+    @Test
+    void redactUrlShouldRedactUserInformationBeforeTheLastAtSignOfTheAuthority() {
+        assertEquals("http://REDACTED:REDACTED@db.example.com/erp?ssl=REDACTED",
+                TelemetryBootstrap.redactUrl("http://reader:p@ss@db.example.com/erp?ssl=true"));
+        assertEquals("http://REDACTED:REDACTED@h?q=REDACTED",
+                TelemetryBootstrap.redactUrl("http://token@h?q=1"));
+    }
+
+    @Test
     void startClientSpanShouldDefaultMethodWhenNull() {
         initWithInMemoryExporter();
 
