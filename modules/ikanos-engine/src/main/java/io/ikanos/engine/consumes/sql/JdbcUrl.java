@@ -68,8 +68,14 @@ final class JdbcUrl {
     /** A SQL Server braced property value, in which "}}" stands for "}". */
     private static final Pattern BRACED_VALUE = Pattern.compile("\\{(?:\\}\\}|[^}])*\\}");
 
+    /**
+     * {@code //[userinfo@]host[:port][/database]}. The user information runs to the last
+     * {@code @} before the path or the properties, as MySQL reads {@code //app:p@ss@db/sales}, so
+     * no part of a password becomes the host. It never starts a key-value authority, whose
+     * {@code (…)} may hold an {@code @} inside a password.
+     */
     private static final Pattern HOST_FORM =
-            Pattern.compile("^(?:[^/]*@)?//(?:[^@/?;]*@)?([^/:?;]+)(?::\\d+)?(?:/([^?;/]*))?");
+            Pattern.compile("^(?:[^/]*@)?//(?:[^/?;(]*@)?([^/:?;]+)(?::\\d+)?(?:/([^?;/]*))?");
 
     private final String system;
     private final String host;

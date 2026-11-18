@@ -183,6 +183,20 @@ class JdbcUrlTest {
     }
 
     @Test
+    void spanTargetShouldNotReadAPasswordWithAnAtSignAsTheHost() {
+        JdbcUrl url = JdbcUrl.parse("jdbc:mysql://reader:p@ss@db:3306/erp");
+
+        assertEquals("mysql://db/erp", url.spanTarget());
+    }
+
+    @Test
+    void spanTargetShouldReadOnlyTheHostOfAKeyValueAuthorityWithAnAtSignInItsPassword() {
+        JdbcUrl url = JdbcUrl.parse("jdbc:mysql://(host=db,user=reader,password=s3cr@t)/erp");
+
+        assertEquals("mysql://db/erp", url.spanTarget());
+    }
+
+    @Test
     void spanTargetShouldReadOnlyTheHostOfAMysqlAddressAuthority() {
         JdbcUrl url = JdbcUrl.parse("jdbc:mysql://address=(host=db)(password=s3cret)/erp");
 
