@@ -638,10 +638,14 @@ rules:
   ikanos-sql-placeholders-bound:
     message: "{{error}}"
     description: >
-      Every `:placeholder` in a SQL procedure `statement` must match a declared
-      input (its `placeholder`, or its key), and every input must be used. A
-      kebab-case key needs a `placeholder` that is a SQL identifier. The engine
-      refuses an unmatched placeholder when the capability loads.
+      Every `{{name}}` placeholder in a SQL procedure `statement` must name a
+      declared input, and every input must be used. A placeholder must stand
+      outside string literals and quoted identifiers, where it would not be
+      bound. A statement holds the database's own SQL only: no JDBC escape
+      (`{fn ...}`, `{d '...'}`, `{call ...}`), no `?` marker (outside
+      PostgreSQL, where `?` is a JSONB operator) and, on Oracle, no `:name`
+      marker. The engine binds each placeholder itself, and refuses all of
+      these when the capability loads.
     severity: error
     recommended: true
     given: "$"

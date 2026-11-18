@@ -104,7 +104,7 @@ class SqlClientAdapterIntegrationTest {
                           statement: select sku, name, quantity from products order by sku
                         get-stock:
                           description: Stock of one SKU.
-                          statement: select name, quantity from products where sku = :sku
+                          statement: select name, quantity from products where sku = {{sku}}
                           inputParameters:
                             sku: { type: string }
                   exposes:

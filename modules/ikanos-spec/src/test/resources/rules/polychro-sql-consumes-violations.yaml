@@ -22,9 +22,9 @@ capability:
           statement: delete from customers
         get-customer:
           description: One customer by id.
-          statement: "select id, name from customers where id = :custId -- :ignored"
+          statement: "select id, name from customers where id = {{cust-id}} -- {{ignored}}"
           inputParameters:
-            customer-id: { type: string, placeholder: customerId }
+            customer-id: { type: string }
           outputParameters:
             name: { type: string, value: "$.rows[0].name" }
   exposes:

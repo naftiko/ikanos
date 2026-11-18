@@ -40,7 +40,7 @@ public class SqlProcedureSpec extends OperationSpec {
         super();
     }
 
-    /** @return the inline SQL, with {@code :name} placeholders, or {@code null} */
+    /** @return the inline SQL, with {@code {{name}}} placeholders, or {@code null} */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public String getStatement() {
         return statement.get();

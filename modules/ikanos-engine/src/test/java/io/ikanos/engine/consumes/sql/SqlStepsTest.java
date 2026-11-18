@@ -81,7 +81,7 @@ class SqlStepsTest {
                       procedures:
                         get-total:
                           description: The total of one ledger.
-                          statement: select total from ledger where id = :id
+                          statement: select total from ledger where id = {{id}}
                           inputParameters:
                             id: { type: string }
                   aggregates:

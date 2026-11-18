@@ -1,0 +1,67 @@
+# Spectral fixture — ikanos-sql-placeholders-bound MUST FIRE, four times:
+#   - a {{name}} placeholder inside a string literal, where it would be sent as
+#     text instead of bound
+#   - a Mustache section tag, which a statement does not take
+#   - a JDBC escape ({fn ...})
+#   - a JDBC ? marker on a MySQL URL
+ikanos: "1.0.0-beta10"
+info:
+  display: "Consumed SQL placeholders — violations"
+  description: "Fixture with a quoted placeholder and a Mustache section in SQL statements."
+capability:
+  binds:
+    - namespace: erp-db
+      description: "ERP database connection."
+      location: "file:///./shared/secrets.yaml"
+      keys:
+        JDBC_URL: "erp-jdbc-url"
+        DB_USER: "erp-db-user"
+        DB_PASSWORD: "erp-db-password"
+  consumes:
+    - type: sql
+      namespace: erp
+      description: "ERP database."
+      connection:
+        url: "{{JDBC_URL}}"
+        username: "{{DB_USER}}"
+        password: "{{DB_PASSWORD}}"
+      procedures:
+        search-customers:
+          description: Customers whose name holds a text.
+          statement: "select id from customers where name like '%{{text}}%' or code = {{text}}"
+          inputParameters:
+            text: { type: string }
+        optional-filter:
+          description: Customers, filtered when a region is given.
+          statement: "select id from customers where region = {{region}} {{#active}}and active{{/active}}"
+          inputParameters:
+            region: { type: string }
+        escaped-name:
+          description: A JDBC escape instead of the database's own SQL.
+          statement: "select {fn ucase(name)} as name from customers where id = {{id}}"
+          inputParameters:
+            id: { type: string }
+    - type: sql
+      namespace: shop
+      description: "MySQL database."
+      connection:
+        url: "jdbc:mysql://shop.internal:3306/shop"
+        username: "{{DB_USER}}"
+        password: "{{DB_PASSWORD}}"
+      procedures:
+        get-order:
+          description: A JDBC ? marker instead of a placeholder.
+          statement: "select id from orders where id = ?"
+  exposes:
+    - type: mcp
+      namespace: erp-mcp
+      port: 3001
+      tools:
+        search-customers:
+          description: Customers whose name holds a text.
+          hints: { readOnly: true }
+          call: erp.search-customers
+        optional-filter:
+          description: Customers, filtered when a region is given.
+          hints: { readOnly: true }
+          call: erp.optional-filter

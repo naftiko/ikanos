@@ -4,13 +4,15 @@
  * Enforces `ikanos-sql-placeholders-bound` on every `consumes: type: sql`
  * procedure (root `consumes` and `capability.consumes`):
  *
- * - every `:placeholder` in `statement` matches a declared input, through the
- *   input's `placeholder` or, without one, its key;
- * - every declared input is used by the statement.
+ * - every `{{name}}` placeholder in `statement` names a declared input key;
+ * - every declared input is used by the statement;
+ * - no placeholder sits inside a string literal or quoted identifier, where it
+ *   would be sent as text instead of bound, and no `{{…}}` tag is anything but
+ *   a plain input name (no sections, no dotted names).
  *
  * Placeholders are found the way the engine finds them: string literals,
- * quoted identifiers, dollar-quoted strings, comments and `::` casts are
- * skipped. As in the engine, the `connection.url` sets the dialect when it is
+ * quoted identifiers, dollar-quoted strings and comments are skipped. As in
+ * the engine, the `connection.url` sets the dialect when it is
  * a literal JDBC URL: block comments nest on PostgreSQL and SQL Server, and
  * `[...]` is a quoted identifier on SQL Server and SQLite. On MySQL and
  * MariaDB, `#` starts a comment, `--` does only before whitespace, a backslash
@@ -52,6 +54,8 @@ function dialectOf(adapter) {
   const system = typeof url === "string" ? /^jdbc:([A-Za-z0-9]+):/i.exec(url.trim()) : null;
   const name = system ? system[1].toLowerCase() : "";
   return {
+    known: name !== "",
+    postgresql: name === "postgresql",
     nestedComments: name === "postgresql" || name === "sqlserver" || name === "jtds",
     brackets: name === "sqlserver" || name === "jtds" || name === "sqlite",
     mysql: name === "mysql" || name === "mariadb",
@@ -61,45 +65,60 @@ function dialectOf(adapter) {
 }
 
 function checkPlaceholders(namespace, name, procedure, path, dialect, results) {
-  const used = placeholders(procedure.statement, dialect);
+  const scan = placeholders(procedure.statement, dialect);
   const inputs = isObject(procedure.inputParameters) ? procedure.inputParameters : {};
-  const byPlaceholder = new Map();
-  for (const [key, input] of Object.entries(inputs)) {
-    const placeholder =
-      isObject(input) && typeof input.placeholder === "string" && input.placeholder !== ""
-        ? input.placeholder
-        : key;
-    if (byPlaceholder.has(placeholder)) {
-      results.push({
-        message: "SQL procedure '" + namespace + "." + name + "' declares placeholder ':" + placeholder + "' on two inputs ('" + byPlaceholder.get(placeholder) + "' and '" + key + "').",
-        path: [...path, "inputParameters", key],
-      });
-      continue;
-    }
-    byPlaceholder.set(placeholder, key);
-  }
   const where = "SQL procedure '" + namespace + "." + name + "'";
-  for (const placeholder of new Set(used)) {
-    if (!byPlaceholder.has(placeholder)) {
+  const statementPath = [...path, "statement"];
+  // the first only: a section reports once, not again on its closing tag
+  for (const tag of scan.malformed.slice(0, 1)) {
+    results.push({
+      message: where + " uses {{" + tag + "}}, which is not a placeholder: a statement only takes {{name}}, naming one input.",
+      path: statementPath,
+    });
+  }
+  for (const what of new Set(scan.jdbc)) {
+    results.push({ message: where + " uses " + what + ".", path: statementPath });
+  }
+  for (const tag of new Set(scan.quoted)) {
+    results.push({
+      message: where + " has placeholder {{" + tag + "}} inside quotes, where it would not be bound; write it outside the quotes.",
+      path: statementPath,
+    });
+  }
+  for (const used of new Set(scan.names)) {
+    if (!Object.prototype.hasOwnProperty.call(inputs, used)) {
       results.push({
-        message: where + " uses placeholder ':" + placeholder + "', which matches no declared input.",
-        path: [...path, "statement"],
+        message: where + " uses placeholder {{" + used + "}}, which matches no declared input.",
+        path: statementPath,
       });
     }
   }
-  for (const [placeholder, key] of byPlaceholder) {
-    if (!used.includes(placeholder)) {
+  for (const key of Object.keys(inputs)) {
+    if (!scan.names.includes(key)) {
       results.push({
-        message: where + " declares input '" + key + "', which its statement never uses (:" + placeholder + ").",
+        message: where + " declares input '" + key + "', which its statement never uses ({{" + key + "}}).",
         path: [...path, "inputParameters", key],
       });
     }
   }
 }
 
-/** The `:name` placeholders of a statement, in order, outside literals and comments. */
+/** A `{{name}}` tag inside quoted text, dotted names included; `'{{1,2},{3,4}}'` does not match. */
+const QUOTED_PLACEHOLDER = /\{\{\s*([A-Za-z0-9_.-]+)\s*\}\}/g;
+
+/**
+ * The `{{name}}` placeholders of a statement, in order, outside literals and comments (`names`),
+ * the tags written inside literals or quoted identifiers (`quoted`), and the `{{…}}` tags that are
+ * not a plain input name (`malformed`), and the JDBC syntax written outside literals (`jdbc`).
+ */
 function placeholders(sql, dialect = {}) {
-  const found = [];
+  const scan = { names: [], quoted: [], malformed: [], jdbc: [] };
+  const quotedFrom = (start, end) => {
+    for (const match of sql.slice(start, end).matchAll(QUOTED_PLACEHOLDER)) {
+      scan.quoted.push(match[1]);
+    }
+    return end;
+  };
   let i = 0;
   const n = sql.length;
   while (i < n) {
@@ -110,33 +129,46 @@ function placeholders(sql, dialect = {}) {
     } else if (c === "/" && sql[i + 1] === "*") {
       i = endOfBlockComment(sql, i, dialect.nestedComments);
     } else if (c === "[" && dialect.brackets) {
-      i = endOfQuoted(sql, i, "]", false);
+      i = quotedFrom(i, endOfQuoted(sql, i, "]", false));
     } else if (c === "'" || c === '"' || c === "`") {
       const backslash = dialect.mysql
         ? c !== "`"
         : c === "'" && i > 0 && /[Ee]/.test(sql[i - 1]) && !/\w/.test(sql[i - 2] || "");
-      i = endOfQuoted(sql, i, c, backslash);
+      i = quotedFrom(i, endOfQuoted(sql, i, c, backslash));
     } else if (dialect.oracle && alternativeQuote(sql, i) > 0) {
-      i = endOfAlternativeQuote(sql, alternativeQuote(sql, i));
+      i = quotedFrom(i, endOfAlternativeQuote(sql, alternativeQuote(sql, i)));
     } else if (!dialect.mysql && c === "$" && !/[\w$]/.test(sql[i - 1] || "") && !/\d/.test(sql[i + 1] || "")) {
       const tag = /^\$\w*\$/.exec(sql.slice(i));
       if (tag) {
         const end = sql.indexOf(tag[0], i + tag[0].length);
-        i = end < 0 ? n : end + tag[0].length;
+        i = quotedFrom(i, end < 0 ? n : end + tag[0].length);
       } else {
         i++;
       }
-    } else if (c === ":" && sql[i + 1] === ":") {
-      i += 2;
-    } else if (c === ":" && /[A-Za-z_]/.test(sql[i + 1] || "")) {
-      const match = /^[A-Za-z_]\w*/.exec(sql.slice(i + 1));
-      found.push(match[0]);
-      i += 1 + match[0].length;
+    } else if (c === "{" && sql[i + 1] === "{") {
+      const close = sql.indexOf("}}", i + 2);
+      const tag = sql.slice(i + 2, close < 0 ? n : close).trim();
+      if (close >= 0 && /^[A-Za-z0-9_-]+$/.test(tag)) {
+        scan.names.push(tag);
+      } else {
+        scan.malformed.push(tag);
+      }
+      i = close < 0 ? n : close + 2;
+    } else if (c === "{") {
+      scan.jdbc.push("a JDBC escape ({fn ...}, {d '...'}, {call ...}); write the database's own SQL instead");
+      i++;
+    } else if (c === "?" && dialect.known && !dialect.postgresql) {
+      // with a bound URL the database is unknown, and on PostgreSQL ? is a JSONB operator
+      scan.jdbc.push("a JDBC ? marker; name the input with a {{name}} placeholder instead");
+      i++;
+    } else if (c === ":" && dialect.oracle && /[A-Za-z_]/.test(sql[i + 1] || "")) {
+      scan.jdbc.push("an Oracle :name bind marker; name the input with a {{name}} placeholder instead");
+      i++;
     } else {
       i++;
     }
   }
-  return found;
+  return scan;
 }
 
 /** The index of the opening quote of an Oracle `q'…'` or `nq'…'` literal starting at `i`, or -1. */

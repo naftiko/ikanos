@@ -27,33 +27,143 @@ class SqlStatementTest {
     @Test
     void parseShouldRewriteNamedPlaceholdersInOrder() {
         SqlStatement statement =
-                SqlStatement.parse("select * from t where a = :first and b > :second");
+                SqlStatement.parse("select * from t where a = {{first}} and b > {{second}}");
 
         assertEquals("select * from t where a = ? and b > ?", statement.jdbcSql());
         assertEquals(List.of("first", "second"), statement.placeholders());
     }
 
     @Test
+    void parseShouldTakeAKebabCaseInputNameWithSurroundingSpaces() {
+        SqlStatement statement =
+                SqlStatement.parse("select * from t where id = {{ customer-id }}");
+
+        assertEquals("select * from t where id = ?", statement.jdbcSql());
+        assertEquals(List.of("customer-id"), statement.placeholders());
+    }
+
+    @Test
     void parseShouldBindARepeatedPlaceholderOncePerUse() {
-        SqlStatement statement = SqlStatement.parse("select * from t where a = :id or b = :id");
+        SqlStatement statement =
+                SqlStatement.parse("select * from t where a = {{id}} or b = {{id}}");
 
         assertEquals(List.of("id", "id"), statement.placeholders());
     }
 
     @Test
-    void parseShouldKeepPlaceholdersInsideStringLiteralsAsText() {
-        SqlStatement statement =
-                SqlStatement.parse("select ':notme', 'it''s :notme' from t where a = :yes");
+    void parseShouldLeaveAColonNameAsText() {
+        SqlStatement statement = SqlStatement.parse("select :x, a[1:2] from t");
 
-        assertEquals(List.of("yes"), statement.placeholders());
-        assertEquals("select ':notme', 'it''s :notme' from t where a = ?", statement.jdbcSql());
+        assertEquals(List.of(), statement.placeholders());
+        assertEquals("select :x, a[1:2] from t", statement.jdbcSql());
     }
 
     @Test
-    void parseShouldIgnorePlaceholdersInQuotedIdentifiersAndComments() {
+    void parseShouldRefuseJdbcEscapes() {
+        List<String> escapes = List.of("select {fn ucase(name)} from t",
+                "select id from t where d > {d '2026-01-01'}",
+                "select id from t where at > {ts '2026-01-01 00:00:00'}",
+                "select * from {oj a left outer join b on a.id = b.id}", "{call report(1)}");
+        for (String sql : escapes) {
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                    () -> SqlStatement.parse(sql), sql);
+            assertTrue(e.getMessage().contains("JDBC escape"), e.getMessage());
+        }
+    }
+
+    @Test
+    void parseShouldKeepBracesInsideLiterals() {
+        SqlStatement statement =
+                SqlStatement.parse("select '{fn x}', '{\"a\": 1}' from t where id = {{id}}");
+
+        assertEquals("select '{fn x}', '{\"a\": 1}' from t where id = ?", statement.jdbcSql());
+    }
+
+    @Test
+    void parseShouldRefuseAJdbcQuestionMarkOutsidePostgresql() {
+        for (SqlStatement.Dialect dialect : SqlStatement.Dialect.values()) {
+            if (dialect == SqlStatement.Dialect.POSTGRESQL) {
+                continue;
+            }
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                    () -> SqlStatement.parse("select id from t where id = ?", dialect),
+                    dialect.name());
+            assertTrue(e.getMessage().contains("JDBC ? marker"), e.getMessage());
+        }
+    }
+
+    @Test
+    void parseShouldKeepAQuestionMarkInsideALiteral() {
+        assertEquals(List.of(), SqlStatement.parse("select 'why?' from t",
+                SqlStatement.Dialect.MYSQL).placeholders());
+    }
+
+    @Test
+    void parseShouldRefuseAnOracleColonBindMarker() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> SqlStatement.parse("select id from t where id = :id",
+                        SqlStatement.Dialect.ORACLE));
+
+        assertTrue(e.getMessage().contains("Oracle :name bind marker"), e.getMessage());
+    }
+
+    @Test
+    void parseShouldKeepLiteralsWithoutPlaceholdersAsText() {
+        SqlStatement statement = SqlStatement.parse(
+                "select ':x', 'it''s', '{{1,2},{3,4}}'::int[] from t where a = {{yes}}");
+
+        assertEquals(List.of("yes"), statement.placeholders());
+        assertEquals("select ':x', 'it''s', '{{1,2},{3,4}}'::int[] from t where a = ?",
+                statement.jdbcSql());
+    }
+
+    @Test
+    void parseShouldRefuseAPlaceholderInsideAStringLiteral() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> SqlStatement.parse("select id from t where name like '%{{text}}%'"));
+
+        assertTrue(e.getMessage().contains("{{text}} inside a string literal"), e.getMessage());
+    }
+
+    @Test
+    void parseShouldRefuseAPlaceholderInsideAnyQuotedText() {
+        List<String> standard = List.of("select \"{{q}}\" from t", "select `{{q}}` from t",
+                "select $$ {{q}} $$ from t", "select $tag$ {{ q }} $tag$ from t",
+                "select 'a' || '{{x.y}}' from t");
+        for (String sql : standard) {
+            assertThrows(IllegalArgumentException.class, () -> SqlStatement.parse(sql), sql);
+        }
+        assertThrows(IllegalArgumentException.class, () -> SqlStatement.parse(
+                "select [{{q}}] from t", SqlStatement.Dialect.SQLSERVER));
+        assertThrows(IllegalArgumentException.class, () -> SqlStatement.parse(
+                "select q'[{{q}}]' from t", SqlStatement.Dialect.ORACLE));
+        assertThrows(IllegalArgumentException.class, () -> SqlStatement.parse(
+                "select \"{{q}}\" from t", SqlStatement.Dialect.MYSQL));
+    }
+
+    @Test
+    void parseShouldRefuseMustacheTagsOtherThanAName() {
+        List<String> tags = List.of("{{#a}}x{{/a}}", "{{^a}}x{{/a}}", "{{{a}}}", "{{&a}}",
+                "{{> part}}", "{{! note }}", "{{=<% %>=}}", "{{a.b}}", "{{}}", "{{a b}}");
+        for (String tag : tags) {
+            assertThrows(IllegalArgumentException.class,
+                    () -> SqlStatement.parse("select id from t where a = " + tag), tag);
+        }
+    }
+
+    @Test
+    void parseShouldRefuseAnUnterminatedPlaceholder() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> SqlStatement.parse("select id from t where a = {{id"));
+
+        assertTrue(e.getMessage().contains("unterminated {{"), e.getMessage());
+    }
+
+    @Test
+    void parseShouldIgnorePlaceholdersInComments() {
         SqlStatement statement = SqlStatement.parse("""
-                select "col:x", `y:z` -- :comment
-                from t /* :block */ where a = :yes""");
+                select "col:x", `y:z` -- {{comment}}
+                from t /* {{block}} */ where a = {{yes}}""");
 
         assertEquals(List.of("yes"), statement.placeholders());
     }
@@ -61,7 +171,7 @@ class SqlStatementTest {
     @Test
     void parseShouldKeepPostgresCastsAndDollarQuotes() {
         SqlStatement statement = SqlStatement.parse(
-                "select :since::timestamp, $$ :inside $$, $tag$ :x $tag$, $1 from t");
+                "select {{since}}::timestamp, $$ :inside $$, $tag$ :x $tag$, $1 from t");
 
         assertEquals(List.of("since"), statement.placeholders());
         assertEquals("select ?::timestamp, $$ :inside $$, $tag$ :x $tag$, $1 from t",
@@ -70,9 +180,11 @@ class SqlStatementTest {
 
     @Test
     void parseShouldHonourBackslashEscapesInEscapeStrings() {
-        SqlStatement statement = SqlStatement.parse("select E'a\\' :no' from t where a = :yes");
+        // read as ending at \', the literal would leave {{no}} outside, then an unterminated '
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> SqlStatement.parse("select E'a\\' {{no}}' from t"));
 
-        assertEquals(List.of("yes"), statement.placeholders());
+        assertTrue(e.getMessage().contains("{{no}} inside a string literal"), e.getMessage());
     }
 
     @Test
@@ -165,7 +277,7 @@ class SqlStatementTest {
     @Test
     void parseShouldKeepStandardRulesOutsideMysql() {
         assertEquals(List.of("id"),
-                SqlStatement.parse("select '#', $$:x$$ from t where id = :id", false)
+                SqlStatement.parse("select '#', $$:x$$ from t where id = {{id}}", false)
                         .placeholders());
     }
 
@@ -189,7 +301,8 @@ class SqlStatementTest {
 
     @Test
     void nonReadKeywordShouldAcceptEnableAndDisableAsSqlServerColumns() {
-        assertNull(SqlStatement.parse("select enable, disable from features where id = :id",
+        assertNull(SqlStatement.parse(
+                "select enable, disable from features where id = {{id}}",
                 SqlStatement.Dialect.SQLSERVER).nonReadKeyword());
     }
 
@@ -202,14 +315,15 @@ class SqlStatementTest {
     @Test
     void parseShouldCountNestedBlockCommentsOnPostgresql() {
         SqlStatement statement = SqlStatement.parse(
-                "select /* outer /* inner */ :ignored */ :id", SqlStatement.Dialect.POSTGRESQL);
+                "select /* outer /* inner */ {{ignored}} */ {{id}}",
+                SqlStatement.Dialect.POSTGRESQL);
 
         assertEquals(List.of("id"), statement.placeholders());
     }
 
     @Test
     void parseShouldNotNestBlockCommentsOutsideDialectsThatDo() {
-        assertEquals(List.of("x"), SqlStatement.parse("select /* a /* b */ :x",
+        assertEquals(List.of("x"), SqlStatement.parse("select /* a /* b */ {{x}}",
                 SqlStatement.Dialect.STANDARD).placeholders());
         assertThrows(IllegalArgumentException.class, () -> SqlStatement.parse(
                 "select /* a /* b */ 1", SqlStatement.Dialect.POSTGRESQL));
@@ -220,7 +334,7 @@ class SqlStatementTest {
         for (SqlStatement.Dialect dialect
                 : List.of(SqlStatement.Dialect.SQLSERVER, SqlStatement.Dialect.SQLITE)) {
             SqlStatement statement = SqlStatement.parse(
-                    "SELECT [delete], [tag:x], [a]]b] FROM inventory WHERE id = :id", dialect);
+                    "SELECT [delete], [tag:x], [a]]b] FROM inventory WHERE id = {{id}}", dialect);
 
             assertNull(statement.nonReadKeyword(), dialect.name());
             assertEquals(List.of("id"), statement.placeholders(), dialect.name());
@@ -230,7 +344,7 @@ class SqlStatementTest {
     @Test
     void parseShouldReadOracleAlternativeQuotedLiterals() {
         SqlStatement statement = SqlStatement.parse(
-                "select q'[don't :ignored]', nQ'{a'b :x}', Q'!:y!' from customers where id = :id",
+                "select q'[don't :ignored]', nQ'{a'b :x}', Q'!:y!' from customers where id = {{id}}",
                 SqlStatement.Dialect.ORACLE);
 
         assertEquals(List.of("id"), statement.placeholders());
@@ -241,7 +355,7 @@ class SqlStatementTest {
 
     @Test
     void parseShouldReadQAsAnIdentifierOutsideOracle() {
-        assertEquals(List.of("id"), SqlStatement.parse("select q from t where id = :id",
+        assertEquals(List.of("id"), SqlStatement.parse("select q from t where id = {{id}}",
                 SqlStatement.Dialect.ORACLE).placeholders());
         // elsewhere q is an identifier and ':x' an ordinary literal
         assertEquals(List.of(), SqlStatement.parse("select q':x' from t",
@@ -250,10 +364,11 @@ class SqlStatementTest {
 
     @Test
     void parseShouldKeepPostgresqlArrayBrackets() {
-        SqlStatement statement = SqlStatement.parse("select tags[:i] from t",
+        SqlStatement statement = SqlStatement.parse("select tags[{{i}}] from t",
                 SqlStatement.Dialect.POSTGRESQL);
 
         assertEquals(List.of("i"), statement.placeholders());
+        assertEquals("select tags[?] from t", statement.jdbcSql());
     }
 
     @Test
@@ -274,16 +389,16 @@ class SqlStatementTest {
     void parseShouldEndALineCommentAtACarriageReturn() {
         assertEquals("DROP", SqlStatement.parse("SELECT 1 -- note\r DROP TABLE customers",
                 SqlStatement.Dialect.SQLSERVER).nonReadKeyword());
-        assertEquals(List.of("id"), SqlStatement.parse("select 1 -- note\r where id = :id",
+        assertEquals(List.of("id"), SqlStatement.parse("select 1 -- note\r where id = {{id}}",
                 SqlStatement.Dialect.POSTGRESQL).placeholders());
-        assertEquals(List.of(), SqlStatement.parse("select 1 -- note\r :x",
+        assertEquals(List.of(), SqlStatement.parse("select 1 -- note\r {{x}}",
                 SqlStatement.Dialect.SQLITE).placeholders());
     }
 
     @Test
     void parseShouldEscapePostgresqlQuestionMarkOperators() {
         SqlStatement statement = SqlStatement.parse(
-                "select id from t where payload ? 'k' and tags ?| array['a'] and id = :id",
+                "select id from t where payload ? 'k' and tags ?| array['a'] and id = {{id}}",
                 SqlStatement.Dialect.POSTGRESQL);
 
         assertEquals("select id from t where payload ?? 'k' and tags ??| array['a'] and id = ?",

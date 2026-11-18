@@ -3546,7 +3546,7 @@
     },
     "ConsumedSqlProcedure": {
       "type": "object",
-      "description": "One SQL procedure. `statement` is SQL written in the database's own dialect, sent to the driver verbatim; `:name` placeholders become JDBC bind variables. A statement must read (`SELECT`, `WITH` or `VALUES`), and holds one statement only.",
+      "description": "One SQL procedure. `statement` is SQL written in the database's own dialect, sent to the driver verbatim; `{{name}}` placeholders become JDBC bind variables, never text. A statement must read (`SELECT`, `WITH` or `VALUES`), and holds one statement only.",
       "properties": {
         "display": {
           "type": "string",
@@ -3565,7 +3565,7 @@
         "statement": {
           "type": "string",
           "minLength": 1,
-          "description": "Inline SQL. Caller values reach it only through `:name` placeholders, each matching an input's `placeholder` or key. String literals, quoted identifiers, comments and `::` casts are not placeholders."
+          "description": "Inline SQL. Caller values reach it only through `{{name}}` placeholders, each naming an input key (`where id = {{customer-id}}`). The engine binds each one as a JDBC bind variable; the statement is never rendered as a template. A placeholder inside a string literal or quoted identifier is refused, and comments are not read for placeholders. Write the database's own SQL: a JDBC escape (`{fn ...}`, `{d '...'}`, `{call ...}`), a `?` marker (outside PostgreSQL, where `?` is a JSONB operator) and, on Oracle, a `:name` marker are refused."
         },
         "inputParameters": {
           "type": "object",
@@ -3622,11 +3622,6 @@
           "type": "boolean",
           "default": true,
           "description": "Whether the step must supply the value. Default `true`; an absent optional value is bound as SQL `NULL`."
-        },
-        "placeholder": {
-          "type": "string",
-          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
-          "description": "Name of the `:placeholder` in the statement, when it differs from the key. Needed for kebab-case keys (`updated-since` binds `:updatedSince`)."
         },
         "sqlType": {
           "type": "string",
