@@ -78,6 +78,13 @@ final class JdbcUrl {
     private static final Pattern HOST_FORM =
             Pattern.compile("^(?:[^/]*@)?//(?:[^/?;(]*@)?([^/:?;]+)(?::\\d+)?(?:/([^?;/]*))?");
 
+    /**
+     * The subprotocol, its variants and an Oracle thin or OCI driver type, before the
+     * {@code //authority} or the Oracle {@code user/password@} connect string.
+     */
+    private static final Pattern AUTHORITY_START =
+            Pattern.compile("(?i)^jdbc:[a-z0-9+._-]+(?::[a-z0-9+._-]+)*:(//)?");
+
     private final String system;
     private final String host;
     private final String database;
@@ -150,6 +157,97 @@ final class JdbcUrl {
                     + " sets driver property '" + property.trim()
                     + "', which can load classes, read local files or run scripts; it is refused");
         }
+    }
+
+    /**
+     * A URL without its user information, and the user and password that information carried.
+     *
+     * @param url the URL to hand the driver, without credentials when they could be moved
+     * @param user the user the URL named, or {@code null}
+     * @param password the password the URL named, or {@code null}
+     */
+    record WithoutUserInfo(String url, String user, String password) {
+    }
+
+    /**
+     * Take the user information out of a URL, so that the URL can be logged (HikariCP logs it at
+     * DEBUG and masks only {@code password=}) while the credentials go to the driver as the
+     * {@code user} and {@code password} properties, which every driver reads.
+     *
+     * <ul>
+     *   <li>{@code jdbc:<driver>://user:password@host…}: the user information runs to the last
+     *       {@code @} before the path or the properties, as {@link #parse} reads it, and is
+     *       percent-decoded as Connector/J decodes it ({@code +} is kept).</li>
+     *   <li>{@code jdbc:oracle:thin:user/password@…} (and {@code oci}): split at the first
+     *       {@code /}, kept as written.</li>
+     * </ul>
+     *
+     * <p>Left as they are: a multi-host authority with user information ({@code //u:p@h1,h2},
+     * {@code //u1:p1@h1,u2:p2@h2}) and a key-value authority ({@code //(host=…,user=…)}), whose
+     * credentials apply per host; an Oracle quoted user or password ({@code scott/"p@ss"@…}),
+     * whose quotes are URL syntax; and Oracle {@code /@alias}, which carries no credentials.</p>
+     *
+     * @param url a URL already known to start with {@code jdbc:}
+     * @return the URL without its user information, and that information
+     */
+    static WithoutUserInfo withoutUserInfo(String url) {
+        WithoutUserInfo unchanged = new WithoutUserInfo(url, null, null);
+        Matcher start = AUTHORITY_START.matcher(url);
+        if (!start.find()) {
+            return unchanged;
+        }
+        int from = start.end();
+        if (start.group(1) != null) {
+            int end = indexOfAny(url, from, "/?;");
+            String authority = url.substring(from, end);
+            int at = authority.lastIndexOf('@');
+            if (at < 0) {
+                return unchanged;
+            }
+            String userInfo = authority.substring(0, at);
+            String hosts = authority.substring(at + 1);
+            if (userInfo.isEmpty() || hosts.isEmpty() || userInfo.indexOf(',') >= 0
+                    || userInfo.indexOf('(') >= 0 || hosts.indexOf(',') >= 0) {
+                return unchanged;
+            }
+            int colon = userInfo.indexOf(':');
+            String user = colon < 0 ? userInfo : userInfo.substring(0, colon);
+            String password = colon < 0 ? null : userInfo.substring(colon + 1);
+            return new WithoutUserInfo(url.substring(0, from) + url.substring(from + at + 1),
+                    emptyToNull(percentDecoded(user)),
+                    password == null ? null : percentDecoded(password));
+        }
+        String lower = url.toLowerCase(Locale.ROOT);
+        if (!lower.startsWith("jdbc:oracle:thin:") && !lower.startsWith("jdbc:oracle:oci")) {
+            return unchanged;
+        }
+        // jdbc:oracle:thin:user/password@connect-string; the password may be quoted with an @
+        if (from >= url.length() || url.charAt(from) == '@') {
+            return unchanged;
+        }
+        int end = indexOfAny(url, from, "?");
+        int at = url.lastIndexOf('@', end - 1);
+        int slash = url.indexOf('/', from);
+        if (at <= from || slash < 0 || slash > at) {
+            return unchanged;
+        }
+        String user = url.substring(from, slash);
+        String password = url.substring(slash + 1, at);
+        if (user.isEmpty() || user.startsWith("\"") || password.startsWith("\"")) {
+            // /@alias (wallet or OS authentication) has no credentials to move, and a quoted
+            // user or password is URL syntax that the driver reads only in the URL
+            return unchanged;
+        }
+        return new WithoutUserInfo(url.substring(0, from) + url.substring(at), user, password);
+    }
+
+    private static int indexOfAny(String text, int from, String characters) {
+        for (int i = from; i < text.length(); i++) {
+            if (characters.indexOf(text.charAt(i)) >= 0) {
+                return i;
+            }
+        }
+        return text.length();
     }
 
     /** Parse the telemetry parts of a URL already known to start with {@code jdbc:}. */

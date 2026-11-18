@@ -33,6 +33,8 @@ import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import com.zaxxer.hikari.HikariConfig;
@@ -449,6 +451,40 @@ class SqlClientAdapterTest {
         assertNull(config.getDataSourceProperties().get("readOnlyMode"));
     }
 
+    @ParameterizedTest
+    @CsvSource({
+        "jdbc:mysql://reader:s3cret@db:3306/erp, jdbc:mysql://db:3306/erp",
+        "jdbc:mariadb://reader:s3cret@db:3306/erp, jdbc:mariadb://db:3306/erp",
+        "jdbc:postgresql://reader:s3cret@db:5432/erp, jdbc:postgresql://db:5432/erp",
+        "jdbc:oracle:thin:reader/s3cret@//db:1521/erp, jdbc:oracle:thin:@//db:1521/erp"})
+    void poolConfigShouldHandHikariAUrlWithoutItsUserInfo(String url, String expected)
+            throws Exception {
+        SqlClientSpec spec = spec(GET_CUSTOMER);
+        spec.getConnection().setUrl(url);
+        spec.getConnection().setUsername(null);
+        spec.getConnection().setPassword(null);
+
+        HikariConfig config = new SqlClientAdapter(null, spec).poolConfig();
+
+        assertEquals(expected, config.getJdbcUrl());
+        assertEquals("reader", config.getUsername());
+        assertEquals("s3cret", config.getPassword());
+    }
+
+    @Test
+    void poolConfigShouldKeepTheUsernameAndPasswordTheCapabilitySets() throws Exception {
+        SqlClientSpec spec = spec(GET_CUSTOMER);
+        spec.getConnection().setUrl("jdbc:mysql://reader:s3cret@db:3306/erp");
+        spec.getConnection().setUsername("app");
+        spec.getConnection().setPassword("t0ken");
+
+        HikariConfig config = new SqlClientAdapter(null, spec).poolConfig();
+
+        assertEquals("jdbc:mysql://db:3306/erp", config.getJdbcUrl());
+        assertEquals("app", config.getUsername());
+        assertEquals("t0ken", config.getPassword());
+    }
+
     @Test
     void poolConfigShouldResolveDriverPropertiesFromBindings() throws Exception {
         SqlClientSpec spec = spec(GET_CUSTOMER);
@@ -619,6 +655,20 @@ class SqlClientAdapterTest {
         JsonNode value = SqlRowDocument.column(rs, meta, 1, "VALID_UNTIL");
 
         assertEquals("infinity", value.asString());
+    }
+
+    @Test
+    void columnShouldKeepAnInfiniteDateAsInfinity() throws Exception {
+        java.sql.ResultSet rs = org.mockito.Mockito.mock(java.sql.ResultSet.class);
+        java.sql.ResultSetMetaData meta = org.mockito.Mockito.mock(java.sql.ResultSetMetaData.class);
+        org.mockito.Mockito.when(meta.getColumnType(1)).thenReturn(java.sql.Types.DATE);
+        org.mockito.Mockito.when(meta.getColumnTypeName(1)).thenReturn("date");
+        // pgjdbc reads 'infinity'::date and '-infinity'::date as LocalDate.MAX and MIN
+        org.mockito.Mockito.when(rs.getObject(1, java.time.LocalDate.class))
+                .thenReturn(java.time.LocalDate.MAX, java.time.LocalDate.MIN);
+
+        assertEquals("infinity", SqlRowDocument.column(rs, meta, 1, "VALID_UNTIL").asString());
+        assertEquals("-infinity", SqlRowDocument.column(rs, meta, 1, "VALID_UNTIL").asString());
     }
 
     @Test
