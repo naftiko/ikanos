@@ -891,8 +891,66 @@ public class Resolver {
      */
     public static Object resolveInputParameterFromRequest(InputParameterSpec spec, Request request,
             JsonNode root, ObjectMapper mapper) {
-        return requireDeclaredInputType(spec,
-                resolveUncheckedInputParameterFromRequest(spec, request, root, mapper));
+        Object value = resolveUncheckedInputParameterFromRequest(spec, request, root, mapper);
+        if (value instanceof String text && isReadAsText(spec)) {
+            value = typedScalar(spec, text, mapper);
+        }
+        return requireDeclaredInputType(spec, value);
+    }
+
+    /**
+     * Whether a caller value of this input is read from the request as text: a path, query or
+     * header input without a static {@code value}. A body input keeps its JSON type.
+     */
+    private static boolean isReadAsText(InputParameterSpec spec) {
+        if (spec == null || spec.getIn() == null || spec.getValue() != null) {
+            return false;
+        }
+        String in = spec.getIn().toLowerCase();
+        return "path".equals(in) || "query".equals(in) || "header".equals(in);
+    }
+
+    /**
+     * Read a text value as the declared {@code integer}, {@code number} or {@code boolean} of its
+     * input, as a JSON number or boolean is read from an MCP tool's arguments, so a flow receives
+     * {@code 5} for {@code ?limit=5}, as it does over MCP, never {@code "5"}. Other types keep the
+     * text.
+     *
+     * @param spec the declared input
+     * @param text the text read from the request
+     * @param mapper the mapper that reads the value, as it reads a JSON body
+     * @return the typed value, or {@code text} for another type
+     * @throws IllegalArgumentException when the text is not a value of the declared type, such as
+     *         {@code abc} for an {@code integer}; the message names the parameter but not the
+     *         value, which is caller data
+     */
+    static Object typedScalar(InputParameterSpec spec, String text, ObjectMapper mapper) {
+        String type = spec.getType() == null ? "" : spec.getType().toLowerCase();
+        if (!"integer".equals(type) && !"number".equals(type) && !"boolean".equals(type)) {
+            return text;
+        }
+        JsonNode node = null;
+        // JSON's grammar for numbers and booleans, without the whitespace JSON would allow
+        if (!text.isEmpty() && text.equals(text.strip())) {
+            try {
+                node = mapper.readerFor(JsonNode.class)
+                        .with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).readValue(text);
+            } catch (JacksonException e) {
+                node = null;
+            }
+        }
+        boolean matches = node != null && switch (type) {
+            case "boolean" -> node.isBoolean();
+            case "integer" -> node.isNumber() && isIntegral(node);
+            // A number too large for a double (1e400) is read as an infinity, not a JSON number
+            default -> node.isNumber() && Double.isFinite(node.doubleValue());
+        };
+        if (!matches) {
+            throw new IllegalArgumentException("Input parameter '" + spec.getName()
+                    + "' must be " + ("integer".equals(type) ? "an integer"
+                            : "number".equals(type) ? "a number" : "true or false"));
+        }
+        return mapper.convertValue(node, Object.class);
     }
 
     /**
@@ -902,8 +960,10 @@ public class Resolver {
      * (GHSA-6359-rp48-m9j6).
      *
      * <ul>
-     * <li>A string is accepted for every type: path, query and header values are always
-     * strings, and a string stays a JSON string.</li>
+     * <li>A string is accepted for every type, and a string stays a JSON string. A path, query
+     * or header value of a declared {@code integer}, {@code number} or {@code boolean} is read as
+     * one before this check ({@link #typedScalar}); other path, query and header values are
+     * strings.</li>
      * <li>{@code string}: a number or boolean is written as text; an object or array is
      * rejected.</li>
      * <li>{@code number}: a number is accepted; {@code integer}: a number without a fractional
