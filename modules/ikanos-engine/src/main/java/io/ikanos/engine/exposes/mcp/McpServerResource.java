@@ -23,6 +23,7 @@ import io.ikanos.engine.exposes.mcp.model.DispatchResult;
 import io.ikanos.engine.exposes.mcp.model.JsonRpcCodeMapper;
 import io.ikanos.engine.exposes.mcp.model.JsonRpcError;
 import io.ikanos.engine.exposes.mcp.model.McpHeader;
+import io.ikanos.spec.exposes.AuthorizationSpec;
 import org.restlet.data.Header;
 import org.restlet.data.MediaType;
 import org.restlet.data.Status;
@@ -87,10 +88,14 @@ public class McpServerResource extends ServerResource {
             // Refuse a token that lacks the tool's (or adapter's) scopes or claims before
             // dispatching: the OAuth2 restlet in front turns the denial into a 403 with an
             // insufficient_scope challenge, so the client can step up its authorization (#999).
-            // The challenge keeps the granted scopes the adapter still requires elsewhere.
-            if (!AccessControl.enforce(dispatcher.requirementFor(root, getRequest()),
-                    dispatcher.requiredScopes(), getRequest(), getResponse())) {
-                return new StringRepresentation("Forbidden", MediaType.TEXT_PLAIN);
+            // The challenge keeps the granted scopes the adapter still requires elsewhere. A
+            // call of the call meta-tool is checked against each tool it runs, so the first tool
+            // the token falls short of gets the challenge a direct call of it would get.
+            for (AuthorizationSpec requirement : dispatcher.requirementsFor(root, getRequest())) {
+                if (!AccessControl.enforce(requirement, dispatcher.requiredScopes(),
+                        getRequest(), getResponse())) {
+                    return new StringRepresentation("Forbidden", MediaType.TEXT_PLAIN);
+                }
             }
 
             // Extract W3C trace context (params._meta takes precedence over the inbound HTTP
