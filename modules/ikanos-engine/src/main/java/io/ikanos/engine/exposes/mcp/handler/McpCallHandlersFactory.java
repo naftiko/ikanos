@@ -14,7 +14,15 @@
 package io.ikanos.engine.exposes.mcp.handler;
 
 import org.restlet.Context;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import io.ikanos.Capability;
+import io.ikanos.engine.util.Resolver;
+import io.ikanos.spec.CapabilitySpec;
+import io.ikanos.spec.aggregates.AggregateSpec;
+import io.ikanos.spec.consumes.ClientSpec;
+import io.ikanos.spec.util.OperationStepCallSpec;
+import io.ikanos.spec.util.OperationStepSpec;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.mcp.processor.CacheDataAppender;
 import io.ikanos.engine.exposes.CacheScopes;
@@ -25,7 +33,10 @@ import io.ikanos.engine.exposes.mcp.processor.ProtocolsVersionsValidator;
 import io.ikanos.engine.exposes.mcp.processor.ServerDataAppender;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.logging.Logger;
 import io.ikanos.spec.exposes.mcp.McpServerResourceSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
@@ -77,8 +88,18 @@ public class McpCallHandlersFactory {
                 throw new IllegalArgumentException(
                         "MCP resource '" + resource.getName() + "': " + e.getMessage(), e);
             }
+            CacheScopes.Decision decision = CacheHints.scopeDecision(spec, resource);
+            if (CacheScopes.PUBLIC.equals(decision.scope())
+                    && readsCallerClaims(adapter.getCapability(), resource)) {
+                // The content depends on the caller, which the request does not show, so a
+                // shared cache would hand one caller's content to another (#998)
+                throw new IllegalArgumentException("MCP resource '" + resource.getName()
+                        + "': cacheScope public, but its call reads the caller's claims ({{"
+                        + Resolver.CALLER_CLAIMS + "...}}), so its content depends on the caller."
+                        + " Declare cacheScope private");
+            }
             logger.fine(() -> describe(spec.getNamespace() + " resource " + resource.getName(),
-                    CacheHints.scopeDecision(spec, resource)));
+                    decision));
         }
         DispatchPostProcessor serverDataAppender = new ServerDataAppender(adapter, mapper);
 
@@ -125,6 +146,80 @@ public class McpCallHandlersFactory {
                     List.of(protocolsVersionsValidator), List.of(serverDataAppender)));
         }
         return List.copyOf(handlers);
+    }
+
+    /**
+     * Whether reading {@code resource} may render a template that reads a caller claim: in the
+     * resource's own call, {@code with} and steps, or in a consumed adapter or aggregate they
+     * call (an aggregate may call any consumed adapter, so all of them count then). Every string
+     * and object key is checked, as structured bodies render keys too (#998).
+     */
+    static boolean readsCallerClaims(Capability capability, McpServerResourceSpec resource) {
+        ObjectMapper mapper = IkanosMappers.json();
+        Set<String> namespaces = new HashSet<>();
+        if (resource.getCall() != null) {
+            namespaces.add(namespaceOf(resource.getCall().getOperation()));
+        }
+        for (OperationStepSpec step : resource.getSteps().values()) {
+            if (step instanceof OperationStepCallSpec call) {
+                namespaces.add(namespaceOf(call.getCall()));
+            }
+        }
+        if (readsCallerClaims(mapper.valueToTree(resource.getCall()))
+                || readsCallerClaims(mapper.valueToTree(resource.getWith()))
+                || readsCallerClaims(mapper.valueToTree(resource.getSteps()))) {
+            return true;
+        }
+        CapabilitySpec spec = capability == null || capability.getSpec() == null ? null
+                : capability.getSpec().getCapability();
+        if (spec == null) {
+            return false;
+        }
+        boolean aggregate = false;
+        for (AggregateSpec candidate : spec.getAggregates().values()) {
+            if (namespaces.contains(candidate.getNamespace())) {
+                aggregate = true;
+                if (readsCallerClaims(mapper.valueToTree(candidate))) {
+                    return true;
+                }
+            }
+        }
+        for (ClientSpec client : spec.getConsumes()) {
+            if ((aggregate || namespaces.contains(client.getNamespace()))
+                    && readsCallerClaims(mapper.valueToTree(client))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String namespaceOf(String operation) {
+        if (operation == null) {
+            return null;
+        }
+        int dot = operation.indexOf('.');
+        return dot < 0 ? operation : operation.substring(0, dot);
+    }
+
+    private static boolean readsCallerClaims(JsonNode node) {
+        if (node == null) {
+            return false;
+        }
+        if (node.isString()) {
+            return Resolver.readsCallerClaims(node.asString());
+        }
+        for (Map.Entry<String, JsonNode> member : node.properties()) {
+            if (Resolver.readsCallerClaims(member.getKey())
+                    || readsCallerClaims(member.getValue())) {
+                return true;
+            }
+        }
+        for (JsonNode element : node.isArray() ? node : List.<JsonNode>of()) {
+            if (readsCallerClaims(element)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static String describe(String subject, CacheScopes.Decision decision) {
