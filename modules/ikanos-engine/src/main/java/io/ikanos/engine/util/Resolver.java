@@ -163,14 +163,19 @@ public class Resolver {
      * {@code auth}, such as {@code {{#auth}}{{claims.sub}}{{/auth}}}, it may not read
      * {@code claims} anywhere, since such a read skips these checks and falls back to the other
      * parameters when the claim is missing.</li>
+     * <li>Nor the root whole: a value or a section named {@code auth}, such as {@code {{auth}}}
+     * or {@code {{#auth}}{{.}}{{/auth}}}, would send every claim of the token, so it is refused
+     * while {@code auth} is the engine's {@link CallerRoot}. A template that reads no claim is
+     * checked for this too.</li>
      * </ul>
      *
      * @throws CallerClaimMissingException naming the missing references
-     * @throws IllegalArgumentException when a claim is read inside a section, or the name
-     *         {@code auth} is taken by something else than the caller root
+     * @throws IllegalArgumentException when a claim is read inside a section, the root is read
+     *         whole, or the name {@code auth} is taken by something else than the caller root
      */
     public static void requireCallerValues(String template, Map<String, Object> parameters) {
         if (!mayReadCallerClaims(template)) {
+            requireCallerRootNotWhole(template, parameters);
             return;
         }
         if (readsClaimsRelativeToRoot(template)) {
@@ -179,6 +184,7 @@ public class Resolver {
                     + " claims. Read each claim outside any section, such as {{" + CALLER_CLAIMS
                     + ".sub}}");
         }
+        requireCallerRootNotWhole(template, parameters);
         CallerTags everywhere = callerTags(template, true);
         if (everywhere.isEmpty()) {
             return;
@@ -237,6 +243,20 @@ public class Resolver {
      */
     public static boolean mayReadCallerClaims(String template) {
         return template != null && template.contains(CALLER_ROOT) && template.contains(CLAIMS);
+    }
+
+    /**
+     * Whether {@code template} reads a caller claim: a value or a section under
+     * {@link #CALLER_CLAIMS}, inside a section too, or {@code claims} relative to a section over
+     * the root. Unlike {@link #mayReadCallerClaims}, which only looks for the two names, it parses
+     * the template, so text such as a description that mentions both is not counted.
+     *
+     * @param template the template, may be null
+     * @return {@code true} when rendering the template may read a claim of the caller's token
+     */
+    public static boolean readsCallerClaims(String template) {
+        return mayReadCallerClaims(template)
+                && (readsClaimsRelativeToRoot(template) || !callerTags(template, true).isEmpty());
     }
 
     /**
@@ -310,6 +330,59 @@ public class Resolver {
             return false;
         }
         return found[0] && found[1];
+    }
+
+    /**
+     * Fails when {@code template} reads the engine's {@link CallerRoot} whole, as a value or as a
+     * section, which would write out every claim of the caller's token (#998). An inverted
+     * section ({@code {{^auth}}}) writes nothing of it and is allowed.
+     *
+     * @throws IllegalArgumentException when the root is read whole
+     */
+    private static void requireCallerRootNotWhole(String template,
+            Map<String, Object> parameters) {
+        if (template == null || !template.contains(CALLER_ROOT) || parameters == null
+                || !(parameters.get(CALLER_ROOT) instanceof CallerRoot)) {
+            return;
+        }
+        boolean[] whole = new boolean[1];
+        try {
+            compileTemplate(template).visit(new Mustache.Visitor() {
+                @Override
+                public void visitText(String text) {
+                    // literal text holds no variable
+                }
+
+                @Override
+                public void visitVariable(String name) {
+                    whole[0] |= CALLER_ROOT.equals(canonicalName(name));
+                }
+
+                @Override
+                public boolean visitInclude(String name) {
+                    return false;
+                }
+
+                @Override
+                public boolean visitSection(String name) {
+                    whole[0] |= CALLER_ROOT.equals(canonicalName(name));
+                    return true;
+                }
+
+                @Override
+                public boolean visitInvertedSection(String name) {
+                    return true;
+                }
+            });
+        } catch (RuntimeException e) {
+            // Not valid Mustache: rendering reports it on its own
+            return;
+        }
+        if (whole[0]) {
+            throw new IllegalArgumentException("A template reads '" + CALLER_ROOT + "' whole,"
+                    + " which would send every claim of the caller's token. Read each claim as a"
+                    + " value, such as {{" + CALLER_CLAIMS + ".sub}}");
+        }
     }
 
     private static boolean isClaimsReference(String name) {
@@ -1771,7 +1844,10 @@ public class Resolver {
             return System.getenv(spec.getName());
         }
         if (parameters != null && parameters.containsKey(spec.getName())) {
-            return parameters.get(spec.getName());
+            Object value = parameters.get(spec.getName());
+            // The caller root is no call parameter: taken by name, it would send every claim of
+            // the token upstream (#998)
+            return value instanceof CallerRoot ? null : value;
         }
         return null;
     }
