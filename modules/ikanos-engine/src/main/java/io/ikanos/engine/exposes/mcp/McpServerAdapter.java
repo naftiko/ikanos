@@ -92,7 +92,7 @@ public class McpServerAdapter extends ServerAdapter {
         super(capability, serverSpec);
         this.requestState = McpRequestState.withKey(capability.getSealingKey(),
                 capability.getSpecDigest());
-        AccessControl.validate(serverSpec, serverSpec.isStdio(),
+        AccessControl.checkAtStartup(serverSpec, serverSpec.isStdio(),
                 AccessControl.declaredIn(serverSpec));
 
         // Create the tool handler first (transport-agnostic): it owns each tool's output

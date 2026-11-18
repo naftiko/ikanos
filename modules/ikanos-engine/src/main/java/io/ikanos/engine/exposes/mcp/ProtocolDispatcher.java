@@ -88,6 +88,7 @@ public class ProtocolDispatcher {
     private final String namespace;
     private final McpServerSpec serverSpec;
     private final McpServerAdapter adapter;
+    private final Set<String> requiredScopes;
 
     /**
      * Writes {@link #SUPPORTED_PROTOCOL_VERSIONS} into {@code node} as a JSON array named
@@ -113,6 +114,8 @@ public class ProtocolDispatcher {
         this.capabilityName = resolveCapabilityName(adapter);
         this.serverSpec = adapter.getMcpServerSpec();
         this.adapter = adapter;
+        this.requiredScopes = serverSpec != null
+                ? AccessControl.requiredScopes(AccessControl.declaredIn(serverSpec)) : Set.of();
         this.identityResolver = new AgentIdentityResolver(
                 adapter.getMcpServerSpec() != null ? adapter.getMcpServerSpec().getTrust() : null);
         this.namespace = adapter.getMcpServerSpec() != null
@@ -312,6 +315,14 @@ public class ProtocolDispatcher {
             tool = taskTool(request.path("params").path("taskId").asString(null), httpRequest);
         }
         return AccessControl.effective(serverSpec, tool);
+    }
+
+    /**
+     * Every scope the adapter or one of its tools requires. A challenge for missing scopes also
+     * asks for the ones the token holds among them, as MCP's Scope Challenge Handling asks.
+     */
+    Set<String> requiredScopes() {
+        return requiredScopes;
     }
 
     /** The tool a task of the caller runs, or {@code null} for an unknown or foreign task. */

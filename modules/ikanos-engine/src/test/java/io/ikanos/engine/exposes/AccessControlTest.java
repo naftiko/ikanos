@@ -184,6 +184,56 @@ class AccessControlTest {
         assertTrue(denial.description().contains("'tenant'"));
     }
 
+    @Test
+    void checkShouldNotAskForScopesWhenOnlyAClaimIsMissing() {
+        // The token holds the required scope: a challenge naming scopes could not help it
+        AuthorizationSpec requirement = new AuthorizationSpec(List.of("records.write"),
+                Map.of("roles", List.of("editor")));
+        JWTClaimsSet claims = new JWTClaimsSet.Builder().claim("scope", "records.write")
+                .claim("roles", List.of("viewer")).build();
+
+        assertEquals(List.of(), AccessControl.check(requirement, claims).scopes());
+    }
+
+    // ─── Scope challenge ────────────────────────────────────────────────────────
+
+    @Test
+    void checkShouldAlsoAskForGrantedScopesStillRequiredElsewhere() {
+        // MCP 2025-11-25, Scope Challenge Handling: keep what the client already holds and
+        // still needs, so stepping up for records.write does not lose records.read
+        JWTClaimsSet claims = new JWTClaimsSet.Builder()
+                .claim("scope", "records.read profile").build();
+
+        AccessControl.Denial denial = AccessControl.check(scopes("records.write"), claims,
+                Set.of("records.read", "records.write", "records.admin"));
+
+        assertEquals(List.of("records.write", "records.read"), denial.scopes());
+    }
+
+    @Test
+    void checkShouldNotAddGrantedScopesToAClaimDenial() {
+        JWTClaimsSet claims = new JWTClaimsSet.Builder().claim("scope", "records.read")
+                .claim("roles", List.of("viewer")).build();
+
+        AccessControl.Denial denial = AccessControl.check(claim("roles", "editor"), claims,
+                Set.of("records.read"));
+
+        assertEquals(List.of(), denial.scopes());
+    }
+
+    @Test
+    void requiredScopesShouldCollectTheScopesOfEveryLevel() {
+        McpServerSpec adapter = new McpServerSpec();
+        adapter.setAuthorization(scopes("tools.read"));
+        McpServerToolSpec tool = new McpServerToolSpec("update", null, null);
+        tool.setAuthorization(new AuthorizationSpec(List.of("tools.write"),
+                Map.of("roles", List.of("editor"))));
+        adapter.getTools().put("update", tool);
+
+        assertEquals(Set.of("tools.read", "tools.write"),
+                AccessControl.requiredScopes(AccessControl.declaredIn(adapter)));
+    }
+
     // ─── enforce ────────────────────────────────────────────────────────────────
 
     @Test
@@ -337,6 +387,39 @@ class AccessControlTest {
         IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
                 () -> AccessControl.validate(adapter, true, AccessControl.declaredIn(adapter)));
         assertTrue(error.getMessage().contains("stdio"), error.getMessage());
+    }
+
+    // ─── Scopes no longer enforced (1.0.0-beta9 migration) ──────────────────────
+
+    @Test
+    void unenforcedScopesWarningShouldNameTheAdapterWhenNoAuthorizationIsDeclared() {
+        RestServerSpec adapter = restAdapter(null);
+        adapter.setAuthentication(oauth2("records.read"));
+
+        String warning =
+                AccessControl.unenforcedScopesWarning(adapter, AccessControl.declaredIn(adapter));
+
+        assertNotNull(warning);
+        assertTrue(warning.contains("'records'"), warning);
+        assertTrue(warning.contains("authorization"), warning);
+    }
+
+    @Test
+    void unenforcedScopesWarningShouldBeNullWhenAnAuthorizationIsDeclared() {
+        RestServerSpec adapter = restAdapter(scopes("records.read"));
+        adapter.setAuthentication(oauth2("records.read"));
+
+        assertNull(AccessControl.unenforcedScopesWarning(adapter,
+                AccessControl.declaredIn(adapter)));
+    }
+
+    @Test
+    void unenforcedScopesWarningShouldBeNullWhenOAuth2ListsNoScope() {
+        RestServerSpec adapter = restAdapter(null);
+        adapter.setAuthentication(oauth2());
+
+        assertNull(AccessControl.unenforcedScopesWarning(adapter,
+                AccessControl.declaredIn(adapter)));
     }
 
     @Test
