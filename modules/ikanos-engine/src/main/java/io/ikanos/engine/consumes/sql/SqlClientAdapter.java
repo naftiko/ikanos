@@ -25,7 +25,6 @@ import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
-import javax.sql.DataSource;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import io.ikanos.Capability;
@@ -164,7 +163,7 @@ public class SqlClientAdapter extends ClientAdapter {
     }
 
     /** @return the pool, or {@code null} before {@link #start()} and after {@link #stop()} */
-    DataSource dataSource() {
+    HikariDataSource dataSource() {
         return pool;
     }
 
@@ -195,7 +194,7 @@ public class SqlClientAdapter extends ClientAdapter {
 
     /** Run one call. Called inside the client span by {@link SqlInvocation}. */
     ConsumedResult execute(Procedure procedure, List<SqlBind> binds) {
-        HikariDataSource current = pool;
+        HikariDataSource current = dataSource();
         if (current == null) {
             throw new IllegalStateException("consumes type sql '" + getNamespace()
                     + "' is not started");
@@ -260,7 +259,30 @@ public class SqlClientAdapter extends ClientAdapter {
         if (pool != null) {
             return;
         }
-        pool = new HikariDataSource(poolConfig());
+        HikariConfig config = poolConfig();
+        try {
+            pool = new HikariDataSource(config);
+        } catch (RuntimeException e) {
+            // Hikari's message quotes the JDBC URL with only password= masked, so a
+            // user:password@ or user/password@ URL would reach the startup output in clear.
+            // Neither the message nor the cause is kept.
+            throw new IllegalStateException("consumes type sql '" + getNamespace()
+                    + "' (system " + jdbcUrl.system() + ") cannot create its connection pool: "
+                    + poolFailure(e));
+        }
+    }
+
+    /** Why the pool could not be created, without the URL that Hikari's message carries. */
+    static String poolFailure(RuntimeException e) {
+        String message = String.valueOf(e.getMessage());
+        if (message.startsWith("Failed to get driver instance")) {
+            return "no JDBC driver accepts connection.url; add the driver to the extension"
+                    + " directory";
+        }
+        if (message.contains("claims to not accept jdbcUrl")) {
+            return "the connection.driverClassName driver does not accept connection.url";
+        }
+        return "the pool failed with " + e.getClass().getName();
     }
 
     HikariConfig poolConfig() {

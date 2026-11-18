@@ -125,13 +125,15 @@ final class SqlRowDocument {
                 return temporal(rs, c, LocalDate.class);
             }
             case Types.TIME -> {
-                return temporal(rs, c, LocalTime.class);
+                return temporal(rs, c,
+                        isTypeName(meta, c, "timetz") ? OffsetTime.class : LocalTime.class);
             }
             case Types.TIME_WITH_TIMEZONE -> {
                 return temporal(rs, c, OffsetTime.class);
             }
             case Types.TIMESTAMP -> {
-                return temporal(rs, c, LocalDateTime.class);
+                return temporal(rs, c, isTypeName(meta, c, "timestamptz")
+                        ? OffsetDateTime.class : LocalDateTime.class);
             }
             case Types.TIMESTAMP_WITH_TIMEZONE -> {
                 return temporal(rs, c, OffsetDateTime.class);
@@ -175,7 +177,28 @@ final class SqlRowDocument {
         } catch (SQLException | RuntimeException unsupported) {
             value = rs.getString(c);
         }
-        return value == null ? NODES.nullNode() : NODES.stringNode(value.toString());
+        if (value == null) {
+            return NODES.nullNode();
+        }
+        // pgjdbc reads PostgreSQL's infinite timestamps as the MAX and MIN values
+        if (OffsetDateTime.MAX.equals(value) || LocalDateTime.MAX.equals(value)) {
+            return NODES.stringNode("infinity");
+        }
+        if (OffsetDateTime.MIN.equals(value) || LocalDateTime.MIN.equals(value)) {
+            return NODES.stringNode("-infinity");
+        }
+        return NODES.stringNode(value.toString());
+    }
+
+    /**
+     * pgjdbc reports {@code timestamptz} as {@code TIMESTAMP} and {@code timetz} as {@code TIME},
+     * and refuses them as local types; the driver's text then depends on the session time zone.
+     * Their type name tells them apart, so they are read with their offset. The names are
+     * PostgreSQL's; drivers of other databases report their zoned types under other codes.
+     */
+    private static boolean isTypeName(ResultSetMetaData meta, int c, String name)
+            throws SQLException {
+        return name.equalsIgnoreCase(meta.getColumnTypeName(c));
     }
 
     private static boolean isJsonColumn(String typeName) {

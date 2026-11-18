@@ -268,6 +268,41 @@ class SqlClientAdapterTest {
         assertThrows(IllegalStateException.class, invocation::invoke);
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+        "jdbc:mysql://reader:s3cret@db/erp",
+        "jdbc:oracle:thin:scott/s3cret@db:1521/erp"
+    })
+    void startShouldNotShowTheUrlWhenNoDriverAcceptsIt(String noDriverUrl) throws Exception {
+        SqlClientSpec spec = spec(GET_CUSTOMER);
+        spec.getConnection().setUrl(noDriverUrl);
+        adapter = new SqlClientAdapter(null, spec);
+
+        IllegalStateException e = assertThrows(IllegalStateException.class, adapter::start);
+
+        assertTrue(e.getMessage().contains("no JDBC driver accepts connection.url"),
+                e.getMessage());
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            assertFalse(String.valueOf(t.getMessage()).contains("s3cret"), t.toString());
+        }
+    }
+
+    @Test
+    void invokeShouldAskForAReadOnlyConnection() throws Exception {
+        started(GET_CUSTOMER);
+        SqlClientAdapter recording = org.mockito.Mockito.spy(adapter);
+        Connection connection =
+                org.mockito.Mockito.spy(DriverManager.getConnection(url, "SA", ""));
+        com.zaxxer.hikari.HikariDataSource dataSource =
+                org.mockito.Mockito.mock(com.zaxxer.hikari.HikariDataSource.class);
+        org.mockito.Mockito.when(dataSource.getConnection()).thenReturn(connection);
+        org.mockito.Mockito.doReturn(dataSource).when(recording).dataSource();
+
+        recording.prepare("get-customer", Map.of("customer-id", "c1")).invoke();
+
+        org.mockito.Mockito.verify(connection).setReadOnly(true);
+    }
+
     @Test
     void prepareShouldReturnNullForAnUndeclaredProcedure() throws Exception {
         started(GET_CUSTOMER);
@@ -533,5 +568,65 @@ class SqlClientAdapterTest {
         JsonNode value = SqlRowDocument.column(rs, meta, 1, "PAYLOAD");
 
         assertEquals(new BigDecimal("12345678901234567890.12"), value.get("total").decimalValue());
+    }
+
+    @Test
+    void columnShouldReadAPostgresqlTimestamptzWithItsOffset() throws Exception {
+        java.sql.ResultSet rs = org.mockito.Mockito.mock(java.sql.ResultSet.class);
+        java.sql.ResultSetMetaData meta = org.mockito.Mockito.mock(java.sql.ResultSetMetaData.class);
+        // pgjdbc reports timestamptz as TIMESTAMP and refuses it as a LocalDateTime
+        org.mockito.Mockito.when(meta.getColumnType(1)).thenReturn(java.sql.Types.TIMESTAMP);
+        org.mockito.Mockito.when(meta.getColumnTypeName(1)).thenReturn("timestamptz");
+        org.mockito.Mockito.when(rs.getObject(1, java.time.LocalDateTime.class))
+                .thenThrow(new SQLException("Cannot convert the column of type TIMESTAMPTZ"));
+        org.mockito.Mockito.when(rs.getObject(1, java.time.OffsetDateTime.class))
+                .thenReturn(java.time.OffsetDateTime.parse("2026-11-17T09:00:00Z"));
+        org.mockito.Mockito.when(rs.getString(1)).thenReturn("2026-11-17 10:00:00+01");
+
+        JsonNode value = SqlRowDocument.column(rs, meta, 1, "CREATED_AT");
+
+        assertEquals("2026-11-17T09:00Z", value.asString());
+    }
+
+    @Test
+    void columnShouldReadAPostgresqlTimetzWithItsOffset() throws Exception {
+        java.sql.ResultSet rs = org.mockito.Mockito.mock(java.sql.ResultSet.class);
+        java.sql.ResultSetMetaData meta = org.mockito.Mockito.mock(java.sql.ResultSetMetaData.class);
+        // pgjdbc reports timetz as TIME and refuses it as a LocalTime
+        org.mockito.Mockito.when(meta.getColumnType(1)).thenReturn(java.sql.Types.TIME);
+        org.mockito.Mockito.when(meta.getColumnTypeName(1)).thenReturn("timetz");
+        org.mockito.Mockito.when(rs.getObject(1, java.time.LocalTime.class))
+                .thenThrow(new SQLException("Cannot convert the column of type TIMETZ"));
+        org.mockito.Mockito.when(rs.getObject(1, java.time.OffsetTime.class))
+                .thenReturn(java.time.OffsetTime.parse("09:00:00+02:00"));
+        org.mockito.Mockito.when(rs.getString(1)).thenReturn("09:00:00+02");
+
+        JsonNode value = SqlRowDocument.column(rs, meta, 1, "OPENS_AT");
+
+        assertEquals("09:00+02:00", value.asString());
+    }
+
+    @Test
+    void columnShouldKeepAnInfiniteTimestamptzAsInfinity() throws Exception {
+        java.sql.ResultSet rs = org.mockito.Mockito.mock(java.sql.ResultSet.class);
+        java.sql.ResultSetMetaData meta = org.mockito.Mockito.mock(java.sql.ResultSetMetaData.class);
+        org.mockito.Mockito.when(meta.getColumnType(1)).thenReturn(java.sql.Types.TIMESTAMP);
+        org.mockito.Mockito.when(meta.getColumnTypeName(1)).thenReturn("timestamptz");
+        // pgjdbc reads 'infinity'::timestamptz as OffsetDateTime.MAX
+        org.mockito.Mockito.when(rs.getObject(1, java.time.OffsetDateTime.class))
+                .thenReturn(java.time.OffsetDateTime.MAX);
+
+        JsonNode value = SqlRowDocument.column(rs, meta, 1, "VALID_UNTIL");
+
+        assertEquals("infinity", value.asString());
+    }
+
+    @Test
+    void poolFailureShouldNameADriverClassThatRefusesTheUrl() {
+        String reason = SqlClientAdapter.poolFailure(new RuntimeException(
+                "Driver org.hsqldb.jdbc.JDBCDriver claims to not accept jdbcUrl, jdbc:x://a:b@db"));
+
+        assertEquals("the connection.driverClassName driver does not accept connection.url",
+                reason);
     }
 }
