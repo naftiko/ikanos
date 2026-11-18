@@ -203,4 +203,78 @@ class JdbcUrlTest {
 
         assertEquals("mysql://db/erp", url.spanTarget());
     }
+
+    @Test
+    void withoutUserInfoShouldMoveTheCredentialsOfAMysqlAuthority() {
+        JdbcUrl.WithoutUserInfo split =
+                JdbcUrl.withoutUserInfo("jdbc:mysql://reader:p%40ss@word@db:3306/erp?ssl=true");
+
+        assertEquals("jdbc:mysql://db:3306/erp?ssl=true", split.url());
+        assertEquals("reader", split.user());
+        assertEquals("p@ss@word", split.password());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"jdbc:postgresql://reader:s3cret@db:5432/erp",
+        "jdbc:mariadb://reader:s3cret@db:3306/erp",
+        "jdbc:mysql:replication://reader:s3cret@db:3306/erp"})
+    void withoutUserInfoShouldMoveTheCredentialsOfEveryAuthorityForm(String url) {
+        JdbcUrl.WithoutUserInfo split = JdbcUrl.withoutUserInfo(url);
+
+        assertFalse(split.url().contains("s3cret"), split.url());
+        assertFalse(split.url().contains("reader"), split.url());
+        assertTrue(split.url().endsWith("//db:" + (url.contains("postgresql") ? "5432" : "3306")
+                + "/erp"), split.url());
+        assertEquals("reader", split.user());
+        assertEquals("s3cret", split.password());
+    }
+
+    @Test
+    void withoutUserInfoShouldMoveAUserWithoutAPassword() {
+        JdbcUrl.WithoutUserInfo split = JdbcUrl.withoutUserInfo("jdbc:mysql://reader@db/erp");
+
+        assertEquals("jdbc:mysql://db/erp", split.url());
+        assertEquals("reader", split.user());
+        assertEquals(null, split.password());
+    }
+
+    @Test
+    void withoutUserInfoShouldMoveTheCredentialsOfAnOracleThinUrl() {
+        JdbcUrl.WithoutUserInfo split =
+                JdbcUrl.withoutUserInfo("jdbc:oracle:thin:scott/s3cret@//ora:1521/FINANCE");
+
+        assertEquals("jdbc:oracle:thin:@//ora:1521/FINANCE", split.url());
+        assertEquals("scott", split.user());
+        assertEquals("s3cret", split.password());
+    }
+
+    @Test
+    void withoutUserInfoShouldMoveTheCredentialsOfAnOracleThinSidUrl() {
+        JdbcUrl.WithoutUserInfo split =
+                JdbcUrl.withoutUserInfo("jdbc:oracle:thin:scott/s3/cret@ora:1521:FIN");
+
+        assertEquals("jdbc:oracle:thin:@ora:1521:FIN", split.url());
+        assertEquals("scott", split.user());
+        assertEquals("s3/cret", split.password());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"jdbc:postgresql://db:5432/erp",
+        "jdbc:sqlserver://db:1433;databaseName=erp;user=reader;password=s3cret",
+        "jdbc:oracle:thin:@//ora:1521/FINANCE",
+        "jdbc:oracle:thin:/@finance_alias",
+        "jdbc:oracle:thin:@//ora:1521/FIN@ANCE",
+        "jdbc:oracle:thin:scott/\"p@ss\"@ora:1521:FIN",
+        "jdbc:mysql://reader:s3cret@db1,db2/erp",
+        "jdbc:mysql://u1:p1@db1,u2:p2@db2/erp",
+        "jdbc:mysql://(host=db,user=reader,password=s3cr@t)/erp",
+        "jdbc:h2:mem:erp",
+        "jdbc:sqlite:/var/data/catalog.db"})
+    void withoutUserInfoShouldLeaveAUrlWithoutMovableUserInfo(String url) {
+        JdbcUrl.WithoutUserInfo split = JdbcUrl.withoutUserInfo(url);
+
+        assertEquals(url, split.url());
+        assertEquals(null, split.user());
+        assertEquals(null, split.password());
+    }
 }

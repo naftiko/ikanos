@@ -180,11 +180,13 @@ final class SqlRowDocument {
         if (value == null) {
             return NODES.nullNode();
         }
-        // pgjdbc reads PostgreSQL's infinite timestamps as the MAX and MIN values
-        if (OffsetDateTime.MAX.equals(value) || LocalDateTime.MAX.equals(value)) {
+        // pgjdbc reads PostgreSQL's infinite dates and timestamps as the MAX and MIN values
+        if (OffsetDateTime.MAX.equals(value) || LocalDateTime.MAX.equals(value)
+                || LocalDate.MAX.equals(value)) {
             return NODES.stringNode("infinity");
         }
-        if (OffsetDateTime.MIN.equals(value) || LocalDateTime.MIN.equals(value)) {
+        if (OffsetDateTime.MIN.equals(value) || LocalDateTime.MIN.equals(value)
+                || LocalDate.MIN.equals(value)) {
             return NODES.stringNode("-infinity");
         }
         return NODES.stringNode(value.toString());

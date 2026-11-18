@@ -289,12 +289,18 @@ public class SqlClientAdapter extends ClientAdapter {
         SqlClientSpec spec = getSqlClientSpec();
         HikariConfig config = new HikariConfig();
         config.setPoolName("ikanos-sql-" + spec.getNamespace());
-        config.setJdbcUrl(url);
-        if (username != null) {
-            config.setUsername(username);
+        // HikariCP logs the URL at DEBUG and masks only password=: the user information goes to
+        // the driver as the user and password properties instead. A connection.username or
+        // connection.password set in the capability wins over the URL's.
+        JdbcUrl.WithoutUserInfo split = JdbcUrl.withoutUserInfo(url);
+        config.setJdbcUrl(split.url());
+        String user = username != null ? username : split.user();
+        String secret = password != null ? password : split.password();
+        if (user != null) {
+            config.setUsername(user);
         }
-        if (password != null) {
-            config.setPassword(password);
+        if (secret != null) {
+            config.setPassword(secret);
         }
         SqlConnectionSpec connection = spec.getConnection();
         if (connection.getDriverClassName() != null) {
