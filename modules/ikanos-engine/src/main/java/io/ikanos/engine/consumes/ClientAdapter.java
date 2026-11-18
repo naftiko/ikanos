@@ -15,6 +15,7 @@ package io.ikanos.engine.consumes;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -127,13 +128,58 @@ public abstract class ClientAdapter extends Adapter {
                     + " references unbound variables " + missing
                     + ". Declare them in a binds entry.");
         }
-        // A whole bind namespace would render every value it holds, as in {{secrets}} (#1064)
-        List<String> namespaces = Resolver.namespaceVariables(value, scope);
+        // A whole bind namespace would render every value it holds, as in {{secrets}} (#1064),
+        // and so would a section opened on one, as in {{#secrets}}{{.}}{{/secrets}}
+        List<String> namespaces = new ArrayList<>(Resolver.namespaceVariables(value, scope));
+        for (String section : namespaceSections(value, scope)) {
+            if (!namespaces.contains(section)) {
+                namespaces.add(section);
+            }
+        }
         if (!namespaces.isEmpty()) {
             throw new IllegalArgumentException("consumes '" + namespace + "' " + field + " "
                     + Resolver.describeNamespaceVariables(namespaces));
         }
         return Resolver.resolveMustacheTemplate(value, scope);
+    }
+
+    /**
+     * The sections, nested ones included, opened on a whole bind namespace: inside one,
+     * {@code {{.}}} renders every value the namespace holds. An inverted section renders nothing
+     * of its value, so it is not listed.
+     */
+    private static List<String> namespaceSections(String template, Map<String, Object> scope) {
+        List<String> found = new ArrayList<>();
+        Resolver.compileTemplate(template).visit(new Mustache.Visitor() {
+            @Override
+            public void visitText(String text) {
+                // literal text opens no section
+            }
+
+            @Override
+            public void visitVariable(String name) {
+                // a variable, checked by namespaceVariables
+            }
+
+            @Override
+            public boolean visitInclude(String name) {
+                return false;
+            }
+
+            @Override
+            public boolean visitSection(String name) {
+                if (Resolver.lookupVariable(name, scope) instanceof Map && !found.contains(name)) {
+                    found.add(name);
+                }
+                return true;
+            }
+
+            @Override
+            public boolean visitInvertedSection(String name) {
+                return true;
+            }
+        });
+        return found;
     }
 
     /**

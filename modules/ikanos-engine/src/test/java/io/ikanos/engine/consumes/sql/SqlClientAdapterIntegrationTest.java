@@ -234,6 +234,25 @@ class SqlClientAdapterIntegrationTest {
     }
 
     /**
+     * A section opened on a whole bind namespace renders every value it holds through
+     * {@code {{.}}}, here into the database name that the client span carries.
+     */
+    @Test
+    void capabilityShouldRefuseAConnectionFieldOpeningASectionOnAWholeNamespace()
+            throws Exception {
+        String yaml = namespacedYaml("{{secrets.DB_PASSWORD}}", 0).replace(
+                "url: \"jdbc:sqlite:{{secrets.DB_PATH}}\"",
+                "url: \"jdbc:sqlite:{{secrets.DB_PATH}}{{#secrets}}{{.}}{{/secrets}}\"");
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> new Capability(YAML.readValue(yaml, IkanosSpec.class)));
+
+        assertTrue(e.getMessage().contains("connection.url"), e.getMessage());
+        assertTrue(e.getMessage().contains("{{secrets.KEY}}"), e.getMessage());
+        assertFalse(e.getMessage().contains("s3cret"), "the error must not show a secret");
+    }
+
+    /**
      * The integration capability, with its connection URL, user and password read from a
      * {@code secrets} bind namespace.
      */
