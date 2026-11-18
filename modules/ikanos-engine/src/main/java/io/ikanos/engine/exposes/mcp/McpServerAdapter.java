@@ -293,7 +293,7 @@ public class McpServerAdapter extends ServerAdapter {
             // The caller's claims are not recorded with the task (#998). A tasks/update answer
             // runs it with the claims of the request that answered, validated by the transport;
             // a task resumed at startup has none, so a template that reads {{auth.claims...}}
-            // fails as a missing claim rather than run without them.
+            // fails as a missing claim rather than run without them, until #1115 restores them.
             Map<String, Object> caller = CallerClaims.current();
             return () -> CallerClaims.runAs(caller,
                     () -> ToolsCallHandler.callTool(this, toolName, callArguments));
