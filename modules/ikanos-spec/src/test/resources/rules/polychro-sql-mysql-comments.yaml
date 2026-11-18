@@ -1,0 +1,37 @@
+# Polychro fixture — ikanos-sql-placeholders-bound reads a MySQL -- as the engine does,
+# and MUST FIRE once:
+#   - on {{status}}, after -- and a no-break space: MySQL reads that -- as two minus
+#     signs, so {{status}} is a placeholder that matches no declared input
+# and MUST NOT FIRE on {{note}}, after -- and a control character: MySQL reads that --
+# as a comment, so {{note}} is not a placeholder.
+ikanos: "1.0.0-beta10"
+info:
+  display: "Consumed SQL MySQL comments"
+  description: "Fixture with MySQL -- followed by a Unicode space and by a control character."
+capability:
+  binds:
+    - namespace: shop-db
+      description: "Shop database credentials."
+      location: "file:///./shared/secrets.yaml"
+      keys:
+        DB_USER: "shop-db-user"
+        DB_PASSWORD: "shop-db-password"
+  consumes:
+    - type: sql
+      namespace: shop
+      description: "MySQL database."
+      connection:
+        url: "jdbc:mysql://shop.internal:3306/shop"
+        username: "{{DB_USER}}"
+        password: "{{DB_PASSWORD}}"
+      procedures:
+        no-break-space:
+          description: Two minus signs before a placeholder.
+          statement: "select id from orders where id = {{id}} -- {{status}}"
+          inputParameters:
+            id: { type: string }
+        control-character:
+          description: A comment that holds a placeholder.
+          statement: "select id from orders where id = {{id}} --\x01{{note}}"
+          inputParameters:
+            id: { type: string }
