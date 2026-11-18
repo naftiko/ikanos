@@ -1513,6 +1513,7 @@ public class OasExportBuilderTest {
                       inputParameters:
                         flag:
                           type: string
+                          default: "NO"
                     register-ship:
                       inputParameters:
                         imo:
@@ -1578,6 +1579,8 @@ public class OasExportBuilderTest {
         assertEquals("query", op.getParameters().get(0).getIn());
         assertFalse(op.getParameters().get(0).getRequired(),
                 "a flow input is optional unless it declares required: true");
+        assertEquals("NO", op.getParameters().get(0).getSchema().getDefault(),
+                "the default tools/list advertises, which the operation applies too");
     }
 
     @Test
@@ -1665,6 +1668,18 @@ public class OasExportBuilderTest {
         assertEquals(List.of(new java.math.BigDecimal("0.5")),
                 builder.buildInputSchema(ratio).getEnum());
         assertEquals(List.of(Boolean.TRUE), builder.buildInputSchema(active).getEnum());
+    }
+
+    @Test
+    void buildInputSchemaShouldKeepTheDefaultWithItsType() {
+        InputParameterSpec limit = input("limit", "integer");
+        limit.setDefaultValue(tools.jackson.databind.node.JsonNodeFactory.instance.numberNode(10));
+        InputParameterSpec filter = input("filter", "object");
+        filter.setDefaultValue(IkanosMappers.json().readTree("{\"flag\":\"NO\"}"));
+
+        assertEquals(10, builder.buildInputSchema(limit).getDefault());
+        assertEquals(java.util.Map.of("flag", "NO"), builder.buildInputSchema(filter).getDefault());
+        assertNull(builder.buildInputSchema(input("name", "string")).getDefault());
     }
 
     private static InputParameterSpec input(String name, String type) {
