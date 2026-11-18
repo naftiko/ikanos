@@ -14,6 +14,7 @@
 package io.ikanos.engine.consumes.http;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.URI;
@@ -34,13 +35,21 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import com.sun.net.httpserver.HttpServer;
 import io.ikanos.Capability;
+import io.ikanos.engine.observability.OtelTestFixtures;
+import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.spec.util.VersionHelper;
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.trace.SpanKind;
+import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
+import io.opentelemetry.sdk.trace.data.SpanData;
 
 /**
  * #841, end to end: an API key placed in the query reaches the upstream with the exact value it
- * is bound to, even with characters that have a meaning in a query string.
+ * is bound to, even with characters that have a meaning in a query string, and the client span
+ * records the call without query values.
  */
 class ConsumedApiKeyQueryEncodingIntegrationTest {
 
@@ -54,6 +63,7 @@ class ConsumedApiKeyQueryEncodingIntegrationTest {
     private final List<String> upstreamQueries = new CopyOnWriteArrayList<>();
     private HttpServer upstream;
     private Capability capability;
+    private int restPort;
 
     @BeforeEach
     void startUpstream() throws Exception {
@@ -75,13 +85,47 @@ class ConsumedApiKeyQueryEncodingIntegrationTest {
             capability.stop();
         }
         upstream.stop(0);
+        TelemetryBootstrap.reset();
     }
 
     @Test
     void apiKeyInTheQueryShouldReachTheUpstreamUnchanged() throws Exception {
+        startCapability("a+b&c=d #1");
+
+        HttpResponse<String> response = callItems();
+
+        assertEquals(200, response.statusCode(), response.body());
+        assertEquals(1, upstreamQueries.size(), upstreamQueries.toString());
+        assertEquals(List.of("api_key=a+b&c=d #1"), decodedParameters(upstreamQueries.get(0)),
+                "raw query: " + upstreamQueries.get(0));
+    }
+
+    @Test
+    void clientSpanShouldRecordTheUpstreamUrlWithoutQueryValues() throws Exception {
+        InMemorySpanExporter exporter = InMemorySpanExporter.create();
+        TelemetryBootstrap.init(OpenTelemetrySdk.builder()
+                .setTracerProvider(OtelTestFixtures.tracerProvider(exporter)).build());
+        startCapability("k3y-value");
+
+        HttpResponse<String> response = callItems();
+
+        assertEquals(200, response.statusCode(), response.body());
+        assertEquals(List.of("api_key=k3y-value"), decodedParameters(upstreamQueries.get(0)));
+        List<SpanData> clients = exporter.getFinishedSpanItems().stream()
+                .filter(span -> span.getKind() == SpanKind.CLIENT).toList();
+        assertEquals(1, clients.size(), exporter.getFinishedSpanItems().toString());
+        String url = clients.get(0).getAttributes()
+                .get(AttributeKey.stringKey("url.full"));
+        assertEquals("http://localhost:" + upstream.getAddress().getPort()
+                + "/items?api_key=REDACTED", url);
+        assertFalse(clients.get(0).getAttributes().toString().contains("k3y-value"),
+                clients.get(0).getAttributes().toString());
+    }
+
+    private void startCapability(String apiKey) throws Exception {
         Path secrets = dir.resolve("secrets.yaml");
-        Files.writeString(secrets, "API_KEY: \"a+b&c=d #1\"\n");
-        int restPort = freePort();
+        Files.writeString(secrets, "API_KEY: \"" + apiKey + "\"\n");
+        restPort = freePort();
         capability = new Capability(IkanosMappers.lenientYaml().readValue("""
                 ikanos: "%s"
                 capability:
@@ -120,15 +164,12 @@ class ConsumedApiKeyQueryEncodingIntegrationTest {
                 """.formatted(IKANOS, secrets.toUri(), upstream.getAddress().getPort(),
                 restPort), IkanosSpec.class));
         capability.start();
+    }
 
-        HttpResponse<String> response = client.send(HttpRequest.newBuilder(
+    private HttpResponse<String> callItems() throws Exception {
+        return client.send(HttpRequest.newBuilder(
                 URI.create("http://localhost:" + restPort + "/items"))
                 .timeout(Duration.ofSeconds(15)).build(), HttpResponse.BodyHandlers.ofString());
-
-        assertEquals(200, response.statusCode(), response.body());
-        assertEquals(1, upstreamQueries.size(), upstreamQueries.toString());
-        assertEquals(List.of("api_key=a+b&c=d #1"), decodedParameters(upstreamQueries.get(0)),
-                "raw query: " + upstreamQueries.get(0));
     }
 
     /** Each parameter as {@code name=value}, decoded as an API reads a query string. */

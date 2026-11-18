@@ -429,18 +429,75 @@ public class TelemetryBootstrap {
     }
 
     /**
-     * Start a CLIENT span for an outbound HTTP call.
+     * Start a CLIENT span for an outbound HTTP call. {@code url.full} carries the target without
+     * its query values or user information ({@link #redactUrl(String)}).
      */
     public Span startClientSpan(String method, String url, String namespace) {
         if (!enabled) return Span.getInvalid();
         SpanBuilder builder = tracer.spanBuilder("http.client." + (method != null ? method : "UNKNOWN"))
                 .setSpanKind(SpanKind.CLIENT);
         setStringAttribute(builder, ATTR_HTTP_METHOD, method != null ? method : "UNKNOWN");
-        setStringAttribute(builder, ATTR_HTTP_URL, url != null ? url : "unknown");
+        setStringAttribute(builder, ATTR_HTTP_URL, url != null ? redactUrl(url) : "unknown");
         if (namespace != null) {
             setStringAttribute(builder, ATTR_NAMESPACE, namespace);
         }
         return builder.startSpan();
+    }
+
+    /** What replaces a redacted part of a URL, as OpenTelemetry's semantic conventions write it. */
+    static final String REDACTED = "REDACTED";
+
+    /**
+     * A URL as a span may record it: each query value, and the user information, replaced by
+     * {@link #REDACTED}, and the fragment left out. Query values and user information can hold a
+     * credential or a caller's data, and traces often reach a wider audience than the call.
+     * Parameter names stay, so the span still shows which parameters were sent; an element
+     * without {@code =} is redacted whole, since it is a value with no name.
+     *
+     * @param url the URL as sent
+     * @return the URL to record
+     */
+    static String redactUrl(String url) {
+        String rest = url;
+        int hash = rest.indexOf('#');
+        if (hash >= 0) {
+            rest = rest.substring(0, hash);
+        }
+        String query = null;
+        int question = rest.indexOf('?');
+        if (question >= 0) {
+            query = rest.substring(question + 1);
+            rest = rest.substring(0, question);
+        }
+        int scheme = rest.indexOf("://");
+        if (scheme >= 0) {
+            int authorityStart = scheme + 3;
+            int slash = rest.indexOf('/', authorityStart);
+            int authorityEnd = slash >= 0 ? slash : rest.length();
+            int at = rest.lastIndexOf('@', authorityEnd - 1);
+            if (at >= authorityStart) {
+                rest = rest.substring(0, authorityStart) + REDACTED + ":" + REDACTED
+                        + rest.substring(at);
+            }
+        }
+        if (query == null) {
+            return rest;
+        }
+        StringBuilder redacted = new StringBuilder(rest).append('?');
+        String[] elements = query.split("&", -1);
+        for (int i = 0; i < elements.length; i++) {
+            if (i > 0) {
+                redacted.append('&');
+            }
+            String element = elements[i];
+            int equals = element.indexOf('=');
+            if (equals >= 0) {
+                redacted.append(element, 0, equals + 1).append(REDACTED);
+            } else if (!element.isEmpty()) {
+                redacted.append(REDACTED);
+            }
+        }
+        return redacted.toString();
     }
 
     private static void setStringAttribute(SpanBuilder builder, AttributeKey<String> key,
