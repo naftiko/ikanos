@@ -14,6 +14,7 @@
 package io.ikanos.engine.consumes;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -239,5 +240,20 @@ class ConsumedInvocationTest {
         assertEquals(1, invocation.metricResults.size());
         assertNull(invocation.metricResults.get(0));
         assertEquals(StatusCode.ERROR, onlySpan().getStatus().getStatusCode());
+    }
+
+    @Test
+    void failedCallShouldNotRecordTheCredentialsOfAUrlInItsError() {
+        StubInvocation invocation = new StubInvocation(null, new IOException(
+                "Upstream MCP server https://reader:s3cret@mcp.example.com/mcp?token=t0k3n "
+                        + "is unreachable"));
+
+        assertThrows(IOException.class, invocation::invoke);
+
+        SpanData span = onlySpan();
+        String recorded = span.getStatus().getDescription() + span.getEvents();
+        assertTrue(recorded.contains("https://REDACTED:REDACTED@mcp.example.com/mcp?token=REDACTED"),
+                recorded);
+        assertFalse(recorded.contains("s3cret") || recorded.contains("t0k3n"), recorded);
     }
 }

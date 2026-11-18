@@ -259,8 +259,66 @@ public class TelemetryBootstrapTest {
     void redactUrlShouldRedactUserInformationBeforeTheLastAtSignOfTheAuthority() {
         assertEquals("http://REDACTED:REDACTED@db.example.com/erp?ssl=REDACTED",
                 TelemetryBootstrap.redactUrl("http://reader:p@ss@db.example.com/erp?ssl=true"));
-        assertEquals("http://REDACTED:REDACTED@h?q=REDACTED",
+        assertEquals("http://REDACTED@h?q=REDACTED",
                 TelemetryBootstrap.redactUrl("http://token@h?q=1"));
+    }
+
+    @Test
+    void redactUrlShouldRedactUserInformationHoldingAnUnencodedDelimiter() {
+        assertEquals("http://REDACTED:REDACTED@db.example.com/erp",
+                TelemetryBootstrap.redactUrl("http://reader:pa?ss@db.example.com/erp"));
+        assertEquals("http://REDACTED:REDACTED@db.example.com/erp",
+                TelemetryBootstrap.redactUrl("http://reader:pa#ss@db.example.com/erp"));
+        assertEquals("http://REDACTED:REDACTED@db.example.com/erp?q=REDACTED",
+                TelemetryBootstrap.redactUrl("http://reader:pa/ss@db.example.com/erp?q=1"));
+    }
+
+    @Test
+    void redactUrlShouldKeepTheHostWhenTheQueryHoldsAnAtSign() {
+        assertEquals("http://REDACTED:REDACTED@db.example.com/erp?email=REDACTED",
+                TelemetryBootstrap.redactUrl("http://reader:s3cret@db.example.com/erp?email=a@b.com"));
+        assertEquals("http://[::1]:8080/erp?email=REDACTED",
+                TelemetryBootstrap.redactUrl("http://[::1]:8080/erp?email=a@b.com"));
+    }
+
+    @Test
+    void redactUrlShouldKeepOnlyTheSchemeWhenNoHostCanBeFound() {
+        assertEquals("http://REDACTED", TelemetryBootstrap.redactUrl("http://reader:s3cret"));
+        assertEquals("http://REDACTED", TelemetryBootstrap.redactUrl("http://{{secret}}/erp"));
+    }
+
+    @Test
+    void redactTextShouldRedactEveryUrlInTheText() {
+        assertEquals("Upstream MCP server https://REDACTED@mcp.example.com/mcp?token=REDACTED "
+                + "failed, then http://h/p?a=REDACTED",
+                TelemetryBootstrap.redactText("Upstream MCP server "
+                        + "https://t0k3n@mcp.example.com/mcp?token=t0k3n failed, then http://h/p?a=1"));
+        assertEquals("connection refused", TelemetryBootstrap.redactText("connection refused"));
+    }
+
+    @Test
+    void recordErrorShouldRedactUrlsInTheMessageAndTheStackTrace() {
+        initWithInMemoryExporter();
+        Span span = TelemetryBootstrap.get().startServerSpan("rest", "test-op",
+                null, null, null);
+        Exception cause = new IllegalStateException("GET https://api.example.com/x?api_key=k3y");
+        TelemetryBootstrap.recordError(span, new RuntimeException(
+                "Upstream https://reader:s3cret@api.example.com/x failed", cause));
+        span.end();
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        assertEquals("Upstream https://REDACTED:REDACTED@api.example.com/x failed",
+                data.getStatus().getDescription());
+        assertEquals(1, data.getEvents().size());
+        var event = data.getEvents().get(0);
+        assertEquals("exception", event.getName());
+        assertEquals(RuntimeException.class.getName(),
+                event.getAttributes().get(TelemetryBootstrap.EXCEPTION_TYPE));
+        assertEquals("Upstream https://REDACTED:REDACTED@api.example.com/x failed",
+                event.getAttributes().get(TelemetryBootstrap.EXCEPTION_MESSAGE));
+        String stackTrace = event.getAttributes().get(TelemetryBootstrap.EXCEPTION_STACKTRACE);
+        assertTrue(stackTrace.contains("api_key=REDACTED"), stackTrace);
+        assertFalse(stackTrace.contains("s3cret") || stackTrace.contains("k3y"), stackTrace);
     }
 
     @Test

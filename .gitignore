@@ -32,7 +32,7 @@ dependency-reduced-pom.xml
 # ─── Agent scratch / working files (PR bodies, diffs, findings, tool downloads) ───
 # Kept inside the workspace per agents-shared/context/agent-universal.md
 # ("Working directory — inside the workspace, never outside it"), never /tmp.
-/.work/
+.work/
 
 # ─── Local test-result summaries written by developer tooling ──────────────────
 /.report-summary.txt
