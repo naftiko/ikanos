@@ -15,7 +15,9 @@ package io.ikanos.spec.consumes.sql;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.ikanos.spec.OperationSpec;
@@ -43,6 +45,7 @@ public class SqlProcedureSpec extends OperationSpec {
     private final AtomicReference<Integer> timeoutMs = new AtomicReference<>();
     private final AtomicReference<Integer> fetchSize = new AtomicReference<>();
     private final AtomicReference<Integer> maxAffectedRows = new AtomicReference<>();
+    private final List<String> generatedKeys = new CopyOnWriteArrayList<>();
 
     public SqlProcedureSpec() {
         super();
@@ -131,5 +134,21 @@ public class SqlProcedureSpec extends OperationSpec {
 
     public void setMaxAffectedRows(Integer maxAffectedRows) {
         this.maxAffectedRows.set(maxAffectedRows);
+    }
+
+    /**
+     * @return the columns whose generated values an {@code INSERT} returns under
+     *     {@code generatedKeys}; empty to ask the driver for none
+     */
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    public List<String> getGeneratedKeys() {
+        return generatedKeys;
+    }
+
+    public void setGeneratedKeys(List<String> values) {
+        generatedKeys.clear();
+        if (values != null) {
+            generatedKeys.addAll(values);
+        }
     }
 }

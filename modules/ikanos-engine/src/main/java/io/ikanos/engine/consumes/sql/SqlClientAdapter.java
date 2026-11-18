@@ -26,12 +26,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.Capability;
 import io.ikanos.engine.consumes.ClientAdapter;
@@ -85,12 +87,13 @@ public class SqlClientAdapter extends ClientAdapter {
      * @param view the output declarations
      * @param operation the span operation: {@code SELECT}, {@code CALL}, or the write keyword
      * @param readOnly whether the procedure only reads; {@code false} runs it in a transaction
-     * @param generatedKeys whether to ask the driver for the keys an {@code INSERT} generates
+     * @param generatedKeys the columns whose generated values an {@code INSERT} asks the driver
+     *     for, empty to ask for none
      */
     record Procedure(String name, SqlProcedureSpec spec, SqlStatement statement, String jdbcSql,
             List<InputParameterSpec> inputs, List<Integer> positions,
             List<SqlOutParameterSpec> outs, ConsumedOperationView view, String operation,
-            boolean readOnly, boolean generatedKeys) {
+            boolean readOnly, List<String> generatedKeys) {
 
         boolean isStored() {
             return statement == null;
@@ -109,6 +112,9 @@ public class SqlClientAdapter extends ClientAdapter {
             return null;
         }
     }
+
+    /** A generated-key column name, as {@code prepareStatement(sql, String[])} takes it. */
+    private static final Pattern KEY_COLUMN = Pattern.compile("^[A-Za-z_][A-Za-z0-9_$#]*$");
 
     /** A stored procedure name, optionally qualified by schema and catalog. */
     private static final Pattern STORED_PROCEDURE_NAME =
@@ -207,9 +213,8 @@ public class SqlClientAdapter extends ClientAdapter {
                 throw new IllegalArgumentException(where + ": " + e.getMessage(), e);
             }
         }
-        // A RETURNING (PostgreSQL, Oracle) or OUTPUT (SQL Server) clause returns rows itself
-        boolean generatedKeys = ("INSERT".equals(operation) || "MERGE".equals(operation))
-                && !statement.returnsRows();
+        List<String> generatedKeys = generatedKeys(procedure, statement, operation, where,
+                dialect);
         List<InputParameterSpec> inputs = new ArrayList<>();
         List<Integer> positions = new ArrayList<>();
         for (String placeholder : statement.placeholders()) {
@@ -234,6 +239,43 @@ public class SqlClientAdapter extends ClientAdapter {
     }
 
     /**
+     * Check the {@code generatedKeys} a statement asks for. Keys are opt-in, by column, and only
+     * on an {@code INSERT}: asking for them with {@code RETURN_GENERATED_KEYS} makes pgjdbc append
+     * {@code RETURNING *}, which PostgreSQL 15 and 16 refuse on a {@code MERGE}, returns binary
+     * columns the row document refuses, and loads every row of an {@code INSERT ... SELECT}.
+     */
+    private static List<String> generatedKeys(SqlProcedureSpec procedure,
+            SqlStatement statement, String operation, String where,
+            SqlStatement.Dialect dialect) {
+        List<String> keys = List.copyOf(procedure.getGeneratedKeys());
+        if (keys.isEmpty()) {
+            return keys;
+        }
+        if (!"INSERT".equals(operation)) {
+            throw new IllegalArgumentException(where + " declares generatedKeys, which only an"
+                    + " INSERT with readOnly: false returns");
+        }
+        if (statement.returnsRows()) {
+            throw new IllegalArgumentException(where + " declares generatedKeys but returns its"
+                    + " rows with RETURNING or OUTPUT; read them under rows instead");
+        }
+        for (String key : keys) {
+            if (!KEY_COLUMN.matcher(key).matches()) {
+                throw new IllegalArgumentException(where + " generatedKeys must name columns,"
+                        + " such as id");
+            }
+        }
+        if (Set.copyOf(keys).size() != keys.size()) {
+            throw new IllegalArgumentException(where + " generatedKeys names a column twice");
+        }
+        if (dialect == SqlStatement.Dialect.SQLSERVER && keys.size() != 1) {
+            throw new IllegalArgumentException(where + " generatedKeys must name one column on"
+                    + " SQL Server, whose driver returns only the IDENTITY value");
+        }
+        return keys;
+    }
+
+    /**
      * Check a stored procedure: a plain or qualified name, a {@code readOnly} attestation, and
      * positions that are unique and contiguous from 1, where an {@code INOUT} parameter takes the
      * same position in {@code inputParameters} and {@code outParameters}.
@@ -247,6 +289,10 @@ public class SqlClientAdapter extends ClientAdapter {
         if (procedure.getReadOnly() == null) {
             throw new IllegalArgumentException(where + " must declare readOnly: the engine"
                     + " cannot tell whether a stored procedure changes data");
+        }
+        if (!procedure.getGeneratedKeys().isEmpty()) {
+            throw new IllegalArgumentException(where + " declares generatedKeys, which only an"
+                    + " INSERT statement returns");
         }
         TreeMap<Integer, InputParameterSpec> inputsByPosition = new TreeMap<>();
         for (InputParameterSpec input : procedure.getInputParameters()) {
@@ -305,7 +351,7 @@ public class SqlClientAdapter extends ClientAdapter {
                 List.copyOf(inputsByPosition.values()), List.copyOf(inputsByPosition.keySet()),
                 List.copyOf(outsByPosition.values()),
                 ConsumedOperationView.of(procedure, null, null), "CALL",
-                procedure.getReadOnly(), false);
+                procedure.getReadOnly(), List.of());
     }
 
     /** @return the input whose key is {@code name}, named by a {@code {{name}}} placeholder */
@@ -557,23 +603,38 @@ public class SqlClientAdapter extends ClientAdapter {
             // Walk every result: the first result set (RETURNING, OUTPUT, a procedure's rows)
             // becomes the rows, and the update counts add up to the rows changed
             ObjectNode document = null;
+            JsonNode keys = null;
+            boolean asksForKeys = !procedure.generatedKeys().isEmpty();
+            boolean keysPending = asksForKeys;
             long changed = 0;
             boolean counted = false;
             boolean resultSet = statement.execute();
             while (true) {
+                int count = -1;
                 if (resultSet) {
                     try (ResultSet rows = statement.getResultSet()) {
-                        if (document == null) {
+                        // A statement that asks for keys has no RETURNING or OUTPUT, so a result
+                        // set is the driver's own key query (mssql-jdbc's SCOPE_IDENTITY()),
+                        // never rows
+                        if (document == null && !asksForKeys) {
                             document = SqlRowDocument.read(rows);
                         }
                     }
                 } else {
-                    int count = statement.getUpdateCount();
-                    if (count == -1) {
-                        break;
+                    count = statement.getUpdateCount();
+                    if (count != -1) {
+                        changed += count;
+                        counted = true;
                     }
-                    changed += count;
-                    counted = true;
+                }
+                if (keysPending) {
+                    // Read the keys at the first result, before getMoreResults: mssql-jdbc
+                    // loses them once it moves past
+                    keys = generatedKeys(statement, procedure);
+                    keysPending = false;
+                }
+                if (!resultSet && count == -1) {
+                    break;
                 }
                 resultSet = statement.getMoreResults();
             }
@@ -597,22 +658,8 @@ public class SqlClientAdapter extends ClientAdapter {
                         + "; rolled back");
                 return SqlConsumedResult.tooManyRows(procedure.view(), rowCount, max);
             }
-            if (procedure.generatedKeys()) {
-                // Only a driver that cannot return keys is tolerated: an error while reading
-                // them fails the call, so the write rolls back
-                ResultSet keys = null;
-                try {
-                    keys = statement.getGeneratedKeys();
-                } catch (java.sql.SQLFeatureNotSupportedException noKeys) {
-                    LOGGER.log(Level.FINE, "No generated keys for SQL procedure {0}",
-                            procedure.name());
-                }
-                if (keys != null) {
-                    try (ResultSet read = keys) {
-                        document.set(SqlRowDocument.GENERATED_KEYS,
-                                SqlRowDocument.read(read).get(SqlRowDocument.ROWS));
-                    }
-                }
+            if (keys != null) {
+                document.set(SqlRowDocument.GENERATED_KEYS, keys);
             }
             if (statement instanceof CallableStatement call && !procedure.outs().isEmpty()) {
                 ObjectNode out = document.putObject(SqlRowDocument.OUT);
@@ -623,6 +670,29 @@ public class SqlClientAdapter extends ClientAdapter {
                 }
             }
             return SqlConsumedResult.success(procedure.view(), document);
+        }
+    }
+
+    /**
+     * Read the keys a write asked for. Only a driver that cannot return keys is tolerated: an
+     * error while reading them fails the call, so the write rolls back.
+     *
+     * @return the key rows, or {@code null} when the driver returns none
+     */
+    private static JsonNode generatedKeys(PreparedStatement statement, Procedure procedure)
+            throws SQLException {
+        ResultSet keys;
+        try {
+            keys = statement.getGeneratedKeys();
+        } catch (java.sql.SQLFeatureNotSupportedException noKeys) {
+            LOGGER.log(Level.FINE, "No generated keys for SQL procedure {0}", procedure.name());
+            return null;
+        }
+        if (keys == null) {
+            return null;
+        }
+        try (ResultSet read = keys) {
+            return SqlRowDocument.read(read).get(SqlRowDocument.ROWS);
         }
     }
 
@@ -644,9 +714,10 @@ public class SqlClientAdapter extends ClientAdapter {
         if (procedure.isStored()) {
             return connection.prepareCall(procedure.jdbcSql());
         }
-        if (procedure.generatedKeys()) {
+        if (!procedure.generatedKeys().isEmpty()) {
+            // By column, never RETURN_GENERATED_KEYS, which pgjdbc turns into RETURNING *
             return connection.prepareStatement(procedure.jdbcSql(),
-                    java.sql.Statement.RETURN_GENERATED_KEYS);
+                    procedure.generatedKeys().toArray(String[]::new));
         }
         return connection.prepareStatement(procedure.jdbcSql());
     }

@@ -138,6 +138,7 @@ class SqlWriteTest {
                 create-order:
                   description: Creates an order.
                   readOnly: false
+                  generatedKeys: [ID]
                   statement: insert into orders (status, region) values ({{status}}, {{region}})
                   inputParameters:
                     status: { type: string }
@@ -402,6 +403,7 @@ class SqlWriteTest {
                 add:
                   description: Adds one order.
                   readOnly: false
+                  generatedKeys: [id]
                   statement: insert into orders (status, region) values ('NEW', {{region}})
                   inputParameters:
                     region: { type: string }
@@ -411,7 +413,8 @@ class SqlWriteTest {
         java.sql.PreparedStatement statement =
                 org.mockito.Mockito.mock(java.sql.PreparedStatement.class);
         org.mockito.Mockito.when(connection.prepareStatement(
-                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyInt()))
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.any(String[].class)))
                 .thenReturn(statement);
         org.mockito.Mockito.when(statement.getUpdateCount()).thenReturn(1, -1);
         org.mockito.Mockito.when(statement.getGeneratedKeys())
@@ -493,5 +496,208 @@ class SqlWriteTest {
         assertEquals(502, result.status());
         assertTrue(result.failureCause().getMessage().contains("maxAffectedRows"),
                 result.failureCause().getMessage());
+    }
+
+    /** A real result set from the test database, to stand for one a driver returns. */
+    private ResultSet rows(String query) throws Exception {
+        return keepAlive.createStatement().executeQuery(query);
+    }
+
+    @Test
+    void invokeShouldNotAskForKeysUnlessTheInsertDeclaresThem() throws Exception {
+        ConsumedResult result = call("""
+                create-order:
+                  description: Creates an order.
+                  readOnly: false
+                  statement: insert into orders (status, region) values ({{status}}, {{region}})
+                  inputParameters:
+                    status: { type: string }
+                    region: { type: string }
+                """, "create-order", Map.of("status", "NEW", "region", "EU"));
+
+        assertEquals(1, result.document().get("rowCount").asInt());
+        assertFalse(result.document().has("generatedKeys"), result.document().toString());
+    }
+
+    @Test
+    void prepareShouldNeverAskForKeysOnAMerge() throws Exception {
+        // pgjdbc turns RETURN_GENERATED_KEYS into "... RETURNING *", which PostgreSQL 15 and 16
+        // refuse on a MERGE
+        SqlClientSpec spec = spec("""
+                upsert:
+                  description: Upserts one order.
+                  readOnly: false
+                  statement: |
+                    merge into orders o using (values ({{id}})) as s (id) on o.id = s.id
+                    when matched then update set status = 'SEEN'
+                  inputParameters:
+                    id: { type: integer }
+                """);
+        adapter = new SqlClientAdapter(null, spec);
+        java.sql.Connection connection = org.mockito.Mockito.mock(java.sql.Connection.class);
+        java.sql.PreparedStatement statement =
+                org.mockito.Mockito.mock(java.sql.PreparedStatement.class);
+        org.mockito.Mockito.when(connection.prepareStatement(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(statement);
+        org.mockito.Mockito.when(statement.getUpdateCount()).thenReturn(1, -1);
+
+        ConsumedResult result = adapter.runWrite(connection, SqlClientAdapter.buildProcedures(
+                spec, SqlStatement.Dialect.POSTGRESQL).get("upsert"), java.util.List.of());
+
+        assertEquals(200, result.status());
+        org.mockito.Mockito.verify(connection, org.mockito.Mockito.never()).prepareStatement(
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyInt());
+        org.mockito.Mockito.verify(connection, org.mockito.Mockito.never()).prepareStatement(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.any(String[].class));
+        org.mockito.Mockito.verify(statement, org.mockito.Mockito.never()).getGeneratedKeys();
+    }
+
+    @Test
+    void runWriteShouldAskPgjdbcForTheDeclaredKeyColumnsOnly() throws Exception {
+        SqlClientSpec spec = spec("""
+                add:
+                  description: Adds one order.
+                  readOnly: false
+                  generatedKeys: [id]
+                  statement: insert into orders (status, region) values ('NEW', {{region}})
+                  inputParameters:
+                    region: { type: string }
+                """);
+        adapter = new SqlClientAdapter(null, spec);
+        java.sql.Connection connection = org.mockito.Mockito.mock(java.sql.Connection.class);
+        java.sql.PreparedStatement statement =
+                org.mockito.Mockito.mock(java.sql.PreparedStatement.class);
+        // pgjdbc appends RETURNING "id" for these names and answers an update count, then
+        // returns the keys from getGeneratedKeys()
+        org.mockito.Mockito.when(connection.prepareStatement(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.eq(new String[] {"id"})))
+                .thenReturn(statement);
+        org.mockito.Mockito.when(statement.execute()).thenReturn(false);
+        org.mockito.Mockito.when(statement.getUpdateCount()).thenReturn(1, -1);
+        ResultSet keys = rows("select 100 as id from (values (0))");
+        org.mockito.Mockito.when(statement.getGeneratedKeys()).thenReturn(keys);
+
+        ConsumedResult result = adapter.runWrite(connection, SqlClientAdapter.buildProcedures(
+                spec, SqlStatement.Dialect.POSTGRESQL).get("add"), java.util.List.of());
+
+        assertEquals(200, result.status());
+        assertEquals(1, result.document().get("rowCount").asInt());
+        assertEquals(100, result.document().get("generatedKeys").get(0).get("ID").asInt(),
+                result.document().toString());
+        org.mockito.Mockito.verify(connection, org.mockito.Mockito.never()).prepareStatement(
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyInt());
+    }
+
+    @Test
+    void runWriteShouldReadSqlServerKeysBeforeMovingPastTheirResultSet() throws Exception {
+        SqlClientSpec spec = spec("""
+                add:
+                  description: Adds one order.
+                  readOnly: false
+                  generatedKeys: [id]
+                  statement: insert into orders (status, region) values ('NEW', {{region}})
+                  inputParameters:
+                    region: { type: string }
+                """);
+        adapter = new SqlClientAdapter(null, spec);
+        java.sql.Connection connection = org.mockito.Mockito.mock(java.sql.Connection.class);
+        java.sql.PreparedStatement statement =
+                org.mockito.Mockito.mock(java.sql.PreparedStatement.class);
+        org.mockito.Mockito.when(connection.prepareStatement(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.eq(new String[] {"id"})))
+                .thenReturn(statement);
+        // mssql-jdbc appends SELECT SCOPE_IDENTITY(): an update count, then the key query's
+        // result set, which getGeneratedKeys() no longer returns once getMoreResults() passed it
+        boolean[] moved = {false};
+        ResultSet keys = rows("select 7 as id from (values (0))");
+        ResultSet identity = rows("select 7 as generated_keys from (values (0))");
+        org.mockito.Mockito.when(statement.execute()).thenReturn(false);
+        org.mockito.Mockito.when(statement.getUpdateCount()).thenReturn(1, -1);
+        org.mockito.Mockito.when(statement.getMoreResults()).thenAnswer(invocation -> {
+            boolean first = !moved[0];
+            moved[0] = true;
+            return first;
+        });
+        org.mockito.Mockito.when(statement.getResultSet()).thenReturn(identity);
+        org.mockito.Mockito.when(statement.getGeneratedKeys()).thenAnswer(invocation -> {
+            if (moved[0]) {
+                throw new java.sql.SQLException("The statement must be executed before any"
+                        + " results can be obtained.");
+            }
+            return keys;
+        });
+
+        ConsumedResult result = adapter.runWrite(connection, SqlClientAdapter.buildProcedures(
+                spec, SqlStatement.Dialect.SQLSERVER).get("add"), java.util.List.of());
+
+        assertEquals(200, result.status());
+        assertEquals(1, result.document().get("rowCount").asInt());
+        assertEquals(7, result.document().get("generatedKeys").get(0).get("ID").asInt(),
+                result.document().toString());
+        assertTrue(result.document().get("rows").isEmpty(),
+                "the key query is not the statement's rows: " + result.document());
+    }
+
+    @Test
+    void constructorShouldRefuseGeneratedKeysOutsideAnInsert() throws Exception {
+        for (String procedure : java.util.List.of("""
+                upsert:
+                  description: A merge.
+                  readOnly: false
+                  generatedKeys: [id]
+                  statement: |
+                    merge into orders o using (values (1)) as s (id) on o.id = s.id
+                    when matched then update set status = 'SEEN'
+                """, """
+                ship:
+                  description: An update.
+                  readOnly: false
+                  generatedKeys: [id]
+                  statement: update orders set status = 'SHIPPED' where id = 1
+                """, """
+                list:
+                  description: A read.
+                  generatedKeys: [id]
+                  statement: select id from orders
+                """, """
+                add:
+                  description: An insert that returns its rows itself.
+                  readOnly: false
+                  generatedKeys: [id]
+                  statement: insert into orders (status) values ('NEW') returning id
+                """, """
+                cancel-order:
+                  description: A stored procedure.
+                  storedProcedure: cancel_order
+                  readOnly: false
+                  generatedKeys: [id]
+                  inputParameters:
+                    id: { type: integer, position: 1 }
+                """)) {
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                    () -> SqlClientAdapter.buildProcedures(spec(procedure),
+                            SqlStatement.Dialect.POSTGRESQL), procedure);
+            assertTrue(e.getMessage().contains("generatedKeys"), e.getMessage());
+        }
+    }
+
+    @Test
+    void constructorShouldRefuseSeveralKeyColumnsOnSqlServer() throws Exception {
+        SqlClientSpec spec = spec("""
+                add:
+                  description: Adds one order.
+                  readOnly: false
+                  generatedKeys: [id, region]
+                  statement: insert into orders (status, region) values ('NEW', 'EU')
+                """);
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> SqlClientAdapter.buildProcedures(spec, SqlStatement.Dialect.SQLSERVER));
+        assertTrue(e.getMessage().contains("one column"), e.getMessage());
+        assertDoesNotThrow(() -> SqlClientAdapter.buildProcedures(spec,
+                SqlStatement.Dialect.POSTGRESQL));
     }
 }
