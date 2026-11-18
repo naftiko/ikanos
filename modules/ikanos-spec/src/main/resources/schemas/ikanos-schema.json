@@ -4327,7 +4327,7 @@
       "additionalProperties": false
     },
     "IdentityHeader": {
-      "description": "The claim of the caller's validated token a forwarded identity header carries. Written as the claim name (`sub`), or as an object to say what happens when the token does not carry it. A claim name that is not a claim of its own is read as a path into nested claims, such as `realm_access.roles`. An array claim is sent comma-separated. A value longer than 256 characters, or with characters other than letters, digits and `. _ ~ : @ / + = | -`, counts as missing.",
+      "description": "The claim of the caller's validated token a forwarded identity header carries. Written as the claim name (`sub`), or as an object to say what happens when the token does not carry it. A claim name that is not a claim of its own is read as a path into nested claims, such as `realm_access.roles`. Claim names are written exactly as the token carries them, not in Ikanos camelCase: `realm_access` is the identity provider's name (Keycloak), and standard claims such as `preferred_username` are snake_case too. An array claim is sent comma-separated. A value longer than 256 characters, or with characters other than letters, digits and `. _ ~ : @ / + = | -`, counts as missing.",
       "oneOf": [
         {
           "type": "string",
@@ -4339,7 +4339,7 @@
             "claim": {
               "type": "string",
               "minLength": 1,
-              "description": "Claim name, or a dotted path into nested claims."
+              "description": "Claim name, or a dotted path into nested claims, written exactly as the token carries them (`realm_access.roles`)."
             },
             "ifMissing": {
               "type": "string",
