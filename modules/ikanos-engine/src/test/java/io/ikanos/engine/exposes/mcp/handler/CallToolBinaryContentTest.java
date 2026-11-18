@@ -15,6 +15,7 @@ package io.ikanos.engine.exposes.mcp.handler;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.net.ServerSocket;
 import java.util.List;
@@ -38,6 +39,7 @@ import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.spec.util.VersionHelper;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
@@ -140,8 +142,49 @@ class CallToolBinaryContentTest {
         assertEquals("image", block.path("type").asString(), shown.toString());
         assertEquals(1, block.path("contentIndex").asInt(), shown.toString());
         assertFalse(block.has("data"), "The model reads the image once: " + shown);
-        assertEquals(base64, result.path("structuredContent").path("results").get(0)
-                .path("result").path("content").get(0).path("data").asString(),
-                "structuredContent keeps each result as a direct call returns it");
+    }
+
+    @Test
+    void compactShouldDropATextBlockThatRepeatsTheStructuredContent() {
+        ToolsCallHandler handler = new ToolsCallHandler(adapter, List.of(), List.of(), List.of());
+        ObjectNode result = JSON.createObjectNode();
+        ObjectNode structured = result.putObject("structuredContent").put("summary", "ok");
+        result.putArray("content").addObject().put("type", "text")
+                .put("text", JSON.writeValueAsString(structured));
+        result.put("isError", false);
+        ArrayNode media = JSON.createArrayNode();
+
+        ObjectNode compacted = handler.compact(result, media);
+
+        assertFalse(compacted.has("content"), compacted.toString());
+        assertEquals(structured, compacted.get("structuredContent"));
+        assertTrue(media.isEmpty());
+    }
+
+    @Test
+    void compactShouldKeepATextBlockThatSaysSomethingElse() {
+        ToolsCallHandler handler = new ToolsCallHandler(adapter, List.of(), List.of(), List.of());
+        ObjectNode result = JSON.createObjectNode();
+        result.putObject("structuredContent").put("summary", "ok");
+        result.putArray("content").addObject().put("type", "text").put("text", "Summary: ok");
+
+        ObjectNode compacted = handler.compact(result, JSON.createArrayNode());
+
+        assertEquals("Summary: ok", compacted.path("content").get(0).path("text").asString());
+    }
+
+    @Test
+    void callToolTextShouldBeItsStructuredContent() {
+        ToolsCallHandler handler = new ToolsCallHandler(adapter, List.of(), List.of(), List.of());
+        ObjectNode arguments = JSON.createObjectNode();
+        arguments.putArray("calls").addObject().put("name", "render-chart");
+
+        JsonNode result = handler.callTool(adapter.getToolSearchCatalog(), arguments);
+
+        assertEquals(JSON.writeValueAsString(result.path("structuredContent")),
+                result.path("content").get(0).path("text").asString());
+        String base64 = java.util.Base64.getEncoder().encodeToString(PNG);
+        assertFalse(result.path("structuredContent").toString().contains(base64),
+                "Only the image block carries the data: " + result);
     }
 }

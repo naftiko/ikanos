@@ -13,6 +13,7 @@
  */
 package io.ikanos.engine.exposes.mcp.handler;
 
+import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
@@ -267,8 +268,8 @@ public class ToolsCallHandler extends McpCallHandler {
 
     /**
      * The search result: the found tools' full definitions in {@code structuredContent}, written
-     * by the same serialiser as {@code tools/list}, and the same JSON as text for clients that
-     * read text only.
+     * by the same serialiser as {@code tools/list}, with a {@code hint} when none matched. The
+     * text block is that same JSON, so a client that reads text only sees the same data.
      */
     private ObjectNode searchResult(List<String> names, ToolSearchCatalog catalog) {
         ObjectNode structured = MAPPER.createObjectNode();
@@ -277,11 +278,24 @@ public class ToolsCallHandler extends McpCallHandler {
         for (String name : names) {
             catalog.tool(name).ifPresent(tool -> tools.add(McpToolJson.write(tool, labels, MAPPER)));
         }
+        if (tools.isEmpty()) {
+            structured.put("hint", NO_MATCH_HINT);
+        }
+        return structuredResult(structured, MAPPER.createArrayNode());
+    }
 
+    /**
+     * A meta-tool result whose first content block is the text serialization of
+     * {@code structuredContent}, as the MCP specification asks of a tool that returns structured
+     * content, followed by {@code more} blocks.
+     */
+    private ObjectNode structuredResult(ObjectNode structured, ArrayNode more) {
         ObjectNode result = MAPPER.createObjectNode();
-        ObjectNode text = result.putArray("content").addObject();
+        ArrayNode content = result.putArray("content");
+        ObjectNode text = content.addObject();
         text.put("type", "text");
-        text.put("text", tools.isEmpty() ? NO_MATCH_HINT : MAPPER.writeValueAsString(structured));
+        text.put("text", MAPPER.writeValueAsString(structured));
+        content.addAll(more);
         result.set("structuredContent", structured);
         result.put("isError", false);
         result.put("resultType", "complete");
@@ -293,9 +307,10 @@ public class ToolsCallHandler extends McpCallHandler {
      * direct {@code tools/call} would, so results, errors and telemetry are the same. Calls run
      * in sequence, and a failing call does not stop the others: each gets its own result, with
      * {@code isError} when it failed. Only a malformed request, such as more calls than
-     * {@code maxToolCalls}, is a tool error as a whole. The image, audio and resource blocks of
-     * the results also follow the text block in {@code content}, as a direct call returns them;
-     * the text block names their index there rather than repeating their data.
+     * {@code maxToolCalls}, is a tool error as a whole. The text block is the JSON of
+     * {@code structuredContent}, and each result is compacted ({@link #compact}) so that no output
+     * appears twice: the image, audio and resource blocks of the results follow the text block in
+     * {@code content}, as a direct call returns them, and the results name their index there.
      */
     ObjectNode callTool(ToolSearchCatalog catalog, JsonNode arguments) {
         JsonNode args = arguments != null ? arguments : MAPPER.createObjectNode();
@@ -311,42 +326,61 @@ public class ToolsCallHandler extends McpCallHandler {
 
         ObjectNode structured = MAPPER.createObjectNode();
         ArrayNode results = structured.putArray("results");
+        // Images, audio and resources stay usable blocks, as a direct call returns them, after
+        // the text block (index 0). Each result points at them instead of repeating their data.
+        ArrayNode media = MAPPER.createArrayNode();
         for (JsonNode call : calls) {
             String name = call.path("name").isString() ? call.path("name").asString() : "";
             ObjectNode entry = results.addObject();
             entry.put("name", name);
-            entry.set("result", callOne(catalog, name, call.get("arguments")));
+            entry.set("result", compact(callOne(catalog, name, call.get("arguments")), media));
         }
-
-        ObjectNode result = MAPPER.createObjectNode();
-        ArrayNode content = result.putArray("content");
-        ObjectNode text = content.addObject();
-        text.put("type", "text");
-        // Images, audio and resources stay usable blocks, as a direct call returns them. The text
-        // block points at them instead of repeating their base64 data in the model's context.
-        ObjectNode shown = structured.deepCopy();
-        for (JsonNode entry : shown.path("results")) {
-            if (!(entry.path("result").path("content") instanceof ArrayNode blocks)) {
-                continue;
-            }
-            for (int i = 0; i < blocks.size(); i++) {
-                JsonNode block = blocks.get(i);
-                if (block.isObject() && !"text".equals(block.path("type").asString(""))) {
-                    content.add(block.deepCopy());
-                    blocks.set(i, withoutData((ObjectNode) block, content.size() - 1));
-                }
-            }
-        }
-        text.put("text", MAPPER.writeValueAsString(shown));
-        result.set("structuredContent", structured);
-        result.put("isError", false);
-        result.put("resultType", "complete");
-        return result;
+        return structuredResult(structured, media);
     }
 
     /**
-     * A content block as the call meta-tool's text block shows it: without its base64
-     * {@code data}, or its resource's {@code blob}, and with the index of the block in
+     * A called tool's result as the call meta-tool returns it: a text block that only repeats
+     * the result's {@code structuredContent} is left out, and each image, audio or resource
+     * block moves to {@code media}, leaving in its place a copy without its base64 {@code data}
+     * (or its resource's {@code blob}) that names, as {@code contentIndex}, its index in the
+     * meta-tool's {@code content}. A result left without blocks has no {@code content}.
+     */
+    ObjectNode compact(ObjectNode result, ArrayNode media) {
+        if (!(result.get("content") instanceof ArrayNode blocks)) {
+            return result;
+        }
+        JsonNode structured = result.get("structuredContent");
+        ArrayNode kept = MAPPER.createArrayNode();
+        for (JsonNode block : blocks) {
+            if (!block.isObject()) {
+                kept.add(block);
+            } else if (!"text".equals(block.path("type").asString(""))) {
+                media.add(block);
+                kept.add(withoutData((ObjectNode) block, media.size()));
+            } else if (structured == null || !repeats(block, structured)) {
+                kept.add(block);
+            }
+        }
+        if (kept.isEmpty()) {
+            result.remove("content");
+        } else {
+            result.set("content", kept);
+        }
+        return result;
+    }
+
+    /** Whether a text block holds exactly the JSON of {@code structured}. */
+    private boolean repeats(JsonNode textBlock, JsonNode structured) {
+        try {
+            return structured.equals(MAPPER.readTree(textBlock.path("text").asString("")));
+        } catch (JacksonException e) {
+            return false;
+        }
+    }
+
+    /**
+     * A content block as a call meta-tool result shows it: without its base64 {@code data}, or
+     * its resource's {@code blob}, and with the index of the block in the meta-tool's
      * {@code content} that carries them.
      */
     private static ObjectNode withoutData(ObjectNode block, int contentIndex) {

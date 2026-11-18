@@ -332,10 +332,14 @@ public final class ToolSearchCatalog {
                 "required", List.of("query"), "additionalProperties", false);
 
         Map<String, Object> outputSchema = orderedMap("type", "object",
-                "properties", Map.of("tools", orderedMap("type", "array",
-                        "items", Map.of("type", "object"),
-                        "description", "Full definitions of the matching tools, best first, in"
-                                + " the shape of tools/list entries.")),
+                "properties", orderedMap(
+                        "tools", orderedMap("type", "array",
+                                "items", Map.of("type", "object"),
+                                "description", "Full definitions of the matching tools, best"
+                                        + " first, in the shape of tools/list entries."),
+                        "hint", orderedMap("type", "string",
+                                "description", "Present when no tool matched: how to search"
+                                        + " again.")),
                 "required", List.of("tools"));
 
         return McpSchema.Tool.builder(searchToolName, inputSchema)
@@ -389,7 +393,11 @@ public final class ToolSearchCatalog {
                 "properties", Map.of("results", orderedMap("type", "array",
                         "items", Map.of("type", "object"),
                         "description", "One entry per call, in call order: the tool name and"
-                                + " its result, as a direct tools/call returns it.")),
+                                + " its result, as a direct tools/call returns it, except that"
+                                + " a text block repeating its structuredContent is left out,"
+                                + " and an image, audio or resource block is shown without its"
+                                + " data, with the contentIndex of the block in this result's"
+                                + " content that carries it.")),
                 "required", List.of("results"));
 
         boolean deferredDestructive = searchable.stream().anyMatch(ToolSearchCatalog::isDestructive);
