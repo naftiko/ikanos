@@ -43,8 +43,9 @@ final class JdbcUrl {
             "socketfactory", "socketfactoryarg", "sslfactory", "sslfactoryarg",
             "sslhostnameverifier", "sslpasswordcallback", "authenticationpluginclassname",
             "loggerfile",
-            // MySQL Connector/J and MariaDB
-            "allowloadlocalinfile", "allowurlinlocalinfile", "allowloadlocalinfileinpath",
+            // MySQL Connector/J and MariaDB (MariaDB names its local-infile switch allowLocalInfile)
+            "allowloadlocalinfile", "allowlocalinfile", "allowurlinlocalinfile",
+            "allowloadlocalinfileinpath",
             "autodeserialize", "queryinterceptors", "statementinterceptors",
             "exceptioninterceptors", "connectionlifecycleinterceptors", "authenticationplugins",
             "defaultauthenticationplugin", "clientinfoprovider", "propertiestransform",
