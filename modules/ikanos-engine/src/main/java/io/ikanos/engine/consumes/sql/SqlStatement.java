@@ -236,9 +236,12 @@ final class SqlStatement {
 
     /**
      * On SQL Server, which runs a batch whose statements are not separated by {@code ;}, find a
-     * T-SQL statement keyword ({@link #SQLSERVER_STATEMENT_KEYWORDS},
-     * {@link #SQLSERVER_WRITE_REFUSED_KEYWORDS}) in a write, as a read is checked. The {@code SET} of an {@code UPDATE} (one per {@code UPDATE}, a {@code MERGE}
-     * branch included) is part of it; any other {@code SET} starts a statement of its own.
+     * T-SQL statement keyword in a write, as a read is checked: one of
+     * {@link #SQLSERVER_STATEMENT_KEYWORDS}, {@link #SQLSERVER_UNRESERVED_STATEMENT_KEYWORDS} or
+     * {@link #SQLSERVER_WRITE_REFUSED_KEYWORDS}, or a pair of
+     * {@link #SQLSERVER_TWO_WORD_STATEMENTS}. The {@code SET} of an {@code UPDATE} (one per
+     * {@code UPDATE}, a {@code MERGE} branch included) is part of it; any other {@code SET}
+     * starts a statement of its own.
      *
      * @return the first such keyword, or {@code null} when there is none or the database is not
      *     SQL Server
@@ -248,13 +251,19 @@ final class SqlStatement {
             return null;
         }
         int pendingSets = 0;
-        for (String keyword : keywords) {
+        for (int i = 0; i < keywords.size(); i++) {
+            String keyword = keywords.get(i);
             if ("UPDATE".equals(keyword)) {
                 pendingSets++;
             } else if ("SET".equals(keyword) && pendingSets > 0) {
                 pendingSets--;
             } else if (SQLSERVER_STATEMENT_KEYWORDS.contains(keyword)
-                    || SQLSERVER_WRITE_REFUSED_KEYWORDS.contains(keyword)) {
+                    || SQLSERVER_UNRESERVED_STATEMENT_KEYWORDS.contains(keyword)
+                    || SQLSERVER_WRITE_REFUSED_KEYWORDS.contains(keyword)
+                    || (SQLSERVER_TWO_WORD_STATEMENTS.containsKey(keyword)
+                            && i + 1 < keywords.size()
+                            && SQLSERVER_TWO_WORD_STATEMENTS.get(keyword)
+                                    .equals(keywords.get(i + 1)))) {
                 return keyword;
             }
         }
