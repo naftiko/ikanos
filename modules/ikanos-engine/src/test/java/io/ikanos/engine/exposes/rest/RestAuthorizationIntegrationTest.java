@@ -114,6 +114,8 @@ public class RestAuthorizationIntegrationTest {
                           operations:
                             get-record:
                               method: "GET"
+                              ttlMs: 60000
+                              cacheScope: "public"
                               call: "up.get-record"
                             update-record:
                               method: "PUT"
@@ -198,6 +200,20 @@ public class RestAuthorizationIntegrationTest {
 
         assertEquals(200, response.statusCode(), response.body());
         assertEquals(List.of("GET /records/42"), upstreamCalls);
+    }
+
+    @Test
+    public void cacheableAnswerShouldVaryOnTheTokenEvenWhenDeclaredPublic() throws Exception {
+        // #1021 with #999: a shared cache must never serve one caller's answer to a caller whose
+        // token carries other scopes or claims
+        HttpResponse<String> response = send("GET", "/records",
+                token(new JWTClaimsSet.Builder().claim("scope", "records.read")));
+
+        assertEquals(200, response.statusCode(), response.body());
+        String cacheControl = response.headers().firstValue("Cache-Control").orElse("");
+        assertTrue(cacheControl.contains("max-age=60"), cacheControl);
+        String vary = String.join(",", response.headers().allValues("Vary"));
+        assertTrue(vary.toLowerCase(java.util.Locale.ROOT).contains("authorization"), vary);
     }
 
     @Test

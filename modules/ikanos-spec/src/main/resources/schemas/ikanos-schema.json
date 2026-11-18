@@ -1721,7 +1721,7 @@
         },
         "authorization": {
           "$ref": "#/$defs/Authorization",
-          "description": "What the caller's validated token must carry to call this tool (`tools/call`): scopes, or claims such as roles and groups. Replaces the adapter's `authorization`. The tool stays listed in `tools/list` for every caller; a call whose token does not meet it gets `403` with `insufficient_scope` and the required scopes, so the client can ask its authorization server for a token that carries them. Needs `authentication: oauth2` on the adapter."
+          "description": "What the caller's validated token must carry to call this tool (`tools/call`): scopes, or claims such as roles and groups. Replaces the adapter's `authorization`. The tool stays listed in `tools/list` for every caller; a call whose token does not meet it gets `403` with `insufficient_scope` and the required scopes, together with the scopes the token already holds that the adapter or another tool requires, so the client can ask its authorization server for a token that carries them without losing the others. Needs `authentication: oauth2` on the adapter."
         },
         "outputParameters": true
       },

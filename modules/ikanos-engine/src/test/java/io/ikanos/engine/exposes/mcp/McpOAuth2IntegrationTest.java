@@ -275,12 +275,70 @@ class McpOAuth2IntegrationTest {
                 assertEquals(403, response.statusCode(), response.body());
                 String wwwAuth = response.headers().firstValue("WWW-Authenticate").orElse("");
                 assertTrue(wwwAuth.contains("error=\"insufficient_scope\""), wwwAuth);
-                assertTrue(wwwAuth.contains("scope=\"tools:execute\""), wwwAuth);
                 assertTrue(wwwAuth.contains("resource_metadata="), wwwAuth);
             } finally {
                 adapter.stop();
             }
             assertTrue(upstream.requests().isEmpty(), "A refused call must not reach the upstream");
+        }
+    }
+
+    @Test
+    void toolAuthorizationShouldChallengeForTheToolScopesAndTheGrantedScopesStillRequired()
+            throws Exception {
+        // MCP 2025-11-25, Scope Challenge Handling: the challenge keeps tools:read, which the
+        // token holds and the adapter requires, so stepping up for tools:execute does not lose it
+        try (RecordingUpstream upstream = new RecordingUpstream()) {
+            McpServerAdapter adapter = startOAuth2ServerWithAuthorization(upstream);
+            try {
+                HttpResponse<String> response = sendOrderStatusCall(adapter, tokenWithClaims(adapter,
+                        new JWTClaimsSet.Builder().claim("scope", "tools:read")
+                                .claim("roles", List.of("editor"))));
+
+                assertEquals(403, response.statusCode(), response.body());
+                String wwwAuth = response.headers().firstValue("WWW-Authenticate").orElse("");
+                assertTrue(wwwAuth.contains("scope=\"tools:execute tools:read\""), wwwAuth);
+            } finally {
+                adapter.stop();
+            }
+        }
+    }
+
+    @Test
+    void adapterAuthorizationShouldChallengeForItsScopesAndTheGrantedScopesStillRequired()
+            throws Exception {
+        try (RecordingUpstream upstream = new RecordingUpstream()) {
+            McpServerAdapter adapter = startOAuth2ServerWithAuthorization(upstream);
+            try {
+                HttpResponse<String> response = sendDiscover(adapter, tokenWithClaims(adapter,
+                        new JWTClaimsSet.Builder().claim("scope", "tools:execute")));
+
+                assertEquals(403, response.statusCode(), response.body());
+                String wwwAuth = response.headers().firstValue("WWW-Authenticate").orElse("");
+                assertTrue(wwwAuth.contains("scope=\"tools:read tools:execute\""), wwwAuth);
+            } finally {
+                adapter.stop();
+            }
+        }
+    }
+
+    @Test
+    void toolAuthorizationShouldChallengeWithoutScopesWhenOnlyAClaimIsMissing() throws Exception {
+        // The token holds every scope the tool requires: asking for scopes again cannot help
+        try (RecordingUpstream upstream = new RecordingUpstream()) {
+            McpServerAdapter adapter = startOAuth2ServerWithAuthorization(upstream);
+            try {
+                HttpResponse<String> response = sendOrderStatusCall(adapter, tokenWithClaims(adapter,
+                        new JWTClaimsSet.Builder().claim("scope", "tools:execute")
+                                .claim("roles", List.of("viewer"))));
+
+                assertEquals(403, response.statusCode(), response.body());
+                String wwwAuth = response.headers().firstValue("WWW-Authenticate").orElse("");
+                assertTrue(wwwAuth.contains("error=\"insufficient_scope\""), wwwAuth);
+                assertFalse(wwwAuth.contains("scope=\""), wwwAuth);
+            } finally {
+                adapter.stop();
+            }
         }
     }
 
@@ -355,8 +413,6 @@ class McpOAuth2IntegrationTest {
                         new JWTClaimsSet.Builder().claim("scope", "tools:execute")));
 
                 assertEquals(403, response.statusCode(), response.body());
-                String wwwAuth = response.headers().firstValue("WWW-Authenticate").orElse("");
-                assertTrue(wwwAuth.contains("scope=\"tools:read\""), wwwAuth);
             } finally {
                 adapter.stop();
             }

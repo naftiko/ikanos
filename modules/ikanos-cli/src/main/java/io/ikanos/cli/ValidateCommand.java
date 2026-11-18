@@ -155,6 +155,8 @@ public class ValidateCommand implements Callable<Integer> {
             List<String> warnings = new ArrayList<>(definitions.warnings());
             if (spec != null) {
                 warnings.addAll(InputDefaults.findWarnings(spec));
+                // authentication.scopes no longer required on every call (#999)
+                warnings.addAll(AccessControl.findWarnings(spec));
             }
 
             // Display validation result.

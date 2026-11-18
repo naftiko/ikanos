@@ -18,8 +18,10 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import org.restlet.Context;
 import org.restlet.Request;
 import org.restlet.Response;
 import org.restlet.data.MediaType;
@@ -55,8 +57,10 @@ public final class AccessControl {
     /**
      * Why a call was refused.
      *
-     * @param scopes the scopes the call requires, sent back in the challenge's {@code scope}
-     *        parameter so the client can ask for them; empty when only claims are required
+     * @param scopes the scopes sent back in the challenge's {@code scope} parameter so the client
+     *        can ask for them: those the call requires, then, for MCP, the ones the token already
+     *        holds that the adapter still requires elsewhere; empty when the token holds every
+     *        required scope and only a claim falls short
      * @param description the challenge's {@code error_description}; it names what is missing,
      *        never a value of the token or the allowed claim values
      */
@@ -75,13 +79,26 @@ public final class AccessControl {
      */
     public static boolean enforce(AuthorizationSpec requirement, Request request,
             Response response) {
+        return enforce(requirement, Set.of(), request, response);
+    }
+
+    /**
+     * Same as {@link #enforce(AuthorizationSpec, Request, Response)}, except that a challenge
+     * for missing scopes also asks for the scopes the token already holds and that are in
+     * {@code stillRequired}, as MCP's Scope Challenge Handling (2025-11-25) asks, so a client that
+     * steps up its authorization does not lose the scopes its other calls need.
+     *
+     * @param stillRequired every scope the adapter requires somewhere ({@link #requiredScopes})
+     */
+    public static boolean enforce(AuthorizationSpec requirement, Collection<String> stillRequired,
+            Request request, Response response) {
         if (requirement == null) {
             return true;
         }
         Object claims = request.getAttributes()
                 .get(OAuth2AuthenticationRestlet.VALIDATED_CLAIMS_ATTRIBUTE);
         Denial denial = claims instanceof JWTClaimsSet validated
-                ? check(requirement, validated)
+                ? check(requirement, validated, stillRequired)
                 : new Denial(requirement.getScopes(), "No validated access token");
         if (denial == null) {
             return true;
@@ -98,16 +115,34 @@ public final class AccessControl {
      * @return {@code null} when the claims meet the requirement, else why they don't
      */
     static Denial check(AuthorizationSpec requirement, JWTClaimsSet claims) {
+        return check(requirement, claims, Set.of());
+    }
+
+    /**
+     * Checks a requirement against validated claims. A denial for a missing scope asks for the
+     * required scopes, then for the granted ones in {@code stillRequired}; a denial for a claim
+     * asks for no scope, since the token already holds every required one.
+     *
+     * @return {@code null} when the claims meet the requirement, else why they don't
+     */
+    static Denial check(AuthorizationSpec requirement, JWTClaimsSet claims,
+            Collection<String> stillRequired) {
         Set<String> granted = tokenScopes(claims);
         for (String scope : requirement.getScopes()) {
             if (!granted.contains(scope)) {
-                return new Denial(requirement.getScopes(),
+                Set<String> challenged = new LinkedHashSet<>(requirement.getScopes());
+                for (String held : granted) {
+                    if (stillRequired.contains(held)) {
+                        challenged.add(held);
+                    }
+                }
+                return new Denial(List.copyOf(challenged),
                         "Required scope '" + scope + "' not present in token");
             }
         }
         for (Map.Entry<String, List<String>> claim : requirement.getClaims().entrySet()) {
             if (!holdsOneOf(claimValue(claims, claim.getKey()), claim.getValue())) {
-                return new Denial(requirement.getScopes(),
+                return new Denial(List.of(),
                         "Token claim '" + claim.getKey() + "' does not hold an allowed value");
             }
         }
@@ -206,6 +241,54 @@ public final class AccessControl {
         return declared;
     }
 
+    /** Every scope required by at least one of the {@code declared} requirements. */
+    public static Set<String> requiredScopes(Map<String, AuthorizationSpec> declared) {
+        Set<String> scopes = new LinkedHashSet<>();
+        declared.values().forEach(requirement -> scopes.addAll(requirement.getScopes()));
+        return scopes;
+    }
+
+    /**
+     * The warning for an adapter whose {@code authentication.scopes} were required on every call
+     * up to 1.0.0-beta9 and are no longer required by anything (#999): it lists scopes, but
+     * declares no {@code authorization} at any level, so any valid token gets through.
+     *
+     * @return the warning, or {@code null} when the adapter lists no scope or requires one
+     */
+    public static String unenforcedScopesWarning(ServerSpec adapter,
+            Map<String, AuthorizationSpec> declared) {
+        if (!declared.isEmpty()
+                || !(adapter.getAuthentication() instanceof OAuth2AuthenticationSpec oauth2)
+                || oauth2.getScopes() == null || oauth2.getScopes().isEmpty()) {
+            return null;
+        }
+        return adapter.getType().toUpperCase(Locale.ROOT) + " adapter '"
+                + adapter.getNamespace() + "' lists 'authentication.scopes' "
+                + oauth2.getScopes() + " but declares no 'authorization': since 1.0.0-beta10"
+                + " these scopes are no longer required, so any valid token is accepted. Declare"
+                + " 'authorization: {scopes: [...]}' on the adapter to keep requiring them.";
+    }
+
+    /**
+     * {@link #unenforcedScopesWarning} for every REST and MCP adapter of a document, for
+     * {@code ikanos validate}. An MCP adapter on stdio is left out: it validates no token.
+     */
+    public static List<String> findWarnings(IkanosSpec spec) {
+        List<String> warnings = new ArrayList<>();
+        for (ServerSpec adapter : exposesOf(spec)) {
+            String warning = null;
+            if (adapter instanceof RestServerSpec rest) {
+                warning = unenforcedScopesWarning(rest, declaredIn(rest));
+            } else if (adapter instanceof McpServerSpec mcp && !mcp.isStdio()) {
+                warning = unenforcedScopesWarning(mcp, declaredIn(mcp));
+            }
+            if (warning != null) {
+                warnings.add(warning);
+            }
+        }
+        return warnings;
+    }
+
     private static void put(Map<String, AuthorizationSpec> declared, String where,
             AuthorizationSpec requirement) {
         if (requirement != null) {
@@ -272,6 +355,23 @@ public final class AccessControl {
     }
 
     /**
+     * Checks an adapter as it starts: {@link #validate} refuses an {@code authorization} that
+     * cannot be enforced, and {@link #unenforcedScopesWarning} is logged as a warning, since a
+     * capability written for 1.0.0-beta9 otherwise starts accepting tokens it used to refuse
+     * without a word.
+     *
+     * @throws IllegalArgumentException as {@link #validate} does
+     */
+    public static void checkAtStartup(ServerSpec adapter, boolean stdio,
+            Map<String, AuthorizationSpec> declared) {
+        validate(adapter, stdio, declared);
+        String warning = stdio ? null : unenforcedScopesWarning(adapter, declared);
+        if (warning != null) {
+            Context.getCurrentLogger().warning(warning);
+        }
+    }
+
+    /**
      * Runs {@link #validate} on every REST and MCP adapter of a document, for
      * {@code ikanos validate}, which must refuse what loading the capability refuses (#999).
      *
@@ -279,16 +379,8 @@ public final class AccessControl {
      *         when all are valid
      */
     public static List<String> findErrors(IkanosSpec spec) {
-        List<ServerSpec> exposes = new ArrayList<>();
-        if (spec != null && spec.getCapability() != null
-                && spec.getCapability().getExposes() != null) {
-            exposes.addAll(spec.getCapability().getExposes());
-        }
-        if (spec != null && spec.getExposes() != null) {
-            exposes.addAll(spec.getExposes());
-        }
         List<String> errors = new ArrayList<>();
-        for (ServerSpec adapter : exposes) {
+        for (ServerSpec adapter : exposesOf(spec)) {
             try {
                 if (adapter instanceof RestServerSpec rest) {
                     validate(rest, false, declaredIn(rest));
@@ -300,6 +392,19 @@ public final class AccessControl {
             }
         }
         return errors;
+    }
+
+    /** The exposed adapters of a document: its capability's, then its own. */
+    private static List<ServerSpec> exposesOf(IkanosSpec spec) {
+        List<ServerSpec> exposes = new ArrayList<>();
+        if (spec != null && spec.getCapability() != null
+                && spec.getCapability().getExposes() != null) {
+            exposes.addAll(spec.getCapability().getExposes());
+        }
+        if (spec != null && spec.getExposes() != null) {
+            exposes.addAll(spec.getExposes());
+        }
+        return exposes;
     }
 
     /**

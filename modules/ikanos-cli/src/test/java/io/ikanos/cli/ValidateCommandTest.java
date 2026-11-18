@@ -174,7 +174,6 @@ public class ValidateCommandTest {
         assertTrue(errCapture.toString().contains("svc.create"), errCapture.toString());
     }
 
-    /** A capability whose MCP tool declares one input parameter, written as {@code param}. */
     @Test
     public void callShouldFailWhenNestedAuthorizationSitsOnAnAdapterWithoutOAuth2() {
         Path yaml = authorizationCapability("", "records.read");
@@ -208,6 +207,20 @@ public class ValidateCommandTest {
         assertEquals(0, exitCode, errCapture.toString() + outCapture);
     }
 
+    @Test
+    public void callShouldWarnWhenAuthenticationScopesAreNoLongerRequired() {
+        // #999: up to 1.0.0-beta9, authentication.scopes were required on every call
+        Path yaml = authorizationCapability(OAUTH2, null);
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        String out = outCapture.toString();
+        assertEquals(0, exitCode, errCapture.toString() + out);
+        assertTrue(out.contains("Warnings:"), out);
+        assertTrue(out.contains("REST adapter 'records-api'"), out);
+        assertTrue(out.contains("'authorization'"), out);
+    }
+
     private static final String OAUTH2 = """
                   authentication:
                     type: "oauth2"
@@ -216,6 +229,7 @@ public class ValidateCommandTest {
                     scopes: ["records.read"]
             """;
 
+    /** A REST capability whose operation requires {@code scope}, or nothing when it is null. */
     private Path authorizationCapability(String authentication, String scope) {
         Path yaml = tempDir.resolve("authorization.yaml");
         assertDoesNotThrow(() -> Files.writeString(yaml, """
@@ -243,12 +257,12 @@ public class ValidateCommandTest {
                             list-records:
                               method: "GET"
                               call: "crm.list-records"
-                              authorization:
-                                scopes: ["%s"]
-                """.formatted(IKANOS, authentication, scope)));
+                %s""".formatted(IKANOS, authentication, scope == null ? ""
+                : "              authorization:\n                scopes: [\"" + scope + "\"]\n")));
         return yaml;
     }
 
+    /** A capability whose MCP tool declares one input parameter, written as {@code param}. */
     private Path toolInputCapability(String param) {
         Path yaml = tempDir.resolve("tool-input-default.yaml");
         assertDoesNotThrow(() -> Files.writeString(yaml, """
