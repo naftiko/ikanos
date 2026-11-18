@@ -24,9 +24,22 @@ import io.ikanos.engine.exposes.mcp.search.ToolSearchIndexFactory;
  */
 public final class LuceneToolSearchIndexFactory implements ToolSearchIndexFactory {
 
-    /** Required by {@link java.util.ServiceLoader}; has no side effect. */
+    /**
+     * Required by {@link java.util.ServiceLoader}. It checks that Lucene can be loaded, so that
+     * the plain module jar, installed without Lucene, fails discovery once, with a clear reason,
+     * rather than counting as a provider whose every search fails. The index itself is built on
+     * the first search.
+     *
+     * @throws IllegalStateException when Lucene is not on the classpath
+     */
     public LuceneToolSearchIndexFactory() {
-        // Nothing to set up: the index is built on the first search.
+        try {
+            org.apache.lucene.util.Version.LATEST.toString();
+        } catch (NoClassDefFoundError e) {
+            throw new IllegalStateException("Apache Lucene is not on the classpath: install the"
+                    + " ikanos-tool-search -all jar, which bundles it, not the plain module jar.",
+                    e);
+        }
     }
 
     @Override
