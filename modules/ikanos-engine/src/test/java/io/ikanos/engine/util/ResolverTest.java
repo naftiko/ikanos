@@ -1894,4 +1894,80 @@ public class ResolverTest {
 
         assertEquals("user-alice", request.getHeaders().getFirstValue("X-User-Id"));
     }
+
+    @Test
+    void resolveInputParametersToRequestShouldNotSendTheCallerRootUnderItsName() {
+        // #998: a header or query parameter named auth, without value, takes the call parameter
+        // of that name; the caller root is none, or every claim would go upstream
+        InputParameterSpec header = new InputParameterSpec();
+        header.setName("auth");
+        header.setIn("header");
+        InputParameterSpec query = new InputParameterSpec();
+        query.setName("auth");
+        query.setIn("query");
+        Request request = new Request(Method.GET, "http://api.example.com/records");
+
+        Resolver.resolveInputParametersToRequest(request, List.of(header, query),
+                callerParameters(Map.of("sub", "alice", "email", "alice@example.com")));
+
+        assertNull(request.getHeaders().getFirstValue("auth", true));
+        assertEquals("http://api.example.com/records", request.getResourceRef().toString());
+    }
+
+    @Test
+    void resolveInputParameterValueShouldStillReadAnInputNamedAuth() {
+        // An input that takes the name keeps it, as before #998 (then no claim can be read)
+        InputParameterSpec header = new InputParameterSpec();
+        header.setName("auth");
+        header.setIn("header");
+
+        assertEquals("client-value",
+                Resolver.resolveInputParameterValue(header, Map.of("auth", "client-value")));
+    }
+
+    @Test
+    void requireCallerValuesShouldRefuseTheCallerRootReadWhole() {
+        Map<String, Object> parameters = callerParameters(Map.of("sub", "alice"));
+        for (String template : new String[] {"{{auth}}", "user-{{auth}}", "{{this.auth}}",
+                "{{#auth}}{{.}}{{/auth}}", "{{auth}} {{auth.claims.sub}}"}) {
+            IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                    () -> Resolver.requireCallerValues(template, parameters), template);
+            assertTrue(error.getMessage().contains("whole"), template + ": " + error.getMessage());
+            assertFalse(error.getMessage().contains("alice"), error.getMessage());
+        }
+    }
+
+    @Test
+    void resolveInputParametersToRequestShouldFailRatherThanSendTheCallerRootWhole() {
+        InputParameterSpec header = new InputParameterSpec();
+        header.setName("X-Caller");
+        header.setIn("header");
+        header.setValue("{{auth}}");
+        Request request = new Request(Method.GET, "http://api.example.com/records");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> Resolver.resolveInputParametersToRequest(request, List.of(header),
+                        callerParameters(Map.of("sub", "alice"))));
+        assertNull(request.getHeaders().getFirstValue("X-Caller", true));
+    }
+
+    @Test
+    void resolveMustacheTemplateShouldRefuseTheCallerRootReadWhole() {
+        assertThrows(IllegalArgumentException.class,
+                () -> Resolver.resolveMustacheTemplate("{\"who\":{{auth}}}",
+                        callerParameters(Map.of("sub", "alice"))));
+    }
+
+    @Test
+    void requireCallerValuesShouldAllowAnInvertedSectionOverTheCallerRoot() {
+        // {{^auth}} writes nothing of the root
+        Resolver.requireCallerValues("{{^auth}}anonymous{{/auth}}",
+                callerParameters(Map.of("sub", "alice")));
+    }
+
+    @Test
+    void requireCallerValuesShouldLeaveAWholeReadOfAnAuthInputAlone() {
+        // Only the engine's root is protected: an input named auth renders as before #998
+        Resolver.requireCallerValues("{{auth}}", Map.of("auth", "client-value"));
+    }
 }

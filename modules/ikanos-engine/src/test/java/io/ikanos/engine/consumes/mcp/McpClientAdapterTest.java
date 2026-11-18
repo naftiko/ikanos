@@ -40,6 +40,8 @@ import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.Capability;
 import io.ikanos.engine.consumes.ConsumedOperationView;
 import io.ikanos.engine.consumes.ConsumedResult;
+import io.ikanos.engine.util.CallerRoot;
+import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.consumes.ClientSpec;
 import io.ikanos.spec.consumes.mcp.McpClientSpec;
@@ -283,6 +285,62 @@ class McpClientAdapterTest {
         assertEquals("guest", client.requests.get(0).getChallengeResponse().getRawValue());
         assertEquals("guest", JSON.readTree(client.bodies.get(0)).path("params")
                 .path("arguments").path("tenant").asString());
+    }
+
+    /** #998: an argument named like the caller root never gets the root, with every claim. */
+    @Test
+    void toolsCallShouldNotSendTheCallerRootAsAnArgumentOfTheSameName() throws Exception {
+        McpClientSpec spec = (McpClientSpec) YAML.readValue("""
+                type: mcp
+                namespace: billing
+                endpoint: https://billing.example.com/mcp
+                discovery: off
+                tools:
+                  list-invoices:
+                    description: List invoices
+                    hints: { readOnly: true }
+                    inputParameters:
+                      auth: { type: string, description: Anything, required: false }
+                      status: { type: string, description: Status, required: false }
+                """, ClientSpec.class);
+        StubClient client = new StubClient();
+        client.answer = req -> json(200, rpcResult(req,
+                "{\"content\":[],\"structuredContent\":{},\"resultType\":\"complete\"}"));
+        Map<String, Object> parameters = new java.util.HashMap<>();
+        parameters.put("status", "paid");
+        parameters.put(Resolver.CALLER_ROOT, new CallerRoot(
+                Map.of("claims", Map.of("sub", "alice", "email", "alice@example.com"))));
+
+        new McpClientAdapter(null, spec, client).prepare("list-invoices", parameters).invoke();
+
+        JsonNode arguments = JSON.readTree(client.bodies.get(0)).path("params").path("arguments");
+        assertEquals(JSON.readTree("{\"status\":\"paid\"}"), arguments);
+    }
+
+    /** #998: a required argument named like the caller root is missing, not the root. */
+    @Test
+    void prepareShouldFailWhenARequiredArgumentNamedLikeTheCallerRootHasOnlyTheRoot()
+            throws Exception {
+        McpClientSpec spec = (McpClientSpec) YAML.readValue("""
+                type: mcp
+                namespace: billing
+                endpoint: https://billing.example.com/mcp
+                discovery: off
+                tools:
+                  list-invoices:
+                    description: List invoices
+                    inputParameters:
+                      auth: { type: string, description: Anything, required: true }
+                """, ClientSpec.class);
+        Map<String, Object> parameters = Map.of(Resolver.CALLER_ROOT,
+                new CallerRoot(Map.of("claims", Map.of("sub", "alice"))));
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> new McpClientAdapter(null, spec, new StubClient())
+                        .prepare("list-invoices", parameters));
+
+        assertTrue(error.getMessage().contains("'auth'"), error.getMessage());
+        assertFalse(error.getMessage().contains("alice"), error.getMessage());
     }
 
     @Test

@@ -178,6 +178,11 @@ public class McpClientAdapter extends ClientAdapter {
         ObjectNode arguments = JSON.createObjectNode();
         for (InputParameterSpec param : tool.getInputParameters()) {
             Object value = effective != null ? effective.get(param.getName()) : null;
+            if (value instanceof CallerRoot) {
+                // The caller root is no call parameter: sent as an argument, it would hand every
+                // claim of the token upstream (#998)
+                value = null;
+            }
             if (value == null) {
                 if (param.isRequired()) {
                     throw new IllegalArgumentException("Missing required argument '"
