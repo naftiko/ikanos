@@ -686,7 +686,9 @@ rules:
       `semantics.safe: true`: agents and clients rely on those claims to call
       without asking. A target reaches a procedure through its `call`, its
       steps, its `ref`, and the flows those name, followed transitively.
-    severity: warn
+      The engine also refuses to load an MCP tool that resolves
+      `readOnly: true`, declared or inherited, and reaches a write.
+    severity: error
     recommended: true
     given: "$"
     then:

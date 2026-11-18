@@ -1,5 +1,5 @@
 # Spectral fixture — SQL write procedures reached indirectly.
-# MUST FIRE ikanos-sql-write-exposure (warn) four times:
+# MUST FIRE ikanos-sql-write-exposure (error) four times:
 #   - an MCP tool claiming readOnly that reaches the write through a step
 #   - an MCP tool claiming readOnly that reaches it through `ref` to a flow
 #       that calls another flow

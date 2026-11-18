@@ -810,27 +810,27 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void sqlWriteExposureRuleShouldFireForAReadOnlyToolAndARestGet() {
-        LintResult result = lintFixtureAtSeverity("rules/polychro-sql-consumes-violations.yaml",
-            "warn");
-        assertEquals(2, findings(result, "ikanos-sql-write-exposure"),
+        LintResult result = lintFixture("rules/polychro-sql-consumes-violations.yaml");
+        assertEquals(2, findings(result, "error  ikanos-sql-write-exposure"),
             "Expected ikanos-sql-write-exposure on the MCP tool and the REST GET."
                 + System.lineSeparator() + result.output());
     }
 
     @Test
     public void sqlWriteExposureRuleShouldFollowStepsRefsResourcesAndFlows() {
-        LintResult result = lintFixtureAtSeverity(
-            "rules/polychro-sql-write-exposure-indirect.yaml", "warn");
-        assertEquals(4, findings(result, "ikanos-sql-write-exposure"),
+        LintResult result = lintFixture("rules/polychro-sql-write-exposure-indirect.yaml");
+        assertTrue(result.exitCode() != 0, "a write exposed as safe fails the lint");
+        assertEquals(4, findings(result, "error  ikanos-sql-write-exposure"),
             "Expected ikanos-sql-write-exposure on the step, the ref, the resource and the safe"
                 + " flow." + System.lineSeparator() + result.output());
     }
 
     @Test
     public void sqlWriteExposureRuleShouldFireForWriteToolsInheritingReadOnly() {
-        LintResult result = lintFixtureAtSeverity(
-            "rules/polychro-sql-write-exposure-inherited-violations.yaml", "warn");
-        assertEquals(3, findings(result, "ikanos-sql-write-exposure"),
+        LintResult result = lintFixture(
+            "rules/polychro-sql-write-exposure-inherited-violations.yaml");
+        assertTrue(result.exitCode() != 0, "a write tool inheriting readOnly fails the lint");
+        assertEquals(3, findings(result, "error  ikanos-sql-write-exposure"),
             "Expected ikanos-sql-write-exposure on the call, the step and the ref tools."
                 + System.lineSeparator() + result.output());
     }

@@ -8,7 +8,7 @@
 #       (positions 1 and 100000: the first gap only), and outParameters on a
 #       statement
 #   - ikanos-sql-write-statement (a TRUNCATE declared readOnly: false)
-#   - ikanos-sql-write-exposure (warn), twice: an MCP tool claiming
+#   - ikanos-sql-write-exposure (error), twice: an MCP tool claiming
 #       readOnly and a REST GET, both calling a write procedure
 ikanos: "1.0.0-beta10"
 info:
