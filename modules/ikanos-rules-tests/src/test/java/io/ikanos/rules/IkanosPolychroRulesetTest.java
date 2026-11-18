@@ -1038,6 +1038,18 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
+    public void elicitSafetyRuleShouldCountASqlWriteProcedureAsUnsafe() {
+        // The write flow fires; the flow that reads with a SQL procedure before asking does not.
+        LintResult result = lintFixture("rules/polychro-durability-sql-write-elicit.yaml");
+        assertEquals(1, findings(result, "ikanos-elicit-after-unsafe-requires-durability"),
+            "Expected one replay finding, on the question after the SQL write."
+                + System.lineSeparator() + result.output());
+        assertTrue(result.output().lines().anyMatch(line -> line.contains("ship-then-confirm")
+                && line.contains("ikanos-elicit-after-unsafe-requires-durability")),
+            result.output());
+    }
+
+    @Test
     public void elicitSafetyRuleShouldNotFireUnderADurableMode() {
         // Under memory and local, a question after a write resumes a journal instead of
         // replaying the write.

@@ -342,7 +342,8 @@ rules:
       multi round-trip request). Every call before the question therefore runs
       again on each answer, which is only harmless when it is read-only: a
       consumed HTTP operation with a safe method, a consumed MCP tool with
-      `hints.readOnly: true`, or a flow with `semantics.safe: true`. Declare a
+      `hints.readOnly: true`, a SQL procedure without `readOnly: false`, or a
+      flow with `semantics.safe: true`. Declare a
       durability mode, or ask the question before the first write.
     severity: error
     recommended: true

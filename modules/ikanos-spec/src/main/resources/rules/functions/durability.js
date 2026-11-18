@@ -211,6 +211,11 @@ function buildSafety(capability) {
           asks.add(consumed.namespace + "." + t.key);
         }
       }
+    } else if (consumed.type === "sql") {
+      // A statement reads unless it declares readOnly: false; a stored procedure must declare it
+      for (const p of entries(consumed.procedures)) {
+        safe.set(consumed.namespace + "." + p.key, !(p.value && p.value.readOnly === false));
+      }
     } else {
       for (const r of entries(consumed.resources)) {
         for (const o of entries(r.value && r.value.operations)) {

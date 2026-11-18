@@ -3574,7 +3574,7 @@
         },
         "readOnly": {
           "type": "boolean",
-          "description": "Whether the procedure only reads. A `statement` is checked and defaults to `true`. A `storedProcedure` is opaque to the engine, so it must say. `true` runs on a read-only connection where the driver supports it. `false` lets the procedure write: each call is one transaction, committed on success and rolled back on any error. The engine never retries a call. A stored procedure that commits or rolls back on its own is outside that guarantee."
+          "description": "Whether the procedure only reads. A `statement` is checked and defaults to `true`. A `storedProcedure` is opaque to the engine, so it must say. `true` runs on a read-only connection where the driver supports it. `false` lets the procedure write: each call is one transaction, committed on success and rolled back on any error. The adapter does not retry a failed call itself, but a write is at-least-once in a durable mode: after a restart, the engine runs again a step whose outcome it had not journaled, so a committed write can run twice. Make such a write idempotent, for example with `ON CONFLICT DO NOTHING` or a `WHERE` that no longer matches once applied. A stored procedure that commits or rolls back on its own is outside the one-transaction guarantee."
         },
         "outParameters": {
           "type": "object",

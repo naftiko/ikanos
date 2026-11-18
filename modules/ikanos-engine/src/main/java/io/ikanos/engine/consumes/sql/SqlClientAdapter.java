@@ -550,7 +550,8 @@ public class SqlClientAdapter extends ClientAdapter {
 
     /**
      * Run one write call as one transaction: commit when it succeeds, roll back on any error, and
-     * roll back when it changed more rows than {@code maxAffectedRows}. The engine never retries.
+     * roll back when it changed more rows than {@code maxAffectedRows}. This method never retries;
+     * in a durable mode, the journal may run the call again after a restart.
      *
      * <p>Auto-commit is not switched back here: HikariCP restores it when the connection returns
      * to the pool, after rolling back anything left uncommitted. Switching it back by hand would
