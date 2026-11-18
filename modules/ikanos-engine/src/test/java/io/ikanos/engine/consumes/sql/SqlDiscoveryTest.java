@@ -353,4 +353,49 @@ class SqlDiscoveryTest {
         org.mockito.Mockito.verify(statement, org.mockito.Mockito.never()).getMetaData();
         org.mockito.Mockito.verify(statement, org.mockito.Mockito.never()).execute();
     }
+
+    private static final String UPSERT = """
+            upsert-customer:
+              description: Inserts or renames one customer.
+              readOnly: false
+              statement: |
+                merge into customers c using (values ({{id}}, {{name}})) as s (id, name)
+                on c.id = s.id
+                when matched then update set c.name = s.name
+                when not matched then insert (id, name) values (s.id, s.name)
+              inputParameters:
+                id: { type: string }
+                name: { type: string }
+            """;
+
+    @Test
+    void startShouldVerifyAMergeProcedure() throws Exception {
+        adapter = new SqlClientAdapter(null, spec(url, "verify", VALID + UPSERT));
+
+        assertDoesNotThrow(adapter::start);
+    }
+
+    @Test
+    void verifyShouldPrepareAMergeWithoutAskingForGeneratedKeys() throws Exception {
+        // pgjdbc turns RETURN_GENERATED_KEYS into "MERGE ... RETURNING *", which PostgreSQL 15
+        // and 16 refuse: a valid MERGE would keep the capability from starting
+        String postgres = "jdbc:postgresql://db.internal:5432/erp";
+        adapter = new SqlClientAdapter(null, spec(postgres, "verify", UPSERT));
+        Connection connection = org.mockito.Mockito.mock(Connection.class);
+        PreparedStatement statement = org.mockito.Mockito.mock(PreparedStatement.class);
+        org.mockito.Mockito.when(connection.isValid(org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(true);
+        org.mockito.Mockito.when(connection.prepareStatement(
+                org.mockito.ArgumentMatchers.anyString())).thenReturn(statement);
+        org.mockito.Mockito.when(connection.prepareStatement(
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyInt()))
+                .thenThrow(new SQLException("syntax error at or near \"RETURNING\"", "42601"));
+        javax.sql.DataSource dataSource = org.mockito.Mockito.mock(javax.sql.DataSource.class);
+        org.mockito.Mockito.when(dataSource.getConnection()).thenReturn(connection);
+
+        assertDoesNotThrow(() -> adapter.verify(dataSource));
+
+        org.mockito.Mockito.verify(statement).getMetaData();
+        org.mockito.Mockito.verify(statement, org.mockito.Mockito.never()).execute();
+    }
 }
