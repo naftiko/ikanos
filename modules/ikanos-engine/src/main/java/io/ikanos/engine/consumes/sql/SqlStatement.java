@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -37,8 +38,11 @@ import java.util.Set;
  *
  * <p>With {@code mysql} set (MySQL and MariaDB URLs), the walk follows that dialect instead:
  * backslash escapes in {@code '…'} and {@code "…"} literals, {@code #} line comments,
- * {@code --} as a comment only when whitespace follows, and no dollar quoting. Reading MySQL text
- * with the standard rules would let {@code 'a\''} or {@code # '} hide a second statement.</p>
+ * {@code --} as a comment only when a space or control character follows, and no dollar
+ * quoting. Reading MySQL text with the standard rules would let {@code 'a\''} or {@code # '}
+ * hide a second statement. A backslash right before a quote is refused, since MySQL reads it as
+ * text under {@code NO_BACKSLASH_ESCAPES}, and a line comment ended by a carriage return alone is
+ * refused outside PostgreSQL, since MySQL and SQLite end it at the next line feed only.</p>
  *
  * <p>On PostgreSQL and SQL Server, block comments nest. On SQL Server and SQLite, {@code […]} is
  * a quoted identifier. SQL Server also runs a batch whose statements are not separated by
@@ -70,21 +74,31 @@ final class SqlStatement {
      * refused. All are reserved words in T-SQL. {@code FETCH} is left out: a read uses it in
      * {@code OFFSET … FETCH NEXT}.
      */
-    static final Set<String> SQLSERVER_STATEMENT_KEYWORDS = Set.of("ALTER", "BACKUP", "BEGIN",
-            "BREAK", "BULK", "CHECKPOINT", "CLOSE", "COMMIT", "CONTINUE", "CREATE", "DBCC",
+    static final Set<String> SQLSERVER_STATEMENT_KEYWORDS = Set.of("ADD", "ALTER", "BACKUP",
+            "BEGIN", "BREAK", "BULK", "CHECKPOINT", "CLOSE", "COMMIT", "CONTINUE", "CREATE", "DBCC",
             "DEALLOCATE", "DECLARE", "DENY", "DROP", "DUMP", "EXEC", "EXECUTE", "GOTO", "GRANT",
             "IF", "KILL", "LOAD", "OPEN", "PRINT", "RAISERROR", "READTEXT", "RECONFIGURE",
             "RESTORE", "RETURN", "REVERT", "REVOKE", "ROLLBACK", "SAVE", "SET", "SETUSER",
             "SHUTDOWN", "TRUNCATE", "UPDATETEXT", "USE", "WAITFOR", "WHILE", "WRITETEXT");
 
     /**
-     * T-SQL words that start a statement but are not reserved, so not in
-     * {@link #SQLSERVER_STATEMENT_KEYWORDS}: {@code ENABLE TRIGGER} and {@code DISABLE TRIGGER}.
+     * T-SQL statements that start with a word that is not reserved, or that a read also uses
+     * ({@code END} closes a {@code CASE}), keyed by that word, with the word that follows it:
+     * {@code ENABLE TRIGGER}, {@code DISABLE TRIGGER}, and the Service Broker statements
+     * {@code SEND ON CONVERSATION}, {@code END CONVERSATION} and {@code MOVE CONVERSATION}.
      * SQL Server runs {@code SELECT 1 DISABLE TRIGGER ALL ON t} as two statements, so a read that
-     * holds one of them right before {@code TRIGGER} is refused. Alone, they stay usable as
-     * column names.
+     * holds such a pair is refused. Alone, the first words stay usable as column names.
      */
-    static final Set<String> SQLSERVER_TRIGGER_KEYWORDS = Set.of("ENABLE", "DISABLE");
+    static final Map<String, String> SQLSERVER_TWO_WORD_STATEMENTS = Map.of("ENABLE", "TRIGGER",
+            "DISABLE", "TRIGGER", "SEND", "ON", "END", "CONVERSATION", "MOVE", "CONVERSATION");
+
+    /**
+     * T-SQL statement keywords that are not reserved and take no fixed next word, refused
+     * anywhere in a SQL Server read: {@code RECEIVE}, which takes messages off a Service Broker
+     * queue ({@code SELECT 1 AS a RECEIVE * FROM q} runs as two statements). A column of that
+     * name is quoted, as in {@code [receive]}.
+     */
+    static final Set<String> SQLSERVER_UNRESERVED_STATEMENT_KEYWORDS = Set.of("RECEIVE");
 
     /** The name in a {@code {{name}}} placeholder: an input key, as the schema allows it. */
     static final java.util.regex.Pattern PLACEHOLDER_NAME =
@@ -173,9 +187,11 @@ final class SqlStatement {
             String keyword = keywords.get(i);
             if (NON_READ_KEYWORDS.contains(keyword) || (dialect == Dialect.SQLSERVER
                     && (SQLSERVER_STATEMENT_KEYWORDS.contains(keyword)
-                            || (SQLSERVER_TRIGGER_KEYWORDS.contains(keyword)
+                            || SQLSERVER_UNRESERVED_STATEMENT_KEYWORDS.contains(keyword)
+                            || (SQLSERVER_TWO_WORD_STATEMENTS.containsKey(keyword)
                                     && i + 1 < keywords.size()
-                                    && "TRIGGER".equals(keywords.get(i + 1)))))) {
+                                    && SQLSERVER_TWO_WORD_STATEMENTS.get(keyword)
+                                            .equals(keywords.get(i + 1)))))) {
                 return keyword;
             }
         }
@@ -232,7 +248,7 @@ final class SqlStatement {
                         "statement holds more than one SQL statement; declare one per procedure");
             }
             if (startsLineComment(sql, i, mysql)) {
-                int end = endOfLineComment(sql, i, dialect != Dialect.SQLITE);
+                int end = endOfLineComment(sql, i, dialect);
                 out.append(sql, i, end);
                 i = end;
             } else if (c == '/' && i + 1 < n && sql.charAt(i + 1) == '*') {
@@ -247,17 +263,17 @@ final class SqlStatement {
             } else if (c == '\'') {
                 boolean backslashEscapes = mysql || (i > 0 && (sql.charAt(i - 1) == 'E'
                         || sql.charAt(i - 1) == 'e') && (i < 2 || !isWordChar(sql.charAt(i - 2))));
-                int end = endOfQuoted(sql, i, '\'', backslashEscapes);
+                int end = endOfQuoted(sql, i, '\'', backslashEscapes, mysql);
                 refusePlaceholderIn(sql, i, end, "a string literal");
                 out.append(sql, i, end);
                 i = end;
             } else if (c == '[' && dialect.bracketIdentifiers()) {
-                int end = endOfQuoted(sql, i, ']', false);
+                int end = endOfQuoted(sql, i, ']', false, false);
                 refusePlaceholderIn(sql, i, end, "a quoted identifier");
                 out.append(sql, i, end);
                 i = end;
             } else if (c == '"' || c == '`') {
-                int end = endOfQuoted(sql, i, c, mysql && c == '"');
+                int end = endOfQuoted(sql, i, c, mysql && c == '"', mysql && c == '"');
                 refusePlaceholderIn(sql, i, end,
                         mysql && c == '"' ? "a string literal" : "a quoted identifier");
                 out.append(sql, i, end);
@@ -425,14 +441,26 @@ final class SqlStatement {
     }
 
     /**
-     * @return the index of the line end that closes the comment at {@code i}: a line feed, or
-     *     also a carriage return where the database ends a comment there
+     * @return the index of the line end that closes the comment at {@code i}: a line feed, or on
+     *     PostgreSQL also a carriage return
+     * @throws IllegalArgumentException on a carriage return not followed by a line feed in other
+     *     dialects: MySQL, MariaDB and SQLite read the comment on to the next line feed, so the
+     *     text after it would be code for one reading and comment for the other
      */
-    private static int endOfLineComment(String sql, int i, boolean carriageReturn) {
+    private static int endOfLineComment(String sql, int i, Dialect dialect) {
         for (int j = i; j < sql.length(); j++) {
             char c = sql.charAt(j);
-            if (c == '\n' || (carriageReturn && c == '\r')) {
+            if (c == '\n') {
                 return j;
+            }
+            if (c == '\r') {
+                if (dialect == Dialect.POSTGRESQL
+                        || (j + 1 < sql.length() && sql.charAt(j + 1) == '\n')) {
+                    return j;
+                }
+                throw new IllegalArgumentException("statement has a line comment ended by a"
+                        + " carriage return alone, which databases read differently; end the"
+                        + " line with a line feed");
             }
         }
         return sql.length();
@@ -443,7 +471,11 @@ final class SqlStatement {
                 && sql.charAt(i) == '/' && sql.charAt(i + 1) == '*');
     }
 
-    /** {@code --}, and in MySQL {@code #}; MySQL needs whitespace after {@code --}. */
+    /**
+     * {@code --}, and in MySQL {@code #}. MySQL needs a space or a control character after
+     * {@code --}, as its lexer reads it: an ASCII character up to the space, or DEL. Any other
+     * character, a Unicode space included, makes {@code --} two minus signs there.
+     */
     private static boolean startsLineComment(String sql, int i, boolean mysql) {
         if (mysql && sql.charAt(i) == '#') {
             return true;
@@ -451,14 +483,30 @@ final class SqlStatement {
         if (sql.charAt(i) != '-' || i + 1 >= sql.length() || sql.charAt(i + 1) != '-') {
             return false;
         }
-        return !mysql || i + 2 >= sql.length() || Character.isWhitespace(sql.charAt(i + 2));
+        if (!mysql || i + 2 >= sql.length()) {
+            return true;
+        }
+        char next = sql.charAt(i + 2);
+        return next <= ' ' || next == 0x7F;
     }
 
-    /** @return the index just past the closing quote */
-    private static int endOfQuoted(String sql, int start, char quote, boolean backslashEscapes) {
+    /**
+     * @param refuseEscapedQuote whether a backslash before the quote is refused: MySQL reads it as
+     *     an escape, but as text followed by the closing quote when {@code sql_mode} holds
+     *     {@code NO_BACKSLASH_ESCAPES}, so the two readings would split the statement differently
+     * @return the index just past the closing quote
+     */
+    private static int endOfQuoted(String sql, int start, char quote, boolean backslashEscapes,
+            boolean refuseEscapedQuote) {
         int i = start + 1;
         while (i < sql.length()) {
             char c = sql.charAt(i);
+            if (refuseEscapedQuote && c == '\\' && i + 1 < sql.length()
+                    && sql.charAt(i + 1) == quote) {
+                throw new IllegalArgumentException("statement escapes a quote with a backslash,"
+                        + " which MySQL reads as the end of the text under NO_BACKSLASH_ESCAPES;"
+                        + " double the quote instead");
+            }
             if (backslashEscapes && c == '\\') {
                 i += 2;
                 continue;
