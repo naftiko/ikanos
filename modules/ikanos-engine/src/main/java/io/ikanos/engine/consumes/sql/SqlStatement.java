@@ -22,11 +22,17 @@ import java.util.Set;
 /**
  * An authored SQL statement, parsed once when the adapter is built.
  *
- * <p>The parser walks the text once. It rewrites each {@code :name} placeholder to a JDBC
- * {@code ?} and records the names in order, so a placeholder used twice is bound twice. It skips
+ * <p>The parser walks the text once. It rewrites each {@code {{name}}} placeholder to a JDBC
+ * {@code ?} and records the names in order, so a placeholder used twice is bound twice. The
+ * placeholder has the Mustache form used elsewhere in a capability, but the statement is never
+ * rendered as a template: the value is always bound, never written into the SQL. It skips
  * string literals ({@code '…'}, {@code E'…'}), quoted identifiers ({@code "…"}, {@code `…`}),
- * PostgreSQL dollar-quoted strings ({@code $$…$$}, {@code $tag$…$tag$}), comments and
- * {@code ::} casts. The same walk collects the keywords outside literals and comments, which
+ * PostgreSQL dollar-quoted strings ({@code $$…$$}, {@code $tag$…$tag$}) and comments. A
+ * placeholder inside a literal or a quoted identifier is refused, since it would reach the
+ * database as text. JDBC syntax is refused, so a statement holds only the database's own SQL
+ * and {@code {{name}}}: an escape ({@code {fn …}}, {@code {d '…'}}, {@code {call …}}), a
+ * {@code ?} marker (except on PostgreSQL, where {@code ?} is a JSONB operator and is doubled
+ * for the driver), and on Oracle a {@code :name} marker. The same walk collects the keywords outside literals and comments, which
  * classify the statement, and rejects a second statement after a {@code ;}.</p>
  *
  * <p>With {@code mysql} set (MySQL and MariaDB URLs), the walk follows that dialect instead:
@@ -79,6 +85,17 @@ final class SqlStatement {
      * column names.
      */
     static final Set<String> SQLSERVER_TRIGGER_KEYWORDS = Set.of("ENABLE", "DISABLE");
+
+    /** The name in a {@code {{name}}} placeholder: an input key, as the schema allows it. */
+    static final java.util.regex.Pattern PLACEHOLDER_NAME =
+            java.util.regex.Pattern.compile("[A-Za-z0-9_-]+");
+
+    /**
+     * A placeholder-shaped tag inside quoted text, dotted names included. A PostgreSQL array
+     * literal such as {@code '{{1,2},{3,4}}'} does not match.
+     */
+    private static final java.util.regex.Pattern QUOTED_PLACEHOLDER =
+            java.util.regex.Pattern.compile("\\{\\{\\s*([A-Za-z0-9_.-]+)\\s*}}");
 
     /** How a statement is read: the lexical rules that differ between databases. */
     enum Dialect {
@@ -231,14 +248,18 @@ final class SqlStatement {
                 boolean backslashEscapes = mysql || (i > 0 && (sql.charAt(i - 1) == 'E'
                         || sql.charAt(i - 1) == 'e') && (i < 2 || !isWordChar(sql.charAt(i - 2))));
                 int end = endOfQuoted(sql, i, '\'', backslashEscapes);
+                refusePlaceholderIn(sql, i, end, "a string literal");
                 out.append(sql, i, end);
                 i = end;
             } else if (c == '[' && dialect.bracketIdentifiers()) {
                 int end = endOfQuoted(sql, i, ']', false);
+                refusePlaceholderIn(sql, i, end, "a quoted identifier");
                 out.append(sql, i, end);
                 i = end;
             } else if (c == '"' || c == '`') {
                 int end = endOfQuoted(sql, i, c, mysql && c == '"');
+                refusePlaceholderIn(sql, i, end,
+                        mysql && c == '"' ? "a string literal" : "a quoted identifier");
                 out.append(sql, i, end);
                 i = end;
             } else if (!mysql && c == '$' && dollarTag(sql, i) != null) {
@@ -248,29 +269,40 @@ final class SqlStatement {
                     throw new IllegalArgumentException(
                             "statement has an unterminated dollar-quoted string");
                 }
+                refusePlaceholderIn(sql, i, end + tag.length(), "a dollar-quoted string");
                 out.append(sql, i, end + tag.length());
                 i = end + tag.length();
-            } else if (c == ':' && i + 1 < n && sql.charAt(i + 1) == ':') {
-                out.append("::");
-                i += 2;
-            } else if (c == ':' && i + 1 < n && isWordStart(sql.charAt(i + 1))) {
-                int end = i + 1;
-                while (end < n && isWordChar(sql.charAt(end))) {
-                    end++;
+            } else if (c == '{' && i + 1 < n && sql.charAt(i + 1) == '{') {
+                int close = sql.indexOf("}}", i + 2);
+                if (close < 0) {
+                    throw new IllegalArgumentException(
+                            "statement has an unterminated {{ placeholder");
                 }
-                placeholders.add(sql.substring(i + 1, end));
+                placeholders.add(placeholderName(sql.substring(i + 2, close)));
                 out.append('?');
-                i = end;
+                i = close + 2;
+            } else if (c == '{') {
+                throw new IllegalArgumentException("statement uses a JDBC escape ({fn ...},"
+                        + " {d '...'}, {ts '...'}, {oj ...}, {call ...}); write the database's"
+                        + " own SQL instead");
+            } else if (c == '?' && dialect != Dialect.POSTGRESQL) {
+                throw new IllegalArgumentException("statement uses a JDBC ? marker; name the"
+                        + " input with a {{name}} placeholder instead");
+            } else if (c == ':' && dialect == Dialect.ORACLE && i + 1 < n
+                    && isWordStart(sql.charAt(i + 1))) {
+                throw new IllegalArgumentException("statement uses an Oracle :name bind"
+                        + " marker, which the driver would expect a value for; name the input"
+                        + " with a {{name}} placeholder instead");
             } else if (c == ';') {
                 ended = true;
                 i++;
             } else if (dialect == Dialect.ORACLE && alternativeQuote(sql, i) > 0) {
                 int end = endOfAlternativeQuote(sql, alternativeQuote(sql, i));
+                refusePlaceholderIn(sql, i, end, "a string literal");
                 out.append(sql, i, end);
                 i = end;
             } else if (isWordStart(c)) {
-                // $ continues an unquoted identifier (audit$delete is one name), though not a
-                // named placeholder
+                // $ continues an unquoted identifier (audit$delete is one name)
                 int end = i + 1;
                 while (end < n && (isWordChar(sql.charAt(end)) || sql.charAt(end) == '$')) {
                     end++;
@@ -278,8 +310,9 @@ final class SqlStatement {
                 keywords.add(sql.substring(i, end).toUpperCase(Locale.ROOT));
                 out.append(sql, i, end);
                 i = end;
-            } else if (c == '?' && dialect == Dialect.POSTGRESQL) {
-                // a JSONB operator (?, ?|, ?&): pgjdbc reads a lone ? as a bind marker
+            } else if (c == '?') {
+                // PostgreSQL only (others refuse it above): a JSONB operator (?, ?|, ?&), which
+                // pgjdbc would read as a bind marker unless doubled
                 out.append("??");
                 i++;
             } else {
@@ -288,6 +321,44 @@ final class SqlStatement {
             }
         }
         return new SqlStatement(sql, dialect, out.toString().strip(), placeholders, keywords);
+    }
+
+    /**
+     * @param tag the text between {@code {{} and {@code }}}
+     * @return the input name the placeholder binds
+     * @throws IllegalArgumentException when the tag is not a plain input name: a Mustache section,
+     *     partial, comment or unescaped form, or a dotted name such as {@code {{step.field}}}
+     */
+    static String placeholderName(String tag) {
+        String name = tag.strip();
+        if (PLACEHOLDER_NAME.matcher(name).matches()) {
+            return name;
+        }
+        if (name.startsWith("{")) {
+            throw new IllegalArgumentException("statement uses a {{{ placeholder; write"
+                    + " {{name}}: every value is bound, none is written into the SQL");
+        }
+        if (!name.isEmpty() && "#^/>!&=".indexOf(name.charAt(0)) >= 0) {
+            throw new IllegalArgumentException("statement uses a Mustache '" + name.charAt(0)
+                    + "' tag; a statement only takes {{name}} placeholders, each bound to"
+                    + " one input");
+        }
+        throw new IllegalArgumentException("statement placeholder {{" + name + "}} must name"
+                + " one input of the procedure (letters, digits, '-' and '_'); pass other"
+                + " values through the input from the calling step's 'with'");
+    }
+
+    /**
+     * Refuse a {@code {{name}}} placeholder between {@code start} and {@code end}: inside quotes
+     * it would be sent as text, not bound.
+     */
+    private static void refusePlaceholderIn(String sql, int start, int end, String what) {
+        java.util.regex.Matcher tag = QUOTED_PLACEHOLDER.matcher(sql).region(start, end);
+        if (tag.find()) {
+            throw new IllegalArgumentException("statement has placeholder {{" + tag.group(1)
+                    + "}} inside " + what + ", where it would not be bound; write it outside"
+                    + " the quotes, and concatenate in SQL when the value is part of a text");
+        }
     }
 
     /**

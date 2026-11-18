@@ -94,14 +94,13 @@ class SqlClientSchemaValidationTest {
             get-customer:
               description: One customer by id.
               statement: |
-                select c.id, c.name from public.customers c where c.id = :customerId
+                select c.id, c.name from public.customers c where c.id = {{customer-id}}
               timeoutMs: 5000
               fetchSize: 100
               inputParameters:
                 customer-id:
                   type: string
                   description: ERP customer id.
-                  placeholder: customerId
                   sqlType: VARCHAR
               outputParameters:
                 name: { type: string, value: "$.rows[0].name" }
@@ -132,7 +131,8 @@ class SqlClientSchemaValidationTest {
         assertEquals("get-customer", procedure.getName());
         assertEquals(5000, procedure.getTimeoutMs());
         InputParameterSpec input = procedure.getInputParameters().get(0);
-        assertEquals("customerId", input.getPlaceholder());
+        assertEquals("customer-id", input.getName());
+        assertTrue(procedure.getStatement().contains("c.id = {{customer-id}}"));
         assertEquals("VARCHAR", input.getSqlType());
         assertEquals("$.rows[0].name", procedure.getOutputParameters().get(0).getMapping());
     }
@@ -183,10 +183,11 @@ class SqlClientSchemaValidationTest {
     }
 
     @Test
-    void schemaShouldRejectAPlaceholderThatIsNotASqlIdentifier() throws Exception {
-        String yaml = capability(GET_CUSTOMER).replace("placeholder: customerId",
-                "placeholder: customer-id");
+    void schemaShouldRejectAPlaceholderPropertyOnAnInput() throws Exception {
+        String yaml = capability(GET_CUSTOMER).replaceAll("( *)sqlType: VARCHAR",
+                "$1sqlType: VARCHAR\n$1placeholder: customerId");
 
-        assertFalse(validate(yaml).isEmpty(), "placeholder must be a SQL identifier");
+        assertFalse(validate(yaml).isEmpty(),
+                "the statement names the input key; an input has no placeholder property");
     }
 }

@@ -65,10 +65,6 @@ public class InputParameterDeserializer extends ValueDeserializer<InputParameter
             spec.setWireName(node.get("wireName").asString());
         }
 
-        if (node.has("placeholder")) {
-            spec.setPlaceholder(node.get("placeholder").asString());
-        }
-
         if (node.has("sqlType")) {
             spec.setSqlType(node.get("sqlType").asString());
         }

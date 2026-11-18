@@ -58,7 +58,7 @@ record SqlBind(Object value, Integer jdbcType) {
         Object value = unwrap(raw);
         if (value == null) {
             // a string input without sqlType is still typed: PostgreSQL cannot infer the type
-            // of :name in ":name is null"
+            // of the ? that {{name}} becomes in "{{name}} is null"
             Integer nullType = target != null ? target.getVendorTypeNumber()
                     : "string".equals(input.getType()) ? Integer.valueOf(Types.VARCHAR) : null;
             return new SqlBind(null, nullType);

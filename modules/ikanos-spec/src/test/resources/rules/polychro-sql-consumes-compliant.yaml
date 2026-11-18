@@ -1,7 +1,7 @@
 # Spectral fixture — consumed SQL rules MUST NOT FIRE:
 #   bound credentials, read statements (with a leading comment, a CTE, a cast,
-#   a placeholder used twice and a colon inside a string literal), and every
-#   input used through its placeholder or its key. A PostgreSQL URL nests block
+#   a placeholder used twice, a colon and an array literal inside string
+#   literals), and every input used through a {{name}} placeholder. A PostgreSQL URL nests block
 #   comments, a SQL Server URL reads [...] as an identifier, and a MySQL URL
 #   reads # as a comment.
 ikanos: "1.0.0-beta10"
@@ -30,17 +30,17 @@ capability:
           description: One customer by id.
           statement: |
             -- one customer
-            select id, name, 'a:b' as tag from customers
-            where id = :customerId or legacy_id = :customerId
+            select id, name, 'a:b' as tag, '{{1,2},{3,4}}' as grid from customers
+            where id = {{customer-id}} or legacy_id = {{ customer-id }}
           inputParameters:
-            customer-id: { type: string, placeholder: customerId }
+            customer-id: { type: string }
           outputParameters:
             name: { type: string, value: "$.rows[0].name" }
         changed-since:
           description: Customers changed since a time.
           statement: |
             with recent as (
-              select id from customers where updated_at >= :since::timestamp
+              select id from customers where updated_at >= {{since}}::timestamp
             )
             select * from recent
           inputParameters:
@@ -57,13 +57,13 @@ capability:
       procedures:
         nested-comment:
           description: A nested comment holds no placeholder.
-          statement: select /* outer /* inner */ :ignored */ name from customers where id = :id
+          statement: select /* outer /* inner */ {{ignored}} */ name from customers where id = {{id}}
           inputParameters:
             id: { type: string }
         # A PostgreSQL identifier may hold $$ without starting a dollar-quoted string.
         dollar-identifier:
           description: A $ inside an identifier does not open a dollar-quoted string.
-          statement: select a$$tag$column from events where id = :id
+          statement: select a$$tag$column from events where id = {{id}}
           inputParameters:
             id: { type: string }
     # An Oracle URL reads q'[...]' as a literal.
@@ -77,7 +77,7 @@ capability:
       procedures:
         alternative-quote:
           description: An alternative-quoted literal holds no placeholder.
-          statement: "select q'[don't :ignored]' as note from customers where id = :id"
+          statement: "select q'[don''t {ignored}]' as note from customers where id = {{id}}"
           inputParameters:
             id: { type: string }
     - type: sql
@@ -90,7 +90,7 @@ capability:
       procedures:
         bracket-identifiers:
           description: Bracket identifiers hold no placeholder.
-          statement: SELECT [delete], [tag:x] FROM inventory WHERE id = :id
+          statement: SELECT [delete], [tag:x] FROM inventory WHERE id = {{id}}
           inputParameters:
             id: { type: string }
     - type: sql
@@ -105,8 +105,8 @@ capability:
           description: A # comment holds no placeholder and may start the statement.
           statement: |
             # one order
-            select id from orders # :ignored
-            where id = :id
+            select id from orders # {{ignored}}
+            where id = {{id}}
           inputParameters:
             id: { type: string }
   exposes:

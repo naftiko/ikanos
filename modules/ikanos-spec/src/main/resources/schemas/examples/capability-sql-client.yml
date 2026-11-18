@@ -5,7 +5,9 @@
 # re-exposes the result as an MCP tool.
 #
 # The JDBC URL and the credentials come from `binds`, resolved once when the
-# capability loads. Caller values reach the database only as bind variables.
+# capability loads. Caller values reach the database only as bind variables:
+# each `{{name}}` in a statement names an input and is bound, never written
+# into the SQL text.
 # Ikanos ships no JDBC driver: add the PostgreSQL driver jar to the class path
 # (in the image, the `/app/lib` extension directory).
 ikanos: "1.0.0-beta10"
@@ -44,12 +46,11 @@ capability:
           statement: |
             select c.id, c.name, c.email, c.crm_account_id
             from public.customers c
-            where c.id = :customerId
+            where c.id = {{customer-id}}
           inputParameters:
             customer-id:
               type: "string"
               description: "ERP customer id."
-              placeholder: "customerId"
           outputParameters:
             name: { type: "string", value: "$.rows[0].name" }
             email: { type: "string", value: "$.rows[0].email" }

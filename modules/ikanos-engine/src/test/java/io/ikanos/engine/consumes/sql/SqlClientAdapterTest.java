@@ -103,9 +103,9 @@ class SqlClientAdapterTest {
     private static final String GET_CUSTOMER = """
             get-customer:
               description: One customer by id.
-              statement: select id, name, balance, active, updated_at from customers where id = :customerId
+              statement: select id, name, balance, active, updated_at from customers where id = {{customer-id}}
               inputParameters:
-                customer-id: { type: string, placeholder: customerId }
+                customer-id: { type: string }
               outputParameters:
                 name: { type: string, value: "$.rows[0].name" }
             """;
@@ -160,7 +160,7 @@ class SqlClientAdapterTest {
         started("""
                 changed-since:
                   description: Customers changed since a time.
-                  statement: select id from customers where updated_at >= :since order by id
+                  statement: select id from customers where updated_at >= {{since}} order by id
                   inputParameters:
                     since: { type: string, sqlType: TIMESTAMP }
                 """);
@@ -175,7 +175,7 @@ class SqlClientAdapterTest {
         started("""
                 by-name:
                   description: Customers by optional name.
-                  statement: select id from customers where (:name is null or name = :name)
+                  statement: select id from customers where ({{name}} is null or name = {{name}})
                   inputParameters:
                     name: { type: string, required: false, sqlType: VARCHAR }
                 """);
@@ -204,7 +204,7 @@ class SqlClientAdapterTest {
         started("""
                 cast:
                   description: Casts its input.
-                  statement: select cast(:value as integer) as v from customers
+                  statement: select cast({{value}} as integer) as v from customers
                   inputParameters:
                     value: { type: string }
                 """);
@@ -292,7 +292,7 @@ class SqlClientAdapterTest {
         started("""
                 by-balance:
                   description: Customers above a balance.
-                  statement: select id from customers where balance > :min
+                  statement: select id from customers where balance > {{min}}
                   inputParameters:
                     min: { type: number }
                 """);
@@ -321,12 +321,12 @@ class SqlClientAdapterTest {
                 () -> new SqlClientAdapter(null, spec("""
                         get:
                           description: Typo in the placeholder.
-                          statement: select * from customers where id = :custId
+                          statement: select * from customers where id = {{cust-id}}
                           inputParameters:
-                            customer-id: { type: string, placeholder: customerId }
+                            customer-id: { type: string }
                         """)));
 
-        assertTrue(e.getMessage().contains(":custId"), e.getMessage());
+        assertTrue(e.getMessage().contains("{{cust-id}}"), e.getMessage());
     }
 
     @Test
@@ -386,7 +386,7 @@ class SqlClientAdapterTest {
                 () -> new SqlClientAdapter(null, spec("""
                         get:
                           description: Typo in the sqlType.
-                          statement: select * from customers where id = :id
+                          statement: select * from customers where id = {{id}}
                           inputParameters:
                             id: { type: string, sqlType: VARCHARR }
                         """)));
@@ -472,18 +472,40 @@ class SqlClientAdapterTest {
     }
 
     @Test
-    void constructorShouldRefuseTwoInputsWithOnePlaceholder() throws Exception {
+    void constructorShouldRefuseAPlaceholderInsideAStringLiteral() throws Exception {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> new SqlClientAdapter(null, spec("""
+                        search:
+                          description: A placeholder that would be sent as text.
+                          statement: select id from customers where name like '%{{text}}%'
+                          inputParameters:
+                            text: { type: string }
+                        """)));
+
+        assertTrue(e.getMessage().contains("{{text}} inside a string literal"), e.getMessage());
+    }
+
+    @Test
+    void constructorShouldRefuseAMustacheSection() throws Exception {
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> new SqlClientAdapter(null, spec("""
                         find:
-                          description: Two inputs, one placeholder.
-                          statement: select id from customers where id = :id
+                          description: A section is not a placeholder.
+                          statement: select id from customers {{#id}}where id = {{id}}{{/id}}
                           inputParameters:
                             id: { type: string }
-                            other: { type: string, placeholder: id }
                         """)));
 
-        assertTrue(e.getMessage().contains("':id' on two inputs"), e.getMessage());
+        assertTrue(e.getMessage().contains("Mustache '#' tag"), e.getMessage());
+    }
+
+    @Test
+    void invokeShouldBindAValueThatLooksLikeAPlaceholderAsText() throws Exception {
+        started(GET_CUSTOMER);
+
+        ConsumedResult result = call("get-customer", Map.of("customer-id", "{{customer-id}}"));
+
+        assertEquals(0, result.document().get("rowCount").asInt());
     }
 
     @Test

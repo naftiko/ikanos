@@ -50,7 +50,7 @@ import io.ikanos.spec.consumes.sql.SqlProcedureSpec;
  *       resolved from the capability bindings once, never from call parameters, so a caller
  *       cannot choose the database. Driver properties that load classes or read local files are
  *       refused. Each statement is parsed once, in the MySQL dialect for MySQL and MariaDB URLs:
- *       its {@code :name} placeholders must match declared inputs, every {@code sqlType} must be a
+ *       each {@code {{name}}} placeholder must name a declared input, every {@code sqlType} must be a
  *       JDBC type, and it must read.</li>
  *   <li><b>Start</b> — a HikariCP pool is created. It opens its connections in the background
  *       and {@code start()} does not wait for them, so a database that is down at start-up only
@@ -133,17 +133,10 @@ public class SqlClientAdapter extends ClientAdapter {
             }
             procedure.getInputParameters()
                     .forEach(input -> SqlBind.targetType(input, where));
-            java.util.Set<String> declared = new java.util.HashSet<>();
-            for (InputParameterSpec input : procedure.getInputParameters()) {
-                if (!declared.add(placeholderOf(input))) {
-                    throw new IllegalArgumentException(where + " declares placeholder ':"
-                            + placeholderOf(input) + "' on two inputs");
-                }
-            }
             for (String placeholder : statement.placeholders()) {
                 if (inputFor(procedure, placeholder) == null) {
-                    throw new IllegalArgumentException(where + " uses placeholder ':"
-                            + placeholder + "', which matches no declared input");
+                    throw new IllegalArgumentException(where + " uses placeholder {{"
+                            + placeholder + "}}, which matches no declared input");
                 }
             }
             built.put(procedure.getName(), new Procedure(procedure.getName(), procedure,
@@ -152,19 +145,14 @@ public class SqlClientAdapter extends ClientAdapter {
         return built;
     }
 
-    /** @return the input whose placeholder (or, without one, whose key) is {@code name} */
+    /** @return the input whose key is {@code name}, named by a {@code {{name}}} placeholder */
     static InputParameterSpec inputFor(SqlProcedureSpec procedure, String name) {
         for (InputParameterSpec input : procedure.getInputParameters()) {
-            if (name.equals(placeholderOf(input))) {
+            if (name.equals(input.getName())) {
                 return input;
             }
         }
         return null;
-    }
-
-    static String placeholderOf(InputParameterSpec input) {
-        String placeholder = input.getPlaceholder();
-        return placeholder != null && !placeholder.isBlank() ? placeholder : input.getName();
     }
 
     public SqlClientSpec getSqlClientSpec() {

@@ -759,8 +759,16 @@ public class IkanosPolychroRulesetTest {
     public void sqlPlaceholdersBoundRuleShouldFireForUnmatchedPlaceholderAndUnusedInput() {
         LintResult result = lintFixture("rules/polychro-sql-consumes-violations.yaml");
         assertEquals(2, findings(result, "ikanos-sql-placeholders-bound"),
-            "Expected ikanos-sql-placeholders-bound on :custId and on customer-id.\n"
+            "Expected ikanos-sql-placeholders-bound on {{cust-id}} and on customer-id.\n"
                 + result.output());
+    }
+
+    @Test
+    public void sqlPlaceholdersBoundRuleShouldFireForQuotedPlaceholderSectionAndJdbcSyntax() {
+        LintResult result = lintFixture("rules/polychro-sql-placeholders-violations.yaml");
+        assertEquals(4, findings(result, "ikanos-sql-placeholders-bound"),
+            "Expected ikanos-sql-placeholders-bound on '%{{text}}%', {{#active}}, {fn ...}"
+                + " and ?.\n" + result.output());
     }
 
     @Test
