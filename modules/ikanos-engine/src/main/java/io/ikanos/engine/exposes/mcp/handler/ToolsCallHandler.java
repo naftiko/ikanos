@@ -223,10 +223,13 @@ public class ToolsCallHandler extends McpCallHandler {
         int limit = catalog.maxResults();
         JsonNode limitNode = args.get("limit");
         if (limitNode != null && !limitNode.isNull()) {
-            if (!limitNode.isIntegralNumber() || limitNode.asInt() < 1) {
+            // Compared as a big integer: asInt() throws beyond the int range
+            if (!limitNode.isIntegralNumber() || limitNode.bigIntegerValue().signum() < 1) {
                 return toolError("limit must be a whole number of at least 1.");
             }
-            limit = Math.min(limitNode.asInt(), ToolSearchCatalog.MAX_LIMIT);
+            limit = limitNode.canConvertToInt()
+                    ? Math.min(limitNode.intValue(), ToolSearchCatalog.MAX_LIMIT)
+                    : ToolSearchCatalog.MAX_LIMIT;
         }
 
         span.setAttribute(TelemetryBootstrap.ATTR_TOOL_SEARCH_FILTERS,

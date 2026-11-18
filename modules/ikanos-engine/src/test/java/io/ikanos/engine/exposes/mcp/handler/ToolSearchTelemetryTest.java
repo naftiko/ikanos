@@ -172,6 +172,44 @@ class ToolSearchTelemetryTest {
     }
 
     @Test
+    void searchShouldTakeALimitBeyondTheIntRangeAsTheLargestLimit() {
+        int[] asked = new int[1];
+        ToolSearchIndexFactory factory = new ToolSearchIndexFactory() {
+            @Override
+            public String type() {
+                return "recording";
+            }
+
+            @Override
+            public io.ikanos.engine.exposes.mcp.search.ToolSearchIndex create(
+                    List<ToolSearchDocument> documents) {
+                return query -> {
+                    asked[0] = query.limit();
+                    return List.of("get-customer");
+                };
+            }
+        };
+
+        ObjectNode result = handler.searchTools(catalog(Optional.of(factory)), JSON
+                .createObjectNode().put("query", "customer").put("limit", 99_999_999_999L),
+                DEFERRED);
+
+        assertFalse(result.path("isError").asBoolean(), result.toString());
+        assertEquals(ToolSearchCatalog.MAX_LIMIT, asked[0]);
+        assertEquals(1, counter("ikanos.mcp.tool_search.total", "hit"));
+    }
+
+    @Test
+    void searchShouldRefuseANegativeLimitBeyondTheIntRangeAsAToolError() {
+        ObjectNode result = handler.searchTools(catalogReturning(List.of("get-customer")), JSON
+                .createObjectNode().put("query", "customer").put("limit", -99_999_999_999L),
+                DEFERRED);
+
+        assertTrue(result.path("isError").asBoolean(), result.toString());
+        assertEquals(1, counter("ikanos.mcp.tool_search.total", "error"));
+    }
+
+    @Test
     void searchShouldMarkAnUnavailableProviderAndCountAnError() {
         ObjectNode result = handler.searchTools(catalog(Optional.empty()),
                 JSON.createObjectNode().put("query", "customer"), DEFERRED);
