@@ -151,6 +151,16 @@ public class RestCallerIdentityIntegrationTest {
                           forward:
                             targetNamespace: "keyed"
                             trustedHeaders: ["X-Api-User"]
+                        authorized:
+                          path: "/authorized/{{path}}"
+                          forward:
+                            targetNamespace: "authorized"
+                            trustedHeaders: ["Authorization"]
+                        cookied:
+                          path: "/cookied/{{path}}"
+                          forward:
+                            targetNamespace: "cookied"
+                            trustedHeaders: ["Cookie"]
                   consumes:
                     - type: "http"
                       namespace: "domain"
@@ -180,7 +190,24 @@ public class RestCallerIdentityIntegrationTest {
                         key: "X-Api-User"
                         value: "{{auth.claims.sub}}"
                         placement: "header"
+                    - type: "http"
+                      namespace: "authorized"
+                      baseUri: "http://127.0.0.1:%d/authorized"
+                      authentication:
+                        type: "apikey"
+                        key: "Authorization"
+                        value: "User {{auth.claims.sub}}"
+                        placement: "header"
+                    - type: "http"
+                      namespace: "cookied"
+                      baseUri: "http://127.0.0.1:%d/cookied"
+                      authentication:
+                        type: "apikey"
+                        key: "Cookie"
+                        value: "user={{auth.claims.sub}}"
+                        placement: "header"
                 """.formatted(VersionHelper.getSchemaVersion(), port, issuer, port,
+                upstream.getAddress().getPort(), upstream.getAddress().getPort(),
                 upstream.getAddress().getPort(), upstream.getAddress().getPort(),
                 upstream.getAddress().getPort());
         IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
@@ -306,5 +333,34 @@ public class RestCallerIdentityIntegrationTest {
         assertEquals(200, response.statusCode(), response.body());
         assertEquals("alice", upstreamRequests.get(0).get("X-Api-User"),
                 "#998: the claim-backed credential replaces the client's copy, not added to it");
+    }
+
+    @Test
+    public void forwardShouldReplaceATrustedLowerCaseAuthorizationWithAClaimBackedApiKey()
+            throws Exception {
+        // A standard header set through its Restlet property: the client's trusted copy, here
+        // the caller's own bearer token in lower case, must not be sent alongside (#998, #1001)
+        HttpResponse<String> response = client.send(HttpRequest
+                .newBuilder(URI.create("http://127.0.0.1:" + port + "/authorized/report.pdf"))
+                .header("authorization", "Bearer "
+                        + token(new JWTClaimsSet.Builder().subject("alice")))
+                .GET().build(), HttpResponse.BodyHandlers.ofString());
+
+        assertEquals(200, response.statusCode(), response.body());
+        assertEquals("User alice", upstreamRequests.get(0).get("Authorization"),
+                "#998: the claim-backed credential is the only Authorization sent");
+    }
+
+    @Test
+    public void forwardShouldReplaceATrustedLowerCaseCookieOfTheSameNameWithAClaimBackedApiKey()
+            throws Exception {
+        HttpResponse<String> response = get("/cookied/report.pdf",
+                token(new JWTClaimsSet.Builder().subject("alice")), "cookie", "user=mallory");
+
+        assertEquals(200, response.statusCode(), response.body());
+        String cookie = upstreamRequests.get(0).get("Cookie");
+        assertTrue(cookie.contains("user=alice"), cookie);
+        assertFalse(cookie.contains("mallory"),
+                "#998: the claim-backed cookie replaces the client's cookie of the same name");
     }
 }
