@@ -673,6 +673,45 @@ class SqlStatementTest {
     }
 
     @Test
+    void writeOperationShouldRefuseServiceBrokerStatementsAppendedToASqlServerWrite() {
+        for (String appended : List.of("receive * from q", "send on conversation @h ('x')",
+                "end conversation @h", "move conversation @h to @g",
+                "add signature to p by certificate c")) {
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                    () -> SqlStatement.parse("update orders set status = 'SHIPPED' where id = 1 "
+                            + appended, SqlStatement.Dialect.SQLSERVER).writeOperation(),
+                    appended);
+
+            assertTrue(e.getMessage().contains("on SQL Server it also runs"), e.getMessage());
+        }
+        // alone, or ending a CASE, the first words stay usable
+        assertEquals("UPDATE", SqlStatement.parse("update t set send = 1, [move] = 2,"
+                + " n = case when a = 1 then 0 else 1 end where id = 1",
+                SqlStatement.Dialect.SQLSERVER).writeOperation());
+        // and they are no statement keywords elsewhere
+        assertEquals("INSERT", SqlStatement.parse("insert into q (receive) values (1)",
+                SqlStatement.Dialect.POSTGRESQL).writeOperation());
+    }
+
+    @Test
+    void parseShouldRefuseALexerAmbiguityInAWriteAsInARead() {
+        // a backslash before a quote, which NO_BACKSLASH_ESCAPES reads as the end of the text
+        assertThrows(IllegalArgumentException.class, () -> SqlStatement.parse(
+                "update t set a = 'x\\' where id = 1", SqlStatement.Dialect.MYSQL));
+        // a line comment ended by a carriage return alone
+        for (SqlStatement.Dialect dialect
+                : List.of(SqlStatement.Dialect.MYSQL, SqlStatement.Dialect.SQLITE)) {
+            assertThrows(IllegalArgumentException.class, () -> SqlStatement.parse(
+                    "delete from t where id = 1 -- c\r and 1 = 1", dialect), dialect.name());
+        }
+        // MySQL starts a comment at -- and a control character: the rest is no clause
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> SqlStatement.parse("update t set a = 1 --\u0001 where id = 1",
+                        SqlStatement.Dialect.MYSQL).writeOperation());
+        assertTrue(e.getMessage().contains("without WHERE"), e.getMessage());
+    }
+
+    @Test
     void writeOperationShouldAcceptTheSetOfAnUpdateOnSqlServer() {
         assertEquals("UPDATE", SqlStatement.parse("update orders set status = {{status}}"
                 + " where id = {{id}}", SqlStatement.Dialect.SQLSERVER).writeOperation());
