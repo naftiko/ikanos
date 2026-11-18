@@ -426,6 +426,59 @@ public class ResolverTest {
             params, v -> "<" + v + ">"));
       }
 
+      @Test
+      void resolveInputParameterFromRequestShouldReadTypedScalarsFromTheQuery() {
+        Request request = new Request(Method.GET,
+            "https://example.com/ships?limit=5&ratio=1.5&big=12345678901234&active=true");
+
+        assertEquals(5, Resolver.resolveInputParameterFromRequest(
+            queryInput("limit", "integer"), request, null, MAPPER));
+        assertEquals(1.5, Resolver.resolveInputParameterFromRequest(
+            queryInput("ratio", "number"), request, null, MAPPER));
+        assertEquals(12345678901234L, Resolver.resolveInputParameterFromRequest(
+            queryInput("big", "integer"), request, null, MAPPER));
+        assertEquals(true, Resolver.resolveInputParameterFromRequest(
+            queryInput("active", "boolean"), request, null, MAPPER));
+        // A string input keeps its text
+        assertEquals("5", Resolver.resolveInputParameterFromRequest(
+            queryInput("limit", "string"), request, null, MAPPER));
+      }
+
+      @Test
+      void resolveInputParameterFromRequestShouldReadTypedScalarsFromThePathAndHeaders() {
+        Request request = new Request(Method.GET, "https://example.com/ships/7");
+        request.getAttributes().put("page", "7");
+        request.getHeaders().set("X-Dry-Run", "false");
+        InputParameterSpec path = queryInput("page", "integer");
+        path.setIn("path");
+        InputParameterSpec header = queryInput("X-Dry-Run", "boolean");
+        header.setIn("header");
+
+        assertEquals(7, Resolver.resolveInputParameterFromRequest(path, request, null, MAPPER));
+        assertEquals(false,
+            Resolver.resolveInputParameterFromRequest(header, request, null, MAPPER));
+      }
+
+      @Test
+      void resolveInputParameterFromRequestShouldRejectAScalarThatDoesNotParse() {
+        for (String query : List.of("n=abc", "n=1.5", "n=", "n=%205", "n=5x", "n=NaN")) {
+          Request request = new Request(Method.GET, "https://example.com/ships?" + query);
+          IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+              () -> Resolver.resolveInputParameterFromRequest(queryInput("n", "integer"),
+                  request, null, MAPPER), query);
+          assertEquals("Input parameter 'n' must be an integer", e.getMessage());
+        }
+        for (String query : List.of("n=one", "n=1e400")) {
+          Request number = new Request(Method.GET, "https://example.com/ships?" + query);
+          assertThrows(IllegalArgumentException.class, () -> Resolver
+              .resolveInputParameterFromRequest(queryInput("n", "number"), number, null, MAPPER),
+              query);
+        }
+        Request flag = new Request(Method.GET, "https://example.com/ships?b=yes");
+        assertThrows(IllegalArgumentException.class, () -> Resolver
+            .resolveInputParameterFromRequest(queryInput("b", "boolean"), flag, null, MAPPER));
+      }
+
       private static InputParameterSpec queryInput(String name, String type) {
         InputParameterSpec input = new InputParameterSpec();
         input.setName(name);

@@ -38,7 +38,8 @@ import io.ikanos.spec.util.VersionHelper;
 
 /**
  * #1078, end to end: a REST input read as its declared type reaches a consumed API as that type.
- * A JSON object query input forwarded to a consumed query parameter, header or URI stays JSON.
+ * A JSON object query input forwarded to a consumed query parameter, header or URI stays JSON, and
+ * an {@code integer} query input is a JSON number in a consumed JSON body, as over MCP.
  */
 class RestInputForwardingIntegrationTest {
 
@@ -48,6 +49,7 @@ class RestInputForwardingIntegrationTest {
             .connectTimeout(Duration.ofSeconds(5)).build();
     private final List<String> upstreamQueries = new CopyOnWriteArrayList<>();
     private final List<String> upstreamFilterHeaders = new CopyOnWriteArrayList<>();
+    private final List<String> upstreamBodies = new CopyOnWriteArrayList<>();
     private HttpServer upstream;
     private Capability capability;
     private int restPort;
@@ -59,6 +61,8 @@ class RestInputForwardingIntegrationTest {
             upstreamQueries.add(String.valueOf(exchange.getRequestURI().getRawQuery()));
             upstreamFilterHeaders.add(
                     String.valueOf(exchange.getRequestHeaders().getFirst("X-Filter")));
+            upstreamBodies.add(new String(exchange.getRequestBody().readAllBytes(),
+                    StandardCharsets.UTF_8));
             byte[] body = "{\"ok\":true}".getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().set("Content-Type", "application/json");
             exchange.sendResponseHeaders(200, body.length);
@@ -90,6 +94,15 @@ class RestInputForwardingIntegrationTest {
                                 X-Filter:
                                   in: header
                                   value: "{{filter}}"
+                        counts:
+                          path: "/counts"
+                          operations:
+                            count:
+                              method: POST
+                              body:
+                                type: json
+                                data:
+                                  limit: "{{limit}}"
                   exposes:
                     - type: rest
                       address: "localhost"
@@ -113,6 +126,17 @@ class RestInputForwardingIntegrationTest {
                                   items:
                                     type: object
                                   description: Alternative filters
+                        counts:
+                          path: "/counts"
+                          operations:
+                            count:
+                              method: GET
+                              call: up.count
+                              inputParameters:
+                                limit:
+                                  in: query
+                                  type: integer
+                                  description: Largest count
                 """.formatted(IKANOS, upstream.getAddress().getPort(), restPort),
                 IkanosSpec.class));
         capability.start();
@@ -138,6 +162,22 @@ class RestInputForwardingIntegrationTest {
                 "filters={\"flag\":\"PA\"}"), decodedParameters(upstreamQueries.get(0)),
                 "raw query: " + upstreamQueries.get(0));
         assertEquals("{\"flag\":\"NO\"}", upstreamFilterHeaders.get(0));
+    }
+
+    @Test
+    void anIntegerQueryInputShouldReachAJsonBodyAsANumber() throws Exception {
+        HttpResponse<String> response = get("/counts?limit=5");
+
+        assertEquals(200, response.statusCode(), response.body());
+        assertEquals(List.of("{\"limit\":5}"), upstreamBodies);
+    }
+
+    @Test
+    void anIntegerQueryInputThatDoesNotParseShouldAnswerBadRequest() throws Exception {
+        HttpResponse<String> response = get("/counts?limit=abc");
+
+        assertEquals(400, response.statusCode(), response.body());
+        assertEquals(List.of(), upstreamBodies);
     }
 
     private HttpResponse<String> get(String pathAndQuery) throws Exception {
