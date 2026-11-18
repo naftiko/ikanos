@@ -3603,6 +3603,16 @@
           },
           "description": "Values extracted with JsonPath from the row document `{rows, out, rowCount, generatedKeys}`, such as `$.rows[0].name`, `$.out.balance`, or, for a write, `$.rowCount` (rows changed) and `$.generatedKeys[0].id`."
         },
+        "generatedKeys": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_$#]*$"
+          },
+          "description": "`INSERT` statements only, with `readOnly: false` and no `RETURNING` or `OUTPUT` clause: the columns whose generated values the driver returns under `generatedKeys` in the row document, such as `[id]`. The engine never asks for keys unless this is set, and never on a `MERGE`. Name the columns as the database stores them: PostgreSQL quotes each name, so write it in lower case unless the column was created quoted. SQL Server returns the `IDENTITY` value of the row inserted last, and its driver takes exactly one column. MySQL returns its `AUTO_INCREMENT` value whatever the names. For every row of an `INSERT ... SELECT`, write `RETURNING` (PostgreSQL) or `OUTPUT` (SQL Server) instead and read `rows`."
+        },
         "timeoutMs": {
           "type": "integer",
           "minimum": 1,
@@ -3623,21 +3633,42 @@
         "description"
       ],
       "additionalProperties": false,
-      "if": {
-        "required": [
-          "maxAffectedRows"
-        ]
-      },
-      "then": {
-        "required": [
-          "readOnly"
-        ],
-        "properties": {
-          "readOnly": {
-            "const": false
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "maxAffectedRows"
+            ]
+          },
+          "then": {
+            "required": [
+              "readOnly"
+            ],
+            "properties": {
+              "readOnly": {
+                "const": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "generatedKeys"
+            ]
+          },
+          "then": {
+            "required": [
+              "readOnly"
+            ],
+            "properties": {
+              "readOnly": {
+                "const": false
+              }
+            }
           }
         }
-      },
+      ],
       "oneOf": [
         {
           "required": [
@@ -3673,6 +3704,11 @@
               {
                 "required": [
                   "maxAffectedRows"
+                ]
+              },
+              {
+                "required": [
+                  "generatedKeys"
                 ]
               }
             ]

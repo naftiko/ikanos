@@ -263,6 +263,49 @@ class SqlClientSchemaValidationTest {
     }
 
     @Test
+    void schemaAndRuntimeShouldAcceptGeneratedKeysOnAnInsert() throws Exception {
+        String yaml = capability("""
+                get-customer:
+                  description: Creates one order.
+                  readOnly: false
+                  generatedKeys: [id]
+                  statement: insert into orders (status) values ({{status}})
+                  inputParameters:
+                    status: { type: string }
+                  outputParameters:
+                    id: { type: number, value: "$.generatedKeys[0].id" }
+                """);
+
+        assertTrue(validate(yaml).isEmpty(), "generatedKeys must validate: " + validate(yaml));
+        SqlProcedureSpec procedure = ((SqlClientSpec) YAML.readValue(yaml, IkanosSpec.class)
+                .getCapability().getConsumes().get(0)).getProcedures().get("get-customer");
+        assertEquals(List.of("id"), procedure.getGeneratedKeys());
+    }
+
+    @Test
+    void schemaShouldRejectGeneratedKeysOnAReadOrAStoredProcedure() throws Exception {
+        String write = """
+                get-customer:
+                  description: Creates one order.
+                  readOnly: false
+                  generatedKeys: [id]
+                  statement: insert into orders (status) values ({{status}})
+                  inputParameters:
+                    status: { type: string }
+                """;
+
+        assertFalse(validate(capability(write.replace("  readOnly: false\n", ""))).isEmpty(),
+                "generatedKeys needs an explicit readOnly: false");
+        assertFalse(validate(capability(write.replace("[id]", "[]"))).isEmpty(),
+                "generatedKeys names at least one column");
+        assertFalse(validate(capability(write.replace("[id]", "[\"id; drop\"]"))).isEmpty(),
+                "generatedKeys names columns");
+        assertFalse(validate(capability(GET_BALANCE.replace("readOnly: true",
+                "readOnly: false\n  generatedKeys: [id]"))).isEmpty(),
+                "a storedProcedure returns no generated keys");
+    }
+
+    @Test
     void schemaShouldRejectMaxAffectedRowsOnARead() throws Exception {
         String write = """
                 get-customer:
