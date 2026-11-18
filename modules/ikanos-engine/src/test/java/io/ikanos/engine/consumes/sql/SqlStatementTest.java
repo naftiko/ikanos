@@ -15,6 +15,7 @@ package io.ikanos.engine.consumes.sql;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -386,13 +387,80 @@ class SqlStatementTest {
     }
 
     @Test
-    void parseShouldEndALineCommentAtACarriageReturn() {
-        assertEquals("DROP", SqlStatement.parse("SELECT 1 -- note\r DROP TABLE customers",
-                SqlStatement.Dialect.SQLSERVER).nonReadKeyword());
+    void parseShouldEndALineCommentAtACarriageReturnOnPostgresql() {
         assertEquals(List.of("id"), SqlStatement.parse("select 1 -- note\r where id = {{id}}",
                 SqlStatement.Dialect.POSTGRESQL).placeholders());
-        assertEquals(List.of(), SqlStatement.parse("select 1 -- note\r {{x}}",
-                SqlStatement.Dialect.SQLITE).placeholders());
+    }
+
+    @Test
+    void parseShouldRefuseALineCommentEndedByACarriageReturnAloneElsewhere() {
+        // MySQL reads "# \r'" on to the line feed: INTO OUTFILE would run outside the quotes
+        String mysql = "select 1 # \r' \n into outfile '/tmp/x' -- '";
+        assertThrows(IllegalArgumentException.class,
+                () -> SqlStatement.parse(mysql, SqlStatement.Dialect.MYSQL));
+        for (SqlStatement.Dialect dialect : List.of(SqlStatement.Dialect.SQLSERVER,
+                SqlStatement.Dialect.SQLITE, SqlStatement.Dialect.ORACLE,
+                SqlStatement.Dialect.STANDARD)) {
+            assertThrows(IllegalArgumentException.class, () -> SqlStatement.parse(
+                    "SELECT 1 -- note\r DROP TABLE customers", dialect), dialect.name());
+        }
+    }
+
+    @Test
+    void parseShouldAcceptALineCommentEndedByCarriageReturnAndLineFeed() {
+        for (SqlStatement.Dialect dialect : SqlStatement.Dialect.values()) {
+            assertEquals(List.of("id"), SqlStatement.parse(
+                    "select 1 -- note\r\nwhere id = {{id}}", dialect).placeholders(),
+                    dialect.name());
+        }
+    }
+
+    @Test
+    void parseShouldReadMysqlDoubleDashBeforeAControlCharacterAsAComment() {
+        // MySQL starts a comment at "--" before any control character, not only whitespace
+        String sql = "select 1 --\u0001 '\n into outfile '/tmp/x' -- '\nfrom t";
+
+        assertEquals("INTO", SqlStatement.parse(sql, SqlStatement.Dialect.MYSQL)
+                .nonReadKeyword());
+    }
+
+    @Test
+    void parseShouldReadMysqlDoubleDashBeforeAUnicodeSpaceAsArithmetic() {
+        // MySQL does not take U+2003 as the space a comment needs: the INTO is code there
+        String sql = "select 1 from t where 1 --  into outfile '/tmp/x'";
+
+        assertEquals("INTO", SqlStatement.parse(sql, SqlStatement.Dialect.MYSQL)
+                .nonReadKeyword());
+    }
+
+    @Test
+    void parseShouldRefuseABackslashEscapedQuoteOnMysql() {
+        // under NO_BACKSLASH_ESCAPES, 'a\' closes and INTO OUTFILE runs outside the quotes
+        assertThrows(IllegalArgumentException.class, () -> SqlStatement.parse(
+                "select 'a\\' into outfile '/tmp/x' -- ' from t", SqlStatement.Dialect.MYSQL));
+        assertThrows(IllegalArgumentException.class, () -> SqlStatement.parse(
+                "select \"a\\\" from t", SqlStatement.Dialect.MYSQL));
+        assertNull(SqlStatement.parse("select 'it''s', 'a\\\\', 'a\\%' from t",
+                SqlStatement.Dialect.MYSQL).nonReadKeyword());
+    }
+
+    @Test
+    void nonReadKeywordShouldRefuseServiceBrokerAndSignatureStatementsOnSqlServer() {
+        for (String sql : List.of("select 1 as a add signature to dbo.p by certificate c",
+                "select 1 as a receive top (1) * from dbo.q",
+                "select 1 as a send on conversation 'h' ('m')",
+                "select 1 as a end conversation 'h'",
+                "select 1 as a move conversation 'h' to 'g'")) {
+            assertNotNull(SqlStatement.parse(sql, SqlStatement.Dialect.SQLSERVER)
+                    .nonReadKeyword(), sql);
+        }
+    }
+
+    @Test
+    void nonReadKeywordShouldAcceptCaseEndAndSendAsSqlServerColumns() {
+        assertNull(SqlStatement.parse("select case when send = 1 then 'y' end as sent, send"
+                + " from mail where id = {{id}}", SqlStatement.Dialect.SQLSERVER)
+                .nonReadKeyword());
     }
 
     @Test
