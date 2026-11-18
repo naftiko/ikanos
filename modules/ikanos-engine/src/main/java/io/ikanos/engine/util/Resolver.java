@@ -100,8 +100,9 @@ public class Resolver {
      */
     public static String resolveMustacheTemplate(String template, Map<String, Object> parameters,
             java.util.function.UnaryOperator<String> valueEncoder) {
-        // JSON-serialize non-scalar values (arrays, maps) so that Mustache substitution
-        // produces valid JSON instead of calling toString() (e.g. [CREW-001, CREW-003]).
+        // JSON-serialize non-scalar values so that Mustache substitution produces valid JSON
+        // instead of calling toString() (e.g. [CREW-001, CREW-003]): a top-level list here, and a
+        // map where it is rendered (wireText), so {{filter.flag}} still reads into the map.
         ObjectMapper jsonMapper = IkanosMappers.json();
         return render(template, parameters, val -> {
             if (val instanceof java.util.Collection || val instanceof Object[]) {
@@ -112,8 +113,8 @@ public class Resolver {
                 }
             }
             return val;
-        }, valueEncoder == null ? null
-                : value -> valueEncoder.apply(String.valueOf(value)));
+        }, valueEncoder == null ? Resolver::wireText
+                : value -> valueEncoder.apply(wireText(value)));
     }
 
     /**
@@ -1451,7 +1452,7 @@ public class Resolver {
                     // value that cannot be parsed is not sent, except a precondition of an
                     // unsafe request, which fails the call as bad input
                     if (!StandardRequestHeaders.setOrDrop(clientRequest, wireName,
-                            elements != null ? String.join(",", elements) : val.toString())) {
+                            elements != null ? String.join(",", elements) : wireText(val))) {
                         logger.debug("Header parameter '{}' was not sent: its value cannot be "
                                 + "parsed", spec.getName());
                     }
@@ -1535,7 +1536,7 @@ public class Resolver {
     static List<String> queryValues(InputParameterSpec spec, Object value) {
         List<String> elements = listElements(value);
         if (elements == null) {
-            return List.of(value.toString());
+            return List.of(wireText(value));
         }
         if (elements.isEmpty()) {
             return List.of();
@@ -1567,13 +1568,31 @@ public class Resolver {
         }
         List<String> elements = new java.util.ArrayList<>();
         for (Object item : items) {
-            if (item instanceof JsonNode node) {
-                elements.add(node.isValueNode() ? node.asString() : node.toString());
-            } else if (item != null) {
-                elements.add(item.toString());
+            if (item != null) {
+                elements.add(wireText(item));
             }
         }
         return elements;
+    }
+
+    /**
+     * The text sent for one value in a URI, a query parameter or a header: a map, or a JSON
+     * object or array, as JSON (#1078), so an object input forwarded upstream stays
+     * {@code {"flag":"NO"}} and is never written as {@code {flag=NO}}; a JSON scalar as its
+     * text; anything else as {@code String.valueOf}.
+     */
+    static String wireText(Object value) {
+        if (value instanceof JsonNode node) {
+            return node.isValueNode() ? node.asString() : node.toString();
+        }
+        if (value instanceof Map<?, ?>) {
+            try {
+                return IkanosMappers.json().writeValueAsString(value);
+            } catch (JacksonException e) {
+                // keep the plain text
+            }
+        }
+        return String.valueOf(value);
     }
 
     /**

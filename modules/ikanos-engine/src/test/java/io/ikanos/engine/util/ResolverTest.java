@@ -385,6 +385,47 @@ public class ResolverTest {
                 MAPPER));
       }
 
+      @Test
+      void queryValuesShouldWriteAnObjectAsJson() {
+        // A JSON object query input reaches a consumed query parameter as JSON, not as {flag=NO}
+        Map<String, Object> filter = new java.util.LinkedHashMap<>();
+        filter.put("flag", "NO");
+        filter.put("min", 3);
+
+        assertEquals(List.of("{\"flag\":\"NO\",\"min\":3}"),
+            Resolver.queryValues(queryInput("filter", "object"), filter));
+      }
+
+      @Test
+      void queryValuesShouldWriteEachObjectOfAListAsJson() {
+        assertEquals(List.of("{\"flag\":\"NO\"}", "{\"flag\":\"PA\"}"),
+            Resolver.queryValues(queryInput("filters", "array"),
+                List.of(Map.of("flag", "NO"), Map.of("flag", "PA"))));
+      }
+
+      @Test
+      void applyInputParametersToRequestShouldSendAnObjectHeaderAsJson() {
+        InputParameterSpec header = new InputParameterSpec();
+        header.setName("X-Filter");
+        header.setIn("header");
+        Request request = new Request(Method.GET, "https://example.com/ships");
+
+        Resolver.applyInputParametersToRequest(request, List.of(
+            new Resolver.ResolvedInputParameter(header, Map.of("flag", "NO"))));
+
+        assertEquals("{\"flag\":\"NO\"}", request.getHeaders().getFirstValue("X-Filter"));
+      }
+
+      @Test
+      void resolveMustacheTemplateShouldWriteAnObjectAsJsonAndStillReadItsFields() {
+        Map<String, Object> params = Map.of("filter", Map.of("flag", "NO"));
+
+        assertEquals("/ships?f={\"flag\":\"NO\"}&flag=NO", Resolver.resolveMustacheTemplate(
+            "/ships?f={{filter}}&flag={{filter.flag}}", params));
+        assertEquals("<{\"flag\":\"NO\"}>", Resolver.resolveMustacheTemplate("{{filter}}",
+            params, v -> "<" + v + ">"));
+      }
+
       private static InputParameterSpec queryInput(String name, String type) {
         InputParameterSpec input = new InputParameterSpec();
         input.setName(name);
