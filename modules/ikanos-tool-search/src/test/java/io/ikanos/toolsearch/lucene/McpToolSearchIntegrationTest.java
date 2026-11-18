@@ -213,7 +213,10 @@ class McpToolSearchIntegrationTest {
         JsonNode result = search(DEFERRED, query("photosynthesis"));
 
         assertEquals(List.of(), found(result));
-        assertTrue(result.path("content").get(0).path("text").asString().startsWith("No tools matched"));
+        assertTrue(result.path("structuredContent").path("hint").asString()
+                .startsWith("No tools matched"), result.toString());
+        assertEquals(JSON.writeValueAsString(result.path("structuredContent")),
+                result.path("content").get(0).path("text").asString());
     }
 
     @Test
@@ -255,6 +258,7 @@ class McpToolSearchIntegrationTest {
 
     @Test
     void callToolShouldReturnWhatADirectCallReturns() throws Exception {
+        // This tool returns text only, so call-tool has nothing to leave out of its result
         JsonNode results = callResults(server.callTool(DEFERRED, "call-tool",
                 calls("get-status-page")));
 
@@ -263,6 +267,16 @@ class McpToolSearchIntegrationTest {
         direct.remove("_meta"); // server info added once, on the top-level result
 
         assertEquals(direct, results.get(0).path("result"));
+    }
+
+    @Test
+    void callToolTextShouldBeItsStructuredContent() throws Exception {
+        JsonNode result = server.callTool(DEFERRED, "call-tool",
+                calls("get-status-page", "launch-rocket"));
+
+        assertEquals(1, result.path("content").size(), result.toString());
+        assertEquals(JSON.writeValueAsString(result.path("structuredContent")),
+                result.path("content").get(0).path("text").asString());
     }
 
     @Test
