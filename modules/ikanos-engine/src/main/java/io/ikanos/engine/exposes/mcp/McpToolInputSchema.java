@@ -13,7 +13,6 @@
  */
 package io.ikanos.engine.exposes.mcp;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -83,7 +82,7 @@ final class McpToolInputSchema {
         if (!param.getExamples().isEmpty()) {
             List<Object> values = new ArrayList<>();
             for (String value : param.getExamples()) {
-                values.add(typedExampleValue(type, value));
+                values.add(InputDefaults.typedExampleValue(type, value));
             }
             property.put("examples", values);
         }
@@ -115,22 +114,5 @@ final class McpToolInputSchema {
             property.put("additionalProperties", param.getAdditionalProperties());
         }
         return property;
-    }
-
-    /**
-     * Examples are stored as strings; emit them with the parameter's JSON type, as
-     * {@link InputDefaults#typedEnumValue} does for enum values, except that an integral decimal
-     * such as {@code 25.0} on an {@code integer} parameter is emitted as the integer {@code 25}:
-     * YAML hands {@code 25.0} over as {@code "25.0"}, and the examples rule accepts it.
-     */
-    private static Object typedExampleValue(String type, String value) {
-        if ("integer".equals(type)) {
-            try {
-                return new BigDecimal(value).toBigIntegerExact();
-            } catch (NumberFormatException | ArithmeticException e) {
-                return value;
-            }
-        }
-        return InputDefaults.typedEnumValue(type, value);
     }
 }

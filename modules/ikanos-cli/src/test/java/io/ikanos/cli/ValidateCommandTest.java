@@ -317,6 +317,42 @@ public class ValidateCommandTest {
     }
 
     @Test
+    public void callShouldFailWhenToolInputExampleDoesNotMatchType() {
+        Path yaml = toolInputCapability("size: { type: \"integer\", description: \"Size\","
+                + " examples: [25.0, 2.5] }");
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        String err = errCapture.toString();
+        assertEquals(1, exitCode, "an example must match its type\n" + err + outCapture);
+        assertTrue(err.contains("Invalid input example: MCP tool 'tools.ask-account' input"
+                + " parameter 'size': example '2.5' does not match type 'integer'"), err);
+        assertFalse(err.contains("'25.0'"), "25.0 is an integer, as a default: " + err);
+    }
+
+    @Test
+    public void callShouldFailWhenToolInputExampleIsNotInEnum() {
+        Path yaml = toolInputCapability("severity: { type: \"string\", description: \"S\","
+                + " enum: [\"sev1\", \"sev2\"], examples: [\"sev9\"] }");
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        String err = errCapture.toString();
+        assertEquals(1, exitCode, "an example must be one of the enum values\n" + err);
+        assertTrue(err.contains("example 'sev9' is not one of the enum values"), err);
+    }
+
+    @Test
+    public void callShouldSucceedWhenToolInputExamplesMatchTypeAndEnum() {
+        Path yaml = toolInputCapability("severity: { type: \"string\", description: \"S\","
+                + " enum: [\"sev1\", \"sev2\"], examples: [\"sev2\"] }");
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        assertEquals(0, exitCode, errCapture.toString() + outCapture);
+    }
+
+    @Test
     public void callShouldWarnWithoutFailingWhenRequiredToolInputDeclaresDefault() {
         Path yaml = toolInputCapability("period: { type: \"string\", description: \"Period\","
                 + " required: true, default: \"LAST_90DAYS\" }");

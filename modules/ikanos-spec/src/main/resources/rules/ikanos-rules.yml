@@ -525,7 +525,11 @@ rules:
       a number for `number`, an integer for `integer`, `true` or `false` for
       `boolean`, and one of the `enum` values when the input declares them. An
       object or array input takes no examples of its own: give them on its
-      `properties` or `items`.
+      `properties` or `items`. The engine refuses to load such a capability, and
+      `ikanos validate` fails on it; this rule reports the same examples earlier.
+      It also asks to quote two kinds of examples that the engine accepts but
+      that a YAML linter cannot read exactly: a number on a string input, and an
+      integer beyond 2^53.
     severity: warn
     recommended: true
     given: "$"

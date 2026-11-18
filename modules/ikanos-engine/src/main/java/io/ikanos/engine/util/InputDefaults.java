@@ -44,10 +44,19 @@ import tools.jackson.databind.ObjectMapper;
  * passes {@code null}, the default is used as the argument value, with its JSON type. A default on
  * a required input never applies (the caller must send the input), and is reported as a
  * warning.</p>
+ *
+ * <p>The {@code examples} of the same parameters, and of their nested {@code items} and
+ * {@code properties}, are checked at load the same way: each one, read as the tool's
+ * {@code inputSchema} advertises it ({@link #typedExampleValue}), must match the type and the
+ * enum, since JSON Schema says examples SHOULD validate against their schema and models learn
+ * arguments from them.</p>
  */
 public final class InputDefaults {
 
     private static final ObjectMapper JSON = IkanosMappers.json();
+
+    /** The most digits an integer example is expanded to, far beyond any real argument. */
+    private static final int MAX_EXAMPLE_INTEGER_DIGITS = 1000;
 
     private InputDefaults() {
     }
@@ -103,13 +112,23 @@ public final class InputDefaults {
 
     /**
      * @param spec the capability spec; {@code null} is a no-op
-     * @throws IllegalArgumentException listing every default that does not match its parameter
+     * @throws IllegalArgumentException listing every default and every example that does not
+     *         match its parameter
      */
     public static void validate(IkanosSpec spec) {
+        List<String> problems = new ArrayList<>();
         List<String> errors = findErrors(spec);
         if (!errors.isEmpty()) {
-            throw new IllegalArgumentException("Invalid input default"
-                    + (errors.size() > 1 ? "s" : "") + ": " + String.join("; ", errors));
+            problems.add("Invalid input default" + (errors.size() > 1 ? "s" : "") + ": "
+                    + String.join("; ", errors));
+        }
+        List<String> exampleErrors = findExampleErrors(spec);
+        if (!exampleErrors.isEmpty()) {
+            problems.add("Invalid input example" + (exampleErrors.size() > 1 ? "s" : "") + ": "
+                    + String.join("; ", exampleErrors));
+        }
+        if (!problems.isEmpty()) {
+            throw new IllegalArgumentException(String.join("; ", problems));
         }
     }
 
@@ -123,6 +142,22 @@ public final class InputDefaults {
         forEachParameter(spec, (label, param) -> {
             String error = defaultError(param);
             if (error != null) {
+                errors.add(label + ": " + error);
+            }
+        });
+        return errors;
+    }
+
+    /**
+     * @param spec the capability spec, may be null
+     * @return one message per example, on a parameter or on its nested {@code items} and
+     *         {@code properties}, that does not match its type or enum: exposed MCP tools, then
+     *         aggregate flows, then consumed MCP tools
+     */
+    public static List<String> findExampleErrors(IkanosSpec spec) {
+        List<String> errors = new ArrayList<>();
+        forEachParameter(spec, (label, param) -> {
+            for (String error : examplesErrors(param)) {
                 errors.add(label + ": " + error);
             }
         });
@@ -169,11 +204,75 @@ public final class InputDefaults {
         if (value == null) {
             return null;
         }
+        String error = valueError(value, type, enumeration);
+        return error != null ? "default " + error : null;
+    }
+
+    /**
+     * Check the examples of a parameter, and of its nested {@code items} and {@code properties},
+     * with {@link #exampleError}.
+     *
+     * @param param the parameter
+     * @return one message per example that does not match, naming the nested property or the
+     *         {@code items} that declares it
+     */
+    static List<String> examplesErrors(InputParameterSpec param) {
+        List<String> errors = new ArrayList<>();
+        collectExamplesErrors(param, "", errors);
+        return errors;
+    }
+
+    private static void collectExamplesErrors(InputParameterSpec param, String location,
+            List<String> errors) {
+        for (String example : param.getExamples()) {
+            String error = exampleError(example, param.getType(), param.getEnumeration());
+            if (error != null) {
+                errors.add(location + error);
+            }
+        }
+        if (param.getItems() != null) {
+            collectExamplesErrors(param.getItems(), location + "items: ", errors);
+        }
+        for (InputParameterSpec child : param.getProperties()) {
+            if (child != null) {
+                collectExamplesErrors(child, location + "property '" + child.getName() + "': ",
+                        errors);
+            }
+        }
+    }
+
+    /**
+     * Check an example the way {@link #defaultError} checks a default, on the value that the
+     * tool's {@code inputSchema} advertises: examples are stored as text, like enum values, and
+     * read with {@link #typedExampleValue}. An untyped input is advertised as a {@code string}.
+     * Numbers are read as for a default: an integral decimal such as {@code 25.0} is an
+     * {@code integer}, {@code 2.5} is not.
+     *
+     * @param example the example as written
+     * @param type the input type, may be null (read as {@code string})
+     * @param enumeration the values the example must be one of, empty for any
+     * @return the problem, or {@code null} when the example matches
+     */
+    public static String exampleError(String example, String type, List<String> enumeration) {
+        if (example == null) {
+            return null;
+        }
+        String advertised = type != null ? type : InputParameterSpec.DEFAULT_MCP_TOOL_INPUT_TYPE;
+        JsonNode value = JSON.valueToTree(typedExampleValue(advertised, example));
+        String error = valueError(value, advertised, enumeration);
+        return error != null ? "example '" + example + "' " + error : null;
+    }
+
+    /**
+     * @return what is wrong with a value for a {@code type} and an {@code enum}, as the end of a
+     *         sentence such as {@code does not match type 'integer'}, or {@code null}
+     */
+    private static String valueError(JsonNode value, String type, List<String> enumeration) {
         if (type != null && !matchesType(type, value)) {
-            return "default does not match type '" + type + "'";
+            return "does not match type '" + type + "'";
         }
         if (!enumeration.isEmpty() && !inEnum(type, value, enumeration)) {
-            return "default is not one of the enum values";
+            return "is not one of the enum values";
         }
         return null;
     }
@@ -255,6 +354,37 @@ public final class InputDefaults {
         } catch (NumberFormatException e) {
             return value;
         }
+    }
+
+    /**
+     * Examples are stored as text; read one with the parameter's JSON type, as
+     * {@link #typedEnumValue} does for enum values, except that an integral decimal such as
+     * {@code 25.0} on an {@code integer} parameter is read as the integer {@code 25}, as
+     * {@link #defaultError} accepts {@code 25.0} as an integer default. Shared by the advertised
+     * {@code inputSchema} and {@link #exampleError}: a value that does not parse as the type, such
+     * as {@code 2.5} on an {@code integer} parameter, stays a string, which
+     * {@link #exampleError} reports.
+     *
+     * @param type the parameter type, may be null (read as {@code string})
+     * @param value the example as written
+     * @return a {@link BigInteger}, {@link BigDecimal}, {@link Boolean} or the string itself
+     */
+    public static Object typedExampleValue(String type, String value) {
+        if ("integer".equals(type)) {
+            try {
+                BigDecimal number = new BigDecimal(value);
+                // An integer of more digits than any argument has, such as 1e999999999, is not
+                // expanded: it stays a string, which exampleError reports
+                if (number.signum() != 0
+                        && number.precision() - number.scale() > MAX_EXAMPLE_INTEGER_DIGITS) {
+                    return value;
+                }
+                return number.toBigIntegerExact();
+            } catch (NumberFormatException | ArithmeticException e) {
+                return value;
+            }
+        }
+        return typedEnumValue(type, value);
     }
 
     /**
