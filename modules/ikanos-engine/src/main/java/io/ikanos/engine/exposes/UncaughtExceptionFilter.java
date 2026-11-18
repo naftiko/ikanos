@@ -53,7 +53,8 @@ class UncaughtExceptionFilter extends Filter {
             // Read a body the handler left unread, or Jetty would close a keep-alive connection
             // under the client (#878)
             RejectedRequestBodies.discard(request);
-            // Drop what the failed handler had already set, such as forwarded headers
+            // Drop the extra headers the failed handler had already set; the status and the
+            // entity are replaced below
             response.getHeaders().clear();
             response.setStatus(Status.SERVER_ERROR_INTERNAL);
             response.setEntity(ErrorReference.withReference(PUBLIC_MESSAGE, correlationId),
