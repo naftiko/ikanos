@@ -30,6 +30,7 @@ import io.ikanos.engine.exposes.mcp.model.HandlerSuccessResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerResult;
 import io.ikanos.engine.exposes.mcp.model.McpRequestContext;
 import io.ikanos.engine.exposes.mcp.search.ToolSearchCatalog;
+import io.ikanos.engine.exposes.mcp.search.ToolSearchMode;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPostProcessor;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPreProcessor;
 import io.ikanos.engine.observability.McpMetaTraceContextBridge;
@@ -40,7 +41,10 @@ import io.opentelemetry.context.Context;
 import io.opentelemetry.context.Scope;
 import org.restlet.Request;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -330,6 +334,68 @@ public class ProtocolDispatcher {
             tool = taskTool(request.path("params").path("taskId").asString(null), httpRequest);
         }
         return AccessControl.effective(serverSpec, tool);
+    }
+
+    /**
+     * Returns every requirement the caller's token must meet for this JSON-RPC request, in the
+     * order they are checked. Most requests have one, {@link #requirementFor(JsonNode, Request)}.
+     * A call of the call meta-tool in deferred mode runs other tools, so it gets the requirement
+     * of each tool it names, as a direct {@code tools/call} of that tool would: the meta-tool's
+     * name alone gives the adapter's requirement, and a token without a tool's scopes or claims
+     * could otherwise run that tool through the meta-tool. A name that is no tool gets the
+     * adapter's requirement, as a direct call of an unknown tool does, and so does a batch the
+     * meta-tool refuses as a whole (no calls, or more than {@code maxToolCalls}).
+     *
+     * @param request the parsed JSON-RPC request
+     * @param httpRequest the inbound HTTP request, which selects the tool search mode
+     * @return the requirements, without duplicates; a {@code null} element requires nothing
+     */
+    List<AuthorizationSpec> requirementsFor(JsonNode request, Request httpRequest) {
+        List<String> targets = callToolTargets(request, httpRequest);
+        if (targets == null) {
+            return Collections.singletonList(requirementFor(request, httpRequest));
+        }
+        Set<AuthorizationSpec> requirements = new LinkedHashSet<>();
+        if (targets.isEmpty()) {
+            requirements.add(AccessControl.effective(serverSpec, null));
+        }
+        for (String name : targets) {
+            requirements.add(AccessControl.effective(serverSpec, toolNamed(name)));
+        }
+        return new ArrayList<>(requirements);
+    }
+
+    /**
+     * The names of the tools a call of the call meta-tool runs, as {@code ToolsCallHandler}
+     * reads them, or {@code null} when the request is not such a call: another method or tool,
+     * listed mode, or an unknown {@code ?toolSearch=} value, which dispatch refuses. The list is
+     * empty when the meta-tool refuses the batch as a whole.
+     */
+    private List<String> callToolTargets(JsonNode request, Request httpRequest) {
+        if (serverSpec == null || toolSearchCatalog == null || request == null
+                || !ToolsCallHandler.METHOD_NAME.equals(request.path("method").asString(""))) {
+            return null;
+        }
+        JsonNode params = request.path("params");
+        if (!toolSearchCatalog.isCallTool(params.path("name").asString(""))) {
+            return null;
+        }
+        try {
+            if (McpRequestContext.from(httpRequest, toolSearchCatalog).mode()
+                    != ToolSearchMode.DEFERRED) {
+                return null;
+            }
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+        JsonNode calls = params.path("arguments").path("calls");
+        List<String> names = new ArrayList<>();
+        if (calls.isArray() && calls.size() <= toolSearchCatalog.maxToolCalls()) {
+            for (JsonNode call : calls) {
+                names.add(call.path("name").isString() ? call.path("name").asString() : "");
+            }
+        }
+        return names;
     }
 
     /**
