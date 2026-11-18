@@ -590,6 +590,137 @@ public class ForwardResponseHeadersTest {
                 : to.getEntity().getLocationRef(), header);
     }
 
+    // --- Listed headers that carry a URI: the same protection as Location ---
+
+    private static Response relayedListed(String header, String value, Set<String> injected) {
+        Response from = new Response(new Request(Method.GET,
+                BASE_URI + "/items?api_key=s3cret"));
+        from.getHeaders().add(header, value);
+        Response to = new Response(incoming("http://localhost:8080/proxy/items", "items"));
+        ForwardResponseHeaders.relay(from, to, List.of(header), BASE_URI, true, new HashSet<>(),
+                new ForwardResponseHeaders.Exposure(null, injected, false));
+        return to;
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "Link | <http://upstream:9090/v1/items?api_key=s3cret&page=2>; rel=\"next\"",
+            "Link | <http://upstream:9090/v1/items?page=2>; rel=\"next\","
+                    + " <http://upstream:9090/v1/items?API_KEY=s3cret>; rel=\"last\"",
+            "Refresh | 0; url=http://upstream:9090/v1/items?api_key=s3cret",
+            "X-Next-Page | http%3A%2F%2Fupstream%3A9090%2Fv1%2Fitems%3Fapi_key%3Ds3cret",
+            "X-Next-Page | /v1/items?return=%2Fv1%2Fitems%3Fapi_key%3Ds3cret",
+            "X-Next-Query | api_key=s3cret&page=2"})
+    public void relayShouldDropAListedHeaderThatCarriesAnInjectedQueryParameter(String header,
+            String value) {
+        Response to = relayedListed(header, value, Set.of("api_key"));
+
+        assertNull(to.getHeaders().getFirstValue(header, true),
+                "#1002: a listed " + header + " must not hand the caller the adapter's query"
+                        + " credential");
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "Link | <http://upstream:9090/v1/items?page=2>; rel=\"next\"",
+            "Refresh | 5; url=http://upstream:9090/v1/items?page=2",
+            "X-Request-Id | r-1"})
+    public void relayShouldRelayAListedHeaderWithoutAnInjectedQueryParameter(String header,
+            String value) {
+        assertEquals(value,
+                relayedListed(header, value, Set.of("api_key")).getHeaders()
+                        .getFirstValue(header, true));
+    }
+
+    @Test
+    public void relayShouldRelayAListedLinkAsIsWhenTheEngineAddedNoQueryParameter() {
+        String value = "<http://upstream:9090/v1/items?api_key=caller&page=2>; rel=\"next\"";
+
+        assertEquals(value,
+                relayedListed("Link", value, Set.of()).getHeaders().getFirstValue("Link", true));
+    }
+
+    @Test
+    public void relayShouldDropOnlyTheLineOfAListedHeaderThatCarriesAnInjectedQueryParameter() {
+        Response from = new Response(new Request(Method.GET, BASE_URI + "/items?api_key=s3cret"));
+        from.getHeaders().add("Link", "<http://upstream:9090/v1/items?page=2>; rel=\"next\"");
+        from.getHeaders().add("Link",
+                "<http://upstream:9090/v1/items?api_key=s3cret>; rel=\"self\"");
+        Response to = new Response(incoming("http://localhost:8080/proxy/items", "items"));
+
+        ForwardResponseHeaders.relay(from, to, List.of("Link"), BASE_URI, true, new HashSet<>(),
+                new ForwardResponseHeaders.Exposure(null, Set.of("api_key"), false));
+
+        assertEquals("<http://upstream:9090/v1/items?page=2>; rel=\"next\"",
+                to.getHeaders().getValues("Link"));
+    }
+
+    @Test
+    public void relayShouldDropAListedHeaderThatCarriesAnAmzQueryForASigningAdapter() {
+        Response from = new Response(new Request(Method.GET, BASE_URI + "/items"));
+        from.getHeaders().add("Link",
+                "<http://bucket.s3.example/k?X-Amz-Security-Token=tok>; rel=\"alternate\"");
+        Response to = new Response(incoming("http://localhost:8080/proxy/items", "items"));
+
+        ForwardResponseHeaders.relay(from, to, List.of("Link"), BASE_URI, true, new HashSet<>(),
+                new ForwardResponseHeaders.Exposure(null, Set.of(), false, true));
+
+        assertNull(to.getHeaders().getFirstValue("Link", true));
+    }
+
+    // --- Why a location is dropped ---
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "http://upstream:9090/secret-admin-path | OUTSIDE_BASE",
+            "/internal/x | OUTSIDE_BASE",
+            "http://upstream:8443/v1/items/42 | OUTSIDE_BASE",
+            "http:/admin | NO_HOST",
+            "urn:isbn:0451450523 | NO_HOST",
+            "/v1/%2e%2e/admin | DOT_SEGMENT",
+            "/v1/items/42?api_key=s3cret | PROTECTED_QUERY",
+            "http://upstream:9090/v1 | NO_ROUTE",
+            "'http://up stream/v1' | UNPARSEABLE"})
+    public void relayLocationShouldNameWhyALocationIsDropped(String raw, String reason) {
+        ForwardResponseHeaders.Relayed relayed = ForwardResponseHeaders.relayLocation(raw,
+                BASE_URI + "/items", BASE_URI,
+                incoming("http://localhost:8080/proxy/items", "items"),
+                new ForwardResponseHeaders.Exposure(null, Set.of("api_key"), false));
+
+        assertNull(relayed.value(), raw);
+        assertEquals(ForwardResponseHeaders.Drop.valueOf(reason), relayed.dropped(), raw);
+    }
+
+    @Test
+    public void relayLocationShouldGiveNoReasonForARelayedLocation() {
+        ForwardResponseHeaders.Relayed relayed = ForwardResponseHeaders.relayLocation(
+                "/v1/items/42", BASE_URI + "/items", BASE_URI,
+                incoming("http://localhost:8080/proxy/items", "items"),
+                new ForwardResponseHeaders.Exposure(null, Set.of("api_key"), false));
+
+        assertEquals("/proxy/items/42", relayed.value());
+        assertNull(relayed.dropped());
+    }
+
+    @Test
+    public void relayShouldLogWhyALocationIsDroppedButNotItsValue() {
+        try (LogCapture logs = new LogCapture()) {
+            Response from = new Response(new Request(Method.POST,
+                    BASE_URI + "/items?api_key=s3cret"));
+            from.setStatus(Status.SUCCESS_CREATED);
+            from.getHeaders().add("Location", BASE_URI + "/items/42?api_key=s3cret");
+            Response to = new Response(incoming("http://localhost:8080/proxy/items", "items"));
+
+            ForwardResponseHeaders.relay(from, to, List.of(), BASE_URI, true, new HashSet<>(),
+                    new ForwardResponseHeaders.Exposure(null, Set.of("api_key"), false));
+
+            String all = String.join(" | ", logs.messages());
+            assertTrue(all.contains(ForwardResponseHeaders.Drop.PROTECTED_QUERY.reason()), all);
+            assertFalse(all.contains("baseUri"), "the reason must be the actual one: " + all);
+            assertFalse(all.contains("s3cret"), all);
+        }
+    }
+
     // --- Location: a signing (awsSigV4) adapter's query-string signature and session token ---
 
     private static ForwardResponseHeaders.Exposure signed() {

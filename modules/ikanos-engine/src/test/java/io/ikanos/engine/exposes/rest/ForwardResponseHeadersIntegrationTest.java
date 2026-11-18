@@ -56,9 +56,10 @@ public class ForwardResponseHeadersIntegrationTest {
     private static final AtomicInteger redirectTargetHits = new AtomicInteger();
     private static final List<String> otherHostKeys = new CopyOnWriteArrayList<>();
     private static HttpServer otherHost;
-    private static ServerAdapter adapter;
+    private static List<ServerAdapter> adapters;
     private static int upstreamPort;
     private static int exposedPort;
+    private static int securedExposedPort;
     private static final HttpClient CLIENT = HttpClient.newHttpClient();
 
     @BeforeAll
@@ -142,9 +143,25 @@ public class ForwardResponseHeadersIntegrationTest {
             exchange.sendResponseHeaders(304, -1);
             exchange.close();
         });
+        // Echoes the URI it was called with, as an upstream that builds its links from the
+        // request does: with a query-placed apikey, that URI carries the adapter's credential
+        upstream.createContext("/v1/echo", exchange -> {
+            String self = "http://localhost:" + upstreamPort + exchange.getRequestURI();
+            exchange.getResponseHeaders().put("Location", List.of(self));
+            exchange.getResponseHeaders().put("Content-Location", List.of(self));
+            exchange.getResponseHeaders().put("Link", List.of("<" + self + ">; rel=\"self\""));
+            exchange.getResponseHeaders().put("Refresh", List.of("30; url=" + self));
+            byte[] body = "{}".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(201, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        respond("/v1/shared", 200, Map.of("Cache-Control", List.of("public, max-age=60")));
         upstream.start();
 
         exposedPort = freePort();
+        securedExposedPort = freePort();
         String yaml = """
                 ikanos: "%s"
                 capability:
@@ -170,6 +187,30 @@ public class ForwardResponseHeadersIntegrationTest {
                         - path: "/keyed/{{path}}"
                           forward:
                             targetNamespace: keyed
+                        - path: "/queried/{{path}}"
+                          forward:
+                            targetNamespace: queried
+                            trustedResponseHeaders:
+                              - Link
+                              - Refresh
+                        - path: "/linked/{{path}}"
+                          forward:
+                            targetNamespace: up
+                            trustedResponseHeaders:
+                              - Link
+                              - Refresh
+                    - type: "rest"
+                      address: "localhost"
+                      port: %d
+                      namespace: "private-proxy"
+                      authentication:
+                        type: apikey
+                        key: X-Api-Key
+                        value: "caller-key"
+                      resources:
+                        - path: "/private/{{path}}"
+                          forward:
+                            targetNamespace: up
                   consumes:
                     - type: "http"
                       namespace: "up"
@@ -187,16 +228,29 @@ public class ForwardResponseHeadersIntegrationTest {
                         X-API-Key:
                           in: header
                           value: "adapter-secret"
-                """.formatted(IKANOS, exposedPort, upstreamPort, upstreamPort, upstreamPort);
+                    - type: "http"
+                      namespace: "queried"
+                      baseUri: "http://localhost:%d/v1"
+                      authentication:
+                        type: apikey
+                        key: api_key
+                        placement: query
+                        value: "query-secret"
+                """.formatted(IKANOS, exposedPort, securedExposedPort, upstreamPort,
+                upstreamPort, upstreamPort, upstreamPort);
         IkanosSpec spec = IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
-        adapter = new Capability(spec).getServerAdapters().get(0);
-        adapter.start();
+        adapters = new Capability(spec).getServerAdapters();
+        for (ServerAdapter adapter : adapters) {
+            adapter.start();
+        }
     }
 
     @AfterAll
     static void stop() throws Exception {
-        if (adapter != null) {
-            adapter.stop();
+        if (adapters != null) {
+            for (ServerAdapter adapter : adapters) {
+                adapter.stop();
+            }
         }
         if (upstream != null) {
             upstream.stop(0);
@@ -420,6 +474,94 @@ public class ForwardResponseHeadersIntegrationTest {
         assertEquals(304, response.statusCode());
         assertEquals(null, response.headers().firstValue("Cache-Control").orElse(null),
                 "the cache would replace a stored no-cache with a synthesized max-age");
+    }
+
+    // --- The adapter's query credential, read from the request actually sent upstream ---
+
+    @Test
+    public void forwardShouldRewriteAnEchoedLocationWhenTheAdapterAddsNoQueryParameter()
+            throws Exception {
+        HttpResponse<String> response = get("/linked/echo?page=2");
+
+        assertEquals(201, response.statusCode());
+        assertEquals("/linked/echo?page=2",
+                response.headers().firstValue("Location").orElse(null),
+                "control case: the same echo is relayed when nothing was added to the query");
+    }
+
+    @Test
+    public void forwardShouldDropAnEchoedLocationThatCarriesTheAdaptersQueryCredential()
+            throws Exception {
+        HttpResponse<String> response = get("/queried/echo?page=2");
+
+        assertEquals(201, response.statusCode());
+        assertFalse(response.headers().firstValue("Location").isPresent(),
+                "#1002: the api_key the engine appended must not reach the caller");
+        assertFalse(response.headers().firstValue("Content-Location").isPresent(),
+                "#1002: the api_key the engine appended must not reach the caller");
+    }
+
+    @Test
+    public void forwardShouldDropAnEchoedLocationWhenTheCallerSendsTheCredentialsName()
+            throws Exception {
+        HttpResponse<String> response = get("/queried/echo?api_key=ignored");
+
+        assertEquals(201, response.statusCode());
+        assertFalse(response.headers().firstValue("Location").isPresent(),
+                "#1002: a caller's ?api_key=ignored must not unprotect the adapter's key");
+        assertFalse(response.headers().firstValue("Content-Location").isPresent(),
+                "#1002: a caller's ?api_key=ignored must not unprotect the adapter's key");
+    }
+
+    @Test
+    public void forwardShouldDropListedLinkAndRefreshThatCarryTheAdaptersQueryCredential()
+            throws Exception {
+        HttpResponse<String> response = get("/queried/echo?page=2");
+
+        assertFalse(response.headers().firstValue("Link").isPresent(),
+                "#1002: a listed Link must not hand the caller the adapter's api_key");
+        assertFalse(response.headers().firstValue("Refresh").isPresent(),
+                "#1002: a listed Refresh must not hand the caller the adapter's api_key");
+    }
+
+    @Test
+    public void forwardShouldRelayListedLinkAndRefreshWhenTheAdapterAddsNoQueryParameter()
+            throws Exception {
+        HttpResponse<String> response = get("/linked/echo?page=2");
+        String self = "http://localhost:" + upstreamPort + "/v1/echo?page=2";
+
+        assertEquals("<" + self + ">; rel=\"self\"",
+                response.headers().firstValue("Link").orElse(null));
+        assertEquals("30; url=" + self, response.headers().firstValue("Refresh").orElse(null));
+    }
+
+    // --- An exposed adapter that authenticates its callers ---
+
+    @Test
+    public void forwardShouldMarkTheAnswerPrivateWhenTheExposedAdapterAuthenticates()
+            throws Exception {
+        HttpRequest request = HttpRequest
+                .newBuilder(URI.create("http://localhost:" + securedExposedPort
+                        + "/private/shared"))
+                .header("X-Api-Key", "caller-key").GET().build();
+        HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+
+        assertEquals(200, response.statusCode(), response.body());
+        List<String> directives = List.of(
+                response.headers().firstValue("Cache-Control").orElse("").split(",\\s*"));
+        assertTrue(directives.contains("private"), "got Cache-Control: " + directives);
+        assertTrue(directives.contains("max-age=60"), "got Cache-Control: " + directives);
+        assertFalse(directives.contains("public"),
+                "#1002: a shared cache must not serve an authenticated answer to anyone: "
+                        + directives);
+    }
+
+    @Test
+    public void forwardShouldRelayPublicCacheControlWhenTheExposedAdapterDoesNotAuthenticate()
+            throws Exception {
+        assertEquals("public, max-age=60",
+                get("/linked/shared").headers().firstValue("Cache-Control").orElse(null),
+                "control case: the same answer stays public without exposed authentication");
     }
 
     @Test
