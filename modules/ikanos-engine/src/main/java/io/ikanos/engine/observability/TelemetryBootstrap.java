@@ -26,11 +26,17 @@ import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.common.AttributesBuilder;
 import io.ikanos.spec.observability.ObservabilitySpec;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.slf4j.MDC;
 
 /**
@@ -447,44 +453,75 @@ public class TelemetryBootstrap {
     /** What replaces a redacted part of a URL, as OpenTelemetry's semantic conventions write it. */
     static final String REDACTED = "REDACTED";
 
+    /** A URL scheme followed by {@code ://}. */
+    private static final Pattern SCHEME = Pattern.compile("^[A-Za-z][A-Za-z0-9+.-]*://");
+
+    /** A URL inside free text: a scheme, {@code ://}, then everything up to the next blank. */
+    private static final Pattern URL_IN_TEXT = Pattern.compile("[A-Za-z][A-Za-z0-9+.-]*://\\S+");
+
+    /** A host (registered name or bracketed IP literal) with an optional port. */
+    private static final Pattern HOST_AND_PORT = Pattern.compile(
+            "(\\[[0-9A-Fa-f:.]+\\]|[A-Za-z0-9._~%!$&'()*+,;=-]*)(:[0-9]*)?");
+
     /**
      * A URL as a span may record it: each query value, and the user information, replaced by
      * {@link #REDACTED}, and the fragment left out. Query values and user information can hold a
      * credential or a caller's data, and traces often reach a wider audience than the call.
      * Parameter names stay, so the span still shows which parameters were sent; an element
-     * without {@code =} is redacted whole, since it is a value with no name.
+     * without {@code =} is redacted whole, since it is a value with no name. Query elements are
+     * split on {@code &} only, so an element holding {@code ;} is redacted as one value.
+     *
+     * <p>User information is recorded as {@code REDACTED:REDACTED@}, or {@code REDACTED@} when it
+     * has no {@code :}. The host is the one after the last {@code @} of the authority. When no
+     * host follows it, as when the user information holds an unencoded {@code /}, {@code ?} or
+     * {@code #}, the host is the one after the last {@code @} of the URL that a host follows, and
+     * everything before it is redacted; when there is none, only the scheme is kept. User
+     * information holding both an unencoded {@code @} and one of those characters cannot be told
+     * apart from a path or a query, and may be partly recorded. The path is recorded as sent: a
+     * credential carried in a path segment is not redacted.
      *
      * @param url the URL as sent
      * @return the URL to record
      */
     static String redactUrl(String url) {
+        Matcher scheme = SCHEME.matcher(url);
+        String authority = "";
         String rest = url;
+        if (scheme.find()) {
+            int start = scheme.end();
+            int end = endOfAuthority(url, start);
+            int at = url.lastIndexOf('@', end - 1);
+            if (HOST_AND_PORT.matcher(url.substring(start, end)).matches()) {
+                at = -1;
+            } else if (at < start || !isHostAt(url, at)) {
+                at = lastHostAt(url, start);
+                if (at < 0) {
+                    return url.substring(0, start) + REDACTED;
+                }
+                end = endOfAuthority(url, at + 1);
+            }
+            authority = url.substring(0, start);
+            if (at >= start) {
+                authority += url.substring(start, at).indexOf(':') >= 0
+                        ? REDACTED + ":" + REDACTED
+                        : REDACTED;
+                authority += url.substring(at, end);
+            } else {
+                authority += url.substring(start, end);
+            }
+            rest = url.substring(end);
+        }
         int hash = rest.indexOf('#');
         if (hash >= 0) {
             rest = rest.substring(0, hash);
         }
-        String query = null;
         int question = rest.indexOf('?');
-        if (question >= 0) {
-            query = rest.substring(question + 1);
-            rest = rest.substring(0, question);
+        if (question < 0) {
+            return authority + rest;
         }
-        int scheme = rest.indexOf("://");
-        if (scheme >= 0) {
-            int authorityStart = scheme + 3;
-            int slash = rest.indexOf('/', authorityStart);
-            int authorityEnd = slash >= 0 ? slash : rest.length();
-            int at = rest.lastIndexOf('@', authorityEnd - 1);
-            if (at >= authorityStart) {
-                rest = rest.substring(0, authorityStart) + REDACTED + ":" + REDACTED
-                        + rest.substring(at);
-            }
-        }
-        if (query == null) {
-            return rest;
-        }
-        StringBuilder redacted = new StringBuilder(rest).append('?');
-        String[] elements = query.split("&", -1);
+        StringBuilder redacted = new StringBuilder(authority)
+                .append(rest, 0, question + 1);
+        String[] elements = rest.substring(question + 1).split("&", -1);
         for (int i = 0; i < elements.length; i++) {
             if (i > 0) {
                 redacted.append('&');
@@ -500,6 +537,49 @@ public class TelemetryBootstrap {
         return redacted.toString();
     }
 
+    /** The index of the first {@code /}, {@code ?} or {@code #} from {@code from}, or the length. */
+    private static int endOfAuthority(String url, int from) {
+        for (int i = from; i < url.length(); i++) {
+            char c = url.charAt(i);
+            if (c == '/' || c == '?' || c == '#') {
+                return i;
+            }
+        }
+        return url.length();
+    }
+
+    /** Whether a host, and nothing else, follows the {@code @} at {@code at}. */
+    private static boolean isHostAt(String url, int at) {
+        return HOST_AND_PORT.matcher(url.substring(at + 1, endOfAuthority(url, at + 1))).matches();
+    }
+
+    /** The last {@code @} from {@code start} that a host follows, or -1. */
+    private static int lastHostAt(String url, int start) {
+        for (int at = url.lastIndexOf('@'); at >= start; at = url.lastIndexOf('@', at - 1)) {
+            if (isHostAt(url, at)) {
+                return at;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Free text, such as an error message or a stack trace, with each URL in it passed through
+     * {@link #redactUrl(String)}. A URL runs from its scheme to the next blank.
+     *
+     * @param text the text to record
+     * @return the text with its URLs redacted
+     */
+    static String redactText(String text) {
+        Matcher url = URL_IN_TEXT.matcher(text);
+        StringBuilder redacted = new StringBuilder();
+        while (url.find()) {
+            url.appendReplacement(redacted, Matcher.quoteReplacement(redactUrl(url.group())));
+        }
+        url.appendTail(redacted);
+        return redacted.toString();
+    }
+
     private static void setStringAttribute(SpanBuilder builder, AttributeKey<String> key,
             String value) {
         builder.setAttribute(nonNullStringKey(key), nonNull(value));
@@ -510,16 +590,33 @@ public class TelemetryBootstrap {
     }
 
     /**
-     * Record an error on a span.
+     * Record an error on a span: an {@code exception} event and an error status. The message and
+     * the stack trace go through {@link #redactText(String)}, so a URL in them is recorded as
+     * {@code url.full} is.
      */
     public static void recordError(Span span, Throwable error) {
         if (span != null && error != null) {
-            span.recordException(error);
-            String message = error.getMessage();
-            span.setStatus(StatusCode.ERROR,
-                    nonNull(message != null ? message : error.getClass().getName()));
+            String type = error.getClass().getName();
+            String message = error.getMessage() != null ? redactText(error.getMessage()) : null;
+            StringWriter stackTrace = new StringWriter();
+            error.printStackTrace(new PrintWriter(stackTrace));
+            AttributesBuilder event = Attributes.builder()
+                    .put(nonNullStringKey(EXCEPTION_TYPE), nonNull(type))
+                    .put(nonNullStringKey(EXCEPTION_STACKTRACE),
+                            nonNull(redactText(stackTrace.toString())));
+            if (message != null) {
+                event.put(nonNullStringKey(EXCEPTION_MESSAGE), message);
+            }
+            span.addEvent("exception", nonNull(event.build()));
+            span.setStatus(StatusCode.ERROR, nonNull(message != null ? message : type));
         }
     }
+
+    static final AttributeKey<String> EXCEPTION_TYPE = AttributeKey.stringKey("exception.type");
+    static final AttributeKey<String> EXCEPTION_MESSAGE =
+            AttributeKey.stringKey("exception.message");
+    static final AttributeKey<String> EXCEPTION_STACKTRACE =
+            AttributeKey.stringKey("exception.stacktrace");
 
     /**
      * End a span safely.
