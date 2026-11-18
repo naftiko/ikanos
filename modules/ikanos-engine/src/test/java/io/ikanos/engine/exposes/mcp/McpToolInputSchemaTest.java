@@ -198,11 +198,12 @@ class McpToolInputSchemaTest {
                 - name: page_size
                   type: integer
                   description: "Page size."
-                  examples: [25.0, 2.5]
+                  examples: [25.0, 50]
                 """).path("properties");
 
-        // 25.0 is the integer 25; 2.5 is no integer and stays as authored, for the linter to flag.
-        assertEquals("[25,\"2.5\"]",
+        // 25.0 is the integer 25, as default: 25.0 is an integer default. A fractional example
+        // such as 2.5 never gets here: the capability refuses to load (InputDefaults).
+        assertEquals("[25,50]",
                 JSON.writeValueAsString(schema.path("page_size").path("examples")));
     }
 

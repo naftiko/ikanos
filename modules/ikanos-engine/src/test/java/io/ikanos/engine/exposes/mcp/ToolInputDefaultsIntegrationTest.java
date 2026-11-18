@@ -101,6 +101,32 @@ public class ToolInputDefaultsIntegrationTest {
         assertTrue(error.getMessage().contains("'probe-mcp.list-things'"), error.getMessage());
     }
 
+    @Test
+    public void capabilityShouldRefuseToLoadWhenExampleDoesNotMatchType() {
+        String yaml = capabilityYaml(findFreePortUnchecked()).replaceFirst(
+                "default: 200\n", "default: 200\n" + " ".repeat(14) + "examples: [25.0, 2.5]\n");
+
+        IllegalArgumentException error =
+                assertThrows(IllegalArgumentException.class, () -> capabilityFromYaml(yaml));
+
+        assertTrue(error.getMessage().contains("Invalid input example: MCP tool"
+                + " 'probe-mcp.list-things' input parameter 'size': example '2.5' does not match"
+                + " type 'integer'"), error.getMessage());
+    }
+
+    @Test
+    public void capabilityShouldRefuseToLoadWhenExampleIsNotInEnum() {
+        String yaml = capabilityYaml(findFreePortUnchecked()).replaceFirst(
+                "items: \\{ type: string \\}",
+                "items: { type: string, enum: [a, b], examples: [c] }");
+
+        IllegalArgumentException error =
+                assertThrows(IllegalArgumentException.class, () -> capabilityFromYaml(yaml));
+
+        assertTrue(error.getMessage().contains("'probe-mcp.list-things' input parameter 'tags':"
+                + " items: example 'c' is not one of the enum values"), error.getMessage());
+    }
+
     private record Recorded(String query, String body) {
     }
 

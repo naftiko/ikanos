@@ -152,6 +152,9 @@ public class ValidateCommand implements Callable<Integer> {
             // on stdio, empty, or naming a scope authentication.scopes does not list (#999).
             List<String> authorizationErrors =
                     spec != null ? AccessControl.findErrors(spec) : List.of();
+            // Their examples too, read as the tool's inputSchema advertises them
+            List<String> exampleErrors =
+                    spec != null ? InputDefaults.findExampleErrors(spec) : List.of();
             List<String> warnings = new ArrayList<>(definitions.warnings());
             if (spec != null) {
                 warnings.addAll(InputDefaults.findWarnings(spec));
@@ -164,7 +167,7 @@ public class ValidateCommand implements Callable<Integer> {
                     && headerErrors.isEmpty() && forwardErrors.isEmpty()
                     && definitions.errors().isEmpty()
                     && inferredCallErrors.isEmpty() && defaultErrors.isEmpty()
-                    && authorizationErrors.isEmpty()) {
+                    && authorizationErrors.isEmpty() && exampleErrors.isEmpty()) {
                 System.out.println("✓ Validation successful!");
                 System.out.println("  File: " + filePath);
                 System.out.println("  Status: OK");
@@ -227,6 +230,11 @@ public class ValidateCommand implements Callable<Integer> {
                 }
                 for (String error : authorizationErrors) {
                     System.err.println("\n  [" + errorCount + "] Invalid authorization: "
+                            + error);
+                    errorCount++;
+                }
+                for (String error : exampleErrors) {
+                    System.err.println("\n  [" + errorCount + "] Invalid input example: "
                             + error);
                     errorCount++;
                 }

@@ -4,7 +4,11 @@
  * Enforces `ikanos-mcp-tool-input-examples`: an `examples` value of an MCP tool
  * input must be a valid value of that input, because the engine advertises it to
  * models as JSON Schema `examples` in the tool's inputSchema, and a wrong example
- * teaches the model to send a wrong argument. An example is reported when:
+ * teaches the model to send a wrong argument. The engine refuses to load a
+ * capability with such an example (`InputDefaults.exampleError`, also run by
+ * `ikanos validate`); this rule reports it earlier, at warn. The last two cases
+ * below are lint-only: the engine reads those examples exactly, the linter does
+ * not. An example is reported when:
  *
  *   - the input is an object or an array (give examples on its `properties` or
  *     `items` instead);
