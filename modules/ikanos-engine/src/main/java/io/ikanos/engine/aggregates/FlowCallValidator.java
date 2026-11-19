@@ -104,7 +104,7 @@ public final class FlowCallValidator {
     }
 
     /** @return the {@code call} targets of a flow: its own {@code call:} and its call steps */
-    static List<String> callsOf(AggregateFlowSpec flow) {
+    public static List<String> callsOf(AggregateFlowSpec flow) {
         List<String> calls = new ArrayList<>();
         if (flow.getCall() != null && flow.getCall().getOperation() != null) {
             calls.add(flow.getCall().getOperation());
