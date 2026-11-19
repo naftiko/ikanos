@@ -448,7 +448,10 @@ public class Converter {
 
     /**
      * Apply maximum length constraint to a JsonNode string value if specified in the spec.
-     * 
+     *
+     * <p>The length counts characters, not UTF-16 units: a value is cut at a code-point boundary, so
+     * an emoji is either kept whole or dropped, never split into a lone surrogate.</p>
+     *
      * @param spec The output parameter specification containing maxLength constraint
      * @param node The JsonNode to potentially truncate
      * @return The node truncated to maxLength if applicable, or the original node
@@ -460,14 +463,24 @@ public class Converter {
 
         String maxLength = spec.getMaxLength();
         if (maxLength != null && node.isString()) {
+            int max;
             try {
-                int max = Integer.parseInt(maxLength);
-                String s = node.asString();
-                if (s.length() > max) {
-                    return IkanosMappers.json().getNodeFactory().stringNode(s.substring(0, max));
-                }
+                max = Integer.parseInt(maxLength.trim());
             } catch (NumberFormatException nfe) {
                 // ignore invalid maxLength
+                return node;
+            }
+
+            if (max < 0) {
+                // A negative length cannot cut anything, and it used to throw
+                // StringIndexOutOfBoundsException on every value it was applied to.
+                return node;
+            }
+
+            String s = node.asString();
+            if (s.codePointCount(0, s.length()) > max) {
+                return IkanosMappers.json().getNodeFactory()
+                        .stringNode(s.substring(0, s.offsetByCodePoints(0, max)));
             }
         }
 
