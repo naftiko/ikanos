@@ -1970,4 +1970,91 @@ public class ResolverTest {
         // Only the engine's root is protected: an input named auth renders as before #998
         Resolver.requireCallerValues("{{auth}}", Map.of("auth", "client-value"));
     }
+
+    // ─── The caller root never leaves whole, whatever the name (#998) ───────────
+
+    @Test
+    void resolveMustacheTemplateShouldRefuseTheWholeParameterMapWithTheCallerRoot() {
+        // {{.}} and {{this}} render every parameter, auth included
+        for (String template : new String[] {"{{.}}", "{{this}}", "all: {{ . }}"}) {
+            CallerRootExposedException error = assertThrows(CallerRootExposedException.class,
+                    () -> Resolver.resolveMustacheTemplate(template,
+                            callerParameters(Map.of("sub", "alice"))),
+                    template);
+            assertFalse(error.getMessage().contains("alice"), error.getMessage());
+        }
+    }
+
+    @Test
+    void resolveJsonTemplateShouldRefuseTheWholeParameterMapWithTheCallerRoot() {
+        assertThrows(CallerRootExposedException.class,
+                () -> Resolver.resolveJsonTemplate("{\"all\": {{.}}}",
+                        callerParameters(Map.of("sub", "alice"))));
+    }
+
+    @Test
+    void resolveMustacheTemplateShouldStillRenderTheWholeParameterMapWithoutTheCallerRoot() {
+        // Only the caller root is refused: {{.}} over plain inputs renders as before #998
+        assertTrue(Resolver.resolveMustacheTemplate("{{.}}", Map.of("id", "42"))
+                .contains("42"));
+    }
+
+    @Test
+    void requireCallerValuesShouldRefuseTheCallerRootReadWithAnEmptyStep() {
+        // JMustache skips the empty step of auth., so it reads the root
+        Map<String, Object> parameters = callerParameters(Map.of("sub", "alice"));
+        for (String template : new String[] {"{{auth.}}", "{{auth..}}", "{{.auth}}"}) {
+            assertThrows(IllegalArgumentException.class,
+                    () -> Resolver.requireCallerValues(template, parameters), template);
+        }
+    }
+
+    @Test
+    void resolveValueShouldRefuseALookupOfTheCallerRoot() {
+        Map<String, Object> parameters = callerParameters(Map.of("sub", "alice"));
+        // A with alias that copied the root, as {{who}} would read it
+        parameters.put("who", parameters.get(Resolver.CALLER_ROOT));
+        for (String template : new String[] {"{{.}}", "{{this}}", "{{who}}", "{{{who}}}"}) {
+            assertThrows(CallerRootExposedException.class,
+                    () -> Resolver.resolveValue(template, parameters), template);
+        }
+    }
+
+    @Test
+    void resolveMustacheTemplateShouldRefuseAnAliasOfTheCallerRoot() {
+        Map<String, Object> parameters = callerParameters(Map.of("sub", "alice"));
+        parameters.put("who", parameters.get(Resolver.CALLER_ROOT));
+
+        assertThrows(CallerRootExposedException.class,
+                () -> Resolver.resolveMustacheTemplate("user={{who}}", parameters));
+        assertThrows(CallerRootExposedException.class,
+                () -> Resolver.resolveMustacheTemplate("users={{list}}",
+                        Map.of("list", List.of(parameters.get(Resolver.CALLER_ROOT)))));
+    }
+
+    @Test
+    void resolveJsonDataShouldRefuseTheWholeParameterMapWithTheCallerRoot() {
+        Map<String, Object> parameters = callerParameters(Map.of("sub", "alice"));
+        for (String value : new String[] {"{{.}}", "{{auth.}}", "all: {{.}}"}) {
+            // {{auth.}} is refused by name already; the others by value
+            assertThrows(IllegalArgumentException.class,
+                    () -> Resolver.resolveJsonData(Map.of("who", value), parameters), value);
+        }
+    }
+
+    @Test
+    void resolveInputParametersToRequestShouldFailRatherThanSendTheWholeParameterMap() {
+        // Rendering fails inside the loop that skips a parameter it cannot resolve: the call
+        // fails instead, as for a missing claim
+        InputParameterSpec header = new InputParameterSpec();
+        header.setName("X-All");
+        header.setIn("header");
+        header.setValue("{{.}}");
+        Request request = new Request(Method.GET, "http://api.example.com/records");
+
+        assertThrows(CallerRootExposedException.class,
+                () -> Resolver.resolveInputParametersToRequest(request, List.of(header),
+                        callerParameters(Map.of("sub", "alice"))));
+        assertNull(request.getHeaders().getFirstValue("X-All", true));
+    }
 }

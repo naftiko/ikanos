@@ -238,6 +238,19 @@ public class OperationStepExecutorTest {
         assertEquals("shipyard-tools.voyageId", target.get("voyageId"),
                 "Without namespace, qualified reference should be treated as Mustache literal");
     }
+
+    @Test
+    public void mergeWithShouldRefuseANamespaceReferenceToTheCallerRoot() {
+        // #998: an alias of the root would let {{who}} send every claim of the token
+        Map<String, Object> target = new HashMap<>();
+        target.put(Resolver.CALLER_ROOT,
+                new CallerRoot(Map.of("claims", Map.of("sub", "alice"))));
+
+        Map<String, Object> with = new HashMap<>();
+        with.put("who", "shipyard-api." + Resolver.CALLER_ROOT);
+
+        org.junit.jupiter.api.Assertions.assertThrows(CallerRootExposedException.class,
+                () -> OperationStepExecutor.mergeWithParameters(with, target, "shipyard-api"));
+        assertNull(target.get("who"));
+    }
 }
-
-
