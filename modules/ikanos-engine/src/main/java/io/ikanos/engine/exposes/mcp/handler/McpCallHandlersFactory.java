@@ -19,6 +19,8 @@ import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.CapabilitySpec;
+import io.ikanos.engine.aggregates.FlowCallValidator;
+import io.ikanos.spec.aggregates.AggregateFlowSpec;
 import io.ikanos.spec.aggregates.AggregateSpec;
 import io.ikanos.spec.consumes.ClientSpec;
 import io.ikanos.spec.util.OperationStepCallSpec;
@@ -32,7 +34,9 @@ import io.ikanos.engine.exposes.mcp.processor.DispatchPreProcessor;
 import io.ikanos.engine.exposes.mcp.processor.ProtocolsVersionsValidator;
 import io.ikanos.engine.exposes.mcp.processor.ServerDataAppender;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -150,21 +154,14 @@ public class McpCallHandlersFactory {
 
     /**
      * Whether reading {@code resource} may render a template that reads a caller claim: in the
-     * resource's own call, {@code with} and steps, or in a consumed adapter or aggregate they
-     * call (an aggregate may call any consumed adapter, so all of them count then). Every string
-     * and object key is checked, as structured bodies render keys too (#998).
+     * resource's own call, {@code with} and steps, or in what they call, transitively. A consumed
+     * adapter counts whole; an aggregate flow counts with its own call, {@code with}, steps and
+     * input parameter sets, then what it calls in turn ({@link FlowCallValidator#callsOf}), so a
+     * sibling flow or an adapter nothing calls does not count. Every string and object key is
+     * checked, as structured bodies render keys too (#998).
      */
     static boolean readsCallerClaims(Capability capability, McpServerResourceSpec resource) {
         ObjectMapper mapper = IkanosMappers.json();
-        Set<String> namespaces = new HashSet<>();
-        if (resource.getCall() != null) {
-            namespaces.add(namespaceOf(resource.getCall().getOperation()));
-        }
-        for (OperationStepSpec step : resource.getSteps().values()) {
-            if (step instanceof OperationStepCallSpec call) {
-                namespaces.add(namespaceOf(call.getCall()));
-            }
-        }
         if (readsCallerClaims(mapper.valueToTree(resource.getCall()))
                 || readsCallerClaims(mapper.valueToTree(resource.getWith()))
                 || readsCallerClaims(mapper.valueToTree(resource.getSteps()))) {
@@ -175,22 +172,79 @@ public class McpCallHandlersFactory {
         if (spec == null) {
             return false;
         }
-        boolean aggregate = false;
-        for (AggregateSpec candidate : spec.getAggregates().values()) {
-            if (namespaces.contains(candidate.getNamespace())) {
-                aggregate = true;
-                if (readsCallerClaims(mapper.valueToTree(candidate))) {
+        Deque<String> pending = new ArrayDeque<>();
+        if (resource.getCall() != null && resource.getCall().getOperation() != null) {
+            pending.add(resource.getCall().getOperation());
+        }
+        for (OperationStepSpec step : resource.getSteps().values()) {
+            if (step instanceof OperationStepCallSpec call && call.getCall() != null) {
+                pending.add(call.getCall());
+            }
+        }
+        // Flows by qualified name, adapters by namespace: each is scanned once, so a cycle ends
+        Set<String> visited = new HashSet<>();
+        while (!pending.isEmpty()) {
+            String target = pending.poll();
+            String namespace = namespaceOf(target);
+            AggregateSpec aggregate = aggregateOf(spec, namespace);
+            if (aggregate != null) {
+                AggregateFlowSpec flow =
+                        flowOf(aggregate, target.substring(target.indexOf('.') + 1));
+                if (flow == null || !visited.add("flow:" + target)) {
+                    // An unknown flow fails the load in FlowCallValidator
+                    continue;
+                }
+                if (readsCallerClaims(mapper.valueToTree(flow))
+                        || readsCallerClaims(mapper.valueToTree(inputSetsOf(aggregate, flow)))) {
+                    return true;
+                }
+                pending.addAll(FlowCallValidator.callsOf(flow));
+                continue;
+            }
+            if (!visited.add("consumes:" + namespace)) {
+                continue;
+            }
+            for (ClientSpec client : spec.getConsumes()) {
+                if (namespace != null && namespace.equals(client.getNamespace())
+                        && readsCallerClaims(mapper.valueToTree(client))) {
                     return true;
                 }
             }
         }
-        for (ClientSpec client : spec.getConsumes()) {
-            if ((aggregate || namespaces.contains(client.getNamespace()))
-                    && readsCallerClaims(mapper.valueToTree(client))) {
-                return true;
+        return false;
+    }
+
+    private static AggregateSpec aggregateOf(CapabilitySpec spec, String namespace) {
+        for (AggregateSpec candidate : spec.getAggregates().values()) {
+            if (candidate != null && namespace != null
+                    && namespace.equals(candidate.getNamespace())) {
+                return candidate;
             }
         }
-        return false;
+        return null;
+    }
+
+    private static AggregateFlowSpec flowOf(AggregateSpec aggregate, String name) {
+        for (AggregateFlowSpec flow : aggregate.getFlows().values()) {
+            if (flow != null && name.equals(flow.getName())) {
+                return flow;
+            }
+        }
+        return null;
+    }
+
+    /** The definitions' input parameter sets that {@code flow} names, which it renders too. */
+    private static List<Object> inputSetsOf(AggregateSpec aggregate, AggregateFlowSpec flow) {
+        List<Object> sets = new ArrayList<>();
+        if (aggregate.getDefinitions() != null && flow.getInputParameterSets() != null) {
+            for (String name : flow.getInputParameterSets()) {
+                Object set = aggregate.getDefinitions().getInputParameterSets().get(name);
+                if (set != null) {
+                    sets.add(set);
+                }
+            }
+        }
+        return sets;
     }
 
     private static String namespaceOf(String operation) {

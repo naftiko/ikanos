@@ -126,4 +126,128 @@ class McpCallerClaimsCacheScopeTest {
         // The consumed adapter's description names auth and claims, but no template reads them
         assertDoesNotThrow(() -> load("", "cacheScope: public", "static"));
     }
+
+    /**
+     * A capability whose public {@code catalogue} resource has a step calling {@code cat.list},
+     * which calls {@code listTarget}. {@code cat.other}, a sibling flow nothing calls, sends
+     * {@code siblingWith}; {@code inner.deep} sends {@code deepWith} to {@code shop.list}; the
+     * {@code people} adapter sends {@code peopleHeader}.
+     */
+    private static Capability loadAggregate(String listTarget, String siblingWith,
+            String deepWith, String peopleHeader) throws Exception {
+        String yaml = """
+                ikanos: "%s"
+                capability:
+                  exposes:
+                  - type: mcp
+                    port: 0
+                    namespace: catalogue
+                    description: "Catalogue"
+                    tools:
+                      hello:
+                        description: "Say hello"
+                        outputParameters:
+                          msg:
+                            type: string
+                            value: "hi"
+                    resources:
+                      catalogue:
+                        display: "Catalogue"
+                        uri: "data://catalogue"
+                        description: "The catalogue"
+                        cacheScope: public
+                        steps:
+                          list:
+                            type: call
+                            call: cat.list
+                  aggregates:
+                  - namespace: cat
+                    flows:
+                      list:
+                        description: "Lists the catalogue"
+                        steps:
+                          fetch:
+                            type: call
+                            call: %s
+                      other:
+                        description: "A sibling flow"
+                        steps:
+                          fetch:
+                            type: call
+                            call: shop.list
+                            with:
+                              user: "%s"
+                  - namespace: inner
+                    flows:
+                      deep:
+                        description: "Called by another flow"
+                        steps:
+                          fetch:
+                            type: call
+                            call: shop.list
+                            with:
+                              user: "%s"
+                  consumes:
+                  - type: http
+                    namespace: shop
+                    description: "The shop"
+                    baseUri: "http://127.0.0.1:1"
+                    resources:
+                      items:
+                        path: "/items"
+                        operations:
+                          list:
+                            method: GET
+                  - type: http
+                    namespace: people
+                    description: "Profiles, for tools"
+                    baseUri: "http://127.0.0.1:1"
+                    inputParameters:
+                      X-User-Id:
+                        in: header
+                        value: "%s"
+                    resources:
+                      profile:
+                        path: "/profile"
+                        operations:
+                          get-profile:
+                            method: GET
+                """.formatted(VersionHelper.getSchemaVersion(), listTarget, siblingWith,
+                deepWith, peopleHeader);
+        return new Capability(IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class));
+    }
+
+    private static final String CLAIM = "{{auth.claims.sub}}";
+
+    @Test
+    void loadShouldAcceptAPublicResourceWhenOnlyAnUnrelatedAdapterReadsAClaim() {
+        assertDoesNotThrow(() -> loadAggregate("shop.list", "static", "static", CLAIM));
+    }
+
+    @Test
+    void loadShouldAcceptAPublicResourceWhenOnlyASiblingFlowReadsAClaim() {
+        assertDoesNotThrow(() -> loadAggregate("shop.list", CLAIM, "static", "static"));
+    }
+
+    @Test
+    void loadShouldRefuseAPublicResourceWhoseFlowCallsAFlowThatReadsAClaim() {
+        Exception error = assertThrows(Exception.class,
+                () -> loadAggregate("inner.deep", "static", CLAIM, "static"));
+
+        assertTrue(messages(error).contains("MCP resource 'catalogue': cacheScope public"),
+                messages(error));
+    }
+
+    @Test
+    void loadShouldRefuseAPublicResourceWhoseFlowCallsAnAdapterThatReadsAClaim() {
+        Exception error = assertThrows(Exception.class,
+                () -> loadAggregate("people.get-profile", "static", "static", CLAIM));
+
+        assertTrue(messages(error).contains("cacheScope public"), messages(error));
+    }
+
+    @Test
+    void loadShouldAcceptAPublicResourceWhoseFlowsReadNoClaim() {
+        assertDoesNotThrow(() -> loadAggregate("inner.deep", "static", "static", "static"));
+    }
 }
