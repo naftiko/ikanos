@@ -106,6 +106,8 @@ public class Resolver {
         ObjectMapper jsonMapper = IkanosMappers.json();
         return render(template, parameters, val -> {
             if (val instanceof java.util.Collection || val instanceof Object[]) {
+                // Written as text here, so the formatter would no longer see the root (#998)
+                requireNoCallerRoot(val);
                 try {
                     return jsonMapper.writeValueAsString(val);
                 } catch (JacksonException e) {
@@ -260,18 +262,19 @@ public class Resolver {
     }
 
     /**
-     * The name JMustache reads for {@code name}: trimmed, without the {@code this} steps it skips
-     * anywhere in a dotted name, so {@code this.auth.claims.sub} and {@code auth.this.claims.sub}
-     * both read {@code auth.claims.sub}.
+     * The name JMustache reads for {@code name}: trimmed, without the {@code this} steps and the
+     * empty steps it skips anywhere in a dotted name, so {@code this.auth.claims.sub},
+     * {@code auth.this.claims.sub} and {@code auth..claims.sub} all read {@code auth.claims.sub},
+     * and {@code auth.} reads {@code auth}.
      */
     private static String canonicalName(String name) {
         String reference = name.trim();
-        if (!reference.contains(THIS)) {
+        if (!reference.contains(THIS) && !reference.contains(".")) {
             return reference;
         }
         return java.util.Arrays.stream(reference.split("\\.", -1))
-                .filter(step -> !THIS.equals(step.trim()))
                 .map(String::trim)
+                .filter(step -> !step.isEmpty() && !THIS.equals(step))
                 .collect(java.util.stream.Collectors.joining("."));
     }
 
@@ -385,6 +388,44 @@ public class Resolver {
         }
     }
 
+    /**
+     * Fails when {@code value}, about to be rendered or passed on as a parameter value, is the
+     * engine's {@link CallerRoot} or holds it: in a map, a collection or an array, at any depth
+     * (#998). It guards the value rather than the template's names, so the root cannot leave
+     * whole however a template reaches it: {@code {{.}}} or {@code {{this}}}, which render every
+     * parameter, a name JMustache reads as the root ({@code {{auth.}}}), or a {@code with} alias
+     * that copied it under another name.
+     *
+     * @param value the value, may be null
+     * @throws CallerRootExposedException when the value is or holds the caller root
+     */
+    public static void requireNoCallerRoot(Object value) {
+        if (holdsCallerRoot(value, java.util.Collections.newSetFromMap(
+                new java.util.IdentityHashMap<>()))) {
+            throw new CallerRootExposedException();
+        }
+    }
+
+    private static boolean holdsCallerRoot(Object value, Set<Object> seen) {
+        Object raw = value instanceof JsonValue json ? json.value() : value;
+        if (raw instanceof CallerRoot) {
+            return true;
+        }
+        if (raw == null || !(raw instanceof Map || raw instanceof java.util.Collection
+                || raw instanceof Object[]) || !seen.add(raw)) {
+            return false;
+        }
+        Iterable<?> elements = raw instanceof Map<?, ?> map ? map.values()
+                : raw instanceof java.util.Collection<?> collection ? collection
+                        : java.util.Arrays.asList((Object[]) raw);
+        for (Object element : elements) {
+            if (holdsCallerRoot(element, seen)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static boolean isClaimsReference(String name) {
         String reference = canonicalName(name);
         return reference.equals(CLAIMS) || reference.startsWith(CLAIMS + ".");
@@ -487,16 +528,23 @@ public class Resolver {
         // Required-value checks do not read this leftover: they call missingVariables(...).
         Mustache.Compiler compiler = Mustache.compiler().escapeHTML(false)
                 .defaultValue(noInputs ? UNRESOLVED_VARIABLE : "");
-        if (formatter != null && !noParameters) {
+        if (!noParameters) {
             // The formatter runs on every rendered value, whatever its path or tag, and only on
-            // rendering: sections still see the original values.
-            compiler = compiler.withFormatter(formatter);
+            // rendering: sections still see the original values. It first refuses the caller
+            // root, or a value holding it, such as the whole parameter map of {{.}} (#998).
+            Mustache.Formatter format = formatter;
+            compiler = compiler.withFormatter(value -> {
+                requireNoCallerRoot(value);
+                return format != null ? format.format(value) : String.valueOf(value);
+            });
         }
         if (noInputs) {
             // Nothing can be substituted: a string that is not a valid template (for example a
             // static credential containing "{{}}") is returned as-is, as it was before #847.
             try {
                 return compileTemplate(compiler, template).execute(serialized);
+            } catch (CallerRootExposedException e) {
+                throw e;
             } catch (RuntimeException e) {
                 // Log the exception type only: JMustache messages quote tag names, which could
                 // echo part of a static credential.
@@ -544,7 +592,10 @@ public class Resolver {
         if (parameters == null || parameters.isEmpty()) {
             return null;
         }
-        return lookupVariable(name, parameters);
+        Object value = lookupVariable(name, parameters);
+        // Passed on with its type: never the caller root, whatever name reached it (#998)
+        requireNoCallerRoot(value);
+        return value;
     }
 
     /**
@@ -1140,6 +1191,8 @@ public class Resolver {
                 // never through an input named 'this' (#998)
                 Object value = isCallerClaims(reference) ? lookupVariable(reference, parameters)
                         : lookupPath(parameters, reference);
+                // {{.}} looks up the whole parameter map, {{auth.}} the root (#998)
+                requireNoCallerRoot(value);
                 return value == null ? null : toJsonNode(value, jsonMapper);
             }
             if (text.contains("{{")) {
@@ -1187,6 +1240,7 @@ public class Resolver {
         }
         Mustache.Compiler compiler = Mustache.compiler().escapeHTML(false).defaultValue("")
                 .withFormatter(value -> {
+                    requireNoCallerRoot(value);
                     Object raw = value instanceof JsonValue json ? json.value() : value;
                     String text = raw instanceof Map<?, ?> || raw instanceof java.util.Collection<?>
                             || raw instanceof Object[]
@@ -1734,6 +1788,10 @@ public class Resolver {
             Object val;
             try {
                 val = resolveInputParameterValue(spec, parameters);
+            } catch (CallerRootExposedException e) {
+                // The caller root whole fails the call rather than leaving the parameter out
+                // (#998)
+                throw e;
             } catch (RuntimeException e) {
                 if (pathOverride) {
                     // Never fall back to the caller's value. The message quotes no value: a
@@ -1886,9 +1944,10 @@ public class Resolver {
                     }
                     clientRequest.setResourceRef(ref);
                 }
-            } catch (CallerClaimMissingException
+            } catch (CallerClaimMissingException | CallerRootExposedException
                     | StandardRequestHeaders.InvalidPreconditionException e) {
-                // A missing caller value fails the call (#998); sending the write without its
+                // A missing caller value, or the caller root whole, fails the call (#998),
+                // rather than leaving the parameter out; sending the write without its
                 // precondition would make it unconditional (#1001)
                 throw e;
             } catch (RuntimeException e) {

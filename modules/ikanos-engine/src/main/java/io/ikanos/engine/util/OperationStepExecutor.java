@@ -550,7 +550,10 @@ public class OperationStepExecutor {
             if (rawValue instanceof String rawStringValue) {
                 if (namespace != null && rawStringValue.startsWith(namespace + ".")) {
                     String paramName = rawStringValue.substring(namespace.length() + 1);
-                    putOrRemove(target, entry.getKey(), target.get(paramName));
+                    Object value = target.get(paramName);
+                    // An alias of the caller root would let {{alias}} send it whole (#998)
+                    Resolver.requireNoCallerRoot(value);
+                    putOrRemove(target, entry.getKey(), value);
                 } else {
                     putOrRemove(target, entry.getKey(),
                             Resolver.resolveValue(rawStringValue, target));
