@@ -262,10 +262,11 @@ public class Resolver {
     }
 
     /**
-     * The name JMustache reads for {@code name}: trimmed, without the {@code this} steps and the
-     * empty steps it skips anywhere in a dotted name, so {@code this.auth.claims.sub},
-     * {@code auth.this.claims.sub} and {@code auth..claims.sub} all read {@code auth.claims.sub},
-     * and {@code auth.} reads {@code auth}.
+     * The name JMustache reads for {@code name}: trimmed, without the {@code this} steps it skips
+     * anywhere in a dotted name, so {@code this.auth.claims.sub} and {@code auth.this.claims.sub}
+     * both read {@code auth.claims.sub}. Empty steps are dropped too, so {@code auth.}, which
+     * JMustache renders as the root, counts as {@code auth}, and a name such as
+     * {@code auth..claims.sub} is checked as the claim it may reach.
      */
     private static String canonicalName(String name) {
         String reference = name.trim();
