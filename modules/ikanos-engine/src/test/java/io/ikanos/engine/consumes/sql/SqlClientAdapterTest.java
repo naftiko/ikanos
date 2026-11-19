@@ -347,6 +347,35 @@ class SqlClientAdapterTest {
     }
 
     @Test
+    void prepareShouldTreatTheCallerRootAsAnAbsentInput() throws Exception {
+        // #998: an input named auth, taken by name, is absent rather than the caller root, as
+        // for an HTTP parameter or an MCP argument
+        started("""
+                by-owner:
+                  description: Customers, or one by id.
+                  statement: select id from customers where id = coalesce({{auth}}, 'c1')
+                  inputParameters:
+                    auth: { type: string, required: false }
+                need-owner:
+                  description: One customer by id.
+                  statement: select id from customers where id = {{auth}}
+                  inputParameters:
+                    auth: { type: string }
+                """);
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put(io.ikanos.engine.util.Resolver.CALLER_ROOT,
+                new io.ikanos.engine.util.CallerRoot(Map.of("claims", Map.of("sub", "alice"))));
+
+        ConsumedResult result = call("by-owner", parameters);
+
+        assertEquals(200, result.status());
+        assertEquals("c1", result.document().get("rows").get(0).get("ID").asString());
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> adapter.prepare("need-owner", parameters));
+        assertTrue(e.getMessage().contains("Missing required input 'auth'"), e.getMessage());
+    }
+
+    @Test
     void constructorShouldRefuseAStatementThatWrites() throws Exception {
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> new SqlClientAdapter(null, spec("""
