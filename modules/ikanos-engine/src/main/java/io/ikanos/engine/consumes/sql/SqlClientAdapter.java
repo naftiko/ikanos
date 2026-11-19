@@ -44,6 +44,7 @@ import io.ikanos.engine.consumes.ClientAdapter;
 import io.ikanos.engine.consumes.ConsumedInvocation;
 import io.ikanos.engine.consumes.ConsumedOperationView;
 import io.ikanos.engine.consumes.ConsumedResult;
+import io.ikanos.engine.util.CallerRoot;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.consumes.sql.SqlClientSpec;
 import io.ikanos.spec.consumes.sql.SqlConnectionSpec;
@@ -403,6 +404,11 @@ public class SqlClientAdapter extends ClientAdapter {
         for (int i = 0; i < procedure.inputs().size(); i++) {
             InputParameterSpec input = procedure.inputs().get(i);
             Object value = parameters != null ? parameters.get(input.getName()) : null;
+            if (value instanceof CallerRoot) {
+                // The caller root is no call parameter: an input named after it is absent, as
+                // for an HTTP parameter or an MCP argument (#998)
+                value = null;
+            }
             if (value == null && input.isRequiredOrDefault(true)) {
                 throw new IllegalArgumentException("Missing required input '" + input.getName()
                         + "' for SQL procedure " + where);
