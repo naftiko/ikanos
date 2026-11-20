@@ -5,14 +5,15 @@
  * (and the model, in listed mode) relies on to tell tools apart. Select the check
  * with `functionOptions.check`:
  *
- *   - "missing":         a tool of a listed adapter has a blank description. A tool
- *                        with `ref` inherits the description of its aggregate flow;
- *                        it is reported only when that flow is in the document and
- *                        has none either. A tool with neither `description` nor
- *                        `ref` is left to the schema, which rejects it;
- *   - "deferredMissing": the same, on an adapter whose toolSearch mode is
- *                        `deferred`, where a tool without a description can only
- *                        be found by its name;
+ *   - "missing":         a listed tool has a blank description. A tool with `ref`
+ *                        and no description (or an empty one) inherits that of its
+ *                        aggregate flow, as in the engine; it is reported only when
+ *                        that flow is in the document and has none either. A tool
+ *                        with neither `description` nor `ref` is left to the schema,
+ *                        which rejects it. Tools named in `toolSearch.alwaysListed`
+ *                        are listed even in deferred mode;
+ *   - "deferredMissing": the same, on a tool that deferred tool search hides, which
+ *                        search can only find by its name without a description;
  *   - "restatesName":    once the words of the tool name and common filler words
  *                        are removed, fewer than MIN_EXTRA_WORDS words are left in
  *                        the description ("sync_application syncs application");
@@ -32,13 +33,15 @@ const MIN_EXTRA_WORDS = 2;
 const SIMILARITY_THRESHOLD = 0.8;
 const MIN_SIMILAR_WORDS = 3;
 
-// Words that say nothing about what a tool does, in a tool description.
+// Words that say nothing about what a tool does, in a tool description. They are compared
+// with stemmed words, so they are stemmed too.
 const STOP_WORDS = new Set([
-  "a", "an", "and", "any", "are", "as", "at", "be", "by", "can", "do", "doe", "each",
+  "a", "an", "and", "any", "are", "as", "at", "be", "by", "can", "do", "does", "each",
   "for", "from", "given", "has", "have", "if", "in", "into", "is", "it", "its", "of",
-  "on", "one", "or", "provid", "specifi", "that", "the", "their", "them", "thi", "to",
-  "tool", "use", "using", "via", "when", "which", "will", "with",
-]);
+  "on", "one", "or", "provided", "provides", "specified", "specifies", "that", "the",
+  "their", "them", "this", "to", "tool", "use", "used", "uses", "using", "via", "when",
+  "which", "will", "with",
+].map(stem));
 
 export default function mcpToolDescription(targetVal, options) {
   if (!isObject(targetVal)) {
@@ -67,15 +70,21 @@ function scan(exposes, basePath, check, flows, results) {
       return;
     }
     const path = basePath.concat(index, "tools");
-    const deferred = isObject(adapter.toolSearch) && adapter.toolSearch.mode === "deferred";
+    const search = isObject(adapter.toolSearch) ? adapter.toolSearch : null;
+    const pinned = search !== null && Array.isArray(search.alwaysListed) ? search.alwaysListed : [];
     const described = [];
     for (const [name, tool] of Object.entries(adapter.tools)) {
       if (!isObject(tool) || (tool.description === undefined && tool.ref === undefined)) {
         // The schema requires a description on every tool without `ref`.
         continue;
       }
-      const own = text(tool.description);
-      const description = own !== null ? own : inherited(tool, flows);
+      // A pinned tool is listed even in deferred mode.
+      const deferred = search !== null && search.mode === "deferred" && !pinned.includes(name);
+      // Like the engine (AggregateRefResolver), a `ref` tool inherits its flow's description
+      // only when its own is absent or empty: a whitespace-only one is kept, and is blank.
+      const declared = typeof tool.description === "string" && tool.description !== "";
+      const own = declared ? text(tool.description) : null;
+      const description = declared ? own : inherited(tool, flows);
       if (description === undefined) {
         // `ref` to a flow this document does not hold (an import): nothing to check.
         continue;
@@ -84,7 +93,8 @@ function scan(exposes, basePath, check, flows, results) {
         if ((check === "missing" && !deferred) || (check === "deferredMissing" && deferred)) {
           results.push({
             message: "Tool '" + name + "' has no description"
-              + (typeof tool.ref === "string" ? ", and its flow '" + tool.ref + "' has none" : "")
+              + (!declared && typeof tool.ref === "string"
+                ? ", and its flow '" + tool.ref + "' has none" : "")
               + (deferred
                 ? ": in deferred mode, search can only find it by its name."
                 : ": the model can only tell what it does from its name.")
@@ -175,14 +185,15 @@ function informativeWords(description) {
 
 /**
  * Splits text into lower-cased, roughly stemmed words: on anything but letters and
- * digits, and on case changes (`restartDeployment` gives `restart`, `deployment`).
+ * digits of any script, and on case changes (`restartDeployment` gives `restart`,
+ * `deployment`).
  */
 function wordsOf(value) {
   return value
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
     .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
     .toLowerCase()
-    .split(/[^a-z0-9]+/)
+    .split(/[^\p{L}\p{N}]+/u)
     .filter((word) => word.length > 0)
     .map(stem);
 }

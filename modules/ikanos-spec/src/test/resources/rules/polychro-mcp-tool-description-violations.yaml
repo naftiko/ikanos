@@ -1,10 +1,12 @@
 # Polychro fixture — each ikanos-mcp-tool-description* rule MUST FIRE:
-#   - ikanos-mcp-tool-description: `blank-tool` (listed adapter) has a blank description, and
-#     `undescribed-flow-tool` refs a flow that has none;
-#   - ikanos-mcp-tool-search-tool-description: `blank-deferred-tool` (deferred adapter) has a
+#   - ikanos-mcp-tool-description: `blank-tool` (listed adapter) has a blank description,
+#     `undescribed-flow-tool` refs a flow that has none, `whitespace-ref` has a whitespace-only
+#     description (the engine keeps it, so the flow's is not inherited), and `pinned-tool` is
+#     pinned with alwaysListed on the deferred adapter, so it is listed;
+#   - ikanos-mcp-tool-description-deferred: `blank-deferred-tool` (deferred adapter) has a
 #     blank description;
 #   - ikanos-mcp-tool-description-restates-name: `sync_application` and `getForecast` describe
-#     themselves with their own name;
+#     themselves with their own name, and `list-users` adds only filler words ("that have");
 #   - ikanos-mcp-tool-description-similar: `list-closed-incidents` has the same description words
 #     as `list-open-incidents`.
 ikanos: "1.0.0-beta10"
@@ -27,6 +29,11 @@ capability:
     - namespace: ops-flows
       flows:
         restart:
+          semantics:
+            safe: false
+          call: ops-api.read
+        restart-described:
+          description: "Restart every pod of a deployment, one at a time."
           semantics:
             safe: false
           call: ops-api.read
@@ -53,13 +60,23 @@ capability:
         list-closed-incidents:
           description: "List the incidents of the on-call team, newest first, with severity."
           call: ops-api.read
+        whitespace-ref:
+          description: "   "
+          ref: ops-flows.restart-described
+        list-users:
+          description: "List users that have roles."
+          call: ops-api.read
     - type: mcp
       namespace: ops-deferred
       port: 3002
       description: "Operations tools, found through search."
       toolSearch:
         mode: deferred
+        alwaysListed: [pinned-tool]
       tools:
         blank-deferred-tool:
+          description: ""
+          call: ops-api.read
+        pinned-tool:
           description: ""
           call: ops-api.read
