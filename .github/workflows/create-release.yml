@@ -11,6 +11,10 @@ jobs:
     uses: ./.github/workflows/publish-cli-packages.yml
     secrets: inherit
 
+  # The one job that creates the release, once the packages are built and tested: a tag never
+  # goes out with nothing for install.sh, which installs the newest release. JReleaser publishes
+  # the four packages and a .sha256 per file (jreleaser.yml); the notes are written by hand, as
+  # before. It refuses to start when one platform's package is missing.
   release:
     name: Create GitHub Release
     needs:
@@ -19,18 +23,52 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Download all artifacts
+      # The whole history, with the tags: JReleaser reads the release's tag and its commit.
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Every artifact of this run named ikanos-cli-*: the four packages, put where JReleaser
+      # assembles them. JReleaser writes their .sha256 files again, the same way.
+      - name: Download the packages
         uses: actions/download-artifact@v8
         with:
-          path: ./release-artifacts
+          pattern: ikanos-cli-*
+          path: out/jreleaser/assemble/ikanos-cli/jlink
           merge-multiple: true
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v3
+      # The version is the tag's: v1.0.0-beta10 releases 1.0.0-beta10, a pre-release.
+      - name: Choose the version
+        run: echo "JRELEASER_PROJECT_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: Publish the release
+        uses: jreleaser/release-action@97b5e2f0e845de2fe1dbbdf451ac6a21233fafff # v2
         with:
-          files: ./release-artifacts/*
+          version: 1.26.0
+          arguments: full-release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          JRELEASER_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # JReleaser leaves the release a draft (draft: true in jreleaser.yml): it is published only
+      # now that every file is on it. A final release becomes the latest; a beta stays a pre-release.
+      - name: Publish the draft
+        run: |
+          case "$GITHUB_REF_NAME" in
+            *-*) gh release edit "$GITHUB_REF_NAME" --draft=false ;;
+            *) gh release edit "$GITHUB_REF_NAME" --draft=false --latest ;;
+          esac
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+
+      - name: Keep JReleaser's log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: jreleaser-release-log
+          path: out/jreleaser/trace.log
+          retention-days: 7
 
   publish-installer:
     name: Publish installer scripts to GitHub Pages
