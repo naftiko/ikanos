@@ -29,7 +29,7 @@ capability:
     description: MCP adapter whose tool inputs omit type.
     tools:
       echo-owner:
-        description: Echo the repository owner.
+        description: Echo back the owner of a repository, and the page asked for.
         inputParameters:
           owner:
             description: Repository owner

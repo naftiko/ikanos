@@ -1,0 +1,65 @@
+# Polychro fixture — each ikanos-mcp-tool-description* rule MUST FIRE:
+#   - ikanos-mcp-tool-description: `blank-tool` (listed adapter) has a blank description, and
+#     `undescribed-flow-tool` refs a flow that has none;
+#   - ikanos-mcp-tool-search-tool-description: `blank-deferred-tool` (deferred adapter) has a
+#     blank description;
+#   - ikanos-mcp-tool-description-restates-name: `sync_application` and `getForecast` describe
+#     themselves with their own name;
+#   - ikanos-mcp-tool-description-similar: `list-closed-incidents` has the same description words
+#     as `list-open-incidents`.
+ikanos: "1.0.0-beta10"
+info:
+  display: "MCP tool description rules — violations"
+  description: "Fixture that breaks every MCP tool description Polychro rule."
+capability:
+  consumes:
+    - type: http
+      namespace: ops-api
+      description: "Operations API."
+      baseUri: https://api.ops.test
+      resources:
+        ops:
+          path: /v1/ops
+          operations:
+            read:
+              method: GET
+  aggregates:
+    - namespace: ops-flows
+      flows:
+        restart:
+          semantics:
+            safe: false
+          call: ops-api.read
+  exposes:
+    - type: mcp
+      namespace: ops
+      port: 3001
+      description: "Operations tools for incidents and deployments."
+      tools:
+        blank-tool:
+          description: "   "
+          call: ops-api.read
+        undescribed-flow-tool:
+          ref: ops-flows.restart
+        sync_application:
+          description: "Syncs the application."
+          call: ops-api.read
+        getForecast:
+          description: "Gets the forecast."
+          call: ops-api.read
+        list-open-incidents:
+          description: "List incidents of the on-call team, newest first, with their severity."
+          call: ops-api.read
+        list-closed-incidents:
+          description: "List the incidents of the on-call team, newest first, with severity."
+          call: ops-api.read
+    - type: mcp
+      namespace: ops-deferred
+      port: 3002
+      description: "Operations tools, found through search."
+      toolSearch:
+        mode: deferred
+      tools:
+        blank-deferred-tool:
+          description: ""
+          call: ops-api.read

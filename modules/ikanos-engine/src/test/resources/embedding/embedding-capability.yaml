@@ -16,7 +16,7 @@ capability:
     description: Test MCP server for embedding API validation.
     tools:
       greet:
-        description: Greet by name
+        description: Return a greeting for the person named
         inputParameters:
           name:
             type: string

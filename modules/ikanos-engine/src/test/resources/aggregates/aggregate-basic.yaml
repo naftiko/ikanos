@@ -36,7 +36,7 @@ capability:
     description: MCP server using aggregate ref.
     tools:
       get-forecast:
-        description: Get the weather forecast.
+        description: Get the weather forecast for a location.
         ref: forecast.get-forecast
       get-forecast-inherited:
         ref: forecast.get-forecast
