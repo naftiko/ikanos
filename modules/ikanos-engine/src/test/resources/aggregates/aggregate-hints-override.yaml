@@ -42,7 +42,7 @@ capability:
     description: MCP server testing hints derivation with override.
     tools:
       read-items:
-        description: Read all items.
+        description: Read all items from the data store.
         ref: data.read-items
       read-items-open:
         description: Read items with openWorld hint.

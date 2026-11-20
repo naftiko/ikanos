@@ -105,7 +105,7 @@ capability:
             fromDateTime: "gong-mcp.from"
             toDateTime: "gong-mcp.to"
         update-task:
-          description: "Update an Engage task."
+          description: "Update the status or due date of an Engage task."
           # Resolved: readOnly: false, idempotent: true (tool), openWorld: true (server)
           hints:
             readOnly: false         # overrides one server field; openWorld stays true
@@ -119,7 +119,7 @@ capability:
           with:
             task-id: "gong-mcp.task-id"
         delete-task:
-          description: "Delete an Engage task."
+          description: "Delete an Engage task for good; it cannot be restored."
           # Resolved: readOnly: false, idempotent: true (flow semantics),
           # destructive: true (tool), openWorld: true (server)
           ref: "tasks.delete-task"

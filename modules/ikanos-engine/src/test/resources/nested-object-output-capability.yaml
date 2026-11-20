@@ -26,7 +26,7 @@ capability:
     description: Test MCP for nested object output mapping
     tools:
       get-ship:
-        description: Get ship details
+        description: Get the nested specs of a ship by IMO number
         inputParameters:
           imo:
             type: string

@@ -58,7 +58,7 @@ capability:
             required: [from]
       tools:
         list-orders:
-          description: "List orders."
+          description: "List the orders of one customer, newest first."
           inputParameterSets: [odata-list]
           call: erp.list-orders
         list-lines:

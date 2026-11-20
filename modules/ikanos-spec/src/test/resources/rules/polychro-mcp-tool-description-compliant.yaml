@@ -1,0 +1,60 @@
+# Polychro fixture — no ikanos-mcp-tool-description* rule MUST FIRE:
+#   every tool says more than its name, `inherited-restart` takes the description of its flow,
+#   `imported-restart` refs a flow this document does not hold (nothing to check), and the two
+#   incident tools say what sets them apart. The deferred adapter's tools are all described.
+ikanos: "1.0.0-beta10"
+info:
+  display: "MCP tool description rules — compliant"
+  description: "Fixture that satisfies every MCP tool description Polychro rule."
+capability:
+  consumes:
+    - type: http
+      namespace: ops-api
+      description: "Operations API."
+      baseUri: https://api.ops.test
+      resources:
+        ops:
+          path: /v1/ops
+          operations:
+            read:
+              method: GET
+  aggregates:
+    - namespace: ops-flows
+      flows:
+        restart:
+          description: "Restart every pod of a deployment, one at a time, without downtime."
+          semantics:
+            safe: false
+          call: ops-api.read
+  exposes:
+    - type: mcp
+      namespace: ops
+      port: 3001
+      description: "Operations tools for incidents and deployments."
+      tools:
+        inherited-restart:
+          ref: ops-flows.restart
+        imported-restart:
+          ref: shared-flows.restart
+        sync_application:
+          description: "Redeploy an Argo CD application from the head of its Git branch."
+          call: ops-api.read
+        getForecast:
+          description: "Predict the load of a service over the next hour from its traffic."
+          call: ops-api.read
+        list-open-incidents:
+          description: "List the incidents still open, newest first, with their severity."
+          call: ops-api.read
+        list-closed-incidents:
+          description: "List resolved incidents of the last 30 days, with the time to resolve."
+          call: ops-api.read
+    - type: mcp
+      namespace: ops-deferred
+      port: 3002
+      description: "Operations tools, found through search."
+      toolSearch:
+        mode: deferred
+      tools:
+        rollback-deployment:
+          description: "Roll a deployment back to its previous revision."
+          call: ops-api.read

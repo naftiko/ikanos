@@ -99,7 +99,7 @@ capability:
         token: "{{MCP_TOKEN}}"
       tools:
         hello:
-          description: "Say hello."
+          description: "Say hello to the caller."
           outputParameters:
             msg:
               type: "string"
@@ -167,7 +167,7 @@ capability:
         mode: "none"
       tools:
         hello:
-          description: "Say hello."
+          description: "Say hello to the caller."
           outputParameters:
             msg:
               type: "string"
@@ -182,7 +182,7 @@ capability:
         token: "{{MCP_TOKEN}}"
       tools:
         hello:
-          description: "Say hello."
+          description: "Say hello to the caller."
           outputParameters:
             msg:
               type: "string"
