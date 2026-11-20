@@ -38,11 +38,18 @@ public class InputRequiredException extends RuntimeException {
      * @param step the elicit step, or {@code null} for a question an upstream asked
      * @param request the upstream's {@code elicitation/create} request, passed through
      *        unchanged, or {@code null} for an elicit step's own question
+     * @param message the elicit step's message, rendered against the run's parameters when the
+     *        question was asked, or {@code null} to show the step's message as written
      */
-    public record Question(String key, OperationStepElicitSpec step, JsonNode request) {
+    public record Question(String key, OperationStepElicitSpec step, JsonNode request,
+            String message) {
 
         public Question(String key, OperationStepElicitSpec step) {
-            this(key, step, null);
+            this(key, step, null, null);
+        }
+
+        public Question(String key, OperationStepElicitSpec step, JsonNode request) {
+            this(key, step, request, null);
         }
     }
 
