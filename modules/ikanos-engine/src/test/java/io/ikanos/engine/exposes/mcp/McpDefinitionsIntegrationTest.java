@@ -133,11 +133,11 @@ class McpDefinitionsIntegrationTest {
                           ranges: { type: array, items: { schema: date-range } }
                   tools:
                     list-sales-orders:
-                      description: "List sales orders."
+                      description: "List sales orders, a page of rows at a time."
                       inputParameterSets: [odata-list, tracing]
                       call: registry.list-ships
                     list-calls:
-                      description: "List calls in a period."
+                      description: "List the calls made in a date range."
                       inputParameterSets: [odata-list]
                       inputParameters:
                         top: { type: integer, required: true, description: "Rows to return." }
@@ -194,14 +194,14 @@ class McpDefinitionsIntegrationTest {
                   namespace: fleet-mcp
                   tools:
                     list-sales-orders:
-                      description: "List sales orders."
+                      description: "List sales orders, a page of rows at a time."
                       inputParameters:
                         filter: { type: string, required: false, description: "OData V2 $filter expression." }
                         top: { type: integer, required: false, description: "Maximum rows to return (default 100)." }
                         trace-id: { type: string, required: false, description: "Trace ID." }
                       call: registry.list-ships
                     list-calls:
-                      description: "List calls in a period."
+                      description: "List the calls made in a date range."
                       inputParameters:
                         filter: { type: string, required: false, description: "OData V2 $filter expression." }
                         top: { type: integer, required: true, description: "Rows to return." }

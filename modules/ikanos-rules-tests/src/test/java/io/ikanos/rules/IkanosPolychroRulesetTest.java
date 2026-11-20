@@ -600,6 +600,106 @@ public class IkanosPolychroRulesetTest {
             "Expected no tool search findings for a compliant document.\n" + result.output());
     }
 
+    // ────────────────────────────────────────────────────────────────
+    // MCP tool description rules (#1121)
+    // ────────────────────────────────────────────────────────────────
+
+    private static final String TOOL_DESCRIPTION_VIOLATIONS =
+        "rules/polychro-mcp-tool-description-violations.yaml";
+
+    private static final String SHARED_TOOL_DESCRIPTIONS =
+        "rules/polychro-mcp-tool-description-shared.yaml";
+
+    @Test
+    public void mcpToolDescriptionRuleShouldFireForABlankDescriptionOnAListedAdapter() {
+        assertReportsAt(TOOL_DESCRIPTION_VIOLATIONS, "ikanos-mcp-tool-description",
+            "$.capability.exposes[0].tools.blank-tool");
+    }
+
+    @Test
+    public void mcpToolDescriptionRuleShouldFireForARefToolWhoseFlowHasNoDescription() {
+        assertReportsAt(TOOL_DESCRIPTION_VIOLATIONS, "ikanos-mcp-tool-description",
+            "$.capability.exposes[0].tools.undescribed-flow-tool");
+    }
+
+    @Test
+    public void mcpToolDescriptionRuleShouldFireForAWhitespaceOnlyDescriptionOnARefTool() {
+        // The engine inherits the flow's description only when the tool's is null or empty.
+        assertReportsAt(TOOL_DESCRIPTION_VIOLATIONS, "ikanos-mcp-tool-description",
+            "$.capability.exposes[0].tools.whitespace-ref");
+    }
+
+    @Test
+    public void mcpToolDescriptionDeferredRuleShouldFireForABlankDescriptionInDeferredMode() {
+        assertRuleFires(TOOL_DESCRIPTION_VIOLATIONS, "ikanos-mcp-tool-description-deferred");
+        assertReportsAt(TOOL_DESCRIPTION_VIOLATIONS, "ikanos-mcp-tool-description-deferred",
+            "$.capability.exposes[1].tools.blank-deferred-tool");
+    }
+
+    @Test
+    public void mcpToolDescriptionRuleShouldTreatAPinnedToolOfADeferredAdapterAsListed() {
+        assertReportsAt(TOOL_DESCRIPTION_VIOLATIONS, "ikanos-mcp-tool-description",
+            "$.capability.exposes[1].tools.pinned-tool");
+    }
+
+    @Test
+    public void mcpToolDescriptionRulesShouldReportEachBlankToolUnderOneRuleOnly() {
+        String output = lintFixture(TOOL_DESCRIPTION_VIOLATIONS).output();
+        assertFalse(output.lines().anyMatch(line -> line.contains("blank-deferred-tool")
+                && line.contains("  ikanos-mcp-tool-description  ")),
+            "A deferred tool must be reported by the deferred rule only.\n" + output);
+        assertFalse(output.lines().anyMatch(line -> (line.contains(".tools.blank-tool ")
+                    || line.contains(".tools.pinned-tool "))
+                && line.contains("ikanos-mcp-tool-description-deferred")),
+            "A listed or pinned tool must be reported by the listed rule only.\n" + output);
+    }
+
+    @Test
+    public void mcpToolDescriptionRestatesNameRuleShouldFireForSnakeAndCamelCaseNames() {
+        assertReportsAt(TOOL_DESCRIPTION_VIOLATIONS, "ikanos-mcp-tool-description-restates-name",
+            "$.capability.exposes[0].tools.sync_application.description");
+        assertReportsAt(TOOL_DESCRIPTION_VIOLATIONS, "ikanos-mcp-tool-description-restates-name",
+            "$.capability.exposes[0].tools.getForecast.description");
+    }
+
+    @Test
+    public void mcpToolDescriptionRestatesNameRuleShouldIgnoreInflectedFillerWords() {
+        assertReportsAt(TOOL_DESCRIPTION_VIOLATIONS, "ikanos-mcp-tool-description-restates-name",
+            "$.capability.exposes[0].tools.list-users.description");
+    }
+
+    @Test
+    public void mcpToolDescriptionSimilarRuleShouldFireOnTheSecondToolOfAPair() {
+        assertReportsAt(TOOL_DESCRIPTION_VIOLATIONS, "ikanos-mcp-tool-description-similar",
+            "$.capability.exposes[0].tools.list-closed-incidents.description");
+        String output = lintFixture(TOOL_DESCRIPTION_VIOLATIONS).output();
+        assertEquals(1, output.lines()
+                .filter(line -> line.contains("ikanos-mcp-tool-description-similar")).count(),
+            "Expected one finding per similar pair.\n" + output);
+    }
+
+    @Test
+    public void mcpToolDescriptionRulesShouldNotFireForACompliantDocument() {
+        LintResult result = lintFixtureAtSeverity(
+            "rules/polychro-mcp-tool-description-compliant.yaml", "info");
+        assertFalse(result.output().contains("ikanos-mcp-tool-description"),
+            "Expected no tool description findings for a compliant document.\n"
+                + result.output());
+    }
+
+    @Test
+    public void mcpToolDescriptionRuleShouldResolveRefInRootLevelSectionsWithArrayFlows() {
+        assertReportsAt(SHARED_TOOL_DESCRIPTIONS, "ikanos-mcp-tool-description",
+            "$.exposes[0].tools.undescribed-ref");
+    }
+
+    @Test
+    public void mcpToolDescriptionRestatesNameRuleShouldNotFireOnAnInheritedDescription() {
+        String output = lintFixture(SHARED_TOOL_DESCRIPTIONS).output();
+        assertFalse(output.contains("ikanos-mcp-tool-description-restates-name"),
+            "An inherited description is checked on its flow, not on the tool.\n" + output);
+    }
+
     private void assertToolSearchRuleFires(String ruleId) {
         LintResult result = lintFixtureAtSeverity(
             "rules/polychro-mcp-tool-search-violations.yaml", "info");

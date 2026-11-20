@@ -50,6 +50,7 @@ functions:
   - exposes-authorization
   - mcp-tool-input-examples
   - mcp-tool-search
+  - mcp-tool-description
   - sql-procedures
 
 rules:
@@ -906,6 +907,69 @@ rules:
       function: mcp-tool-search
       functionOptions:
         check: smallCatalog
+
+  # MCP tool descriptions: what the model and tool search tell tools apart by
+
+  ikanos-mcp-tool-description:
+    message: "{{error}}"
+    description: >
+      A tool's description is how the model tells what it does. A listed tool
+      with a blank description, or a `ref` tool whose flow has none, leaves the
+      model only the name. Tools pinned with `toolSearch.alwaysListed` count as
+      listed.
+    severity: warn
+    recommended: true
+    given: "$"
+    then:
+      function: mcp-tool-description
+      functionOptions:
+        check: missing
+
+  ikanos-mcp-tool-description-deferred:
+    message: "{{error}}"
+    description: >
+      In deferred mode, search finds tools mostly through their descriptions.
+      A tool without one can only be found by its name. Reported instead of
+      ikanos-mcp-tool-description on the tools that deferred tool search hides
+      (those not pinned with `alwaysListed`).
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: mcp-tool-description
+      functionOptions:
+        check: deferredMissing
+
+  ikanos-mcp-tool-description-restates-name:
+    message: "{{error}}"
+    description: >
+      A description that only repeats the tool name ("sync_application syncs
+      application") adds nothing for the model or for tool search. Fires when,
+      once the name's words and filler words are removed, fewer than two words
+      are left. A heuristic, so it stays a warning in deferred mode too: an
+      error would let a false positive fail the build.
+    severity: warn
+    recommended: true
+    given: "$"
+    then:
+      function: mcp-tool-description
+      functionOptions:
+        check: restatesName
+
+  ikanos-mcp-tool-description-similar:
+    message: "{{error}}"
+    description: >
+      Two tools of the same adapter whose descriptions share 80% or more of
+      their words are ranked side by side by tool search, and the model can
+      call one for the other. Fires on the second tool of the pair. A heuristic,
+      so it stays a warning in deferred mode too.
+    severity: warn
+    recommended: true
+    given: "$"
+    then:
+      function: mcp-tool-description
+      functionOptions:
+        check: similar
 
   ikanos-mcp-skill-allowed-tools:
     message: "`allowed-tools` is a request, not a grant: hosts ignore it for skills served over MCP unless the user approves it."

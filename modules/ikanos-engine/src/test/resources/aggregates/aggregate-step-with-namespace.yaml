@@ -41,7 +41,7 @@ capability:
       with.
     tools:
       get-voyage-manifest:
-        description: Get the voyage manifest.
+        description: Get the voyage manifest, with the ship and cargo of one voyage.
         ref: shipyard.get-voyage-manifest
   consumes:
   - type: http

@@ -138,7 +138,7 @@ capability:
           description: "Invoice status and account owner for one customer."
           ref: "collections.account-exposure"
         get-invoice:
-          description: "Retrieve one invoice."
+          description: "Retrieve one invoice by its identifier: amount, due date and status."
           hints:
             readOnly: true
           inputParameters:
@@ -163,7 +163,7 @@ capability:
                   type: "string"
                   mapping: "$.owner"
         list-invoices:
-          description: "List the invoices of one account."
+          description: "List the invoices of one CRM account, open and paid."
           inputParameters:
             account-id:
               type: "string"
