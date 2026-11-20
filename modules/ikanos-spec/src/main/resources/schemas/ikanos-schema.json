@@ -4034,7 +4034,7 @@
             },
             "message": {
               "type": "string",
-              "description": "The question shown to the caller. Defaults to the step name."
+              "description": "The question shown to the caller. Defaults to the step name. A Mustache template, rendered when the question is asked against the flow's inputs and the outputs of the steps that ran before it, such as `Delete '{{post.title}}' (#{{postId}})?`. A variable that nothing provides fails the step instead of reaching the caller blank: put a part that may be missing in a section, such as `{{#post.title}}'{{post.title}}'{{/post.title}}`."
             },
             "fields": {
               "type": "object",

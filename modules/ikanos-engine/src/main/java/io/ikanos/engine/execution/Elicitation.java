@@ -14,10 +14,12 @@
 package io.ikanos.engine.execution;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import io.ikanos.Capability;
 import io.ikanos.engine.aggregates.AggregateFlow;
+import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.consumes.ClientSpec;
 import io.ikanos.spec.consumes.mcp.McpClientSpec;
 import io.ikanos.spec.consumes.mcp.McpClientToolSpec;
@@ -31,11 +33,38 @@ import io.ikanos.spec.util.OperationStepSpec;
  * the target of its singleton {@code call:}, hold an {@code elicit} step, or call a consumed MCP
  * tool declared {@code mayElicit: true}, whose questions pass through, directly or through flows
  * they call, at any depth. Only such an entry needs the machinery of input requests; one that
- * cannot ask runs as before.
+ * cannot ask runs as before. Also renders the message an {@code elicit} step asks with.
  */
 public final class Elicitation {
 
     private Elicitation() {
+    }
+
+    /**
+     * The text an {@code elicit} step shows its caller: its {@code message} rendered as a
+     * Mustache template against the run's parameters (the inputs, then the outputs of the steps
+     * that ran before it), or its name when it declares no message. A variable that nothing
+     * provides fails the step rather than reach the caller blank; a part that may be missing goes
+     * in a section, such as {@code {{#post.title}} '{{post.title}}'{{/post.title}}}.
+     *
+     * @param step the elicit step
+     * @param parameters the run's parameters, may be {@code null}
+     * @throws IllegalStateException naming the variables nothing provides
+     * @throws IllegalArgumentException when the message reads the caller's claims in a way
+     *         {@link Resolver#requireCallerValues} refuses
+     */
+    static String message(OperationStepElicitSpec step, Map<String, Object> parameters) {
+        String template = step.getMessage();
+        if (template == null) {
+            return step.getName();
+        }
+        List<String> unresolved = Resolver.unresolvedVariables(template, parameters);
+        if (!unresolved.isEmpty()) {
+            throw new IllegalStateException("Step '" + step.getName() + "': the message reads "
+                    + String.join(", ", unresolved)
+                    + ", which no input or earlier step provides");
+        }
+        return Resolver.resolveMustacheTemplate(template, parameters);
     }
 
     /**
