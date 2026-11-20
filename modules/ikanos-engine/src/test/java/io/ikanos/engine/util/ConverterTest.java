@@ -270,6 +270,72 @@ public class ConverterTest {
     }
 
     @Test
+    public void convertHtmlToJsonShouldNameAGroupedColumnWithBothOfItsHeaderLevels()
+            throws Exception {
+        String html = """
+                <table>
+                  <thead>
+                    <tr><th rowspan="2">Region</th><th colspan="2">Sales</th></tr>
+                    <tr><th>Q1</th><th>Q2</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>North</td><td>100</td><td>200</td></tr>
+                  </tbody>
+                </table>
+                """;
+
+        JsonNode root = Converter.convertHtmlToJson(new StringReader(html), null);
+
+        JsonNode row = root.get("tables").get(0).get(0);
+        assertEquals("North", row.get("Region").asString());
+        assertEquals("100", row.get("Sales Q1").asString());
+        assertEquals("200", row.get("Sales Q2").asString());
+    }
+
+    @Test
+    public void convertHtmlToJsonShouldKeepEveryValueOfAGroupedColumnWithoutALevelBelow()
+            throws Exception {
+        String html = """
+                <table>
+                  <thead>
+                    <tr><th>Region</th><th colspan="2">Sales</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>North</td><td>100</td><td>200</td></tr>
+                  </tbody>
+                </table>
+                """;
+
+        JsonNode root = Converter.convertHtmlToJson(new StringReader(html), null);
+
+        JsonNode row = root.get("tables").get(0).get(0);
+        assertEquals("North", row.get("Region").asString());
+        assertEquals("100", row.get("Sales").asString());
+        assertEquals("200", row.get("Sales 2").asString());
+    }
+
+    @Test
+    public void convertHtmlToJsonShouldNumberColumnsThatWouldShareAHeaderName() throws Exception {
+        String html = """
+                <table>
+                  <thead>
+                    <tr><th>Item</th><th>Amount</th><th>Amount</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>Widget</td><td>10</td><td>20</td></tr>
+                  </tbody>
+                </table>
+                """;
+
+        JsonNode root = Converter.convertHtmlToJson(new StringReader(html), null);
+
+        JsonNode row = root.get("tables").get(0).get(0);
+        assertEquals("Widget", row.get("Item").asString());
+        assertEquals("10", row.get("Amount").asString());
+        assertEquals("20", row.get("Amount 2").asString());
+    }
+
+    @Test
     public void convertHtmlToJsonShouldTreatANonPositiveOrNonNumericSpanAsOne() throws Exception {
         String html = """
                 <table>

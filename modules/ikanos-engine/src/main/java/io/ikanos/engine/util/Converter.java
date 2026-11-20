@@ -587,39 +587,182 @@ public class Converter {
     }
 
     private static List<String> extractHtmlHeaders(Element table) {
-        Elements headerCells = directChildren(firstHeaderRow(table), "th");
-
-        List<String> headers = new ArrayList<>();
-        for (Element headerCell : headerCells) {
-            String header = headerCell.text().trim();
-            headers.add(header);
-        }
-        return sanitizeHeaders(headers);
+        return sanitizeHeaders(uniqueHeaders(flattenHeaderCells(expandHeaderCells(headerRows(table)))));
     }
 
     /**
-     * The row that names the table's columns: the first row of the table's own {@code thead} that
-     * carries {@code th} cells, else the first of the table's own rows that does.
+     * The rows that name the table's columns: every {@code th} row of the table's own
+     * {@code thead}, else the run of {@code th} rows the table starts with.
+     *
+     * <p>A grouped table names its columns over several rows — {@code Region} next to a
+     * {@code Sales} header that spans the two quarters below it — so the levels are read as a
+     * whole rather than from the first row alone.</p>
      *
      * <p>Only the table's direct children are inspected. A {@code table} nested inside a cell is a
-     * different table: its header row belongs to it, and must not name the outer columns.</p>
+     * different table: its header rows belong to it, and must not name the outer columns.</p>
      */
-    private static Element firstHeaderRow(Element table) {
+    private static List<Element> headerRows(Element table) {
+        List<Element> rows = new ArrayList<>();
+
         for (Element thead : directChildren(table, "thead")) {
-            for (Element headerRow : directChildren(thead, "tr")) {
-                if (!directChildren(headerRow, "th").isEmpty()) {
-                    return headerRow;
+            addHeaderLevels(directChildren(thead, "tr"), rows);
+            if (!rows.isEmpty()) {
+                return rows;
+            }
+        }
+
+        addHeaderLevels(tableRows(table), rows);
+        return rows;
+    }
+
+    /**
+     * Add the run of header levels the given rows start with: the levels of a grouped header sit
+     * next to each other, and a header level further down the table belongs to another table.
+     */
+    private static void addHeaderLevels(Elements candidates, List<Element> rows) {
+        boolean started = false;
+
+        for (Element candidate : candidates) {
+            if (!isHeaderLevel(candidate)) {
+                if (started) {
+                    return;
+                }
+                continue;
+            }
+
+            started = true;
+            rows.add(candidate);
+        }
+    }
+
+    /**
+     * Whether the row is one level of the column names: it has {@code th} cells and no {@code td}
+     * cell. A row mixing the two is a data row whose first cell happens to be a row label, and
+     * naming a column after it would put that label into the header.
+     */
+    private static boolean isHeaderLevel(Element row) {
+        return !directChildren(row, "th").isEmpty() && directChildren(row, "td").isEmpty();
+    }
+
+    /**
+     * Lay the header rows out on a grid, honouring {@code colspan} and {@code rowspan}.
+     *
+     * <p>A header cell spanning several columns names each of them: a group header such as
+     * {@code <th colspan="2">Sales</th>} is what the columns below it have in common, so filling
+     * only its first column would lose the level the table was built to carry. A cell spanning
+     * several rows is the other way round: the rows it covers are left empty, because the spanning
+     * cell already supplies the name and {@code flattenHeaderCells} reads each column from the top
+     * down.</p>
+     *
+     * <p>Only a row's own {@code th} children are laid out, so a {@code table} nested inside a cell
+     * does not contribute cells to its host's grid.</p>
+     */
+    static List<List<String>> expandHeaderCells(List<Element> headerRows) {
+        List<List<String>> grid = new ArrayList<>();
+        Map<Integer, Integer> coveredRowsLeft = new HashMap<>();
+
+        for (Element rowElement : headerRows) {
+            List<String> values = new ArrayList<>();
+            int column = 0;
+
+            for (Element cell : directChildren(rowElement, "th")) {
+                column = skipCoveredColumns(values, column, coveredRowsLeft);
+
+                String value = cell.text().trim();
+                int columnSpan = spanOf(cell, "colspan");
+                int rowSpan = spanOf(cell, "rowspan");
+
+                for (int i = 0; i < columnSpan; i++) {
+                    values.add(value);
+                }
+
+                if (rowSpan > 1) {
+                    for (int i = 0; i < columnSpan; i++) {
+                        coveredRowsLeft.put(column + i, rowSpan - 1);
+                    }
+                }
+
+                column += columnSpan;
+            }
+
+            // a short header row can end before a column that a rowspan still covers
+            skipCoveredColumns(values, column, coveredRowsLeft);
+            grid.add(values);
+        }
+
+        return grid;
+    }
+
+    /**
+     * Append an empty value for every column a {@code rowspan} still covers, so the cells that
+     * follow stay in their own column.
+     *
+     * @return the first column not covered by a rowspan
+     */
+    private static int skipCoveredColumns(List<String> values, int column,
+            Map<Integer, Integer> coveredRowsLeft) {
+        while (coveredRowsLeft.getOrDefault(column, 0) > 0) {
+            values.add("");
+
+            int rowsLeft = coveredRowsLeft.get(column) - 1;
+            if (rowsLeft == 0) {
+                coveredRowsLeft.remove(column);
+            } else {
+                coveredRowsLeft.put(column, rowsLeft);
+            }
+
+            column++;
+        }
+        return column;
+    }
+
+    /**
+     * Read one header per column out of the header grid: the names that reach that column, from the
+     * topmost header row down, joined with a space.
+     *
+     * <p>A flat table keeps its single level as it is, so {@code Name|Price|Stock} stays three
+     * headers. A grouped one carries both levels, so the quarter under a {@code Sales} group reads
+     * {@code Sales Q1}, the way the table meant it.</p>
+     */
+    private static List<String> flattenHeaderCells(List<List<String>> grid) {
+        int columnCount = 0;
+        for (List<String> row : grid) {
+            columnCount = Math.max(columnCount, row.size());
+        }
+
+        List<String> headers = new ArrayList<>();
+        for (int column = 0; column < columnCount; column++) {
+            List<String> levels = new ArrayList<>();
+            for (List<String> row : grid) {
+                if (column < row.size() && !row.get(column).isBlank()) {
+                    levels.add(row.get(column));
                 }
             }
+            headers.add(String.join(" ", levels));
         }
+        return headers;
+    }
 
-        for (Element row : tableRows(table)) {
-            if (!directChildren(row, "th").isEmpty()) {
-                return row;
+    /**
+     * Make the header names distinct, since each one becomes the key of every row object and a
+     * repeated key keeps only the value written last. A name that a column of its own already took
+     * is numbered: {@code Sales}, {@code Sales 2}, {@code Sales 3}.
+     */
+    private static List<String> uniqueHeaders(List<String> headers) {
+        Map<String, Integer> seen = new HashMap<>();
+        List<String> unique = new ArrayList<>();
+
+        for (String header : headers) {
+            if (header.isBlank()) {
+                unique.add(header);
+                continue;
             }
+
+            int count = seen.merge(header, 1, Integer::sum);
+            unique.add(count == 1 ? header : header + " " + count);
         }
 
-        return null;
+        return unique;
     }
 
     private static List<List<String>> extractHtmlRows(Element table, List<String> headers) {
