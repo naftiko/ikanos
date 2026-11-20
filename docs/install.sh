@@ -28,6 +28,12 @@
 # package):
 #   curl -fsSL https://naftiko.github.io/ikanos/v1.0.0/install.sh | IKANOS_VERSION=v1.0.0 sh
 #
+# An installer from v1.0.0-beta9 or older installs releases up to
+# v1.0.0-beta9 only: from v1.0.0-beta10, a package's .sha256 file holds
+# the hash alone, which those installers don't read ("No checksum entry
+# found"). A pinned installer that old must set IKANOS_VERSION to
+# v1.0.0-beta9 or older too, or be taken from the "latest" alias above.
+#
 # Env overrides:
 #   IKANOS_VERSION   Install a specific release tag (e.g. "v1.0.0-beta2").
 #                     Defaults to the latest GitHub release, including
