@@ -427,4 +427,90 @@ class McpMultiRoundTripIntegrationTest {
         assertEquals("complete", done.path("resultType").asString(), done.toString());
         assertFalse(done.path("isError").asBoolean(), done.toString());
     }
+
+    /**
+     * A flow whose second question names the voyage, an input, and the captain, the answer to
+     * the first question.
+     */
+    private static String templated(String message) {
+        return """
+                ikanos: "%s"
+                info:
+                  display: "Departure confirmation"
+                  description: "Templated elicit message integration test"
+                capability:
+                  aggregates:
+                  - namespace: departure
+                    flows:
+                      confirm-departure:
+                        description: Ask the duty officer to confirm a departure.
+                        inputParameters:
+                          voyageId:
+                            type: string
+                            description: Voyage to confirm
+                        steps:
+                          captain:
+                            type: elicit
+                            message: Who is the captain?
+                            fields:
+                              name:
+                                type: string
+                                description: The captain's name
+                          confirm:
+                            type: elicit
+                            message: "%s"
+                            fields:
+                              confirmed:
+                                type: string
+                                enum: [CONFIRM]
+                                description: Choose CONFIRM to confirm
+                  exposes:
+                  - type: mcp
+                    address: localhost
+                    port: 0
+                    namespace: shipyard-ops
+                    description: Shipyard operations.
+                    tools:
+                      confirm-departure:
+                        description: Confirm a departure.
+                        ref: departure.confirm-departure
+                """.formatted(IKANOS, message);
+    }
+
+    /** Answers the captain question with {@code Ada} and returns the next round's result. */
+    private JsonNode answerTheCaptain(McpServerAdapter adapter) throws Exception {
+        JsonNode first = call(adapter, CALL, true, false).path("result");
+        assertEquals("input_required", first.path("resultType").asString(), first.toString());
+        ObjectNode retry = (ObjectNode) jsonMapper.readTree(CALL);
+        retry.put("requestState", first.path("requestState").asString());
+        retry.putObject("inputResponses").set("steps/captain",
+                jsonMapper.readTree("{\"action\":\"accept\",\"content\":{\"name\":\"Ada\"}}"));
+        return call(adapter, retry.toString(), true, false);
+    }
+
+    @Test
+    void elicitMessageShouldBeRenderedFromTheInputsAndTheEarlierSteps() throws Exception {
+        McpServerAdapter adapter = load(templated(
+                "Confirm the departure of {{voyageId}} under captain {{captain.name}}?"));
+
+        JsonNode second = answerTheCaptain(adapter).path("result");
+
+        assertEquals("input_required", second.path("resultType").asString(), second.toString());
+        assertEquals("Confirm the departure of VOY-2026-043 under captain Ada?",
+                second.path("inputRequests").path(KEY).path("params").path("message")
+                        .asString());
+    }
+
+    @Test
+    void elicitMessageReadingAValueNothingProvidesShouldFailInsteadOfAsking() throws Exception {
+        McpServerAdapter adapter = load(templated("Confirm the departure of {{vessel.name}}?"));
+
+        JsonNode response = answerTheCaptain(adapter);
+
+        // The caller gets a tool error, not a question with a blank in it; the reason, a
+        // capability mistake, goes to the server log rather than to the caller.
+        JsonNode result = response.path("result");
+        assertEquals("complete", result.path("resultType").asString(), response.toString());
+        assertTrue(result.path("isError").asBoolean(), response.toString());
+    }
 }

@@ -40,7 +40,11 @@ public class OperationStepElicitSpec extends OperationStepSpec {
         this.fields = fields != null ? new LinkedHashMap<>(fields) : null;
     }
 
-    /** The question shown to the caller; the step name when absent. */
+    /**
+     * The question shown to the caller; the step name when absent. A Mustache template, rendered
+     * when the question is asked against the inputs and the outputs of the steps that ran before
+     * it; a variable that nothing provides fails the step.
+     */
     public String getMessage() {
         return message;
     }

@@ -117,11 +117,16 @@ public final class Executions {
         }
         if (result instanceof ExecutionResult.Suspended suspended) {
             // Only elicit steps await an update: the caller must answer them, under the full
-            // path of the steps that called this run.
+            // path of the steps that called this run. Each message is rendered now, from the
+            // inputs and the outputs of the steps that ran before it.
             throw new InputRequiredException(suspended.awaiting().stream()
-                    .map(await -> new InputRequiredException.Question(
-                            ExecutionInputs.qualify(await.path()).value(),
-                            (OperationStepElicitSpec) ((StepNode) await.request()).step()))
+                    .map(await -> {
+                        OperationStepElicitSpec step =
+                                (OperationStepElicitSpec) ((StepNode) await.request()).step();
+                        return new InputRequiredException.Question(
+                                ExecutionInputs.qualify(await.path()).value(), step, null,
+                                Elicitation.message(step, Elicitation.parameters(run)));
+                    })
                     .toList());
         }
         throw rethrowable(run, result);
