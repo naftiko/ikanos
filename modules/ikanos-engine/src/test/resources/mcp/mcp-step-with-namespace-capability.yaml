@@ -20,7 +20,7 @@ capability:
     description: Test MCP tools for step-level namespace resolution
     tools:
       get-voyage-manifest:
-        description: Assemble a voyage manifest
+        description: Assemble the manifest of one voyage from the registry
         inputParameters:
           voyageId:
             type: string

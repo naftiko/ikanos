@@ -20,7 +20,7 @@ capability:
         mimeType: text/html;profile=mcp-app
     tools:
       get-ship:
-        description: Get ship details.
+        description: Get the tonnage, specs and crew of a ship by IMO number.
         inputParameters:
           imo:
             type: string
