@@ -44,9 +44,9 @@ public final class InputRequests {
             request.put("method", "elicitation/create");
             ObjectNode requestParams = request.putObject("params");
             requestParams.put("mode", "form");
+            // Never the step's message as written: a template would reach the caller unrendered.
             requestParams.put("message", question.message() != null ? question.message()
-                    : question.step().getMessage() != null ? question.step().getMessage()
-                            : question.step().getName());
+                    : question.step().getName());
             ObjectNode schema = requestParams.putObject("requestedSchema");
             schema.put("type", "object");
             ObjectNode properties = schema.putObject("properties");

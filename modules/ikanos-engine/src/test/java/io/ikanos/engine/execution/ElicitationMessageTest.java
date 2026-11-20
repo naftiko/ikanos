@@ -18,6 +18,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import io.ikanos.engine.util.CallerClaimMissingException;
+import io.ikanos.engine.util.CallerRoot;
+import io.ikanos.engine.util.Resolver;
+import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.spec.util.OperationStepElicitSpec;
 
 /**
@@ -69,6 +73,48 @@ class ElicitationMessageTest {
 
         assertTrue(e.getMessage().contains("post.title"), e.getMessage());
         assertTrue(e.getMessage().contains("approve"), e.getMessage());
+    }
+
+    @Test
+    void parametersShouldIncludeAStepOutputKeptOnlyInTheStepContext() {
+        // A lookup step stores its output in the step context, not in the run's parameters.
+        StepRun run = new StepRun(Map.of("postId", "42"));
+        run.stepContext().storeStepOutput("author",
+                IkanosMappers.json().createObjectNode().put("name", "Grace"));
+
+        String message = Elicitation.message(step("Delete #{{postId}} by {{author.name}}?"),
+                Elicitation.parameters(run));
+
+        assertEquals("Delete #42 by Grace?", message);
+    }
+
+    @Test
+    void parametersShouldKeepTheRunParameterWhenAStepOutputHasTheSameName() {
+        StepRun run = new StepRun(Map.of("post", Map.of("title", "From the run")));
+        run.stepContext().storeStepOutput("post",
+                IkanosMappers.json().createObjectNode().put("title", "From the context"));
+
+        assertEquals("From the run", Elicitation.message(step("{{post.title}}"),
+                Elicitation.parameters(run)));
+    }
+
+    @Test
+    void messageShouldRenderAClaimOfTheCaller() {
+        Map<String, Object> parameters = Map.of(Resolver.CALLER_ROOT,
+                new CallerRoot(Map.of("claims", Map.of("sub", "alice"))));
+
+        assertEquals("Approve as alice?",
+                Elicitation.message(step("Approve as {{auth.claims.sub}}?"), parameters));
+    }
+
+    @Test
+    void messageShouldFailAsAMissingClaimWhenTheTokenLacksIt() {
+        Map<String, Object> parameters = Map.of(Resolver.CALLER_ROOT,
+                new CallerRoot(Map.of("claims", Map.of("sub", "alice"))));
+        OperationStepElicitSpec step = step("Approve as {{auth.claims.name}}?");
+
+        assertThrows(CallerClaimMissingException.class,
+                () -> Elicitation.message(step, parameters));
     }
 
     @Test

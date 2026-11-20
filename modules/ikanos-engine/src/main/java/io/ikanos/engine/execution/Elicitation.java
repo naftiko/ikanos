@@ -13,9 +13,12 @@
  */
 package io.ikanos.engine.execution;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import tools.jackson.databind.ObjectMapper;
+import io.ikanos.spec.util.IkanosMappers;
 import java.util.Set;
 import io.ikanos.Capability;
 import io.ikanos.engine.aggregates.AggregateFlow;
@@ -37,6 +40,8 @@ import io.ikanos.spec.util.OperationStepSpec;
  */
 public final class Elicitation {
 
+    private static final ObjectMapper JSON = IkanosMappers.json();
+
     private Elicitation() {
     }
 
@@ -48,16 +53,20 @@ public final class Elicitation {
      * in a section, such as {@code {{#post.title}} '{{post.title}}'{{/post.title}}}.
      *
      * @param step the elicit step
-     * @param parameters the run's parameters, may be {@code null}
+     * @param parameters what the message renders against, see {@link #parameters(StepRun)};
+     *        may be {@code null}
      * @throws IllegalStateException naming the variables nothing provides
      * @throws IllegalArgumentException when the message reads the caller's claims in a way
-     *         {@link Resolver#requireCallerValues} refuses
+     *         {@link Resolver#requireCallerValues} refuses, such as
+     *         {@link io.ikanos.engine.util.CallerClaimMissingException} for a claim the token
+     *         lacks, checked first as for every other template
      */
     static String message(OperationStepElicitSpec step, Map<String, Object> parameters) {
         String template = step.getMessage();
         if (template == null) {
             return step.getName();
         }
+        Resolver.requireCallerValues(template, parameters);
         List<String> unresolved = Resolver.unresolvedVariables(template, parameters);
         if (!unresolved.isEmpty()) {
             throw new IllegalStateException("Step '" + step.getName() + "': the message reads "
@@ -65,6 +74,21 @@ public final class Elicitation {
                     + ", which no input or earlier step provides");
         }
         return Resolver.resolveMustacheTemplate(template, parameters);
+    }
+
+    /**
+     * What an {@code elicit} message renders against: the run's parameters (the inputs, and the
+     * outputs of call, script and elicit steps), plus the outputs kept only in the step context,
+     * such as a {@code lookup} step's. A run parameter wins over a step output of the same name.
+     */
+    static Map<String, Object> parameters(StepRun run) {
+        Map<String, Object> parameters = new HashMap<>(run.runtimeParameters());
+        run.stepContext().getAllStepOutputs().forEach((name, output) -> {
+            if (!parameters.containsKey(name) && output != null && !output.isNull()) {
+                parameters.put(name, JSON.convertValue(output, Object.class));
+            }
+        });
+        return parameters;
     }
 
     /**
