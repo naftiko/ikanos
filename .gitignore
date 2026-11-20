@@ -36,3 +36,6 @@ dependency-reduced-pom.xml
 
 # ─── Local test-result summaries written by developer tooling ──────────────────
 /.report-summary.txt
+
+# JReleaser's output (jreleaser.yml)
+/out/

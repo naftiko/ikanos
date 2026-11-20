@@ -1,0 +1,154 @@
+# How the Ikanos CLI is packaged and released, by JReleaser, as naftiko/platform-cli and naftiko/polychro do.
+# Each OS runner runs `jreleaser assemble --select-current-platform` (publish-cli-packages.yml): its own JDK builds
+# its own package. On a v* tag, one job then runs `jreleaser full-release` with all of them (create-release.yml).
+# Try it locally without publishing anything:
+#   mvn -q package -pl modules/ikanos-cli -am -DskipTests
+#   IKANOS_JDK_MACOS_ARM64=$JAVA_HOME JRELEASER_PROJECT_VERSION=1.0.0 \
+#     java -jar jreleaser-tool-provider.jar assemble --select-current-platform
+project:
+  name: ikanos
+  description: The Ikanos command-line interface
+  longDescription: The open source capability engine for Spec-Driven Integration.
+  links:
+    homepage: https://github.com/naftiko/ikanos
+  authors:
+    - Naftiko
+  license: Apache-2.0
+  inceptionYear: '2025'
+  languages:
+    java:
+      groupId: io.ikanos
+      artifactId: ikanos-cli
+      version: '21'
+      mainClass: io.ikanos.Cli
+
+# The names install.sh and install.ps1 ask for, as before JReleaser: ikanos-cli-macos-arm64.tar.gz.
+platform:
+  replacements:
+    osx-aarch_64: macos-arm64
+    linux-x86_64: linux-amd64
+    linux-aarch_64: linux-arm64
+    windows-x86_64: windows-amd64
+
+assemble:
+  jlink:
+    ikanos-cli:
+      active: ALWAYS
+      stereotype: CLI
+      executable: ikanos
+      imageName: 'ikanos-cli'
+      # The shaded jar holds every dependency (modules/ikanos-cli/pom.xml), so it goes alone in jars/.
+      mainJar:
+        path: modules/ikanos-cli/target/ikanos.jar
+      jdeps:
+        multiRelease: '21'
+        ignoreMissingDeps: true
+        targets:
+          - 'modules/ikanos-cli/target/ikanos.jar'
+      # The modules jdeps doesn't see, which the hand-written jlink before it added with --bind-services: the
+      # providers of the services the others use, such as the crypto providers outbound HTTPS needs (#718), the
+      # charsets, the locale data and DNS. JReleaser puts ikanos.jar on jlink's module path, so --bind-services
+      # can't be used: it would bind the jar's own services (its JDBC drivers) and stop on it ("automatic module
+      # cannot be used with jlink"). Together with what jdeps finds, the runtime has the same 52 modules as before.
+      # A module jdeps starts to need later comes without the providers --bind-services would have added with it.
+      additionalModuleNames:
+        - java.datatransfer
+        - java.logging
+        - java.management
+        - java.management.rmi
+        - java.prefs
+        - java.rmi
+        - java.security.sasl
+        - java.smartcardio
+        - java.transaction.xa
+        - java.xml
+        - java.xml.crypto
+        - jdk.attach
+        - jdk.charsets
+        - jdk.compiler
+        - jdk.crypto.cryptoki
+        - jdk.crypto.ec
+        - jdk.editpad
+        - jdk.internal.ed
+        - jdk.internal.jvmstat
+        - jdk.internal.le
+        - jdk.internal.opt
+        - jdk.jartool
+        - jdk.javadoc
+        - jdk.jdeps
+        - jdk.jdi
+        - jdk.jdwp.agent
+        - jdk.jlink
+        - jdk.jpackage
+        - jdk.jshell
+        - jdk.jstatd
+        - jdk.localedata
+        - jdk.management.jfr
+        - jdk.naming.dns
+        - jdk.naming.rmi
+        - jdk.random
+        - jdk.security.auth
+        - jdk.security.jgss
+        - jdk.unsupported.desktop
+        - jdk.zipfs
+      args:
+        - --no-header-files
+        - --no-man-pages
+        # Without a --compress, JReleaser adds zip-9. The .tar.gz and the .zip pack an uncompressed runtime better,
+        # and the JVM reads it faster: the runtime stays as the hand-written jlink made it.
+        # No --generate-cds-archive: it saves 20 to 30 ms on a command and adds about 9 MB to each package.
+        - --compress=zip-0
+      # bin/ikanos and bin/ikanos.bat are JReleaser's launchers, for an archive unpacked by hand. install.sh and
+      # install.ps1 write their own, in $IKANOS_HOME/bin.
+      java:
+        mainClass: io.ikanos.Cli
+      fileSets:
+        - input: '.'
+          includes: [LICENSE.md]
+      # The asset names install.sh and install.ps1 download: a .tar.gz for macOS and Linux, a .zip for Windows.
+      formats: [TAR_GZ, ZIP]
+      targetJdks:
+        - path: '{{ Env.IKANOS_JDK_LINUX_X64 }}'
+          platform: linux-x86_64
+          extraProperties: { skipZip: true }
+        - path: '{{ Env.IKANOS_JDK_LINUX_ARM64 }}'
+          platform: linux-aarch_64
+          extraProperties: { skipZip: true }
+        - path: '{{ Env.IKANOS_JDK_MACOS_ARM64 }}'
+          platform: osx-aarch_64
+          extraProperties: { skipZip: true }
+        - path: '{{ Env.IKANOS_JDK_WINDOWS_X64 }}'
+          platform: windows-x86_64
+          extraProperties: { skipTargz: true }
+
+checksum:
+  individual: true
+
+release:
+  github:
+    owner: naftiko
+    name: ikanos
+    # The tag already exists: it's what starts the release workflow.
+    skipTag: true
+    # Named like the earlier releases; the codename ("Trawler"...) and the story are added by hand.
+    releaseName: 'Ikanos v{{projectVersion}}'
+    overwrite: false
+    # Created as a draft, and published by create-release.yml once JReleaser has uploaded every file: install.sh
+    # takes the newest release, so it never finds one without its package. (immutableRelease does the same, but
+    # JReleaser refuses it with the snapshot version the package workflow builds.)
+    draft: true
+    # A run that failed before the draft was published leaves it unseen: run it again, then delete the old draft.
+    # One that failed later adds the files that are missing to the release it made.
+    update:
+      enabled: true
+      sections: [ASSETS]
+    milestone:
+      close: false
+    prerelease:
+      pattern: '.*-.*'
+    # No generated changelog: the release notes are written by hand from the commit range, with the
+    # release-notes-drafting skill (AGENTS.md), as before JReleaser. A breaking change still reaches them through
+    # its BREAKING CHANGE footer. Generated, one beta's changelog is longer than the 10,000 characters JReleaser puts
+    # in a release body (37,683 for 1.0.0-beta10): it would cut it there and attach the whole list as RELEASE.md.
+    changelog:
+      enabled: false
