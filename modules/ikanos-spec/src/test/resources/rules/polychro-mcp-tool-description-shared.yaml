@@ -1,0 +1,26 @@
+# Polychro fixture — a shared section document: root-level `aggregates` (flows in the legacy
+# array form) and root-level `exposes`.
+#   - ikanos-mcp-tool-description MUST FIRE on `undescribed-ref`, whose flow has no description;
+#   - ikanos-mcp-tool-description-restates-name MUST NOT FIRE on `get-forecast`: it inherits
+#     "Get the forecast." from its flow, which is checked on the flow, not on the tool.
+ikanos: "1.0.0-beta10"
+
+aggregates:
+  - namespace: weather
+    flows:
+      - name: get-forecast
+        description: "Get the forecast."
+        call: weather-api.get-forecast
+      - name: undescribed
+        call: weather-api.get-forecast
+
+exposes:
+  - type: mcp
+    namespace: weather-tools
+    port: 3003
+    description: "Weather tools."
+    tools:
+      get-forecast:
+        ref: weather.get-forecast
+      undescribed-ref:
+        ref: weather.undescribed

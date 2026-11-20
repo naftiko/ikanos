@@ -1,7 +1,8 @@
 # Polychro fixture — no ikanos-mcp-tool-description* rule MUST FIRE:
 #   every tool says more than its name, `inherited-restart` takes the description of its flow,
 #   `imported-restart` refs a flow this document does not hold (nothing to check), and the two
-#   incident tools say what sets them apart. The deferred adapter's tools are all described.
+#   incident tools say what sets them apart. `get-invoice` is described in Japanese, whose
+#   letters are words, not separators. The deferred adapter's tools are all described.
 ikanos: "1.0.0-beta10"
 info:
   display: "MCP tool description rules — compliant"
@@ -47,6 +48,9 @@ capability:
           call: ops-api.read
         list-closed-incidents:
           description: "List resolved incidents of the last 30 days, with the time to resolve."
+          call: ops-api.read
+        get-invoice:
+          description: "請求書を1件取得し、金額と期日を返します。"
           call: ops-api.read
     - type: mcp
       namespace: ops-deferred
