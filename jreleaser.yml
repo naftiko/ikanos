@@ -43,6 +43,9 @@ assemble:
       jdeps:
         multiRelease: '21'
         ignoreMissingDeps: true
+        # Each jar is named on jdeps' class path: with a wildcard, Windows jdeps takes "windows-x86_64\*" for a path
+        # (no jar is Windows-only, so that folder does not exist) and stops on the "*".
+        useWildcardInPath: false
         targets:
           - 'modules/ikanos-cli/target/ikanos.jar'
       # The modules jdeps doesn't see, which the hand-written jlink before it added with --bind-services: the
