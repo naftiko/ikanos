@@ -27,6 +27,12 @@
 # package):
 #   $env:IKANOS_VERSION = "v1.0.0"; irm https://naftiko.github.io/ikanos/v1.0.0/install.ps1 | iex
 #
+# An installer from v1.0.0-beta9 or older installs releases up to
+# v1.0.0-beta9 only: from v1.0.0-beta10, a package's .sha256 file holds
+# the hash alone, which those installers don't read ("No checksum entry
+# found"). A pinned installer that old must set IKANOS_VERSION to
+# v1.0.0-beta9 or older too, or be taken from the "latest" alias above.
+#
 # Env overrides (set as environment variables before running, or
 # $env:IKANOS_VERSION = "v1.0.0-beta2" in the same session):
 #   IKANOS_VERSION        Install a specific release tag. Defaults to the
