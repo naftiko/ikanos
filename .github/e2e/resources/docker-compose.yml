@@ -17,6 +17,24 @@ services:
     networks:
       - e2e
 
+  # Authenticating proxy in front of Microcks for the consumed-auth feature
+  # (Microcks cannot reject bad credentials). See authgw/httpd.conf.
+  authgw:
+    image: httpd:2.4
+    container_name: e2e-authgw
+    depends_on:
+      microcks:
+        condition: service_healthy
+    ports:
+      - "8090:8090"   # basic
+      - "8091:8091"   # apikey
+      - "8093:8093"   # apikey, raw token in Authorization
+    volumes:
+      - ./authgw/httpd.conf:/usr/local/apache2/conf/httpd.conf:ro
+      - ./authgw/htpasswd:/usr/local/apache2/conf/auth/htpasswd:ro
+    networks:
+      - e2e
+
   keycloak:
     image: quay.io/keycloak/keycloak:26.1
     container_name: e2e-keycloak
