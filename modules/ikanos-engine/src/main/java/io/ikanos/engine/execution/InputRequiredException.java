@@ -39,7 +39,8 @@ public class InputRequiredException extends RuntimeException {
      * @param request the upstream's {@code elicitation/create} request, passed through
      *        unchanged, or {@code null} for an elicit step's own question
      * @param message the elicit step's message, rendered against the run's parameters when the
-     *        question was asked, or {@code null} to show the step's message as written
+     *        question was asked; when {@code null}, the step's name is shown, never its message
+     *        as written, which may be an unrendered template
      */
     public record Question(String key, OperationStepElicitSpec step, JsonNode request,
             String message) {

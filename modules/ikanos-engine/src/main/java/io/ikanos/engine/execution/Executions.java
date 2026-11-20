@@ -125,7 +125,7 @@ public final class Executions {
                                 (OperationStepElicitSpec) ((StepNode) await.request()).step();
                         return new InputRequiredException.Question(
                                 ExecutionInputs.qualify(await.path()).value(), step, null,
-                                Elicitation.message(step, run.runtimeParameters()));
+                                Elicitation.message(step, Elicitation.parameters(run)));
                     })
                     .toList());
         }
