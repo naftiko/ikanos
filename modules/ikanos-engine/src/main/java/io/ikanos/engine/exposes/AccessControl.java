@@ -99,7 +99,7 @@ public final class AccessControl {
                 .get(OAuth2AuthenticationRestlet.VALIDATED_CLAIMS_ATTRIBUTE);
         Denial denial = claims instanceof JWTClaimsSet validated
                 ? check(requirement, validated, stillRequired)
-                : new Denial(requirement.getScopes(), "No validated access token");
+                : noToken(requirement);
         if (denial == null) {
             return true;
         }
@@ -107,6 +107,37 @@ public final class AccessControl {
         response.setEntity("Forbidden", MediaType.TEXT_PLAIN);
         response.getAttributes().put(DENIAL_ATTRIBUTE, denial);
         return false;
+    }
+
+    /**
+     * Checks a requirement against claims an application that embeds the engine has validated
+     * itself, for a call it makes directly to a handler with no exposed server in between (#1126).
+     * The rules are those of {@link #enforce}: scopes from {@code scope} and {@code scp}, dotted
+     * claim paths, one of the allowed values.
+     *
+     * <p>The engine does not validate these claims: passing them asserts that the caller holds
+     * them.</p>
+     *
+     * @param requirement the requirement that applies ({@link #effective}), or {@code null} for none
+     * @param claims the validated claims, by claim name, or {@code null} when the caller has none
+     * @return {@code null} when the call may proceed, else why it may not: missing claims get the
+     *         denial of a request without a validated token
+     */
+    public static Denial check(AuthorizationSpec requirement, Map<String, Object> claims) {
+        if (requirement == null) {
+            return null;
+        }
+        if (claims == null) {
+            return noToken(requirement);
+        }
+        JWTClaimsSet.Builder validated = new JWTClaimsSet.Builder();
+        claims.forEach(validated::claim);
+        return check(requirement, validated.build(), Set.of());
+    }
+
+    /** The denial of a call whose caller holds no validated token. */
+    private static Denial noToken(AuthorizationSpec requirement) {
+        return new Denial(requirement.getScopes(), "No validated access token");
     }
 
     /**
