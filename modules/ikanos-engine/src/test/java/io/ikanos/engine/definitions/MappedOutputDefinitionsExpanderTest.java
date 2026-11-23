@@ -493,6 +493,122 @@ class MappedOutputDefinitionsExpanderTest {
     }
 
     @Test
+    void expandAllShouldRejectAnOutputObjectWithoutProperties() throws Exception {
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    meta: { type: object }
+                """, """
+                get-meta:
+                  description: "Get metadata."
+                  call: erp.get-meta
+                  outputParameters:
+                    - schema: meta
+                      mapping: "$.meta"
+                """);
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        assertEquals(List.of("MCP adapter 'tools', tool 'get-meta', output: 'schema: meta' is an"
+                + " object without properties, which as an output always returns an empty"
+                + " object. Use it as a property, with a 'mapping'."), errors);
+    }
+
+    @Test
+    void expandAllShouldBindASchemaWithoutPathsByItsMappingAlone() throws Exception {
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    imo: { type: string, format: imo }
+                """, """
+                get-ship:
+                  description: "Get ship."
+                  call: erp.get-ship
+                  outputParameters:
+                    - type: object
+                      properties:
+                        imo:
+                          schema: imo
+                          mapping: "$.imo_number"
+                """);
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+
+        assertEquals(List.of(), result.errors());
+        assertEquals("{\"type\":\"object\",\"properties\":{\"imo\":{\"type\":\"string\","
+                + "\"mapping\":\"$.imo_number\"}}}", outputs(spec, "get-ship"));
+    }
+
+    @Test
+    void expandAllShouldRejectASchemaBelowInlineNestedArrays() throws Exception {
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    ship:
+                      type: object
+                      properties:
+                        imo: { type: string }
+                """, """
+                list-fleets:
+                  description: "List fleets."
+                  call: erp.list-fleets
+                  outputParameters:
+                    - type: array
+                      mapping: "$.fleets"
+                      items:
+                        type: array
+                        items:
+                          schema: ship
+                          mappings:
+                            imo: "$.imo_number"
+                """);
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        assertEquals(List.of("MCP adapter 'tools', tool 'list-fleets', output, items, items:"
+                + " 'schema: ship' sits in the items of a nested array, which the runtime passes"
+                + " through as they are: its bindings are never read. Remove it, or bind the"
+                + " outer items instead."), errors);
+    }
+
+    @Test
+    void expandAllShouldRejectASchemaInAnMcpResourceOutput() throws Exception {
+        IkanosSpec spec = read("""
+                ikanos: "%s"
+                capability:
+                  exposes:
+                    - type: mcp
+                      port: 3000
+                      namespace: tools
+                      definitions:
+                        schemas:
+                          ship:
+                            type: object
+                            properties:
+                              imo: { type: string }
+                      resources:
+                        flagship:
+                          description: "The flagship."
+                          uri: "data://flagship"
+                          call: erp.get-ship
+                          outputParameters:
+                            - schema: ship
+                              mappings:
+                                imo: "$.imo_number"
+                      tools:
+                        get-ship:
+                          description: "Get ship."
+                          call: erp.get-ship
+                """.formatted(IKANOS));
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        assertEquals(List.of("MCP adapter 'tools', resource 'flagship': 'schema:' and"
+                + " 'mappings' are not supported in an MCP resource output. Declare the output"
+                + " inline."), errors);
+    }
+
+    @Test
     void expandAllShouldRejectASchemaInAMockFlow() throws Exception {
         IkanosSpec spec = read("""
                 ikanos: "%s"

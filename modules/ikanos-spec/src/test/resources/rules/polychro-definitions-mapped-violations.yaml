@@ -52,6 +52,18 @@ capability:
             properties:
               id: { type: string }
               metadata: { type: object }
+          meta: { type: object }
+          grid:
+            type: object
+            properties:
+              rows:
+                type: array
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      value: { type: number }
       tools:
         unbound-crew:
           description: "Leaves the crew unbound."
@@ -143,3 +155,81 @@ capability:
               mappings:
                 id: "$.id"
                 metadata: "$.meta"
+        output-free-form:
+          description: "Uses an object without properties as the whole output."
+          call: registry.get-ship
+          outputParameters:
+            - schema: meta
+              mapping: "$.meta"
+        below-nested-arrays:
+          description: "Binds a schema below inline nested arrays."
+          call: registry.get-ship
+          outputParameters:
+            - type: array
+              mapping: "$.fleets"
+              items:
+                type: array
+                items:
+                  schema: record
+                  mappings:
+                    id: "$.id"
+                    metadata: "$.meta"
+        nested-in-schema:
+          description: "Binds below nested arrays inside a schema."
+          call: registry.get-ship
+          outputParameters:
+            - schema: grid
+              mappings:
+                rows: "$.rows"
+                rows[][].value: "$.v"
+      resources:
+        flagship:
+          display: "Flagship"
+          description: "The flagship."
+          uri: "data://flagship"
+          call: registry.get-ship
+          outputParameters:
+            - type: object
+              properties:
+                ship:
+                  schema: record
+                  mapping: "$.ship"
+                  mappings:
+                    id: "$.id"
+                    metadata: "$.meta"
+    - type: rest
+      port: 3001
+      namespace: fleet-rest
+      description: "Fleet API"
+      definitions:
+        schemas:
+          cargo:
+            type: object
+            properties:
+              weight: { type: number }
+      resources:
+        cargo:
+          path: "/cargo"
+          description: "Cargo"
+          operations:
+            get-cargo:
+              method: GET
+              description: "A mock operation: static outputs only."
+              outputParameters:
+                - name: cargo
+                  schema: cargo
+  aggregates:
+    - display: "Cargo"
+      namespace: cargo
+      definitions:
+        schemas:
+          load:
+            type: object
+            properties:
+              weight: { type: number }
+      flows:
+        get-load:
+          description: "A mock flow: static outputs only."
+          outputParameters:
+            load:
+              schema: load

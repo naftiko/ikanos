@@ -18,10 +18,13 @@
  *                   declares keywords that an output does not carry
  *                   (informational);
  *   - "mappings":   a schema used in a mapped (call-mode) output is not bound
- *                   by its `mappings` (#1036): a scalar or array left unbound,
- *                   a path the schema does not have, a value that is not a
- *                   JSONPath, a property name a path cannot address, or
- *                   `mappings` without `schema:`.
+ *                   by its `mappings` (#1036): a scalar, array or object
+ *                   without properties left unbound, a path the schema does
+ *                   not have, a binding the runtime never reads (object
+ *                   items, below nested arrays, a `mapping` on an output
+ *                   object), a value that is not a JSONPath, a property name
+ *                   a path cannot address, `mappings` without `schema:`, or
+ *                   `schema:` / `mappings` in an MCP resource output.
  *
  * Covers MCP adapters, REST adapters and aggregates in a capability and at the
  * root of a standalone file. The engine and `ikanos validate` run the same checks when
@@ -637,7 +640,29 @@ function checkBinding(model, node, path, position, results) {
     return; // reported by the references check
   }
   const prefix = "'schema: " + name + "' ";
-  if (!isObject(node.mappings) || Object.keys(node.mappings).length === 0) {
+  if (position === "unread") {
+    results.push({
+      message: prefix + "sits in the items of a nested array, which the runtime passes"
+        + " through as they are: its bindings are never read. Remove it, or bind the outer"
+        + " items instead.",
+      path: path.concat("schema"),
+    });
+    return;
+  }
+  const root = rootOf(model, name);
+  const object = isObject(root) && root.type === "object";
+  if (position === "top" && object && !withProperties(root)) {
+    results.push({
+      message: prefix + "is an object without properties, which as an output always returns"
+        + " an empty object. Use it as a property, with a 'mapping'.",
+      path: path.concat("schema"),
+    });
+    return;
+  }
+  const binding = bindingOf(model, node, position === "items" && isObject(root)
+    && root.type === "array");
+  const empty = !isObject(node.mappings) || Object.keys(node.mappings).length === 0;
+  if (empty && binding.unbound.length > 0 && !binding.stopped) {
     results.push({
       message: prefix + "in a mapped (call-mode) output needs 'mappings', the mapping of"
         + " each path of the schema.",
@@ -645,9 +670,6 @@ function checkBinding(model, node, path, position, results) {
     });
     return;
   }
-  const root = rootOf(model, name);
-  const binding = bindingOf(model, node, position === "items" && isObject(root)
-    && root.type === "array");
   if (binding.stopped === "cycle" || binding.stopped === "depth") {
     return; // reported by the cycles check, or by the engine's depth bound
   }
@@ -660,7 +682,8 @@ function checkBinding(model, node, path, position, results) {
     return;
   }
   const rootWithProperties = withProperties(root);
-  if (typeof node.mapping === "string" && rootWithProperties && position !== "property") {
+  if (typeof node.mapping === "string" && object && position !== "property"
+      && (rootWithProperties || position === "top")) {
     results.push({
       message: "'mapping' beside " + prefix.trim() + " has no effect: "
         + (position === "top" ? "an output object is read from the response root"
@@ -695,7 +718,7 @@ function checkBinding(model, node, path, position, results) {
       path: path.concat("mappings"),
     });
   }
-  for (const key of Object.keys(node.mappings)) {
+  for (const key of Object.keys(isObject(node.mappings) ? node.mappings : {})) {
     if (!binding.used.has(key)) {
       results.push({
         message: prefix + "has no path '" + key + "'. Its paths are "
@@ -729,11 +752,31 @@ function walkMapped(model, node, path, position, results) {
       path: path.concat("mappings"),
     });
   }
-  walkMapped(model, node.items, path.concat("items"), "items", results);
-  walkMapped(model, node.values, path.concat("values"), "items", results);
+  const unread = position === "unread";
+  // The items of an array that is itself items are passed through as they are
+  const nested = position === "items" && node.type === "array";
+  walkMapped(model, node.items, path.concat("items"), unread || nested ? "unread" : "items",
+    results);
+  walkMapped(model, node.values, path.concat("values"), unread ? "unread" : "items", results);
   for (const p of entries(isObject(node.properties) ? node.properties : null)) {
-    walkMapped(model, p.value, path.concat("properties", ...p.locator), "property", results);
+    walkMapped(model, p.value, path.concat("properties", ...p.locator),
+      unread ? "unread" : "property", results);
   }
+}
+
+/** Whether an output, or one of its nested declarations, uses `schema:` or `mappings`. */
+function bindsDefinitions(node) {
+  if (!isObject(node)) {
+    return false;
+  }
+  if (typeof node.schema === "string" || isObject(node.mappings)) {
+    return true;
+  }
+  if (bindsDefinitions(node.items) || bindsDefinitions(node.values)) {
+    return true;
+  }
+  return entries(isObject(node.properties) ? node.properties : null)
+    .some((p) => bindsDefinitions(p.value));
 }
 
 function checkMappings(model, results) {
@@ -744,6 +787,21 @@ function checkMappings(model, results) {
     for (const p of entries(unit.unit.outputParameters)) {
       walkMapped(model, p.value, unit.path.concat("outputParameters", ...p.locator), "top",
         results);
+    }
+  }
+  // Definitions do not reach MCP resources: a reference there would never be expanded
+  if (model.owner.unitKind === "tool") {
+    for (const r of unitsAt(model.owner.node.resources, model.owner.path.concat("resources"))) {
+      if (!isObject(r.value)) {
+        continue;
+      }
+      if (entries(r.value.outputParameters).some((p) => bindsDefinitions(p.value))) {
+        results.push({
+          message: model.owner.label + ", resource '" + r.key + "': 'schema:' and 'mappings'"
+            + " are not supported in an MCP resource output. Declare the output inline.",
+          path: r.path.concat("outputParameters"),
+        });
+      }
     }
   }
 }
