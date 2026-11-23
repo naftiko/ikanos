@@ -81,6 +81,10 @@ public final class ClientAdapterRegistry {
         }
     };
 
+    /** Runtime modules of the core consumes types whose adapters are not built in. */
+    static final Map<String, String> MODULES = Map.of("grpc", "ikanos-client-grpc",
+            "graphql", "ikanos-client-graphql", "smithy", "ikanos-client-smithy");
+
     private static volatile ClientAdapterRegistry defaultRegistry;
 
     private final Map<String, ClientAdapterFactory> factories;
@@ -136,6 +140,11 @@ public final class ClientAdapterRegistry {
             Map<String, Tunnel> tunnels) {
         String type = spec.getType() != null ? spec.getType() : HTTP.type();
         ClientAdapterFactory factory = factories.get(type);
+        if (factory == null && MODULES.containsKey(type)) {
+            throw new IllegalArgumentException("consumes type '" + type + "' (namespace '"
+                    + spec.getNamespace() + "') needs the " + MODULES.get(type)
+                    + " module on the class path (in the image, /app/lib)");
+        }
         if (factory == null) {
             throw new IllegalArgumentException("No client adapter registered for consumes type '"
                     + type + "' (namespace '" + spec.getNamespace() + "'). Registered types: "

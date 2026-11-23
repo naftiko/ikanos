@@ -394,6 +394,12 @@ public class SqlClientAdapter extends ClientAdapter {
     }
 
     @Override
+    public boolean isWriteOperation(String operationName) {
+        Procedure procedure = procedures.get(operationName);
+        return procedure != null && !procedure.readOnly();
+    }
+
+    @Override
     public ConsumedInvocation prepare(String operationName, Map<String, Object> parameters) {
         Procedure procedure = procedures.get(operationName);
         if (procedure == null) {
