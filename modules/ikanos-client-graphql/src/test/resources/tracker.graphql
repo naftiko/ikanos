@@ -1,0 +1,34 @@
+type Query {
+  issue(id: String!): Issue
+  secret: Issue!
+  slow: String
+  headers: String
+}
+
+type Mutation {
+  issueCreate(input: IssueCreateInput!): IssuePayload
+  issueUpdate(id: String!, input: IssueUpdateInput!): IssuePayload
+}
+
+type Issue {
+  id: String!
+  title: String
+  state: String
+  priority: Int
+}
+
+type IssuePayload {
+  issue: Issue
+  received: String
+}
+
+input IssueCreateInput {
+  title: String!
+  teamId: String!
+  priority: Int
+}
+
+input IssueUpdateInput {
+  title: String
+  priority: Int
+}
