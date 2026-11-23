@@ -287,9 +287,11 @@ public final class DefinitionsExpander {
                 tool.setInputParameterSets(List.of());
             }
             boolean orchestrated = tool.getSteps() != null && !tool.getSteps().isEmpty();
-            // The map form is a mock tool's, whose outputs are static values: not mapped
+            // The map form is a mock tool's, whose outputs are static values: not mapped. A ref
+            // tool's own outputs map its flow's result whatever their form
+            // (ToolHandler.executeViaAggregate), as a call's would.
             List<OutputParameterSpec> outputs = expandOutputs(location, orchestrated,
-                    !orchestrated && !tool.isOutputParametersKeyed(),
+                    !orchestrated && (!tool.isOutputParametersKeyed() || tool.getRef() != null),
                     tool.getOutputParameters());
             if (tool.isOutputParametersKeyed()) {
                 // The map form marks a mock tool: keep it, or call inference treats the mock as

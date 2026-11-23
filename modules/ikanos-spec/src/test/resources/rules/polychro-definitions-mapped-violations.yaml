@@ -182,6 +182,12 @@ capability:
               mappings:
                 rows: "$.rows"
                 rows[][].value: "$.v"
+        ref-map-form:
+          description: "Map-form outputs on a ref tool."
+          ref: cargo.get-load
+          outputParameters:
+            cargo:
+              schema: record
       resources:
         flagship:
           display: "Flagship"

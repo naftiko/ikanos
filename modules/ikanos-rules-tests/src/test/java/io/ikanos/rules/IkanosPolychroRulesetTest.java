@@ -1238,6 +1238,15 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
+    public void definitionsMappingsRuleShouldBindMapFormOutputsOfARefTool() {
+        // A ref tool's own outputs map its flow's result, whatever their form
+        String output = lintFixture("rules/polychro-definitions-mapped-violations.yaml").output();
+        assertTrue(output.lines().anyMatch(line -> line.contains("ref-map-form")
+                && line.contains("'schema: record' in a mapped (call-mode) output needs"
+                    + " 'mappings'")), output);
+    }
+
+    @Test
     public void definitionsMappingsRuleShouldBindMapFormOutputsOfARefRestOperation() {
         // A ref operation's own outputs map its flow's result, whatever their form
         assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
