@@ -308,7 +308,8 @@ rules:
     description: >
       A schema used in an orchestrated (steps) output gives the output only its
       `type` (`integer` becomes `number`), its `properties`, and its `items`
-      when they are objects with properties. Its input-only keywords
+      when they are objects with properties; in a mapped (call-mode) output, its
+      `type`, `properties` and `items` of any type. Its input-only keywords
       (`description`, `enum`, `format`, `minimum`, `maximum`, `required`,
       `additionalProperties`) are not carried: this note flags them where the
       schema is used, so that the drop is never silent.
@@ -319,6 +320,24 @@ rules:
       function: definitions
       functionOptions:
         check: outputKeywords
+
+  ikanos-definitions-mappings:
+    message: "{{error}}"
+    description: >
+      `schema: name` in a mapped (call-mode) output must be bound by `mappings`:
+      a path in the schema (property names joined by `.`, `[]` for an array's
+      items) for every scalar and array, each to a JSONPath, which is the
+      `mapping` that node carries once expanded. A path the schema does not
+      have, a property name containing `.`, `[` or `]`, and `mappings` without
+      `schema:` are errors too. The engine rejects the capability at startup
+      otherwise.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: definitions
+      functionOptions:
+        check: mappings
 
   ikanos-task-mode-requires-durability:
     message: "A flow in task mode needs a durability mode on the control port."

@@ -1088,6 +1088,73 @@ public class IkanosPolychroRulesetTest {
     }
 
     // ────────────────────────────────────────────────────────────────
+    // Schemas in mapped outputs (#1036)
+    // ────────────────────────────────────────────────────────────────
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnAnUnboundScalarOrArray() {
+        LintResult result = lintFixture("rules/polychro-definitions-mapped-violations.yaml");
+        String output = result.output();
+        assertTrue(result.exitCode() != 0, output);
+        assertTrue(output.contains("'schema: ship' leaves paths unbound: crew, crew[].fullName."),
+            output);
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnAPathTheSchemaDoesNotHave() {
+        assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
+            .contains("'schema: ship' has no path 'flag'. Its paths are imo, crew, crew[],"
+                + " crew[].fullName."));
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnAValueThatIsNotAJsonPath() {
+        assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
+            .contains("'schema: ship' binds 'imo' to a value that is not a JSONPath"));
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnASchemaWithoutMappings() {
+        assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
+            .contains("'schema: ship' in a mapped (call-mode) output needs 'mappings'"));
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnMappingsWithoutASchema() {
+        assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
+            .contains("'mappings' binds a schema, so it needs 'schema:' beside it."));
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnAPropertyAPathCannotAddress() {
+        assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
+            .contains("'schema: odd' has properties that a path cannot address, as their name"
+                + " contains '.', '[' or ']': call.sign."));
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnAnArraySchemaReadFromNowhere() {
+        assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
+            .contains("'schema: tags' leaves paths unbound: (the output itself: set 'mapping'"
+                + " beside 'schema:')."));
+    }
+
+    @Test
+    public void definitionsOutputKeywordsRuleShouldNoteKeywordsAMappedOutputDoesNotCarry() {
+        assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
+            .contains("Schema 'ship' is used in a mapped output, which does not carry its"
+                + " keywords format."));
+    }
+
+    @Test
+    public void definitionsRulesShouldNotFireForCompliantMappedOutputs() {
+        LintResult result = lintFixtureAtSeverity(
+            "rules/polychro-definitions-mapped-compliant.yaml", "warn");
+        assertEquals(0, result.exitCode(), result.output());
+        assertFalse(result.output().contains("ikanos-definitions-"), result.output());
+    }
+
+    // ────────────────────────────────────────────────────────────────
     // Rule functions under Polychro (#1069)
     // ────────────────────────────────────────────────────────────────
 

@@ -14,8 +14,14 @@
  *   - "cycles":     schemas reference each other in a cycle;
  *   - "unused":     a set or schema that no unit of the namespace uses,
  *                   directly or through another definition;
- *   - "outputKeywords": a schema used in an orchestrated output declares
- *                   keywords that an output does not carry (informational).
+ *   - "outputKeywords": a schema used in an orchestrated or mapped output
+ *                   declares keywords that an output does not carry
+ *                   (informational);
+ *   - "mappings":   a schema used in a mapped (call-mode) output is not bound
+ *                   by its `mappings` (#1036): a scalar or array left unbound,
+ *                   a path the schema does not have, a value that is not a
+ *                   JSONPath, a property name a path cannot address, or
+ *                   `mappings` without `schema:`.
  *
  * Covers MCP adapters, REST adapters and aggregates in a capability and at the
  * root of a standalone file. The engine and `ikanos validate` run the same checks when
@@ -40,6 +46,8 @@ export default function definitions(targetVal, options) {
       checkUnused(model, results);
     } else if (check === "outputKeywords") {
       checkOutputKeywords(model, results);
+    } else if (check === "mappings") {
+      checkMappings(model, results);
     }
   }
   return results;
@@ -238,7 +246,9 @@ function buildModel(owner) {
     const steps = unit.steps;
     const orchestrated = Array.isArray(steps) ? steps.length > 0
       : isObject(steps) && Object.keys(steps).length > 0;
-    units.push({ name: u.key, unit, path: unitPath, refs, orchestrated });
+    // Mapped (call-mode) outputs are a list; orchestrated and mock outputs a map.
+    const mapped = !orchestrated && Array.isArray(unit.outputParameters);
+    units.push({ name: u.key, unit, path: unitPath, refs, orchestrated, mapped });
   }
 
   return { owner, sets, schemas, defsPath, setRefs, schemaRefs, units };
@@ -411,12 +421,13 @@ function declares(node, keyword) {
 }
 
 /**
- * The input-only keywords a schema declares, on itself and on what an
- * orchestrated output keeps of it: the properties of an object, and the items
- * of an array when they are objects with properties. Iterative, and each
- * schema is visited once, so cycles and long chains end.
+ * The input-only keywords a schema declares, on itself and on what an output
+ * keeps of it: the properties of an object, and the items of an array (in an
+ * orchestrated output, only when they are objects with properties; in a mapped
+ * output, always). Iterative, and each schema is visited once, so cycles and
+ * long chains end.
  */
-function droppedKeywords(model, name) {
+function droppedKeywords(model, name, allItems) {
   const found = new Set();
   const visited = new Set([name]);
   const target = (node) => {
@@ -451,8 +462,8 @@ function droppedKeywords(model, name) {
       pending.push(...Object.values(node.properties));
     } else if (node.type === "array") {
       const items = target(node.items);
-      if (isObject(items) && items.type === "object" && isObject(items.properties)
-          && Object.keys(items.properties).length > 0) {
+      if (allItems || (isObject(items) && items.type === "object"
+          && isObject(items.properties) && Object.keys(items.properties).length > 0)) {
         pending.push(node.items);
       }
     }
@@ -462,22 +473,169 @@ function droppedKeywords(model, name) {
 
 function checkOutputKeywords(model, results) {
   for (const unit of model.units) {
-    if (!unit.orchestrated) {
+    if (!unit.orchestrated && !unit.mapped) {
       continue;
     }
     for (const ref of unit.refs) {
       if (!ref.output || typeof ref.name !== "string" || !(ref.name in model.schemas)) {
         continue;
       }
-      const dropped = droppedKeywords(model, ref.name);
-      if (dropped.length > 0) {
-        results.push({
-          message: "Schema '" + ref.name + "' is used in an orchestrated output, which does"
-            + " not carry its keywords " + dropped.join(", ") + ". An output keeps only the"
-            + " schema's type, properties, and items that are objects with properties.",
-          path: ref.path,
-        });
+      const dropped = droppedKeywords(model, ref.name, unit.mapped);
+      if (dropped.length === 0) {
+        continue;
       }
+      results.push({
+        message: unit.orchestrated
+          ? "Schema '" + ref.name + "' is used in an orchestrated output, which does"
+            + " not carry its keywords " + dropped.join(", ") + ". An output keeps only the"
+            + " schema's type, properties, and items that are objects with properties."
+          : "Schema '" + ref.name + "' is used in a mapped output, which does not carry its"
+            + " keywords " + dropped.join(", ") + ". A mapped output keeps only the schema's"
+            + " type, properties and items, each with its mapping.",
+        path: ref.path,
+      });
+    }
+  }
+}
+
+/** Whether a property name can be addressed by a `mappings` path. */
+function addressable(name) {
+  return !/[.[\]]/.test(name);
+}
+
+/**
+ * Bind a schema reference of a mapped output, as the engine does: walk the
+ * schema, following `schema:` references, and record its bindable paths, the
+ * scalars and arrays its `mappings` leave unbound, and the property names a
+ * path cannot address.
+ */
+function bindingOf(model, node) {
+  const mappings = isObject(node.mappings) ? node.mappings : {};
+  const binding = { paths: [], unbound: [], unaddressable: [], used: new Set() };
+  const target = (declaration) => {
+    let current = declaration;
+    const seen = new Set();
+    while (isObject(current) && typeof current.schema === "string"
+        && current.schema in model.schemas && !seen.has(current.schema)) {
+      seen.add(current.schema);
+      current = model.schemas[current.schema];
+    }
+    return current;
+  };
+  const visit = (declaration, path, depth) => {
+    const schema = target(declaration);
+    if (!isObject(schema) || depth > 64) {
+      return;
+    }
+    if (path !== "") {
+      binding.paths.push(path);
+      if (Object.prototype.hasOwnProperty.call(mappings, path)) {
+        binding.used.add(path);
+      } else if (schema.type !== "object" && !path.endsWith("[]")) {
+        binding.unbound.push(path);
+      }
+    }
+    if (schema.type === "object") {
+      for (const p of entries(isObject(schema.properties) ? schema.properties : null)) {
+        if (!addressable(p.key)) {
+          binding.unaddressable.push(p.key);
+          continue;
+        }
+        visit(p.value, path === "" ? p.key : path + "." + p.key, depth + 1);
+      }
+    } else if (schema.type === "array" && isObject(schema.items)) {
+      visit(schema.items, path + "[]", depth + 1);
+    }
+  };
+  visit(model.schemas[node.schema], "", 0);
+  binding.rootType = isObject(target(model.schemas[node.schema]))
+    ? target(model.schemas[node.schema]).type : undefined;
+  return binding;
+}
+
+/** Report what is wrong with the binding of one schema reference. */
+function checkBinding(model, node, path, items, results) {
+  const name = node.schema;
+  if (!(name in model.schemas)) {
+    return; // reported by the references check
+  }
+  const prefix = "'schema: " + name + "' ";
+  if (!isObject(node.mappings) || Object.keys(node.mappings).length === 0) {
+    results.push({
+      message: prefix + "in a mapped (call-mode) output needs 'mappings', the mapping of"
+        + " each path of the schema.",
+      path: path.concat("schema"),
+    });
+    return;
+  }
+  const binding = bindingOf(model, node);
+  if (typeof node.mapping !== "string" && !items && binding.rootType !== "object") {
+    binding.unbound.unshift("(the output itself: set 'mapping' beside 'schema:')");
+  }
+  if (binding.unaddressable.length > 0) {
+    results.push({
+      message: prefix + "has properties that a path cannot address, as their name contains"
+        + " '.', '[' or ']': " + binding.unaddressable.join(", ") + ". Declare the output"
+        + " inline.",
+      path: path.concat("schema"),
+    });
+  }
+  if (binding.unbound.length > 0) {
+    results.push({
+      message: prefix + "leaves paths unbound: " + binding.unbound.join(", ") + ". Give each"
+        + " scalar and array a mapping in 'mappings'.",
+      path: path.concat("mappings"),
+    });
+  }
+  for (const key of Object.keys(node.mappings)) {
+    if (!binding.used.has(key)) {
+      results.push({
+        message: prefix + "has no path '" + key + "'. Its paths are "
+          + (binding.paths.length === 0 ? "none" : binding.paths.join(", ")) + ".",
+        path: path.concat("mappings", key),
+      });
+    } else if (typeof node.mappings[key] !== "string"
+        || !node.mappings[key].trim().startsWith("$")) {
+      results.push({
+        message: prefix + "binds '" + key + "' to a value that is not a JSONPath (starting"
+          + " with '$'). A static 'value' is declared inline.",
+        path: path.concat("mappings", key),
+      });
+    }
+  }
+}
+
+/** Walk a mapped output and check each schema reference and stray `mappings`. */
+function walkMapped(model, node, path, items, results) {
+  if (!isObject(node)) {
+    return;
+  }
+  if (typeof node.schema === "string") {
+    checkBinding(model, node, path, items, results);
+    return;
+  }
+  if (isObject(node.mappings)) {
+    results.push({
+      message: "'mappings' binds a schema, so it needs 'schema:' beside it. Name the schema,"
+        + " or declare a 'mapping' on each leaf inline.",
+      path: path.concat("mappings"),
+    });
+  }
+  walkMapped(model, node.items, path.concat("items"), true, results);
+  walkMapped(model, node.values, path.concat("values"), true, results);
+  for (const p of entries(isObject(node.properties) ? node.properties : null)) {
+    walkMapped(model, p.value, path.concat("properties", ...p.locator), false, results);
+  }
+}
+
+function checkMappings(model, results) {
+  for (const unit of model.units) {
+    if (!unit.mapped) {
+      continue;
+    }
+    for (const p of entries(unit.unit.outputParameters)) {
+      walkMapped(model, p.value, unit.path.concat("outputParameters", ...p.locator), false,
+        results);
     }
   }
 }
