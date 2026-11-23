@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.ikanos</groupId>
+        <artifactId>ikanos-parent</artifactId>
+        <version>${revision}</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>ikanos-client-grpc</artifactId>
+    <name>Ikanos Client — gRPC</name>
+    <description>Runtime of the consumes type grpc: unary methods of a gRPC service described by a protobuf descriptor set, called with binary protobuf through Restlet's org.restlet.ext.grpc on grpc-java. Drop this jar on the classpath to run capabilities that consume gRPC services.</description>
+
+    <dependencies>
+        <!-- ClientAdapterFactory SPI and ContractClientAdapter -->
+        <dependency>
+            <groupId>io.ikanos</groupId>
+            <artifactId>ikanos-engine</artifactId>
+        </dependency>
+        <!-- grpc-java on Restlet's HTTP/2 client connector -->
+        <dependency>
+            <groupId>org.restlet</groupId>
+            <artifactId>org.restlet.ext.grpc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-stub</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java-util</artifactId>
+        </dependency>
+
+        <!-- Test -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- The test upstream: a grpc-java server on its own Netty transport -->
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-netty-shaded</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+            </plugin>
+            <!-- An "-all" jar holding this module, the Restlet extension and grpc-java, so an
+                 operator adds one file to the image's /app/lib. The engine and Restlet core are
+                 not included: they are already in ikanos.jar. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.5.1</version>
+                <executions>
+                    <execution>
+                        <id>all</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <shadedArtifactAttached>true</shadedArtifactAttached>
+                            <shadedClassifierName>all</shadedClassifierName>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <transformers>
+                                <transformer
+                                    implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
+                            </transformers>
+                            <artifactSet>
+                                <includes>
+                                    <include>io.ikanos:ikanos-client-grpc</include>
+                                    <include>org.restlet:org.restlet.ext.grpc</include>
+                                    <include>io.grpc:*</include>
+                                    <include>com.google.guava:*</include>
+                                    <include>com.google.protobuf:protobuf-java-util</include>
+                                    <include>com.google.code.gson:*</include>
+                                    <include>com.google.errorprone:*</include>
+                                    <include>com.google.j2objc:*</include>
+                                    <include>io.perfmark:*</include>
+                                </includes>
+                            </artifactSet>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                        <exclude>module-info.class</exclude>
+                                        <exclude>META-INF/versions/*/module-info.class</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

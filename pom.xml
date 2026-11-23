@@ -100,6 +100,7 @@
           an embedding application adds the module as a dependency.
         -->
         <module>modules/ikanos-client-graphql</module>
+        <module>modules/ikanos-client-grpc</module>
     </modules>
 
     <properties>
@@ -110,6 +111,7 @@
         <restlet.version>3.0.0-m2</restlet.version>
         <!-- Same Netty as Restlet 3.0.0-m2, whose connectors and extensions are built on it -->
         <netty.version>4.2.19.Final</netty.version>
+        <grpc.version>1.85.1</grpc.version>
         <jackson.version>3.2.3</jackson.version>
         <!-- Jackson 2 is still needed by swagger-parser, Avro and json-structure -->
         <jackson2.version>2.21.7</jackson2.version>
@@ -317,6 +319,23 @@
                 <groupId>com.google.protobuf</groupId>
                 <artifactId>protobuf-java</artifactId>
                 <version>4.29.3</version>
+            </dependency>
+            <!-- JsonFormat, the proto3 JSON mapping of ikanos-client-grpc; same version -->
+            <dependency>
+                <groupId>com.google.protobuf</groupId>
+                <artifactId>protobuf-java-util</artifactId>
+                <version>4.29.3</version>
+            </dependency>
+            <!-- The grpc-java of Restlet 3.0.0-m2's org.restlet.ext.grpc -->
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-stub</artifactId>
+                <version>${grpc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-netty-shaded</artifactId>
+                <version>${grpc.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.avro</groupId>
