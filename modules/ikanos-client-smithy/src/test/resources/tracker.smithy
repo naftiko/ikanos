@@ -48,6 +48,8 @@ operation CreateIssue {
         details: Details
 
         labels: LabelMap
+
+        fields: FieldMap
     }
     output := {
         @required
@@ -83,6 +85,17 @@ structure Details {
 map LabelMap {
     key: String
     value: String
+}
+
+/// Custom fields, typed like DynamoDB attribute values: a map of unions.
+map FieldMap {
+    key: String
+    value: FieldValue
+}
+
+union FieldValue {
+    text: String
+    number: Integer
 }
 
 structure Issue {

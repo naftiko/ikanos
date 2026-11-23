@@ -90,6 +90,7 @@ import io.ikanos.engine.consumes.contract.ContractClientAdapter;
 import io.ikanos.engine.consumes.contract.ContractInvocation;
 import io.ikanos.engine.consumes.contract.ContractRequest;
 import io.ikanos.engine.consumes.contract.ContractResult;
+import io.ikanos.engine.consumes.contract.UnionChoices;
 import io.ikanos.engine.consumes.http.ConsumedAuthentication;
 import io.ikanos.engine.consumes.tunnel.Tunnel;
 import io.ikanos.engine.util.Secrets;
@@ -352,18 +353,20 @@ public class SmithyConsumedAdapter extends ContractClientAdapter {
     }
 
     /**
-     * Checks that each input's {@code wireName} path names members of the input structure
-     * (through nested structures, unions and map values), and that each required member without
-     * a default is filled by an input.
+     * Checks that each input's {@code wireName} path resolves in the input structure (members of
+     * structures and unions, keys of maps), that no two inputs set different members of one
+     * union, and that each required member without a default is filled by an input.
      */
     void checkInputs(String where, SmithyOperationSpec spec, StructureShape input) {
         Set<String> covered = new LinkedHashSet<>();
+        UnionChoices unions = new UnionChoices(where);
         for (InputParameterSpec parameter : spec.getInputParameters()) {
             List<String> path = ContractRequest.path(parameter);
-            if (!validPath(input, path)) {
+            if (!validPath(input, path, parameter.getName(), unions)) {
                 throw new IllegalArgumentException(where + " input '" + parameter.getName()
-                        + "' targets '" + String.join(".", path) + "', which the input structure '"
-                        + input.getId() + "' does not define");
+                        + "' targets '" + String.join(".", path)
+                        + "', which does not resolve in the input structure '" + input.getId()
+                        + "'");
             }
             covered.add(path.get(0));
         }
@@ -380,11 +383,21 @@ public class SmithyConsumedAdapter extends ContractClientAdapter {
         }
     }
 
-    boolean validPath(StructureShape input, List<String> path) {
+    /**
+     * Whether a path resolves in the input structure; each union member it sets is reported to
+     * {@code unions}, under the path of the union value.
+     */
+    boolean validPath(StructureShape input, List<String> path, String name, UnionChoices unions) {
         Shape current = input;
-        for (String segment : path) {
+        for (int i = 0; i < path.size(); i++) {
+            String segment = path.get(i);
             MemberShape member;
-            if (current instanceof StructureShape || current instanceof UnionShape) {
+            if (current instanceof UnionShape union) {
+                member = union.getMember(segment).orElse(null);
+                if (member != null) {
+                    unions.choose(name, path.subList(0, i), union.getId().getName(), segment);
+                }
+            } else if (current instanceof StructureShape) {
                 member = current.getMember(segment).orElse(null);
             } else if (current instanceof MapShape map) {
                 member = map.getValue();

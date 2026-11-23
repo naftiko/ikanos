@@ -212,6 +212,38 @@ class SmithyConsumedAdapterTest {
     }
 
     @Test
+    void wireNameShouldGoThroughAMapKeyIntoAUnionMember() throws Exception {
+        SmithyConsumedAdapter adapter = started(spec(CREATE_ISSUE + """
+                    severity: { type: string, description: Severity., wireName: fields.severity.text }
+                """, ""));
+        try {
+            ConsumedResult result = call(adapter, "create-issue", Map.of("project-id", "p1",
+                    "issue-title", "Crash", "severity", "high"));
+
+            assertEquals(200, result.status(), String.valueOf(result.reason()));
+            String received = result.document().get("received").asString();
+            assertTrue(received.contains("\"fields\":{\"severity\":{\"text\":\"high\"}}"),
+                    received);
+        } finally {
+            adapter.stop();
+        }
+    }
+
+    @Test
+    void constructorShouldRefuseTwoMembersOfOneUnion() throws Exception {
+        SmithyClientSpec spec = spec(CREATE_ISSUE + """
+                    severity: { type: string, description: Severity., wireName: fields.severity.text }
+                    level: { type: integer, description: Level., wireName: fields.severity.number }
+                """, "");
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> new SmithyConsumedAdapter(null, spec, Map.of()));
+        assertTrue(e.getMessage().contains("'severity' and 'level'"), e.getMessage());
+        assertTrue(e.getMessage().contains("union 'FieldValue' at 'fields.severity'"),
+                e.getMessage());
+    }
+
+    @Test
     void prepareShouldLeaveAbsentOptionalInputsOut() throws Exception {
         SmithyConsumedAdapter adapter = started(spec(CREATE_ISSUE, ""));
         try {
