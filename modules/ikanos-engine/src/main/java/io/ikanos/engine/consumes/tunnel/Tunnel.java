@@ -33,17 +33,17 @@ import java.nio.channels.AsynchronousSocketChannel;
  *
  * <p>The dial returns an {@link AsynchronousSocketChannel} rather than a plain
  * {@link java.net.Socket} because the only viable JVM-side OpenZiti integration produces
- * async channels; the engine then bridges that channel to Jetty's selector-based I/O via a
- * {@code MemoryEndPointPipe} pump. See blueprint §6.3 (revised by the §6.4 ADR after Phase 2
+ * async channels; the engine then runs Restlet's Netty connector over that channel through
+ * {@link TunnelSocketChannel}. See blueprint §6.3 (revised by the §6.4 ADR after Phase 2
  * implementation surfaced that {@code SocketChannel} bridging was not viable with the
  * available OpenZiti SDK surface).
  *
  * <h2>Routing</h2>
  *
  * <p>Host-to-tunnel routing happens via the {@link TunnelRouteTable} in the engine: the
- * adapter inspects every outgoing request's {@code Host} header and, if a registered tunnel
- * host matches, attaches a {@code TunnelTransport} to the Jetty request. The tunnel itself
- * does not participate in routing decisions; it is only asked to dial.
+ * {@link TunnelClientTransport} set on the adapter's Restlet client gives a registered host's
+ * connections a channel over {@link #connect}. The tunnel itself does not participate in
+ * routing decisions; it is only asked to dial.
  *
  * <h2>Thread-safety</h2>
  *
@@ -73,7 +73,7 @@ public interface Tunnel extends AutoCloseable {
      * in {@code ConsumesHttp.baseUri} (e.g. {@code "crm.internal"}) and is, by design,
      * unresolvable from the public internet.
      *
-     * <p>The returned channel is wrapped in application-layer TLS by Jetty when the consumed
+     * <p>The returned channel is wrapped in application-layer TLS by the connector when the consumed
      * {@code baseUri} uses HTTPS, providing end-to-end encryption on top of the overlay's
      * transport security.
      *

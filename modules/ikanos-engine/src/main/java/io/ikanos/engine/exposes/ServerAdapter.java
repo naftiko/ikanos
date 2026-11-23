@@ -47,12 +47,6 @@ public abstract class ServerAdapter extends Adapter {
     /** Requests an adapter works on at once, per CPU, when its spec sets no maxRequestsInProgress (#920). */
     static final int DEFAULT_REQUESTS_IN_PROGRESS_PER_CPU = 16;
 
-    /** Restlet's default for Jetty's {@code threadPool.maxThreads}. */
-    static final int JETTY_DEFAULT_MAX_THREADS = 200;
-
-    /** Jetty threads kept beyond the requests in progress, for its acceptors and selectors. */
-    static final int JETTY_THREAD_HEADROOM = 50;
-
     private final Capability capability;
     private final ServerSpec spec;
     private Server server;
@@ -86,24 +80,22 @@ public abstract class ServerAdapter extends Adapter {
     }
 
     /**
-     * Same, with enough Jetty threads for {@code requestsInProgress} requests at once: past
-     * Restlet's 200, Jetty would queue the excess without a limit, and the limit on requests in
-     * progress would never be reached (#920).
+     * Same, for an adapter that allows {@code requestsInProgress} requests at once. On Restlet's
+     * Netty connector each call runs on its own virtual thread ({@code threadPool.virtual}, the
+     * default), so no thread pool caps the calls below that limit, as Jetty's 200 threads did
+     * (#920): the adapter's own limit applies, and nothing needs sizing here.
      */
     static Server createServer(String address, int port, int requestsInProgress) {
         Server result = new Server(Protocol.HTTP, address, port);
         result.setContext(new Context());
 
         // Configurable idle timeout is tracked in https://github.com/naftiko/ikanos/issues/835.
-        result.getContext().getParameters().add("socketTimeout", "12000");
+        // The Netty connector reads "connector.idleTimeout"; Jetty ignored "socketTimeout" (#918).
+        result.getContext().getParameters().add("connector.idleTimeout", "12000");
         // The client address is always the direct peer. With "true", Restlet would take it from
         // the caller-controlled X-Forwarded-For header, which would defeat the MCP
         // trustedNetworks check (issue #483).
         result.getContext().getParameters().add("useForwardedForHeader", "false");
-        if (requestsInProgress + JETTY_THREAD_HEADROOM > JETTY_DEFAULT_MAX_THREADS) {
-            result.getContext().getParameters().add("threadPool.maxThreads",
-                    String.valueOf(requestsInProgress + JETTY_THREAD_HEADROOM));
-        }
         return result;
     }
 
@@ -254,21 +246,10 @@ public abstract class ServerAdapter extends Adapter {
                 ? ChallengeScheme.HTTP_DIGEST
                 : ChallengeScheme.HTTP_BASIC;
 
+        // An unread request body is discarded by Restlet's Netty connector, which keeps the
+        // connection alive when it can and otherwise announces its close (#878)
         ChallengeAuthenticator authenticator =
-                new ChallengeAuthenticator(next.getContext(), false, scheme, "ikanos") {
-
-                    @Override
-                    public void challenge(Response response, boolean stale) {
-                        RejectedRequestBodies.discard(response.getRequest());
-                        super.challenge(response, stale);
-                    }
-
-                    @Override
-                    public void forbid(Response response) {
-                        RejectedRequestBodies.discard(response.getRequest());
-                        super.forbid(response);
-                    }
-                };
+                new ChallengeAuthenticator(next.getContext(), false, scheme, "ikanos");
         authenticator.setVerifier(new SecretVerifier() {
 
             @Override

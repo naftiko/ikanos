@@ -208,7 +208,6 @@
                                     <exclude>org.graalvm.llvm:*</exclude>
                                     <exclude>org.graalvm.sdk:*</exclude>
                                     <exclude>org.apache.groovy:*</exclude>
-                                    <exclude>org.eclipse.jetty:jetty-slf4j-impl</exclude>
                                 </excludes>
                             </artifactSet>
                         </configuration>

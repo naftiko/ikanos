@@ -67,7 +67,7 @@ public class ServerAuthenticationRestlet extends Restlet {
                 authorized = authenticateApiKey(request);
                 break;
             default:
-                // A configuration error that fails every request, so the body is not discarded
+                // A configuration error that fails every request
                 response.setStatus(Status.SERVER_ERROR_NOT_IMPLEMENTED);
                 response.setEntity("Unsupported REST server authentication type: " + type,
                         MediaType.TEXT_PLAIN);
@@ -75,7 +75,6 @@ public class ServerAuthenticationRestlet extends Restlet {
         }
 
         if (!authorized) {
-            RejectedRequestBodies.discard(request);
             response.setStatus(Status.CLIENT_ERROR_UNAUTHORIZED);
             response.setEntity("Unauthorized", MediaType.TEXT_PLAIN);
             return;

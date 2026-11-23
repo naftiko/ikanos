@@ -13,64 +13,104 @@
  */
 package io.ikanos.engine.consumes.http;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.net.ServerSocket;
 import java.util.List;
-import org.eclipse.jetty.http.HttpHeader;
-import org.eclipse.jetty.client.HttpClient;
-import org.eclipse.jetty.client.WWWAuthenticationProtocolHandler;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.restlet.Client;
+import org.restlet.Component;
 import org.restlet.Context;
+import org.restlet.Request;
+import org.restlet.Response;
+import org.restlet.Restlet;
+import org.restlet.data.MediaType;
+import org.restlet.data.Method;
 import org.restlet.data.Protocol;
+import org.restlet.data.Status;
 import org.restlet.engine.Engine;
-import org.restlet.representation.Representation;
+import org.restlet.representation.InputRepresentation;
 import org.restlet.representation.StringRepresentation;
+import org.restlet.routing.Router;
 
+/**
+ * The consumed HTTP client helper on Restlet's Netty connector: a 401 keeps its body (#925), an
+ * entity of known size is sent with Content-Length (#954), and {@link
+ * IkanosHttpClientHelper#NO_REDIRECTS} returns a redirect as is (#1002).
+ */
+@Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
 class IkanosHttpClientHelperTest {
 
-    @Test
-    void startShouldRemoveTheWwwAuthenticationHandlerThatJettyInstalls() throws Exception {
-        IkanosHttpClientHelper helper = new IkanosHttpClientHelper(
-                new Client(new Context(), List.of(Protocol.HTTP)));
-        helper.start();
-        try {
-            assertNull(helper.getHttpClient().getProtocolHandlers()
-                    .remove(WWWAuthenticationProtocolHandler.NAME));
-        } finally {
-            helper.stop();
+    private static Component upstream;
+    private static int port;
+
+    @BeforeAll
+    static void startUpstream() throws Exception {
+        try (ServerSocket socket = new ServerSocket(0)) {
+            port = socket.getLocalPort();
         }
+        upstream = new Component();
+        upstream.getServers().add(Protocol.HTTP, port);
+        Router router = new Router();
+        router.attach("/unauthorized", new Restlet() {
+            @Override
+            public void handle(Request request, Response response) {
+                response.setStatus(Status.CLIENT_ERROR_UNAUTHORIZED);
+                response.setEntity("{\"error\":\"token expired\"}", MediaType.APPLICATION_JSON);
+            }
+        });
+        router.attach("/length", new Restlet() {
+            @Override
+            public void handle(Request request, Response response) {
+                String length = request.getHeaders().getFirstValue("Content-Length", true);
+                String encoding = request.getHeaders().getFirstValue("Transfer-Encoding", true);
+                // Read the whole body before answering: an answer sent while the client is still
+                // writing a chunked body can reach it as a connector error instead.
+                try {
+                    request.getEntity().exhaust();
+                } catch (java.io.IOException e) {
+                    response.setStatus(Status.SERVER_ERROR_INTERNAL, e);
+                    return;
+                }
+                response.setEntity("length=" + length + ";encoding=" + encoding,
+                        MediaType.TEXT_PLAIN);
+            }
+        });
+        router.attach("/redirect", new Restlet() {
+            @Override
+            public void handle(Request request, Response response) {
+                response.redirectTemporary("http://localhost:" + port + "/target");
+            }
+        });
+        router.attach("/target", new Restlet() {
+            @Override
+            public void handle(Request request, Response response) {
+                response.setEntity("target", MediaType.TEXT_PLAIN);
+            }
+        });
+        upstream.getDefaultHost().attach(router);
+        upstream.start();
     }
 
-    @Test
-    void removeUnusedProtocolHandlersShouldRemoveAnInstalledHandler() throws Exception {
-        HttpClient jettyClient = new HttpClient();
-        jettyClient.start();
-        try {
-            IkanosHttpClientHelper.removeUnusedProtocolHandlers(jettyClient);
-
-            assertNull(jettyClient.getProtocolHandlers()
-                    .remove(WWWAuthenticationProtocolHandler.NAME));
-        } finally {
-            jettyClient.stop();
-        }
+    @AfterAll
+    static void stopUpstream() throws Exception {
+        upstream.stop();
     }
 
-    @Test
-    void jettyShouldInstallTheWwwAuthenticationHandlerOnStart() throws Exception {
-        HttpClient jettyClient = new HttpClient();
-        jettyClient.start();
-        try {
-            assertNotNull(jettyClient.getProtocolHandlers()
-                    .remove(WWWAuthenticationProtocolHandler.NAME),
-                    "if Jetty stops installing it, IkanosHttpClientHelper can be removed");
-        } finally {
-            jettyClient.stop();
-        }
+    private static Client newClient() throws Exception {
+        IkanosHttpClientHelper.ensureRegistered();
+        Client client = new Client(new Context(), List.of(Protocol.HTTP, Protocol.HTTPS),
+                HttpClientAdapter.HTTP_CLIENT_HELPER_CLASS_NAME);
+        client.start();
+        return client;
+    }
+
+    private static String url(String path) {
+        return "http://localhost:" + port + path;
     }
 
     @Test
@@ -86,45 +126,79 @@ class IkanosHttpClientHelperTest {
     }
 
     @Test
-    void removeUnusedProtocolHandlersShouldIgnoreAMissingClient() {
-        assertDoesNotThrow(() -> IkanosHttpClientHelper.removeUnusedProtocolHandlers(null));
-    }
+    void unauthorizedWithoutChallengeShouldReachTheCallerWithItsBody() throws Exception {
+        Client client = newClient();
+        try {
+            Response response = client.handle(new Request(Method.GET, url("/unauthorized")));
 
-    // #954: a body of known size is sent with Content-Length, since S3 and MinIO refuse an
-    // unsized body that isn't aws-chunked; any other body is left to Jetty, which sends it chunked.
-
-    private static String contentLengthSent(Representation entity) {
-        org.eclipse.jetty.client.Request jettyRequest =
-                new HttpClient().newRequest("http://localhost/");
-        IkanosHttpClientHelper.setContentLength(jettyRequest, entity);
-        return jettyRequest.getHeaders().get(HttpHeader.CONTENT_LENGTH);
-    }
-
-    @Test
-    void setContentLengthShouldSendTheSizeWhenItIsKnown() {
-        assertEquals("5", contentLengthSent(new StringRepresentation("hello")));
+            assertEquals(401, response.getStatus().getCode(), "#925: no 1002 for a bare 401");
+            assertTrue(response.getEntityAsText().contains("token expired"));
+        } finally {
+            client.stop();
+        }
     }
 
     @Test
-    void setContentLengthShouldLeaveAnUnknownSizeChunked() {
-        Representation entity = new StringRepresentation("hello");
-        entity.setSize(Representation.UNKNOWN_SIZE);
+    void entityOfKnownSizeShouldBeSentWithContentLength() throws Exception {
+        Client client = newClient();
+        try {
+            Request request = new Request(Method.POST, url("/length"));
+            request.setEntity(new StringRepresentation("hello"));
 
-        assertNull(contentLengthSent(entity));
+            assertEquals("length=5;encoding=null",
+                    client.handle(request).getEntityAsText(), "#954");
+        } finally {
+            client.stop();
+        }
     }
 
     @Test
-    void setContentLengthShouldLeaveAnUnavailableEntityAlone() {
-        Representation entity = new StringRepresentation("hello");
-        entity.setAvailable(false);
+    void entityOfUnknownSizeShouldBeSentChunked() throws Exception {
+        Client client = newClient();
+        try {
+            Request request = new Request(Method.POST, url("/length"));
+            InputRepresentation entity = new InputRepresentation(
+                    new java.io.ByteArrayInputStream("hello".getBytes()));
+            request.setEntity(entity);
 
-        assertNull(contentLengthSent(entity));
+            Response response = client.handle(request);
+
+            assertEquals(200, response.getStatus().getCode(), String.valueOf(response.getStatus()));
+            assertEquals("length=null;encoding=chunked", response.getEntityAsText());
+        } finally {
+            client.stop();
+        }
     }
 
     @Test
-    void setContentLengthShouldIgnoreAMissingEntityOrRequest() {
-        assertNull(contentLengthSent(null));
-        assertDoesNotThrow(() -> IkanosHttpClientHelper.setContentLength(null,
-                new StringRepresentation("hello")));
+    void redirectShouldBeFollowedByDefault() throws Exception {
+        Client client = newClient();
+        try {
+            Response response = client.handle(new Request(Method.GET, url("/redirect")));
+
+            assertEquals(200, response.getStatus().getCode());
+            assertEquals("target", response.getEntityAsText());
+        } finally {
+            client.stop();
+        }
+    }
+
+    @Test
+    void noRedirectsShouldReturnTheRedirectAsIs() throws Exception {
+        Client client = newClient();
+        try {
+            Request request = new Request(Method.GET, url("/redirect"));
+            request.getAttributes().put(IkanosHttpClientHelper.NO_REDIRECTS, Boolean.TRUE);
+            Response response = client.handle(request);
+
+            assertEquals(307, response.getStatus().getCode(), "#1002");
+            assertEquals(url("/target"), response.getLocationRef().toString());
+
+            Response next = client.handle(new Request(Method.GET, url("/redirect")));
+            assertEquals(200, next.getStatus().getCode(),
+                    "the flag applies to its own request only");
+        } finally {
+            client.stop();
+        }
     }
 }

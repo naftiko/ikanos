@@ -147,7 +147,7 @@ public class ServerHost {
             statusService.setEnabled(false);
         }
 
-        // One Jetty pool serves every adapter here: size it for all their limits together (#920)
+        // One listener serves every adapter here, with all their limits together (#920)
         int requestsInProgress = mounts.stream()
                 .mapToInt(mount -> mount.adapter().getRequestsInProgressLimit()).sum();
         Server server = ServerAdapter.createServer(key.address(), key.port(), requestsInProgress);

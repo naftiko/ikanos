@@ -4,7 +4,7 @@
 
 **Ikanos** is the engine for [Spec-Driven Integration](https://shipyard.naftiko.io/docs/1.0.0-alpha3/concepts/spec-driven-integration/). Capabilities are declared entirely in YAML — no Java required. The framework parses them and exposes them via MCP, SKILL, or REST servers.
 
-- **Language**: Java 21, Maven build system (multi-module: `ikanos-spec`, `ikanos-engine`, `ikanos-cli`, `ikanos-docs`)
+- **Language**: Java 25, Maven build system (multi-module: `ikanos-spec`, `ikanos-engine`, `ikanos-cli`, `ikanos-docs`)
 - **Specification**: `modules/ikanos-spec/src/main/resources/schemas/ikanos-schema.json` — keep this as first-class citizen in your context
 - **Shipyard**: https://shipyard.naftiko.io/docs/1.0.0-alpha3/ikanos/ (Specification, Tutorials, Use Cases, FAQ)
 
@@ -70,7 +70,7 @@ tightened wording lives there; this is a working copy so the rules are actually 
 All commands must be run from the repository root (`ikanos/`).
 
 ```bash
-# Run unit tests (standard local workflow — requires JDK 21)
+# Run unit tests (standard local workflow — requires JDK 25)
 mvn clean test --no-transfer-progress
 
 # Run a single module's tests after a clean (must also build upstream modules it depends on)
@@ -96,12 +96,12 @@ bash ./scripts/pr-check-mac-linux.sh
 
 ## Local Bootstrap
 
-Before contributing, ensure your local environment has at least JDK 21 and Maven.
+Before contributing, ensure your local environment has at least JDK 25 and Maven.
 
-**Required:** JDK 21, Maven 3.9+
+**Required:** JDK 25, Maven 3.9+
 
 ```bash
-java -version    # must be 21+
+java -version    # must be 25+
 mvn -version     # must be 3.9+
 ```
 

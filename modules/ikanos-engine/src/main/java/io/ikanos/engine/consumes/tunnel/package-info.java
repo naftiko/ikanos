@@ -22,10 +22,9 @@
  * {@code (tunnel.type, tunnel.identity)}.
  *
  * <p>See the {@code blueprints/reverse-tunnel-private-network.md} blueprint, §6.3, for the
- * original Architecture Decision Record and §6.4 for the revised Jetty-integration approach
- * adopted in Phase 2: a per-request {@link org.eclipse.jetty.io.Transport} attached by
- * {@code TunnelAwareHttpClientHelper.create} when Restlet creates the Jetty request, with byte pumping from the Ziti {@link
- * java.nio.channels.AsynchronousSocketChannel} into a Jetty
- * {@link org.eclipse.jetty.io.MemoryEndPointPipe}.
+ * original Architecture Decision Record. On Restlet 3.0.0-m2, a
+ * {@link io.ikanos.engine.consumes.tunnel.TunnelClientTransport} set on the client's context
+ * (Restlet's {@code NettyClientTransport} SPI) routes a tunneled host's connections over a
+ * Netty channel on the {@link java.nio.channels.AsynchronousSocketChannel} the tunnel dials.
  */
 package io.ikanos.engine.consumes.tunnel;

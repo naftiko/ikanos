@@ -26,7 +26,7 @@ import io.ikanos.engine.observability.TelemetryBootstrap;
 /**
  * Limits how many requests a server adapter works on at once (#920).
  *
- * <p>Without a limit, Jetty takes up to 200 requests at once with an unbounded queue behind them.
+ * <p>Without a limit, the connector takes every request at once, each on its own virtual thread.
  * Past its capacity an adapter then collapses instead of slowing down: every request in progress
  * holds its data, the heap fills, garbage collection takes the CPU, and nothing completes, not even
  * once the load is gone. Past the limit, a request gets an immediate {@code 503} with
@@ -76,8 +76,6 @@ class RequestsInProgressFilter extends Filter {
 
     private void refuse(Request request, Response response) {
         TelemetryBootstrap.get().getMetrics().recordRequestRejected(adapterType, namespace);
-        // Read the body first, or Jetty would close a keep-alive connection under the client (#878)
-        RejectedRequestBodies.discard(request);
         response.setStatus(Status.SERVER_ERROR_SERVICE_UNAVAILABLE);
         // Restlet only writes Retry-After as a date: one second from now
         response.setRetryAfter(new Date(System.currentTimeMillis() + RETRY_AFTER_SECONDS * 1000L));

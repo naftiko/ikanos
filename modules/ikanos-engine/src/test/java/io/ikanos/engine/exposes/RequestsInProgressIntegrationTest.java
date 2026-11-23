@@ -144,20 +144,20 @@ class RequestsInProgressIntegrationTest {
     }
 
     @Test
-    void adapterShouldGetEnoughJettyThreadsForALimitAbove200() throws Exception {
-        int[] ports = TestUtils.freePorts(6);
+    void adapterShouldNotCapItsCallsWithAThreadPool() throws Exception {
+        int[] ports = TestUtils.freePorts(3);
         Capability large = capabilityFromYaml(yaml(ports[0], ports[1], ports[2],
                 "maxRequestsInProgress: 300"));
-        Capability small = capabilityFromYaml(yaml(ports[3], ports[4], ports[5],
-                "maxRequestsInProgress: 4"));
+        org.restlet.Server server = large.getServerAdapters().get(0).getServer();
 
-        assertEquals("350", maxThreads(large.getServerAdapters().get(0).getServer()));
-        assertEquals(null, maxThreads(small.getServerAdapters().get(0).getServer()),
-                "below Restlet's default of 200 threads, it is left as it is");
+        assertEquals(null, maxThreads(server),
+                "#920: calls run on virtual threads, no pool to size above the limit");
+        assertEquals(null, server.getContext().getParameters().getFirstValue("threadPool.virtual"),
+                "the Netty connector's default, virtual threads, is kept");
     }
 
     @Test
-    void sharedListenerShouldGetEnoughJettyThreadsForAllItsAdapters() throws Exception {
+    void sharedListenerShouldNotCapItsCallsWithAThreadPool() throws Exception {
         int port = freePort();
         Capability shared = capabilityFromYaml("""
                 ikanos: "%s"
@@ -196,7 +196,7 @@ class RequestsInProgressIntegrationTest {
                   consumes: []
                 """.formatted(IKANOS, port, port));
 
-        assertEquals("300",
+        assertEquals(null,
                 maxThreads(shared.getServerHost().getSharedListeners().get(0).server()));
     }
 

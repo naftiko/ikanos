@@ -82,8 +82,8 @@ class UncaughtExceptionIntegrationTest {
 
     /**
      * A handler that fails before reading a POST body must not break the keep-alive connection:
-     * the body is discarded like a rejected one, so the next request on the connection is served
-     * (see {@link RejectedRequestBodies}, issue #878).
+     * the connector discards the body like a rejected one, so the next request on the connection
+     * is served (issue #878).
      */
     @Test
     void connectionShouldStayReusableWhenTheHandlerThrowsBeforeABodyArrives() throws Exception {
