@@ -510,6 +510,35 @@ class RestDefinitionsExpanderTest {
     }
 
     @Test
+    void expandAllShouldBindMapFormOutputsOfARefRestOperation() throws Exception {
+        // Mapped whatever their form, as definitions.js decides it too
+        IkanosSpec spec = rest("""
+                definitions:
+                  schemas:
+                    ship:
+                      type: object
+                      properties:
+                        imo: { type: string }
+                """, """
+                ship:
+                  path: "/ship"
+                  operations:
+                    get-ship:
+                      method: GET
+                      ref: fleet.get-ship
+                      outputParameters:
+                        ship:
+                          schema: ship
+                """);
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        assertEquals(List.of("REST adapter 'api', resource 'ship', operation 'get-ship', output"
+                + " 'ship': 'schema: ship' in a mapped (call-mode) output needs 'mappings', the"
+                + " mapping of each path of the schema."), errors);
+    }
+
+    @Test
     void expandAllShouldRejectASchemaInAMockRestOutput() throws Exception {
         IkanosSpec spec = rest("""
                 definitions:
