@@ -1,4 +1,4 @@
-ikanos: "1.0.0-beta10"
+ikanos: "1.0.0-beta11"
 info:
   display: "Definitions"
   description: "Shared definitions (#910) used by every tool and flow."

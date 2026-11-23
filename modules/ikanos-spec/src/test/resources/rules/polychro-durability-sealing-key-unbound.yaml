@@ -1,4 +1,4 @@
-ikanos: 1.0.0-beta9
+ikanos: 1.0.0-beta11
 info:
   display: Sealing key unbound
   description: Negative fixture referencing a sealing key that no binding declares

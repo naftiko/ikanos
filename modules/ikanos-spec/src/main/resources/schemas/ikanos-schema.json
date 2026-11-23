@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://ikanos.io/schemas/v1.0.0-beta10/ikanos.json",
+  "$id": "https://ikanos.io/schemas/v1.0.0-beta11/ikanos.json",
   "name": "Ikanos Specification",
   "description": "Ikanos Capability Specification \u2014 describes a capability document (adapter + metadata) or a standalone shared file (consumes / exposes / aggregates / binds). A valid document must declare `ikanos` + exactly one of `capability`, `consumes`, `exposes`, `aggregates`, or `binds`. A capability document keeps all four sections under `capability`; root `consumes`, `exposes`, `aggregates` and `binds` are only valid in standalone shared files.",
   "type": "object",
@@ -8,7 +8,7 @@
     "ikanos": {
       "type": "string",
       "description": "Ikanos specification version. Signals schema compatibility \u2014 always the first key in a capability file.",
-      "const": "1.0.0-beta10"
+      "const": "1.0.0-beta11"
     },
     "info": {
       "$ref": "#/$defs/Info",

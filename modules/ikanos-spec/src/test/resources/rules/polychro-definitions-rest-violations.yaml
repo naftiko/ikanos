@@ -1,4 +1,4 @@
-ikanos: "1.0.0-beta10"
+ikanos: "1.0.0-beta11"
 info:
   display: "REST definitions violations"
   description: "Shared definitions of a REST adapter (#1000) that break every definitions rule."

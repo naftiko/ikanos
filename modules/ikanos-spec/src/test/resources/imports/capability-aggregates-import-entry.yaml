@@ -1,7 +1,7 @@
 # Capability whose `aggregates` holds an import entry, which has `from` and no `namespace`.
 # Must NOT trigger: ikanos-aggregates-namespace-required (only inline aggregates, which
 # declare `flows`, are targeted).
-ikanos: "1.0.0-beta10"
+ikanos: "1.0.0-beta11"
 
 capability:
   aggregates:

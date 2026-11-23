@@ -10,7 +10,7 @@
 #   - ikanos-sql-write-statement (a TRUNCATE declared readOnly: false)
 #   - ikanos-sql-write-exposure (error), twice: an MCP tool claiming
 #       readOnly and a REST GET, both calling a write procedure
-ikanos: "1.0.0-beta10"
+ikanos: "1.0.0-beta11"
 info:
   display: "Consumed SQL rules — violations"
   description: "Fixture that violates each consumed SQL Polychro rule."

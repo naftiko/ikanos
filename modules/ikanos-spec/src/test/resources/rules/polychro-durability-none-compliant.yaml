@@ -1,4 +1,4 @@
-ikanos: 1.0.0-beta9
+ikanos: 1.0.0-beta11
 info:
   display: Durability none compliant
   description: Positive fixture asking for input before any write, under the none mode

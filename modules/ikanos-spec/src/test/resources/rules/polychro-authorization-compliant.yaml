@@ -5,7 +5,7 @@
 # REST and MCP adapters with `authentication: oauth2` require scopes and claims per
 # adapter, resource, operation and tool (issue #999). Every required scope is listed
 # in `authentication.scopes`.
-ikanos: "1.0.0-beta10"
+ikanos: "1.0.0-beta11"
 
 info:
   display: "Authorization — compliant"

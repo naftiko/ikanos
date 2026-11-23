@@ -1,4 +1,4 @@
-ikanos: 1.0.0-beta10
+ikanos: 1.0.0-beta11
 info:
   display: Flow composition violations
   description: Negative fixture for the flow-call rules and cross-section namespace uniqueness

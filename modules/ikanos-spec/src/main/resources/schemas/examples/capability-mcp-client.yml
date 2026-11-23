@@ -16,7 +16,7 @@
 # The `list-invoices` tool shows input defaults: an optional input with a
 # `default` is advertised in the tool's inputSchema, and the default is used
 # when a call leaves the input out.
-ikanos: "1.0.0-beta10"
+ikanos: "1.0.0-beta11"
 
 info:
   display: "Collections — MCP client example"

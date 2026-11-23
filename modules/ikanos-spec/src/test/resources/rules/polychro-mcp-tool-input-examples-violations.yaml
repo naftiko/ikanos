@@ -5,7 +5,7 @@
 #   unquoted integer beyond 2^53, which the YAML reader rounds, and an unquoted
 #   number on a string input, and an integer example against an integer enum value
 #   written as a decimal, which the engine advertises as a string.
-ikanos: "1.0.0-beta10"
+ikanos: "1.0.0-beta11"
 info:
   display: "MCP tool input examples — violations"
   description: "Fixture whose MCP tool input examples are not valid values of their inputs."

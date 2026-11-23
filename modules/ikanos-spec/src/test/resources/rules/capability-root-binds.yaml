@@ -3,7 +3,7 @@
 #
 # A capability document declares its bindings under `capability.binds`. Root
 # `binds` is only valid in a standalone shared binds file (#955).
-ikanos: "1.0.0-beta10"
+ikanos: "1.0.0-beta11"
 
 info:
   display: "Root binds next to capability"

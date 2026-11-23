@@ -6,7 +6,7 @@
 #   - an MCP resource that reaches it
 #   - the safe flow `archive-safely`, which reaches it through `orders.settle`
 # MUST NOT FIRE on the flow `settle`, which is not declared safe.
-ikanos: "1.0.0-beta10"
+ikanos: "1.0.0-beta11"
 info:
   display: "Consumed SQL rules — writes reached indirectly"
   description: "Fixture where SQL writes are reached through steps, ref, resources and flows."

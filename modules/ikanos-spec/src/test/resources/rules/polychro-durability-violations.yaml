@@ -1,4 +1,4 @@
-ikanos: 1.0.0-beta9
+ikanos: 1.0.0-beta11
 info:
   display: Durability violations
   description: Negative fixture for the durability rules, under the none mode

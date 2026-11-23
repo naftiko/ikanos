@@ -2,7 +2,7 @@
 # Polychro fixture — ikanos-exposes-mounts-distinct MUST FIRE.
 #
 # On port 8080, `/mcp/admin` is nested in `/mcp`.
-ikanos: "1.0.0-beta10"
+ikanos: "1.0.0-beta11"
 
 info:
   display: "Shared listener — nested path"

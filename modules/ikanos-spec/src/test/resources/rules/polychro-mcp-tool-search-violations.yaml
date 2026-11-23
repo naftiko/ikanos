@@ -2,7 +2,7 @@
 #   adapter "deferred-ops": a declared toolSearch in deferred mode, no description, three tools
 #   (one named like the search meta-tool), seven alwaysListed entries (one unknown);
 #   adapter "listed-ops": no toolSearch, a tool named call-tool and one named search_tools.
-ikanos: "1.0.0-beta10"
+ikanos: "1.0.0-beta11"
 info:
   display: "MCP tool search rules — violations"
   description: "Fixture that breaks every MCP tool search Polychro rule."

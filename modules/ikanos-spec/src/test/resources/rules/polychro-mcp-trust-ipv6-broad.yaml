@@ -2,7 +2,7 @@
 # Polychro fixture — ikanos-mcp-trust-network-too-broad MUST FIRE.
 #
 # ::/0 trusts every IPv6 peer.
-ikanos: "1.0.0-beta10"
+ikanos: "1.0.0-beta11"
 
 info:
   display: "MCP trust — every IPv6 address trusted"

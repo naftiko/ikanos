@@ -3,7 +3,7 @@
 #   an integral decimal on an integer input, a numerically equal enum value, and a
 #   quoted integer beyond 2^53, a quoted number on a string input, and examples
 #   beside a default.
-ikanos: "1.0.0-beta10"
+ikanos: "1.0.0-beta11"
 info:
   display: "MCP tool input examples — compliant"
   description: "Fixture whose MCP tool input examples are valid values of their inputs."

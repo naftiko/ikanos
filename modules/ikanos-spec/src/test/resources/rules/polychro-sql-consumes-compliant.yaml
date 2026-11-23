@@ -6,7 +6,7 @@
 #   exposed through an MCP tool without readOnly and a REST POST. A PostgreSQL
 #   URL nests block comments, a SQL Server URL reads [...] as an identifier,
 #   and a MySQL URL reads # as a comment.
-ikanos: "1.0.0-beta10"
+ikanos: "1.0.0-beta11"
 info:
   display: "Consumed SQL rules — compliant"
   description: "Fixture that satisfies every consumed SQL Polychro rule."

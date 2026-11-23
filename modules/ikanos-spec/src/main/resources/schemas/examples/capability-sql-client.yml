@@ -10,7 +10,7 @@
 # into the SQL text.
 # Ikanos ships no JDBC driver: add the PostgreSQL driver jar to the class path
 # (in the image, the `/app/lib` extension directory).
-ikanos: "1.0.0-beta10"
+ikanos: "1.0.0-beta11"
 
 info:
   display: "Customer 360 — SQL client example"

@@ -1,4 +1,4 @@
-ikanos: 1.0.0-beta10
+ikanos: 1.0.0-beta11
 info:
   display: MCP Tool Catalog Capability
   description: A 40-tool operations catalog used to test tool listing, tag filtering and tool search
