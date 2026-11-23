@@ -247,7 +247,9 @@ function buildModel(owner) {
     const orchestrated = Array.isArray(steps) ? steps.length > 0
       : isObject(steps) && Object.keys(steps).length > 0;
     // Mapped (call-mode) outputs are a list; orchestrated and mock outputs a map.
-    const mapped = !orchestrated && Array.isArray(unit.outputParameters);
+    // A flow or REST operation without `call` is a mock; an MCP tool may infer its call.
+    const mapped = !orchestrated && Array.isArray(unit.outputParameters)
+      && (owner.unitKind === "tool" || (unit.call !== undefined && unit.call !== null));
     units.push({ name: u.key, unit, path: unitPath, refs, orchestrated, mapped });
   }
 
@@ -503,58 +505,133 @@ function addressable(name) {
   return !/[.[\]]/.test(name);
 }
 
+/** Upper bound on the nodes one binding walk visits, as the engine's expansion budget. */
+const MAX_BINDING_NODES = 100000;
+
+/** Upper bound on the nesting depth of a binding walk, as the engine's. */
+const MAX_BINDING_DEPTH = 64;
+
+/** Whether a declaration is an object with properties. */
+function withProperties(schema) {
+  return isObject(schema) && schema.type === "object" && isObject(schema.properties)
+    && Object.keys(schema.properties).length > 0;
+}
+
 /**
  * Bind a schema reference of a mapped output, as the engine does: walk the
  * schema, following `schema:` references, and record its bindable paths, the
- * scalars and arrays its `mappings` leave unbound, and the property names a
- * path cannot address.
+ * scalars, arrays and objects without properties its `mappings` leave
+ * unbound, the bindings the runtime never reads, and the property names a path
+ * cannot address. The walk stops at a schema already on its path (a cycle,
+ * which the cycles check reports), past the engine's depth bound, and past its
+ * node budget: `stopped` then says why, and the binding is not judged.
+ *
+ * @param rootIsItems whether the schema is an array used as the items of
+ *   another array, whose own items the runtime never shapes
  */
-function bindingOf(model, node) {
+function bindingOf(model, node, rootIsItems) {
   const mappings = isObject(node.mappings) ? node.mappings : {};
-  const binding = { paths: [], unbound: [], unaddressable: [], used: new Set() };
-  const target = (declaration) => {
+  const binding = {
+    paths: [], unbound: [], unaddressable: [], ineffective: [], used: new Set(),
+    stopped: null,
+  };
+  let visited = 0;
+  // Follow references from a declaration, recording each schema it passes
+  // through; null when one of them is already on the walk's path.
+  const target = (declaration, onPath, entered) => {
     let current = declaration;
-    const seen = new Set();
     while (isObject(current) && typeof current.schema === "string"
-        && current.schema in model.schemas && !seen.has(current.schema)) {
-      seen.add(current.schema);
+        && current.schema in model.schemas) {
+      if (onPath.has(current.schema)) {
+        return null;
+      }
+      onPath.add(current.schema);
+      entered.push(current.schema);
       current = model.schemas[current.schema];
     }
     return current;
   };
-  const visit = (declaration, path, depth) => {
-    const schema = target(declaration);
-    if (!isObject(schema) || depth > 64) {
+  const visit = (declaration, path, depth, unread, onPath) => {
+    if (binding.stopped) {
       return;
     }
-    if (path !== "") {
-      binding.paths.push(path);
-      if (Object.prototype.hasOwnProperty.call(mappings, path)) {
-        binding.used.add(path);
-      } else if (schema.type !== "object" && !path.endsWith("[]")) {
-        binding.unbound.push(path);
+    visited += 1;
+    if (visited > MAX_BINDING_NODES) {
+      binding.stopped = "budget";
+      return;
+    }
+    if (depth > MAX_BINDING_DEPTH) {
+      binding.stopped = "depth";
+      return;
+    }
+    const entered = [];
+    const schema = target(declaration, onPath, entered);
+    if (schema === null) {
+      binding.stopped = "cycle";
+      return;
+    }
+    if (isObject(schema)) {
+      const objectWithProperties = withProperties(schema);
+      if (path !== "") {
+        const bound = Object.prototype.hasOwnProperty.call(mappings, path);
+        if (bound) {
+          binding.used.add(path);
+        }
+        if (unread) {
+          if (bound) {
+            binding.ineffective.push(path);
+          }
+        } else if (bound && path.endsWith("[]") && objectWithProperties) {
+          binding.paths.push(path);
+          binding.ineffective.push(path);
+        } else {
+          binding.paths.push(path);
+          if (!bound && !objectWithProperties && !path.endsWith("[]")) {
+            binding.unbound.push(path);
+          }
+        }
+      }
+      if (schema.type === "object") {
+        for (const p of entries(isObject(schema.properties) ? schema.properties : null)) {
+          if (!addressable(p.key)) {
+            binding.unaddressable.push(p.key);
+            continue;
+          }
+          visit(p.value, path === "" ? p.key : path + "." + p.key, depth + 1, unread, onPath);
+        }
+      } else if (schema.type === "array" && isObject(schema.items)) {
+        const itemsUnread = unread || path.endsWith("[]") || (path === "" && rootIsItems);
+        visit(schema.items, path + "[]", depth + 1, itemsUnread, onPath);
       }
     }
-    if (schema.type === "object") {
-      for (const p of entries(isObject(schema.properties) ? schema.properties : null)) {
-        if (!addressable(p.key)) {
-          binding.unaddressable.push(p.key);
-          continue;
-        }
-        visit(p.value, path === "" ? p.key : path + "." + p.key, depth + 1);
-      }
-    } else if (schema.type === "array" && isObject(schema.items)) {
-      visit(schema.items, path + "[]", depth + 1);
+    for (const name of entered) {
+      onPath.delete(name);
     }
   };
-  visit(model.schemas[node.schema], "", 0);
-  binding.rootType = isObject(target(model.schemas[node.schema]))
-    ? target(model.schemas[node.schema]).type : undefined;
+  visit(model.schemas[node.schema], "", 0, false, new Set());
   return binding;
 }
 
-/** Report what is wrong with the binding of one schema reference. */
-function checkBinding(model, node, path, items, results) {
+/** The declaration a schema name stands for, following references, or undefined. */
+function rootOf(model, name) {
+  let current = model.schemas[name];
+  const seen = new Set([name]);
+  while (isObject(current) && typeof current.schema === "string"
+      && current.schema in model.schemas && !seen.has(current.schema)) {
+    seen.add(current.schema);
+    current = model.schemas[current.schema];
+  }
+  return current;
+}
+
+/**
+ * Report what is wrong with the binding of one schema reference.
+ *
+ * @param position where the output sits: "top" (a unit's output, an object
+ *   read from the response root), "items" (array items or map values, read
+ *   from each element) or "property"
+ */
+function checkBinding(model, node, path, position, results) {
   const name = node.schema;
   if (!(name in model.schemas)) {
     return; // reported by the references check
@@ -568,8 +645,31 @@ function checkBinding(model, node, path, items, results) {
     });
     return;
   }
-  const binding = bindingOf(model, node);
-  if (typeof node.mapping !== "string" && !items && binding.rootType !== "object") {
+  const root = rootOf(model, name);
+  const binding = bindingOf(model, node, position === "items" && isObject(root)
+    && root.type === "array");
+  if (binding.stopped === "cycle" || binding.stopped === "depth") {
+    return; // reported by the cycles check, or by the engine's depth bound
+  }
+  if (binding.stopped === "budget") {
+    results.push({
+      message: prefix + "expands to more than " + MAX_BINDING_NODES + " declarations."
+        + " Expansion is bounded, so that a document cannot multiply itself without limit.",
+      path: path.concat("schema"),
+    });
+    return;
+  }
+  const rootWithProperties = withProperties(root);
+  if (typeof node.mapping === "string" && rootWithProperties && position !== "property") {
+    results.push({
+      message: "'mapping' beside " + prefix.trim() + " has no effect: "
+        + (position === "top" ? "an output object is read from the response root"
+          : "object items are read from each element")
+        + ". Remove it, or move the object under a property.",
+      path: path.concat("mapping"),
+    });
+  }
+  if (typeof node.mapping !== "string" && position !== "items" && !rootWithProperties) {
     binding.unbound.unshift("(the output itself: set 'mapping' beside 'schema:')");
   }
   if (binding.unaddressable.length > 0) {
@@ -583,7 +683,15 @@ function checkBinding(model, node, path, items, results) {
   if (binding.unbound.length > 0) {
     results.push({
       message: prefix + "leaves paths unbound: " + binding.unbound.join(", ") + ". Give each"
-        + " scalar and array a mapping in 'mappings'.",
+        + " scalar, array and object without properties a mapping in 'mappings'.",
+      path: path.concat("mappings"),
+    });
+  }
+  if (binding.ineffective.length > 0) {
+    results.push({
+      message: prefix + "binds " + binding.ineffective.join(", ") + ", which the runtime"
+        + " never reads: object items are read from each element, and the items of nested"
+        + " arrays are passed through as they are. Remove them.",
       path: path.concat("mappings"),
     });
   }
@@ -606,12 +714,12 @@ function checkBinding(model, node, path, items, results) {
 }
 
 /** Walk a mapped output and check each schema reference and stray `mappings`. */
-function walkMapped(model, node, path, items, results) {
+function walkMapped(model, node, path, position, results) {
   if (!isObject(node)) {
     return;
   }
   if (typeof node.schema === "string") {
-    checkBinding(model, node, path, items, results);
+    checkBinding(model, node, path, position, results);
     return;
   }
   if (isObject(node.mappings)) {
@@ -621,10 +729,10 @@ function walkMapped(model, node, path, items, results) {
       path: path.concat("mappings"),
     });
   }
-  walkMapped(model, node.items, path.concat("items"), true, results);
-  walkMapped(model, node.values, path.concat("values"), true, results);
+  walkMapped(model, node.items, path.concat("items"), "items", results);
+  walkMapped(model, node.values, path.concat("values"), "items", results);
   for (const p of entries(isObject(node.properties) ? node.properties : null)) {
-    walkMapped(model, p.value, path.concat("properties", ...p.locator), false, results);
+    walkMapped(model, p.value, path.concat("properties", ...p.locator), "property", results);
   }
 }
 
@@ -634,7 +742,7 @@ function checkMappings(model, results) {
       continue;
     }
     for (const p of entries(unit.unit.outputParameters)) {
-      walkMapped(model, p.value, unit.path.concat("outputParameters", ...p.locator), false,
+      walkMapped(model, p.value, unit.path.concat("outputParameters", ...p.locator), "top",
         results);
     }
   }

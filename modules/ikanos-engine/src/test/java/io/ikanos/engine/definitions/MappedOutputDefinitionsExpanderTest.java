@@ -260,8 +260,8 @@ class MappedOutputDefinitionsExpanderTest {
         List<String> errors = DefinitionsExpander.expandAll(spec).errors();
 
         assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', output: 'schema: ship' leaves"
-                + " paths unbound: [specs.tonnage, crew, crew[].fullName, tags]. Give each scalar"
-                + " and array a mapping in 'mappings'."), errors);
+                + " paths unbound: [specs.tonnage, crew, crew[].fullName, tags]. Give each scalar,"
+                + " array and object without properties a mapping in 'mappings'."), errors);
     }
 
     @Test
@@ -341,8 +341,250 @@ class MappedOutputDefinitionsExpanderTest {
 
         assertEquals(List.of("MCP adapter 'tools', tool 'get-tags', output, property 'tags':"
                 + " 'schema: tags' leaves paths unbound: [(the output itself: set 'mapping'"
-                + " beside 'schema:')]. Give each scalar and array a mapping in 'mappings'."),
-                errors);
+                + " beside 'schema:')]. Give each scalar, array and object without properties a"
+                + " mapping in 'mappings'."), errors);
+    }
+
+    @Test
+    void expandAllShouldRequireABindingForAnObjectWithoutProperties() throws Exception {
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    ship:
+                      type: object
+                      properties:
+                        imo: { type: string }
+                        metadata: { type: object }
+                """, """
+                get-ship:
+                  description: "Get ship."
+                  call: erp.get-ship
+                  outputParameters:
+                    - schema: ship
+                      mappings:
+                        imo: "$.imo_number"
+                """);
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', output: 'schema: ship' leaves"
+                + " paths unbound: [metadata]. Give each scalar, array and object without"
+                + " properties a mapping in 'mappings'."), errors);
+    }
+
+    @Test
+    void expandAllShouldBindAnObjectWithoutPropertiesLikeALeaf() throws Exception {
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    ship:
+                      type: object
+                      properties:
+                        metadata: { type: object }
+                """, """
+                get-ship:
+                  description: "Get ship."
+                  call: erp.get-ship
+                  outputParameters:
+                    - schema: ship
+                      mappings:
+                        metadata: "$.meta"
+                """);
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+
+        assertEquals(List.of(), result.errors());
+        assertEquals("{\"type\":\"object\",\"properties\":{\"metadata\":{\"type\":\"object\","
+                + "\"mapping\":\"$.meta\"}}}", outputs(spec, "get-ship"));
+    }
+
+    @Test
+    void expandAllShouldRejectAMappingOnObjectItemsThatTheRuntimeNeverReads() throws Exception {
+        IkanosSpec spec = mcp(SHIP, """
+                get-ship:
+                  description: "Get ship."
+                  call: erp.get-ship
+                  outputParameters:
+                    - schema: ship
+                      mappings:
+                        imo: "$.imo_number"
+                        specs.tonnage: "$.gross_tonnage"
+                        crew: "$.crew"
+                        crew[]: "$.member"
+                        crew[].fullName: "$.name"
+                        tags: "$.labels"
+                """);
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', output: 'schema: ship' binds"
+                + " [crew[]], which the runtime never reads: object items are read from each"
+                + " element, and the items of nested arrays are passed through as they are."
+                + " Remove them."), errors);
+    }
+
+    @Test
+    void expandAllShouldNeitherRequireNorAcceptABindingBelowNestedArrays() throws Exception {
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    grid:
+                      type: object
+                      properties:
+                        rows:
+                          type: array
+                          items:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                value: { type: number }
+                """, """
+                unbound:
+                  description: "Leaves the cells unbound."
+                  call: erp.get-grid
+                  outputParameters:
+                    - schema: grid
+                      mappings:
+                        rows: "$.rows"
+                bound:
+                  description: "Binds the cells."
+                  call: erp.get-grid
+                  outputParameters:
+                    - schema: grid
+                      mappings:
+                        rows: "$.rows"
+                        rows[][].value: "$.v"
+                """);
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        assertEquals(List.of("MCP adapter 'tools', tool 'bound', output: 'schema: grid' binds"
+                + " [rows[][].value], which the runtime never reads: object items are read from"
+                + " each element, and the items of nested arrays are passed through as they"
+                + " are. Remove them."), errors);
+    }
+
+    @Test
+    void expandAllShouldRejectAMappingBesideASchemaOnAnOutputObject() throws Exception {
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    ship:
+                      type: object
+                      properties:
+                        imo: { type: string }
+                """, """
+                get-ship:
+                  description: "Get ship."
+                  call: erp.get-ship
+                  outputParameters:
+                    - schema: ship
+                      mapping: "$.ship"
+                      mappings:
+                        imo: "$.imo_number"
+                """);
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', output: 'mapping' beside"
+                + " 'schema: ship' has no effect: an output object is read from the response"
+                + " root. Remove it, or move the object under a property."), errors);
+    }
+
+    @Test
+    void expandAllShouldRejectASchemaInAMockFlow() throws Exception {
+        IkanosSpec spec = read("""
+                ikanos: "%s"
+                capability:
+                  aggregates:
+                    - namespace: fleet
+                      definitions:
+                        schemas:
+                          ship:
+                            type: object
+                            properties:
+                              imo: { type: string }
+                      flows:
+                        get-ship:
+                          description: "Get ship."
+                          outputParameters:
+                            ship:
+                              schema: ship
+                              mappings:
+                                imo: "$.imo_number"
+                """.formatted(IKANOS));
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        assertEquals(List.of("aggregate 'fleet', flow 'get-ship', output 'ship': 'schema:' is not"
+                + " allowed in a mock output, which returns static values. Declare the output"
+                + " inline."), errors);
+    }
+
+    @Test
+    void expandAllShouldBindTheSameAfterAYamlRoundTrip() throws Exception {
+        // Imports deep-copy adapters and aggregates through the serializers
+        IkanosSpec spec = mcp(SHIP, """
+                list-ships:
+                  description: "List ships."
+                  call: erp.list-ships
+                  outputParameters:
+                    - type: object
+                      properties:
+                        lead:
+                          schema: ship
+                          mapping: "$.lead"
+                          mappings:
+                            imo: "$.imo_number"
+                            specs.tonnage: "$.gross_tonnage"
+                            crew: "$.crew"
+                            crew[].fullName: "$.name"
+                            tags: "$.labels"
+                        ships:
+                          type: array
+                          mapping: "$.ships"
+                          items:
+                            schema: ship
+                            mappings:
+                              imo: "$.imo_number"
+                              specs.tonnage: "$.gross_tonnage"
+                              crew: "$.crew"
+                              crew[].fullName: "$.name"
+                              tags: "$.labels"
+                """);
+        IkanosSpec copy = read(IkanosMappers.yaml().writeValueAsString(spec));
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(copy);
+        DefinitionsExpander.expandAll(spec);
+
+        assertEquals(List.of(), result.errors());
+        assertEquals(outputs(spec, "list-ships"), outputs(copy, "list-ships"));
+    }
+
+    @Test
+    void expandAllShouldStillRejectMappingsWithoutASchemaAfterAYamlRoundTrip() throws Exception {
+        IkanosSpec spec = mcp("", """
+                get-ship:
+                  description: "Get ship."
+                  call: erp.get-ship
+                  outputParameters:
+                    - type: object
+                      properties:
+                        owner:
+                          type: object
+                          mappings:
+                            name: "$.name"
+                          properties:
+                            name: { type: string, mapping: "$.name" }
+                """);
+        IkanosSpec copy = read(IkanosMappers.yaml().writeValueAsString(spec));
+
+        List<String> errors = DefinitionsExpander.expandAll(copy).errors();
+
+        assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', output, property 'owner':"
+                + " 'mappings' binds a schema, so it needs 'schema:' beside it. Name the schema,"
+                + " or declare a 'mapping' on each leaf inline."), errors);
     }
 
     @Test

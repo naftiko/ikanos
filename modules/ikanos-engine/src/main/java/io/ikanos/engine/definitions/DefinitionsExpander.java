@@ -76,7 +76,9 @@ import io.ikanos.spec.util.StructureSpec;
  *       {@code .}, {@code []} for an array's items), each value the {@code mapping} that node
  *       carries inline. The use expands to the inline mapped output, with items of any type;
  *       beside {@code schema:} it takes only {@code mappings} and {@code mapping}, where the
- *       whole value is read. Every scalar and array must be bound.</li>
+ *       whole value is read. Every scalar, array and object without properties must be
+ *       bound, and a binding the runtime never reads (object items, below nested arrays)
+ *       is rejected.</li>
  * </ul>
  *
  * <p>The result is the inline equivalent: once expanded, a unit holds no reference, so
@@ -304,8 +306,9 @@ public final class DefinitionsExpander {
                 flow.setInputParameterSets(List.of());
             }
             boolean orchestrated = flow.getSteps() != null && !flow.getSteps().isEmpty();
-            flow.setOutputParameters(expandOutputs(location, orchestrated, !orchestrated,
-                    flow.getOutputParameters()));
+            // A flow with neither call nor steps is a mock, whose outputs are static values
+            flow.setOutputParameters(expandOutputs(location, orchestrated,
+                    !orchestrated && flow.getCall() != null, flow.getOutputParameters()));
         }
 
         /**
@@ -348,7 +351,9 @@ public final class DefinitionsExpander {
             }
             boolean orchestrated = operation.getSteps() != null
                     && !operation.getSteps().isEmpty();
-            operation.setOutputParameters(expandOutputs(location, orchestrated, !orchestrated,
+            // An operation with neither call nor steps is a mock, whose outputs are static values
+            operation.setOutputParameters(expandOutputs(location, orchestrated,
+                    !orchestrated && operation.getCall() != null,
                     operation.getOutputParameters()));
         }
 
@@ -536,7 +541,7 @@ public final class DefinitionsExpander {
                     checkNoMappings(output, where);
                     expanded.add(expandOutput(output, where));
                 } else if (mapped) {
-                    expanded.add(expandMappedOutput(output, where, false));
+                    expanded.add(expandMappedOutput(output, where, Position.TOP));
                 } else {
                     if (referencesSchema(output)) {
                         errors.add(where + ": 'schema:' is not allowed in a mock output, which"
@@ -566,21 +571,36 @@ public final class DefinitionsExpander {
         }
 
         /**
+         * Where a mapped output sits, which decides how the runtime reads it
+         * ({@code Resolver.resolveOutputMappings}).
+         */
+        enum Position {
+            /** A unit's output: an object reads the response root, whatever its mapping. */
+            TOP,
+            /**
+             * The items (or map values) of an array: each element is the root; items that are
+             * objects with properties ignore their own mapping.
+             */
+            ITEMS,
+            /** A property: its mapping selects the value, or its parent's root when absent. */
+            PROPERTY
+        }
+
+        /**
          * Expand the schema references of a mapped output, in place, and return it, or the
          * mapped output a reference binds. Each inline declaration costs one unit of the
          * expansion budget, and each reference the size of the schema it binds.
          *
-         * @param items whether the output is the {@code items} of an array, which reads each
-         *              element when it declares no mapping
+         * @param position where the output sits
          */
         OutputParameterSpec expandMappedOutput(OutputParameterSpec param, String location,
-                boolean items) {
+                Position position) {
             if (param == null || overBudget) {
                 return param;
             }
             checkJsonSchemaRef(param, location);
             if (param.getSchema() != null) {
-                return bindSchema(param, location, items);
+                return bindSchema(param, location, position);
             }
             if (!param.getMappings().isEmpty()) {
                 errors.add(location + ": 'mappings' binds a schema, so it needs 'schema:' beside"
@@ -590,17 +610,19 @@ public final class DefinitionsExpander {
                 return param;
             }
             if (param.getItems() != null) {
-                param.setItems(expandMappedOutput(param.getItems(), location + ", items", true));
+                param.setItems(expandMappedOutput(param.getItems(), location + ", items",
+                        Position.ITEMS));
             }
             if (param.getValues() != null) {
                 param.setValues(expandMappedOutput(param.getValues(), location + ", values",
-                        true));
+                        Position.ITEMS));
             }
             List<OutputParameterSpec> properties = param.getProperties();
             for (int i = 0; i < properties.size(); i++) {
                 OutputParameterSpec property = properties.get(i);
                 properties.set(i, expandMappedOutput(property,
-                        location + ", property '" + property.getName() + "'", false));
+                        location + ", property '" + property.getName() + "'",
+                        Position.PROPERTY));
             }
             return param;
         }
@@ -608,10 +630,11 @@ public final class DefinitionsExpander {
         /**
          * Bind a schema reference of a mapped output: build the inline mapped output the schema
          * gives, with each path's mapping from {@code mappings}, and report the paths left
-         * unbound, the paths the schema does not have, and the values that are not JSONPaths.
+         * unbound, the paths the schema does not have, the bindings the runtime never reads,
+         * and the values that are not JSONPaths.
          */
         private OutputParameterSpec bindSchema(OutputParameterSpec use, String location,
-                boolean items) {
+                Position position) {
             checkMappedBesideSchema(use, location);
             String name = use.getSchema();
             if (use.getMappings().isEmpty()) {
@@ -625,12 +648,25 @@ public final class DefinitionsExpander {
             if (!resolvable(name, location) || !withinBudget(size(name))) {
                 return use;
             }
-            Binding binding = new Binding(use.getMappings());
-            OutputParameterSpec output = binding.bind(schemas.get(name), "");
+            InputParameterSpec root = target(schemas.get(name));
+            boolean withProperties = isObjectWithProperties(root);
+            Binding binding = new Binding(use.getMappings(),
+                    position == Position.ITEMS && "array".equals(root.getType()));
+            OutputParameterSpec output = binding.bind(schemas.get(name), "", false);
             output.setName(use.getName());
-            output.setMapping(use.getMapping());
-            // Unbound, an object reads its parent's root and items each element, as inline
-            if (use.getMapping() == null && !items && !"object".equals(output.getType())) {
+            if (use.getMapping() != null && withProperties && position != Position.PROPERTY) {
+                // The runtime reads a top-level object from the response root, and object
+                // items from each element, whatever their mapping
+                errors.add(location + ": 'mapping' beside 'schema: " + name + "' has no effect:"
+                        + " " + (position == Position.TOP ? "an output object is read from the"
+                        + " response root" : "object items are read from each element")
+                        + ". Remove it, or move the object under a property.");
+            } else {
+                output.setMapping(use.getMapping());
+            }
+            // Unbound, an object with properties reads its parent's root and items each
+            // element, as inline
+            if (use.getMapping() == null && position != Position.ITEMS && !withProperties) {
                 binding.unbound.add(0, "(the output itself: set 'mapping' beside 'schema:')");
             }
             binding.report(location, name);
@@ -648,31 +684,52 @@ public final class DefinitionsExpander {
             private final List<String> paths = new ArrayList<>();
             private final List<String> unbound = new ArrayList<>();
             private final List<String> unaddressable = new ArrayList<>();
+            private final List<String> ineffective = new ArrayList<>();
+            private final boolean rootIsItems;
 
-            Binding(Map<String, String> mappings) {
+            /**
+             * @param rootIsItems whether the bound schema is an array used as the items of
+             *                    another array, whose own items the runtime never shapes
+             */
+            Binding(Map<String, String> mappings, boolean rootIsItems) {
                 this.mappings = mappings;
+                this.rootIsItems = rootIsItems;
             }
 
             /**
              * The mapped output a declaration gives at a path of the schema: its type
              * ({@code integer} becomes {@code number}), the mapping bound to the path, its
              * properties and its items, of any type. Input-only keywords are not carried.
+             *
+             * @param unread whether the runtime never reads this node: the items of an array
+             *               that is itself items, which it passes through as they are
              */
-            OutputParameterSpec bind(InputParameterSpec declaration, String path) {
+            OutputParameterSpec bind(InputParameterSpec declaration, String path,
+                    boolean unread) {
                 InputParameterSpec schema = target(declaration);
                 OutputParameterSpec output = new OutputParameterSpec();
                 output.setName(declaration.getName());
                 String type = schema.getType();
                 output.setType("integer".equals(type) ? "number" : type);
+                boolean withProperties = isObjectWithProperties(schema);
                 if (!path.isEmpty()) {
-                    paths.add(path);
                     String mapping = mappings.get(path);
                     if (mapping != null) {
                         used.add(path);
+                    }
+                    if (unread) {
+                        addIf(ineffective, path, mapping != null);
+                    } else if (mapping != null && path.endsWith("[]") && withProperties) {
+                        // Object items are read from each element, whatever their mapping
+                        paths.add(path);
+                        ineffective.add(path);
+                    } else {
+                        paths.add(path);
                         output.setMapping(mapping);
-                    } else if (!"object".equals(type) && !path.endsWith("[]")) {
-                        // An unbound object reads its parent's root, unbound items each element
-                        unbound.add(path);
+                        // Unbound, an object with properties reads its parent's root and
+                        // items each element; anything else would always be null
+                        addIf(unbound, path, mapping == null && !withProperties
+                                && !path.endsWith("[]"));
                     }
                 }
                 if ("object".equals(type)) {
@@ -684,10 +741,14 @@ public final class DefinitionsExpander {
                             continue;
                         }
                         output.getProperties().add(bind(property,
-                                path.isEmpty() ? propertyName : path + "." + propertyName));
+                                path.isEmpty() ? propertyName : path + "." + propertyName,
+                                unread));
                     }
                 } else if ("array".equals(type) && schema.getItems() != null) {
-                    OutputParameterSpec itemsOutput = bind(schema.getItems(), path + "[]");
+                    boolean itemsUnread = unread || path.endsWith("[]")
+                            || (path.isEmpty() && rootIsItems);
+                    OutputParameterSpec itemsOutput = bind(schema.getItems(), path + "[]",
+                            itemsUnread);
                     itemsOutput.setName(null);
                     output.setItems(itemsOutput);
                 }
@@ -703,7 +764,13 @@ public final class DefinitionsExpander {
                 }
                 if (!unbound.isEmpty()) {
                     errors.add(prefix + "leaves paths unbound: " + unbound + ". Give each"
-                            + " scalar and array a mapping in 'mappings'.");
+                            + " scalar, array and object without properties a mapping in"
+                            + " 'mappings'.");
+                }
+                if (!ineffective.isEmpty()) {
+                    errors.add(prefix + "binds " + ineffective + ", which the runtime never"
+                            + " reads: object items are read from each element, and the items"
+                            + " of nested arrays are passed through as they are. Remove them.");
                 }
                 List<String> unknown = new ArrayList<>();
                 List<String> notPaths = new ArrayList<>();

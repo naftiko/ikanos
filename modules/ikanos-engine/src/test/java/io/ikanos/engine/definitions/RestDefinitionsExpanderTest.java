@@ -441,6 +441,72 @@ class RestDefinitionsExpanderTest {
                 + " which no resource or operation uses."), result.warnings());
     }
 
+    @Test
+    void expandAllShouldBindASchemaInAMappedRestOutput() throws Exception {
+        IkanosSpec spec = rest("""
+                definitions:
+                  schemas:
+                    ship:
+                      type: object
+                      properties:
+                        imo: { type: string }
+                        tonnage: { type: integer }
+                """, """
+                ships:
+                  path: "/ships"
+                  operations:
+                    list-ships:
+                      method: GET
+                      call: registry.list-ships
+                      outputParameters:
+                        - type: array
+                          mapping: "$.ships"
+                          items:
+                            schema: ship
+                            mappings:
+                              imo: "$.imo_number"
+                              tonnage: "$.gross_tonnage"
+                """);
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+
+        assertEquals(List.of(), result.errors());
+        assertEquals("[{\"type\":\"array\",\"mapping\":\"$.ships\",\"items\":[{\"type\":\"object\","
+                + "\"properties\":{\"imo\":{\"type\":\"string\",\"mapping\":\"$.imo_number\"},"
+                + "\"tonnage\":{\"type\":\"number\",\"mapping\":\"$.gross_tonnage\"}}}]}]",
+                IkanosMappers.json().writeValueAsString(
+                        operation(spec, "ships", "list-ships").getOutputParameters()));
+    }
+
+    @Test
+    void expandAllShouldRejectASchemaInAMockRestOutput() throws Exception {
+        IkanosSpec spec = rest("""
+                definitions:
+                  schemas:
+                    ship:
+                      type: object
+                      properties:
+                        imo: { type: string }
+                """, """
+                ship:
+                  path: "/ship"
+                  operations:
+                    get-ship:
+                      method: GET
+                      outputParameters:
+                        - name: ship
+                          schema: ship
+                          mappings:
+                            imo: "$.imo_number"
+                """);
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        assertEquals(List.of("REST adapter 'api', resource 'ship', operation 'get-ship', output"
+                + " 'ship': 'schema:' is not allowed in a mock output, which returns static"
+                + " values. Declare the output inline."), errors);
+    }
+
     private static IkanosSpec rest(String definitions, String resources) throws Exception {
         return IkanosMappers.yaml().readValue("""
                 ikanos: "%s"

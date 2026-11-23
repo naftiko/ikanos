@@ -15,6 +15,7 @@ package io.ikanos.rules;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -1168,6 +1169,35 @@ public class IkanosPolychroRulesetTest {
         assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
             .contains("Schema 'ship' is used in a mapped output, which does not carry its"
                 + " keywords format."));
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldStopAtASchemaThatReferencesItself() {
+        // Two self-references per level: an unbounded walk would never end
+        LintResult result = assertTimeoutPreemptively(java.time.Duration.ofSeconds(60),
+            () -> lintFixture("rules/polychro-definitions-mapped-violations.yaml"));
+        String output = result.output();
+        assertTrue(output.contains("ikanos-definitions-schema-no-cycle"), output);
+        assertFalse(output.contains("'schema: tree' leaves paths unbound"), output);
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnAnUnboundObjectWithoutProperties() {
+        assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
+            .contains("'schema: record' leaves paths unbound: metadata."));
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnABindingTheRuntimeNeverReads() {
+        assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
+            .contains("'schema: ship' binds crew[], which the runtime never reads"));
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnAMappingBesideASchemaOnAnOutputObject() {
+        assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
+            .contains("'mapping' beside 'schema: record' has no effect: an output object is"
+                + " read from the response root."));
     }
 
     @Test
