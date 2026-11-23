@@ -20,7 +20,7 @@
         <maven.install.skip>true</maven.install.skip>
         <maven.deploy.skip>true</maven.deploy.skip>
         <skipPublishing>true</skipPublishing>
-        <!-- No jar is built (skipIfEmpty below), so the central profile has nothing to sign -->
+        <!-- Not published, so the central profile has nothing to sign -->
         <gpg.skip>true</gpg.skip>
         <!-- Polychro's GraalVM (GraalJS runs the rule functions); the engine's stays on its own -->
         <graalvm.polyglot.version>24.2.1</graalvm.polyglot.version>
@@ -60,16 +60,10 @@
         </dependency>
     </dependencies>
 
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-jar-plugin</artifactId>
-                <configuration>
-                    <skipIfEmpty>true</skipIfEmpty>
-                </configuration>
-            </plugin>
-        </plugins>
-    </build>
+    <!--
+        Keep the empty jar: do not set skipIfEmpty on maven-jar-plugin. The central-publishing
+        plugin reads each module's artifact before it applies skipPublishing, and fails on a
+        jar module that built no file.
+    -->
 
 </project>
