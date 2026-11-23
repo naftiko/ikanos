@@ -28,12 +28,21 @@
             "$ref": "#/$defs/ConsumesSql"
           },
           {
+            "$ref": "#/$defs/ConsumesGrpc"
+          },
+          {
+            "$ref": "#/$defs/ConsumesGraphql"
+          },
+          {
+            "$ref": "#/$defs/ConsumesSmithy"
+          },
+          {
             "$ref": "#/$defs/ImportEntry"
           }
         ]
       },
       "minItems": 1,
-      "description": "Root section of a standalone consumes file. Each entry is an inline `ConsumesHttp` (`type: http`), an inline `ConsumesMcp` (`type: mcp`), an inline `ConsumesSql` (`type: sql`), or an `ImportEntry` (with a `from` URI). Not allowed in a capability document: use `capability.consumes`."
+      "description": "Root section of a standalone consumes file. Each entry is an inline `ConsumesHttp` (`type: http`), an inline `ConsumesMcp` (`type: mcp`), an inline `ConsumesSql` (`type: sql`), `ConsumesGrpc` (`type: grpc`), `ConsumesGraphql` (`type: graphql`), `ConsumesSmithy` (`type: smithy`), or an `ImportEntry` (with a `from` URI). Not allowed in a capability document: use `capability.consumes`."
     },
     "exposes": {
       "type": "array",
@@ -1029,7 +1038,7 @@
         },
         "consumes": {
           "type": "array",
-          "description": "Consumed client adapters. Inline `ConsumesHttp`, `ConsumesMcp` or `ConsumesSql` entries, or `ImportEntry` references to a shared consumes file.",
+          "description": "Consumed client adapters. Inline `ConsumesHttp`, `ConsumesMcp`, `ConsumesSql`, `ConsumesGrpc`, `ConsumesGraphql` or `ConsumesSmithy` entries, or `ImportEntry` references to a shared consumes file.",
           "items": {
             "oneOf": [
               {
@@ -1040,6 +1049,15 @@
               },
               {
                 "$ref": "#/$defs/ConsumesSql"
+              },
+              {
+                "$ref": "#/$defs/ConsumesGrpc"
+              },
+              {
+                "$ref": "#/$defs/ConsumesGraphql"
+              },
+              {
+                "$ref": "#/$defs/ConsumesSmithy"
               },
               {
                 "$ref": "#/$defs/ImportEntry"
@@ -2022,7 +2040,7 @@
       ],
       "additionalProperties": false
     },
-    "McpToolInputParameter": {
+    "McpToolInputParameterBase": {
       "type": "object",
       "description": "Declares an input parameter for an MCP tool. These become properties in the tool's JSON Schema input definition. Either declared inline (`type`, `description`, ...) or shaped by a schema of the adapter's or aggregate's `definitions` (`schema`, `description`, and optionally `required` and `default`).",
       "properties": {
@@ -2104,8 +2122,12 @@
             ]
           }
         }
-      },
-      "additionalProperties": false
+      }
+    },
+    "McpToolInputParameter": {
+      "description": "Declares an input parameter for an MCP tool. These become properties in the tool's JSON Schema input definition. Either declared inline (`type`, `description`, ...) or shaped by a schema of the adapter's or aggregate's `definitions` (`schema`, `description`, and optionally `required` and `default`).",
+      "$ref": "#/$defs/McpToolInputParameterBase",
+      "unevaluatedProperties": false
     },
     "McpToolInputSchema": {
       "type": "object",
@@ -3166,7 +3188,7 @@
       "additionalProperties": false
     },
     "TunnelConfig": {
-      "description": "Tunnel transport configuration for a `ConsumesHttp`. Use `type: ziti` to dial through an OpenZiti overlay. Additional types (e.g. `frp`, `cloudflared`) may be added in future versions; the `type` discriminator keeps existing capabilities forward-compatible.\n\n**See also** \u2014 `TunnelZiti` for the OpenZiti shape. The capability `binds` block is the recommended source for tunnel identities \u2014 never inline the identity JSON directly.",
+      "description": "Tunnel transport configuration for a `ConsumesHttp`, `ConsumesGrpc`, `ConsumesGraphql` or `ConsumesSmithy`. Use `type: ziti` to dial through an OpenZiti overlay. Additional types (e.g. `frp`, `cloudflared`) may be added in future versions; the `type` discriminator keeps existing capabilities forward-compatible.\n\n**See also** \u2014 `TunnelZiti` for the OpenZiti shape. The capability `binds` block is the recommended source for tunnel identities \u2014 never inline the identity JSON directly.",
       "oneOf": [
         {
           "$ref": "#/$defs/TunnelZiti"
@@ -4418,7 +4440,7 @@
       ]
     },
     "ConsumedAuthentication": {
-      "description": "Credential sent on every request to a consumed API (on `ConsumesHttp` and `ConsumesMcp`): `basic`, `apikey`, `bearer`, `digest` or `awsSigV4` (AWS Signature Version 4, which only applies to outgoing requests), the types the engine can send. `oauth2` is for exposed adapters only.",
+      "description": "Credential sent on every request to a consumed API (on `ConsumesHttp`, `ConsumesMcp`, `ConsumesGrpc`, `ConsumesGraphql` and `ConsumesSmithy`): `basic`, `apikey`, `bearer`, `digest` or `awsSigV4` (AWS Signature Version 4, which only applies to outgoing requests), the types the engine can send. `oauth2` is for exposed adapters only.",
       "oneOf": [
         {
           "$ref": "#/$defs/AuthBasic"
@@ -4986,6 +5008,558 @@
         "endpoint"
       ],
       "unevaluatedProperties": false
+    },
+    "ConsumedTypedInputParameter": {
+      "description": "Typed input of a contract-described consumed operation (`grpc`, `graphql`, `smithy`): the fields of an MCP tool input, declared inline at every level, plus `wireName`. Values come from the calling step's `with`; an absent optional input is left out of the request, after `default` applies.",
+      "$ref": "#/$defs/McpToolInputParameterBase",
+      "not": {
+        "required": [
+          "schema"
+        ]
+      },
+      "properties": {
+        "items": {
+          "$ref": "#/$defs/McpToolInputSchemaInline"
+        },
+        "properties": {
+          "additionalProperties": {
+            "$ref": "#/$defs/McpToolInputSchemaInline"
+          }
+        },
+        "wireName": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_-]*(\\.[A-Za-z_][A-Za-z0-9_-]*)*$",
+          "description": "Where the value goes in the request when it differs from the key: a field name, or a dotted path to a nested field (`input.title` fills the `title` field of the `$input` variable; `order.customerId` a nested protobuf message field). Checked against the contract when the capability loads."
+        }
+      },
+      "unevaluatedProperties": false
+    },
+    "ConsumedHeaderParameter": {
+      "description": "Static header (gRPC metadata) sent on every call of a contract-described consumed adapter: a `ConsumedInputParameter` with `in: header` and a `value`, which may take a placeholder from `binds`.",
+      "$ref": "#/$defs/ConsumedInputParameter",
+      "properties": {
+        "in": {
+          "const": "header"
+        }
+      },
+      "required": [
+        "in",
+        "value"
+      ]
+    },
+    "ConsumesGrpc": {
+      "type": "object",
+      "description": "Inline gRPC service adapter. Declares the unary methods of one service a capability may call, callable from steps exactly like a consumed HTTP operation (`call: namespace.procedure`).\n\n**Execution model** \u2014 Binary protobuf over HTTP/2, with the request and response messages taken from a local protobuf descriptor set. The response message becomes a JSON document in the proto3 JSON mapping, which `outputParameters` read with JsonPath. Requires the `ikanos-client-grpc` module at runtime.\n**See also** \u2014 `ConsumesGraphql`, `ConsumesSmithy`.",
+      "properties": {
+        "namespace": {
+          "$ref": "#/$defs/IdentifierKebab",
+          "description": "Unique adapter identifier (kebab-case). Used as the call target."
+        },
+        "type": {
+          "type": "string",
+          "const": "grpc"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of this upstream service."
+        },
+        "endpoint": {
+          "type": "string",
+          "pattern": "^(https?://[^/]+/?|\\{\\{[A-Za-z0-9_.-]+\\}\\})$",
+          "description": "Authority of the upstream, `http://host:port` (HTTP/2 without TLS). `https://` is reserved: TLS is not supported yet. Placeholders are resolved once at load time from `binds`."
+        },
+        "descriptorSet": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Local binary protobuf `FileDescriptorSet` with its imports (`protoc --include_imports --descriptor_set_out`, or `buf build -o`), relative to the capability file. Read once at load time, never fetched."
+        },
+        "service": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*$",
+          "description": "Fully qualified service name, `io.example.orders.v1.OrderService`."
+        },
+        "authentication": {
+          "$ref": "#/$defs/ConsumedAuthentication",
+          "not": {
+            "anyOf": [
+              {
+                "properties": {
+                  "type": {
+                    "enum": [
+                      "digest",
+                      "awsSigV4"
+                    ]
+                  }
+                },
+                "required": [
+                  "type"
+                ]
+              },
+              {
+                "properties": {
+                  "type": {
+                    "const": "apikey"
+                  },
+                  "placement": {
+                    "const": "query"
+                  }
+                },
+                "required": [
+                  "type",
+                  "placement"
+                ]
+              }
+            ]
+          },
+          "description": "Credential sent as gRPC metadata on every call: `basic`, `bearer`, or `apikey` in a header. Refused over a plaintext endpoint unless it is a loopback address or a `tunnel` is set."
+        },
+        "tunnel": {
+          "$ref": "#/$defs/TunnelConfig",
+          "description": "Optional reverse-tunnel transport for an upstream behind a firewall."
+        },
+        "inputParameters": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-zA-Z0-9-_]+$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/ConsumedHeaderParameter"
+          },
+          "description": "Static headers sent on every call, keyed by header name."
+        },
+        "procedures": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-zA-Z0-9-]+$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/ConsumedGrpcProcedure"
+          },
+          "minProperties": 1,
+          "description": "Callable unary methods, keyed by call name (kebab-case)."
+        }
+      },
+      "required": [
+        "namespace",
+        "type",
+        "endpoint",
+        "descriptorSet",
+        "service",
+        "procedures"
+      ],
+      "additionalProperties": false
+    },
+    "ConsumedGrpcProcedure": {
+      "type": "object",
+      "description": "One unary method of a consumed gRPC service.",
+      "properties": {
+        "display": {
+          "type": "string",
+          "description": "Human-readable display name."
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "description": {
+          "type": "string",
+          "description": "Local description of the operation, for authors and agents. Never copied from the contract."
+        },
+        "inputParameters": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-zA-Z0-9-_]+$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/ConsumedTypedInputParameter"
+          },
+          "description": "Typed inputs, keyed by name, written into the request by `wireName`."
+        },
+        "outputParameters": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ConsumedOutputParameter"
+          },
+          "description": "Values extracted with JsonPath from the result document."
+        },
+        "readOnly": {
+          "type": "boolean",
+          "description": "Whether the operation only reads. Derived from the contract when absent. A write may run again after a restart in a durable mode: make it idempotent. A read-only exposed tool or a safe REST operation cannot reach a write. gRPC: read-only when the method sets `idempotency_level = NO_SIDE_EFFECTS`."
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Call timeout in milliseconds. Default 30000. A timeout fails with 504."
+        },
+        "rpc": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+          "description": "Method name in the adapter's `service`, `GetOrder`. Must be unary."
+        }
+      },
+      "required": [
+        "description",
+        "rpc"
+      ],
+      "additionalProperties": false
+    },
+    "ConsumesGraphql": {
+      "type": "object",
+      "description": "Inline GraphQL API adapter. Declares static GraphQL documents a capability may send, callable from steps exactly like a consumed HTTP operation (`call: namespace.operation`).\n\n**Execution model** \u2014 One GraphQL-over-HTTP `POST` per call, with the step's values as variables: caller input never enters a document. The result document is `data`. Requires the `ikanos-client-graphql` module at runtime.\n**See also** \u2014 `ConsumesGrpc`, `ConsumesSmithy`.",
+      "properties": {
+        "namespace": {
+          "$ref": "#/$defs/IdentifierKebab",
+          "description": "Unique adapter identifier (kebab-case). Used as the call target."
+        },
+        "type": {
+          "type": "string",
+          "const": "graphql"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of this upstream API."
+        },
+        "endpoint": {
+          "type": "string",
+          "pattern": "^(https?://[^/]+(/.*)?|\\{\\{[A-Za-z0-9_.-]+\\}\\})$",
+          "description": "GraphQL endpoint URL, used as is, `https://api.example.com/graphql`. Placeholders are resolved once at load time from `binds`."
+        },
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Local GraphQL SDL file, relative to the capability file. With it, every document is validated when the capability loads."
+        },
+        "authentication": {
+          "$ref": "#/$defs/ConsumedAuthentication",
+          "description": "Credential sent on every request."
+        },
+        "tunnel": {
+          "$ref": "#/$defs/TunnelConfig",
+          "description": "Optional reverse-tunnel transport for an upstream behind a firewall."
+        },
+        "inputParameters": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-zA-Z0-9-_]+$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/ConsumedHeaderParameter"
+          },
+          "description": "Static headers sent on every call, keyed by header name."
+        },
+        "operations": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-zA-Z0-9-]+$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/ConsumedGraphqlOperation"
+          },
+          "minProperties": 1,
+          "description": "Callable operations, keyed by call name (kebab-case)."
+        }
+      },
+      "required": [
+        "namespace",
+        "type",
+        "endpoint",
+        "operations"
+      ],
+      "additionalProperties": false
+    },
+    "ConsumedGraphqlOperation": {
+      "type": "object",
+      "description": "One consumed GraphQL operation: a `document`, or named `documents` and the `select` rule choosing one per call.",
+      "properties": {
+        "display": {
+          "type": "string",
+          "description": "Human-readable display name."
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "description": {
+          "type": "string",
+          "description": "Local description of the operation, for authors and agents. Never copied from the contract."
+        },
+        "inputParameters": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-zA-Z0-9-_]+$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/ConsumedTypedInputParameter"
+          },
+          "description": "Typed inputs, keyed by name, written into the request by `wireName`."
+        },
+        "outputParameters": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ConsumedOutputParameter"
+          },
+          "description": "Values extracted with JsonPath from the result document."
+        },
+        "readOnly": {
+          "type": "boolean",
+          "description": "Whether the operation only reads. Derived from the contract when absent. A write may run again after a restart in a durable mode: make it idempotent. A read-only exposed tool or a safe REST operation cannot reach a write. GraphQL: read-only when every document is a `query`."
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Call timeout in milliseconds. Default 30000. A timeout fails with 504."
+        },
+        "document": {
+          "type": "string",
+          "minLength": 1,
+          "description": "One GraphQL document, a `query` or a `mutation`. Static: values reach it only as variables."
+        },
+        "documents": {
+          "type": "object",
+          "minProperties": 2,
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Named documents, one of which `select` chooses per call."
+        },
+        "select": {
+          "$ref": "#/$defs/GraphqlSelect"
+        },
+        "operationName": {
+          "type": "string",
+          "description": "Operation to run when a document defines several."
+        },
+        "partialData": {
+          "type": "string",
+          "enum": [
+            "fail",
+            "allow"
+          ],
+          "default": "fail",
+          "description": "What to do with a response that has `errors` and some `data`: `fail` the step, or `allow` the data."
+        }
+      },
+      "required": [
+        "description"
+      ],
+      "oneOf": [
+        {
+          "required": [
+            "document"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "documents"
+                ]
+              },
+              {
+                "required": [
+                  "select"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "documents",
+            "select"
+          ],
+          "not": {
+            "required": [
+              "document"
+            ]
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "GraphqlSelect": {
+      "type": "object",
+      "description": "Chooses a document per call: `then` when the input named by `when` is present and not null, `else` otherwise.",
+      "properties": {
+        "when": {
+          "type": "string",
+          "description": "Name of the input tested."
+        },
+        "then": {
+          "type": "string",
+          "description": "Document used when the input is present."
+        },
+        "else": {
+          "type": "string",
+          "description": "Document used otherwise."
+        }
+      },
+      "required": [
+        "when",
+        "then",
+        "else"
+      ],
+      "additionalProperties": false
+    },
+    "ConsumesSmithy": {
+      "type": "object",
+      "description": "Inline Smithy service adapter. Declares the operations of one Smithy service a capability may call, callable from steps exactly like a consumed HTTP operation (`call: namespace.operation`).\n\n**Execution model** \u2014 smithy-java's dynamic client loads a local Smithy model and calls the service in its own protocol (restJson1, awsJson1.0/1.1, restXml, awsQuery, rpcv2Cbor). The output structure becomes the result document. Requires the `ikanos-client-smithy` module at runtime.\n**See also** \u2014 `ConsumesGrpc`, `ConsumesGraphql`.",
+      "properties": {
+        "namespace": {
+          "$ref": "#/$defs/IdentifierKebab",
+          "description": "Unique adapter identifier (kebab-case). Used as the call target."
+        },
+        "type": {
+          "type": "string",
+          "const": "smithy"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of this upstream service."
+        },
+        "baseUri": {
+          "type": "string",
+          "pattern": "^(https?://[^/]+(/[^{]*)?|\\{\\{[A-Za-z0-9_.-]+\\}\\})$",
+          "description": "Endpoint of the service, under which the protocol builds paths. Overrides any endpoint rule set of the model. Placeholders are resolved once at load time from `binds`."
+        },
+        "model": {
+          "description": "Local Smithy model: an IDL (`.smithy`) or JSON AST (`.json`) file, or a list of them, relative to the capability file.",
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          ]
+        },
+        "service": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*#[A-Za-z_][A-Za-z0-9_]*$",
+          "description": "Service shape ID, `example.weather#Weather`."
+        },
+        "protocol": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*#[A-Za-z_][A-Za-z0-9_]*$",
+          "description": "Protocol trait shape ID, `aws.protocols#restJson1`. Required when the service declares several."
+        },
+        "authentication": {
+          "$ref": "#/$defs/ConsumedAuthentication",
+          "not": {
+            "properties": {
+              "type": {
+                "enum": [
+                  "digest"
+                ]
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "description": "Credential sent on every request: `basic`, `bearer`, `apikey` or `awsSigV4`."
+        },
+        "tunnel": {
+          "$ref": "#/$defs/TunnelConfig",
+          "description": "Optional reverse-tunnel transport for an upstream behind a firewall."
+        },
+        "inputParameters": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-zA-Z0-9-_]+$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/ConsumedHeaderParameter"
+          },
+          "description": "Static headers sent on every call, keyed by header name."
+        },
+        "operations": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-zA-Z0-9-]+$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/ConsumedSmithyOperation"
+          },
+          "minProperties": 1,
+          "description": "Callable operations, keyed by call name (kebab-case)."
+        }
+      },
+      "required": [
+        "namespace",
+        "type",
+        "baseUri",
+        "model",
+        "service",
+        "operations"
+      ],
+      "additionalProperties": false
+    },
+    "ConsumedSmithyOperation": {
+      "type": "object",
+      "description": "One operation of a consumed Smithy service.",
+      "properties": {
+        "display": {
+          "type": "string",
+          "description": "Human-readable display name."
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "description": {
+          "type": "string",
+          "description": "Local description of the operation, for authors and agents. Never copied from the contract."
+        },
+        "inputParameters": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-zA-Z0-9-_]+$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/ConsumedTypedInputParameter"
+          },
+          "description": "Typed inputs, keyed by name, written into the request by `wireName`."
+        },
+        "outputParameters": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ConsumedOutputParameter"
+          },
+          "description": "Values extracted with JsonPath from the result document."
+        },
+        "readOnly": {
+          "type": "boolean",
+          "description": "Whether the operation only reads. Derived from the contract when absent. A write may run again after a restart in a durable mode: make it idempotent. A read-only exposed tool or a safe REST operation cannot reach a write. Smithy: read-only when the operation has `@readonly`."
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Call timeout in milliseconds. Default 30000. A timeout fails with 504."
+        },
+        "operation": {
+          "type": "string",
+          "pattern": "^([A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*#)?[A-Za-z_][A-Za-z0-9_]*$",
+          "description": "Operation shape name in the service, `GetCurrentForecast`, or a full shape ID."
+        }
+      },
+      "required": [
+        "description",
+        "operation"
+      ],
+      "additionalProperties": false
     }
   }
 }
