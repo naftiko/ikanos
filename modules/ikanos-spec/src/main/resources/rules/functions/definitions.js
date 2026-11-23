@@ -250,11 +250,13 @@ function buildModel(owner) {
     const orchestrated = Array.isArray(steps) ? steps.length > 0
       : isObject(steps) && Object.keys(steps).length > 0;
     // Mapped (call-mode) outputs are a list; orchestrated and mock outputs a map.
-    // A flow or REST operation without `call` (or, for an operation, `ref`, whose own
-    // outputs map the flow's result) is a mock; an MCP tool may infer its call.
+    // The engine's rule: an MCP tool's outputs are mapped in list form (it may infer its
+    // call; the map form is a mock's); a flow's or REST operation's when it has `call` or,
+    // for an operation, `ref`, whose own outputs map the flow's result. Otherwise a mock.
     const runs = (value) => value !== undefined && value !== null;
-    const mapped = !orchestrated && Array.isArray(unit.outputParameters)
-      && (owner.unitKind === "tool" || runs(unit.call) || runs(unit.ref));
+    const mapped = !orchestrated && (owner.unitKind === "tool"
+      ? Array.isArray(unit.outputParameters)
+      : runs(unit.call) || runs(unit.ref));
     units.push({ name: u.key, unit, path: unitPath, refs, orchestrated, mapped });
   }
 
@@ -791,6 +793,19 @@ function bindsDefinitions(node) {
 
 function checkMappings(model, results) {
   for (const unit of model.units) {
+    if (!unit.mapped && !unit.orchestrated) {
+      // A mock returns static values: nothing there can bind a schema
+      for (const p of entries(unit.unit.outputParameters)) {
+        if (bindsDefinitions(p.value)) {
+          results.push({
+            message: "'schema:' and 'mappings' are not allowed in a mock output, which returns"
+              + " static values. Declare the output inline.",
+            path: unit.path.concat("outputParameters", ...p.locator),
+          });
+        }
+      }
+      continue;
+    }
     if (!unit.mapped) {
       continue;
     }
