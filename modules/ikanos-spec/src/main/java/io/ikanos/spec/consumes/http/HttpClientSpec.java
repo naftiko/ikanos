@@ -23,6 +23,7 @@ import tools.jackson.databind.annotation.JsonDeserialize;
 
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.consumes.ClientSpec;
+import io.ikanos.spec.consumes.TunneledClientSpec;
 import io.ikanos.spec.consumes.http.tunnel.TunnelConfigSpec;
 
 /**
@@ -35,7 +36,7 @@ import io.ikanos.spec.consumes.http.tunnel.TunnelConfigSpec;
  * SonarQube rule {@code java:S3077}.
  */
 @JsonDeserialize(using = ValueDeserializer.None.class)
-public class HttpClientSpec extends ClientSpec {
+public class HttpClientSpec extends ClientSpec implements TunneledClientSpec {
 
     private final AtomicReference<String> baseUri = new AtomicReference<>();
     private final AtomicReference<AuthenticationSpec> authentication = new AtomicReference<>();
@@ -112,6 +113,7 @@ public class HttpClientSpec extends ClientSpec {
      * <p>Engine runtime support is delivered in a later phase of the Reverse Tunnel
      * blueprint; the spec layer parses and validates the block today.
      */
+    @Override
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public TunnelConfigSpec getTunnel() {
         return tunnel.get();
