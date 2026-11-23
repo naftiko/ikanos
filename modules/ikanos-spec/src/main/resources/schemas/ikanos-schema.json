@@ -623,7 +623,7 @@
     },
     "MappedOutputParameterSchemaRef": {
       "type": "object",
-      "description": "Mapped output shaped by a schema of the `definitions` of the same MCP adapter, REST adapter or aggregate, and bound by `mappings`: each key is a path in the schema (property names joined by `.`, `[]` for an array's items), each value the JSONPath `mapping` that node carries inline, relative exactly as inline. `mappings` may be left out only when the schema has nothing to bind (a scalar, or an object without properties, bound by `mapping` alone). Every scalar, array and object without properties of the schema must be bound; an object with properties or array items may stay unbound. A binding the runtime never reads fails the load: the items of an array when they are objects with properties, anything below the items of nested arrays, and a `mapping` beside `schema:` on an output object or object items. It expands at load time to the inline mapped output, so `tools/list` and the REST contract are unchanged. Allowed as a call-mode output, its `items` and its `properties`.\n\n**Example**:\n```yaml\noutputParameters:\n  - type: array\n    mapping: \"$.ships\"\n    items:\n      schema: ship\n      mappings:\n        imo: \"$.imo_number\"\n        specs.tonnage: \"$.gross_tonnage\"\n        crew: \"$.crew\"\n        crew[].fullName: \"$.name\"\n```",
+      "description": "Mapped output shaped by a schema of the `definitions` of the same MCP adapter, REST adapter or aggregate, and bound by `mappings`: each key is a path in the schema (property names joined by `.`, `[]` for an array's items), each value the JSONPath `mapping` that node carries inline, relative exactly as inline. `mappings` may be left out only when the schema has nothing to bind (a scalar, an array whose items are not objects with properties, or an object without properties, bound by `mapping` alone). Every scalar, array and object without properties of the schema must be bound; an object with properties or array items may stay unbound. A binding the runtime never reads fails the load: the items of an array when they are objects with properties, anything below the items of nested arrays, and a `mapping` beside `schema:` on an output object or object items. It expands at load time to the inline mapped output, so `tools/list` and the REST contract are unchanged. Allowed as a call-mode output, its `items` and its `properties`.\n\n**Example**:\n```yaml\noutputParameters:\n  - type: array\n    mapping: \"$.ships\"\n    items:\n      schema: ship\n      mappings:\n        imo: \"$.imo_number\"\n        specs.tonnage: \"$.gross_tonnage\"\n        crew: \"$.crew\"\n        crew[].fullName: \"$.name\"\n```",
       "properties": {
         "schema": {
           "$ref": "#/$defs/DefinitionName"
@@ -2442,7 +2442,7 @@
               "type": "array",
               "items": {
                 "$ref": "#/$defs/MappedOutputParameter",
-                "description": "Definitions do not reach MCP resources: an output here takes no `schema:` and no `mappings`.",
+                "description": "Definitions do not reach MCP resources: an output here takes no `schema:` and no `mappings`. This schema rejects them at the top level; the engine and the Polychro rules reject them at any depth.",
                 "not": {
                   "anyOf": [
                     { "required": ["schema"] },
