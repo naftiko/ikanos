@@ -311,7 +311,7 @@ class RestDefinitionsExpanderTest {
     }
 
     @Test
-    void expandAllShouldRejectASchemaInAMappedRestOutput() throws Exception {
+    void expandAllShouldRequireMappingsBesideASchemaInAMappedRestOutput() throws Exception {
         IkanosSpec spec = rest("""
                 definitions:
                   schemas:
@@ -334,7 +334,8 @@ class RestDefinitionsExpanderTest {
 
         assertTrue(result.errors().stream().anyMatch(error -> error.startsWith(
                 "REST adapter 'api', resource 'ship', operation 'get-ship', output")
-                && error.contains("only allowed in orchestrated (steps) outputs")),
+                && error.contains("'schema: ship' in a mapped (call-mode) output needs"
+                        + " 'mappings'")),
                 result.errors().toString());
     }
 
