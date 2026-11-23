@@ -1,0 +1,78 @@
+# gRPC client example (#837).
+#
+# A capability calls two unary methods of an order service (`consumes: type: grpc`)
+# and re-exposes them as MCP tools. The request and response messages come from a
+# local protobuf descriptor set, built with:
+#
+#   protoc --include_imports --descriptor_set_out=contracts/orders.binpb orders.proto
+#
+# Each input is written into the request message at its `wireName` (default: its
+# key); the response message is read as JSON (proto3 JSON mapping) by
+# `outputParameters`. The endpoint is HTTP/2 without TLS (h2c): reach the service
+# on localhost, inside a mesh that encrypts the hop, or through a `tunnel`.
+# Requires the ikanos-client-grpc module at runtime.
+ikanos: "1.0.0-beta11"
+
+info:
+  display: "Orders — gRPC client example"
+  description: "Read and cancel orders of a gRPC service, re-exposed as MCP tools."
+
+capability:
+  binds:
+    - namespace: "orders-env"
+      description: "Order service location and token."
+      location: "file:///./shared/secrets.yaml"
+      keys:
+        ORDERS_HOST: "orders-grpc-host"
+        ORDERS_TOKEN: "orders-token"
+  consumes:
+    - type: "grpc"
+      namespace: "orders"
+      description: "Order service, reached through the local sidecar."
+      endpoint: "http://{{ORDERS_HOST}}:50051"
+      descriptorSet: "./contracts/orders.binpb"
+      service: "io.example.orders.v1.OrderService"
+      inputParameters:
+        x-tenant:
+          in: "header"
+          value: "acme"
+      procedures:
+        get-order:
+          description: "One order with its lines."
+          rpc: "GetOrder"
+          inputParameters:
+            order-id:
+              type: "string"
+              required: true
+              description: "Order id."
+              wireName: "id"
+          outputParameters:
+            status: { type: "string", value: "$.status" }
+            customer-id: { type: "string", value: "$.customerId" }
+            total: { type: "number", value: "$.total.amount" }
+        cancel-order:
+          description: "Cancel an order that has not shipped."
+          rpc: "CancelOrder"
+          readOnly: false
+          timeoutMs: 5000
+          inputParameters:
+            order-id: { type: "string", required: true, description: "Order id.", wireName: "id" }
+            reason: { type: "string", description: "Why the order is cancelled." }
+          outputParameters:
+            cancelled: { type: "boolean", value: "$.cancelled" }
+
+  exposes:
+    - type: "mcp"
+      namespace: "orders-mcp"
+      port: 3001
+      tools:
+        get-order:
+          description: "One order with its status and total."
+          call: "orders.get-order"
+          inputParameters:
+            order-id:
+              type: "string"
+              required: true
+              description: "Order id."
+          with:
+            order-id: "{{order-id}}"
