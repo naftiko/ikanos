@@ -20,6 +20,8 @@
         <maven.install.skip>true</maven.install.skip>
         <maven.deploy.skip>true</maven.deploy.skip>
         <skipPublishing>true</skipPublishing>
+        <!-- No jar is built (skipIfEmpty below), so the central profile has nothing to sign -->
+        <gpg.skip>true</gpg.skip>
         <!-- Polychro's GraalVM (GraalJS runs the rule functions); the engine's stays on its own -->
         <graalvm.polyglot.version>24.2.1</graalvm.polyglot.version>
     </properties>
