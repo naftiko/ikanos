@@ -209,7 +209,7 @@ public final class StandardRequestHeaders {
                 "Trailer", "Transfer-Encoding", "Upgrade"}) {
             NOT_SENDABLE.put(name, hopByHop);
         }
-        // The Jetty client advertises gzip itself and decodes the response before the engine
+        // The HTTP client advertises gzip itself and decodes the response before the engine
         // sees it, so a copied value would be sent twice and never reach the caller as asked
         NOT_SENDABLE.put("Accept-Encoding",
                 "is set by the HTTP connector, which decodes compressed responses itself");

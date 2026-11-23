@@ -34,15 +34,20 @@
         <dependency>
             <groupId>org.restlet</groupId>
             <artifactId>org.restlet</artifactId>
-            <exclusions>
-                <!-- Jetty 12 bundles its own SLF4J provider which conflicts with Logback.
-                     Logback is the intended provider for log-trace correlation (trace_id/span_id
-                     MDC keys via OpenTelemetryAppender). See issue #548. -->
-                <exclusion>
-                    <groupId>org.eclipse.jetty</groupId>
-                    <artifactId>jetty-slf4j-impl</artifactId>
-                </exclusion>
-            </exclusions>
+        </dependency>
+        <!-- Netty types of Restlet's NettyClientTransport SPI, used by the tunnel transport.
+             org.restlet requires Netty without "requires transitive": declared explicitly. -->
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-transport</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-resolver</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-buffer</artifactId>
         </dependency>
         <dependency>
             <groupId>org.restlet</groupId>

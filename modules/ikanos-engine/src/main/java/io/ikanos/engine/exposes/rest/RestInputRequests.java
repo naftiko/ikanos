@@ -74,12 +74,12 @@ public final class RestInputRequests {
     public static final String PREFIX = "/_ikanos/executions/";
 
     /**
-     * Largest handle, in characters, carried in a URL under {@code none}. The Jetty listener takes
-     * a request line and headers of at most 8 KiB ({@code requestHeaderSize}, which the engine
-     * keeps at its default) and answers 414 or 431 beyond: half of it leaves the other half to the
-     * method, the mount, {@value #PREFIX} and the request's other headers, such as a bearer token.
+     * Largest handle, in characters, carried in a URL under {@code none}. Restlet's Netty listener
+     * takes a request line of at most 4 KiB (a fixed limit; headers have their own 8 KiB,
+     * {@code http.requestHeaderSize}) and answers 414 beyond: 3 KiB leaves 1 KiB to the method,
+     * the mount, {@value #PREFIX} and the protocol version.
      */
-    static final int MAX_HANDLE = 4 * 1024;
+    static final int MAX_HANDLE = 3 * 1024;
 
     /** Request digest every handle is sealed with: what it is bound to sits in the handle. */
     static final String DIGEST = "rest-input";

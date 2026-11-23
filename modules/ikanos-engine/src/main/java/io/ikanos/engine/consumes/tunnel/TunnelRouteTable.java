@@ -23,10 +23,9 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * <p>A single {@code TunnelRouteTable} is built once during {@link io.ikanos.Capability}
  * bootstrap and passed to {@link io.ikanos.engine.consumes.http.HttpClientAdapter}, which
- * stores it in the underlying Restlet/Jetty client. At request time,
- * {@code TunnelAwareHttpClientHelper.create} consults this table when Restlet creates the Jetty
- * request and, when the host matches a registered entry, attaches a tunnel-routed
- * {@link org.eclipse.jetty.io.Transport} to the request.
+ * stores it in the underlying Restlet client. When the Netty connector opens a connection,
+ * {@link TunnelClientTransport#route} consults this table and, when the host matches a
+ * registered entry, connects through that entry's tunnel.
  *
  * <p>Lookups are case-insensitive on the host string.
  *

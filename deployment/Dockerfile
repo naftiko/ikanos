@@ -1,6 +1,6 @@
 # Stage 1: Build the application
 # We use a maven image to compile the code so you don't need Maven installed locally
-FROM maven:3.9.15-eclipse-temurin-21 AS build
+FROM maven:3.9.15-eclipse-temurin-25 AS build
 WORKDIR /app
 COPY pom.xml .
 RUN sed -i -e 's|<module>modules/ikanos-coverage</module>||g' \
@@ -20,7 +20,7 @@ COPY modules/ikanos-tool-search ./modules/ikanos-tool-search
 RUN mvn clean package -DskipTests
 
 # Stage 2: Create the runtime image
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:25-jre-alpine
 
 RUN apk upgrade --no-cache
 

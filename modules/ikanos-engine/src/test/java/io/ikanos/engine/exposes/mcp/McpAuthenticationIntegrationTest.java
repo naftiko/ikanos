@@ -46,7 +46,10 @@ class McpAuthenticationIntegrationTest {
     private static final ObjectMapper YAML_MAPPER = IkanosMappers.lenientYaml();
     private static final ObjectMapper JSON = IkanosMappers.lenientJson();
 
-    /** Mirrors {@code RejectedRequestBodies.MAX_WAIT}, which is not visible from this package. */
+    /**
+     * How long a rejection may take: the Netty connector answers without reading the body and
+     * discards the rest of it later, so a rejection never waits for the body (#878).
+     */
     private static final long REJECTED_BODY_MAX_WAIT = 500;
 
     @Test
@@ -316,7 +319,7 @@ class McpAuthenticationIntegrationTest {
 
     /**
      * Regression test for GitHub issue #878: when the body of a rejected request never arrives,
-     * the server must still answer once it gives up waiting for it, rather than hold the thread.
+     * the server must still answer, rather than wait for it.
      */
     @Test
     void bearerAuthRejectionShouldRespondWhenBodyNeverArrives() throws Exception {
@@ -335,8 +338,7 @@ class McpAuthenticationIntegrationTest {
                     "Request with wrong bearer token should be rejected without its body");
             long elapsedMillis = (System.nanoTime() - start) / 1_000_000;
             assertTrue(elapsedMillis < REJECTED_BODY_MAX_WAIT + 2_000,
-                    "Server should give up on the body shortly after the limit, waited "
-                            + elapsedMillis);
+                    "Server should not wait for the body, waited " + elapsedMillis);
         } finally {
             adapter.stop();
         }
@@ -345,10 +347,10 @@ class McpAuthenticationIntegrationTest {
     /**
      * Sends four requests on one connection: an accepted one, a rejected one whose body is sent
      * only after a pause, another accepted one, and a rejected one sent in one piece. The pause
-     * lets the server reject before the body arrives, which is the race of issue #878. The fix
-     * keeps the connection usable as long as the body arrives within
-     * {@code RejectedRequestBodies.MAX_WAIT}, which the pause stays well under. The last request
-     * checks that a body sent with the request is discarded without waiting for that limit.
+     * lets the server reject before the body arrives, which is the race of issue #878. Restlet's
+     * Netty connector discards a body of known length, up to 256 KiB, after the response and keeps
+     * the connection usable. The last request checks that a body sent with the request is
+     * discarded without waiting.
      */
     private static void assertConnectionReusableAfterLateBodyRejection(McpServerAdapter adapter,
             String acceptedAuthorization, String rejectedAuthorization) throws Exception {

@@ -28,10 +28,8 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
  *
  * <p>The capability YAML is the single source of truth for tunnel configuration;
  * this class and its subtypes are the matching Jackson-deserialized representation.
- * Engine wiring (Jetty {@code SocketAddressResolver} + {@code ClientConnector}
- * overrides, OpenZiti SDK dial) is delivered in a later phase — this spec layer
- * lands ahead of it so capability authors can declare tunnels and have them
- * validated by the schema and Polychro rules today.
+ * The engine routes a tunneled host's connections through the tunnel's dial (Restlet's
+ * {@code NettyClientTransport} SPI, see {@code io.ikanos.engine.consumes.tunnel}).
  */
 @JsonTypeInfo(
     use = JsonTypeInfo.Id.NAME,

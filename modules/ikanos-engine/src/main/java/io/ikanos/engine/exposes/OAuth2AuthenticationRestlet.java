@@ -246,7 +246,6 @@ public class OAuth2AuthenticationRestlet extends Restlet {
     }
 
     protected void unauthorized(Response response, String error, String description) {
-        RejectedRequestBodies.discard(response.getRequest());
         response.setStatus(Status.CLIENT_ERROR_UNAUTHORIZED);
         addBearerChallenge(response,
                 buildBearerChallengeParams(error, description, null));
@@ -258,7 +257,6 @@ public class OAuth2AuthenticationRestlet extends Restlet {
      * {@code scope} parameter lists the scopes the refused call requires, when it requires any.
      */
     protected void forbidden(Response response, AccessControl.Denial denial) {
-        RejectedRequestBodies.discard(response.getRequest());
         response.setStatus(Status.CLIENT_ERROR_FORBIDDEN);
         String scopeValue = denial.scopes().isEmpty() ? null : String.join(" ", denial.scopes());
         addBearerChallenge(response,

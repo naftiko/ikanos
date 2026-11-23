@@ -80,7 +80,8 @@ public class CapabilityRuntimeIntegrationTest {
 
     private void waitUntilReady(HttpClient httpClient, int port) throws Exception {
         Throwable lastFailure = null;
-        for (int attempt = 0; attempt < 50; attempt++) {
+        // The first start of the Netty connector can take several seconds on a loaded machine.
+        for (int attempt = 0; attempt < 150; attempt++) {
             try {
                 HttpResponse<String> response = httpClient.send(readyRequest(port),
                         HttpResponse.BodyHandlers.ofString());

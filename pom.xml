@@ -95,11 +95,13 @@
     </modules>
 
     <properties>
-        <java.version>21</java.version>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
+        <java.version>25</java.version>
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <restlet.version>3.0.0-m1</restlet.version>
+        <restlet.version>3.0.0-m2</restlet.version>
+        <!-- Same Netty as Restlet 3.0.0-m2, whose connectors and extensions are built on it -->
+        <netty.version>4.2.19.Final</netty.version>
         <jackson.version>3.2.3</jackson.version>
         <!-- Jackson 2 is still needed by swagger-parser, Avro and json-structure -->
         <jackson2.version>2.21.7</jackson2.version>
@@ -108,14 +110,14 @@
         <junit.jupiter.version>5.12.2</junit.jupiter.version>
         <assertj.version>3.27.7</assertj.version>
         <mockito.version>5.23.0</mockito.version>
-        <jacoco.version>0.8.13</jacoco.version>
+        <jacoco.version>0.8.14</jacoco.version>
         <slf4j.version>2.0.17</slf4j.version>
         <opentelemetry.version>1.67.0</opentelemetry.version>
-        <graalvm.polyglot.version>24.1.1</graalvm.polyglot.version>
-        <groovy.version>4.0.24</groovy.version>
+        <graalvm.polyglot.version>25.0.1</graalvm.polyglot.version>
+        <groovy.version>4.0.28</groovy.version>
         <!-- Polychro runs ikanos-rules.yml in the ruleset tests; same version as the CI lint job -->
         <polychro.version>1.0.0-beta7</polychro.version>
-        <openziti.version>0.33.1</openziti.version>
+        <openziti.version>0.35.0</openziti.version>
         <lucene.version>10.6.0</lucene.version>
         <bouncycastle.version>1.85</bouncycastle.version>
         <!--
@@ -337,6 +339,13 @@
                 <version>${restlet.version}</version>
             </dependency>
             <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-bom</artifactId>
+                <version>${netty.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
                 <groupId>org.restlet</groupId>
                 <artifactId>org.restlet.ext.jackson</artifactId>
                 <version>${restlet.version}</version>
@@ -488,10 +497,9 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
-                    <version>3.13.0</version>
+                    <version>3.14.0</version>
                     <configuration>
-                        <source>21</source>
-                        <target>21</target>
+                        <release>${java.version}</release>
                     </configuration>
                 </plugin>
 
@@ -534,7 +542,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
-                    <version>3.2.5</version>
+                    <version>3.5.3</version>
                     <configuration>
                         <useModulePath>false</useModulePath>
                     </configuration>
@@ -612,7 +620,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-javadoc-plugin</artifactId>
-                    <version>3.6.3</version>
+                    <version>3.11.2</version>
                     <executions>
                         <execution>
                             <id>attach-javadocs</id>
@@ -623,7 +631,7 @@
                     </executions>
                     <configuration>
                         <doclint>none</doclint>
-                        <source>21</source>
+                        <release>${java.version}</release>
                     </configuration>
                 </plugin>
                 <plugin>

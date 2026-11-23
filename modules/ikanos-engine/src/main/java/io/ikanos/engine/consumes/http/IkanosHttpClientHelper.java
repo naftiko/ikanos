@@ -15,33 +15,25 @@ package io.ikanos.engine.consumes.http;
 
 import java.util.List;
 import java.util.function.Function;
-import org.eclipse.jetty.client.HttpClient;
-import org.eclipse.jetty.client.WWWAuthenticationProtocolHandler;
-import org.eclipse.jetty.http.HttpHeader;
 import org.restlet.Client;
 import org.restlet.Request;
+import org.restlet.Response;
 import org.restlet.engine.Engine;
-import org.restlet.engine.adapter.ClientCall;
-import org.restlet.engine.adapter.JettyClientCall;
 import org.restlet.engine.connector.ConnectorHelper;
-import org.restlet.representation.Representation;
 
 /**
  * Restlet {@link org.restlet.engine.connector.HttpClientHelper} subclass used by every consumed
  * HTTP adapter.
  *
- * <p>It removes Jetty's {@link WWWAuthenticationProtocolHandler} once the Jetty client has
- * started. Ikanos sends credentials itself and never registers a Jetty {@code Authentication},
- * so that handler has nothing to answer a challenge with. It does, however, fail every
- * {@code 401} that comes without a {@code WWW-Authenticate} header ("Authentication challenge
- * without WWW-Authenticate header"), which Restlet then reports as {@code 1002 Internal
- * Connector Error} with no body. Many APIs answer {@code 401} that way, with the explanation
- * in a JSON body, so without this the agent never sees why the call failed (#925).</p>
+ * <p>On Restlet 3.0.0-m1 it worked around two behaviors of the Jetty connector: Jetty's
+ * {@code WWWAuthenticationProtocolHandler} turned a {@code 401} without {@code WWW-Authenticate}
+ * into a {@code 1002} with no body (#925), and Jetty sent every entity chunked, even of a known
+ * size (#954). Restlet 3.0.0-m2's Netty connector does neither: a {@code 401} reaches the caller
+ * with its body, and an entity of known size is sent with {@code Content-Length}.</p>
  *
- * <p>It also sends the size of a request entity whose size is known as {@code Content-Length}
- * ({@link #create}). Restlet's Jetty call drops that header and streams every entity, so Jetty
- * sent it {@code Transfer-Encoding: chunked}, which S3 and MinIO refuse unless it is aws-chunked
- * ({@code 411 MissingContentLength}): a forwarded upload or a JSON body to S3 failed (#954).</p>
+ * <p>What remains is {@link #NO_REDIRECTS}: the Netty connector follows redirects of synchronous
+ * calls for the whole client ({@code followRedirects}), and forward mode needs to turn that off
+ * for one request.</p>
  *
  * <p>Restlet instantiates this class reflectively from its name, see
  * {@link HttpClientAdapter#HTTP_CLIENT_HELPER_CLASS_NAME}, but only among the helpers registered
@@ -56,6 +48,12 @@ public class IkanosHttpClientHelper extends org.restlet.engine.connector.HttpCli
      * following it to wherever it points (#1002).
      */
     public static final String NO_REDIRECTS = "io.ikanos.engine.noRedirects";
+
+    /**
+     * Set while {@link #handle} serves a request carrying {@link #NO_REDIRECTS}: the connector
+     * reads {@link #isFollowRedirects()} on the calling thread when it starts the exchange.
+     */
+    private static final ThreadLocal<Boolean> NO_FOLLOW = new ThreadLocal<>();
 
     /**
      * Restlet calls this constructor reflectively when it resolves the helper class name.
@@ -96,55 +94,27 @@ public class IkanosHttpClientHelper extends org.restlet.engine.connector.HttpCli
     }
 
     /**
-     * Creates the Jetty call. It sends the size of a known-size entity as {@code Content-Length}
-     * ({@link #setContentLength}), and does not follow redirects when {@code request} carries
-     * {@link #NO_REDIRECTS}. The client follows them otherwise (Restlet's
-     * {@code followRedirects} defaults to {@code true}, and an {@code awsSigV4} adapter turns it
-     * off for the whole client).
+     * Handles a call, without following redirects when {@code request} carries
+     * {@link #NO_REDIRECTS}. The client follows them otherwise (Restlet's {@code followRedirects}
+     * defaults to {@code true}, and an {@code awsSigV4} adapter turns it off for the whole
+     * client).
      */
     @Override
-    public ClientCall create(Request request) {
-        ClientCall call = super.create(request);
-        if (call instanceof JettyClientCall jettyCall) {
-            setContentLength(jettyCall.getRequest(), request.getEntity());
-            if (Boolean.TRUE.equals(request.getAttributes().get(NO_REDIRECTS))) {
-                jettyCall.getRequest().followRedirects(false);
-            }
+    public void handle(Request request, Response response) {
+        if (!Boolean.TRUE.equals(request.getAttributes().get(NO_REDIRECTS))) {
+            super.handle(request, response);
+            return;
         }
-        return call;
-    }
-
-    /**
-     * Package-private for testing. Sets {@code Content-Length} on the Jetty request to the size of
-     * the entity Restlet will stream, when that size is known, so that Jetty doesn't send it
-     * chunked. An unknown size ({@link Representation#UNKNOWN_SIZE}) is still sent chunked.
-     */
-    static void setContentLength(org.eclipse.jetty.client.Request jettyRequest,
-            Representation entity) {
-        if (jettyRequest != null && entity != null && entity.isAvailable()
-                && entity.getSize() >= 0) {
-            long size = entity.getSize();
-            jettyRequest.headers(headers -> headers.put(HttpHeader.CONTENT_LENGTH, size));
+        NO_FOLLOW.set(Boolean.TRUE);
+        try {
+            super.handle(request, response);
+        } finally {
+            NO_FOLLOW.remove();
         }
     }
 
-    /**
-     * Starts the Jetty client, then removes the protocol handlers that Jetty installs on start
-     * and that Ikanos does not use.
-     */
     @Override
-    public void start() throws Exception {
-        super.start();
-        removeUnusedProtocolHandlers(getHttpClient());
-    }
-
-    /**
-     * Package-private for testing. Removes Jetty's WWW authentication handler, so that a
-     * {@code 401} reaches Ikanos as a regular response with its body.
-     */
-    static void removeUnusedProtocolHandlers(HttpClient httpClient) {
-        if (httpClient != null) {
-            httpClient.getProtocolHandlers().remove(WWWAuthenticationProtocolHandler.NAME);
-        }
+    public boolean isFollowRedirects() {
+        return NO_FOLLOW.get() == null && super.isFollowRedirects();
     }
 }

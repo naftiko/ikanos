@@ -28,6 +28,7 @@ import tools.jackson.databind.ObjectReader;
 import io.ikanos.Capability;
 import io.ikanos.engine.consumes.ClientAdapter;
 import io.ikanos.engine.consumes.tunnel.Tunnel;
+import io.ikanos.engine.consumes.tunnel.TunnelClientTransport;
 import io.ikanos.engine.consumes.tunnel.TunnelRouteTable;
 import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.InputParameterSpec;
@@ -63,15 +64,6 @@ public class HttpClientAdapter extends ClientAdapter {
     static final String HTTP_CLIENT_HELPER_CLASS_NAME =
             "io.ikanos.engine.consumes.http.IkanosHttpClientHelper";
 
-    /**
-     * Fully-qualified class name of the {@link TunnelAwareHttpClientHelper} subclass that
-     * Restlet instantiates reflectively when this adapter routes requests through a tunnel.
-     * Kept as a string constant so the engine module need not statically depend on the helper
-     * class via the Restlet helper-resolution path.
-     */
-    static final String TUNNEL_AWARE_HELPER_CLASS_NAME =
-            "io.ikanos.engine.consumes.http.TunnelAwareHttpClientHelper";
-
     private final Client httpClient;
 
     /** {@code baseUri} after binding resolution; never resolved from call parameters. */
@@ -84,10 +76,9 @@ public class HttpClientAdapter extends ClientAdapter {
      * Tunnel-aware constructor used by {@link Capability} bootstrap.
      *
      * <p>When {@code spec.getTunnel()} is non-null AND {@code tunnels} contains an entry for
-     * the tunnel's type, the underlying Restlet {@link Client} is created with a custom
-     * {@link TunnelAwareHttpClientHelper}, whose {@code create} attaches the tunnel transport
-     * when Restlet creates the Jetty request, routing matching hosts through the tunnel. Otherwise it uses {@link IkanosHttpClientHelper} on the
-     * direct internet path, as the 2-arg constructor does.
+     * the tunnel's type, a {@link TunnelClientTransport} is set on the client's context, so
+     * Restlet's Netty connector routes the {@code baseUri} host through the tunnel. Other hosts
+     * go over TCP, as with the 2-arg constructor.
      *
      * @param capability the owning capability
      * @param spec the consumed-HTTP spec
@@ -100,20 +91,15 @@ public class HttpClientAdapter extends ClientAdapter {
         this.baseUri = resolveBaseUri(spec.getNamespace(), spec.getBaseUri(),
                 capability != null ? capability.getBindings() : null);
         Tunnel tunnel = selectTunnel(spec, tunnels);
-        if (tunnel == null) {
-            IkanosHttpClientHelper.ensureRegistered();
-            this.httpClient = new Client(ConsumedAuthentication.clientContext(
-                    spec.getAuthentication()), List.of(HTTP, HTTPS), HTTP_CLIENT_HELPER_CLASS_NAME);
-        } else {
+        IkanosHttpClientHelper.ensureRegistered();
+        Context restletContext = ConsumedAuthentication.clientContext(spec.getAuthentication());
+        if (tunnel != null) {
             TunnelRouteTable routes = new TunnelRouteTable();
             routes.register(extractHost(this.baseUri), tunnel);
-            Context restletContext = ConsumedAuthentication.clientContext(spec.getAuthentication());
-            restletContext.getAttributes().put(TunnelRouteTable.CONTEXT_ATTRIBUTE, routes);
-            IkanosHttpClientHelper.ensureRegistered(TunnelAwareHttpClientHelper.class,
-                    TunnelAwareHttpClientHelper::new);
-            this.httpClient = new Client(
-                    restletContext, List.of(HTTP, HTTPS), TUNNEL_AWARE_HELPER_CLASS_NAME);
+            TunnelClientTransport.install(restletContext, routes);
         }
+        this.httpClient = new Client(restletContext, List.of(HTTP, HTTPS),
+                HTTP_CLIENT_HELPER_CLASS_NAME);
     }
 
     /**
