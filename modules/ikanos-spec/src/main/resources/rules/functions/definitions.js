@@ -24,7 +24,8 @@
  *                   items, below nested arrays, a `mapping` on an output
  *                   object), a value that is not a JSONPath, a property name
  *                   a path cannot address, `mappings` without `schema:`, or
- *                   `schema:` / `mappings` in an MCP resource output.
+ *                   `schema:` / `mappings` in a mock output or an MCP resource
+ *                   output.
  *
  * Covers MCP adapters, REST adapters and aggregates in a capability and at the
  * root of a standalone file. The engine and `ikanos validate` run the same checks when
@@ -251,11 +252,11 @@ function buildModel(owner) {
       : isObject(steps) && Object.keys(steps).length > 0;
     // Mapped (call-mode) outputs are a list; orchestrated and mock outputs a map.
     // The engine's rule: an MCP tool's outputs are mapped in list form (it may infer its
-    // call; the map form is a mock's); a flow's or REST operation's when it has `call` or,
-    // for an operation, `ref`, whose own outputs map the flow's result. Otherwise a mock.
+    // call; the map form is a mock's) or with `ref`; a flow's or REST operation's when it has
+    // `call` or `ref`. A `ref` unit's own outputs map its flow's result. Otherwise a mock.
     const runs = (value) => value !== undefined && value !== null;
     const mapped = !orchestrated && (owner.unitKind === "tool"
-      ? Array.isArray(unit.outputParameters)
+      ? Array.isArray(unit.outputParameters) || runs(unit.ref)
       : runs(unit.call) || runs(unit.ref));
     units.push({ name: u.key, unit, path: unitPath, refs, orchestrated, mapped });
   }

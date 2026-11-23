@@ -609,6 +609,33 @@ class MappedOutputDefinitionsExpanderTest {
     }
 
     @Test
+    void expandAllShouldBindMapFormOutputsOfARefTool() throws Exception {
+        // A ref tool's own outputs map its flow's result whatever their form: not a mock
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    ship:
+                      type: object
+                      properties:
+                        imo: { type: string }
+                """, """
+                get-ship:
+                  ref: fleet.get-ship
+                  outputParameters:
+                    ship:
+                      schema: ship
+                      mappings:
+                        imo: "$.imo_number"
+                """);
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+
+        assertEquals(List.of(), result.errors());
+        assertEquals("{\"name\":\"ship\",\"type\":\"object\",\"properties\":{\"imo\":{\"type\":"
+                + "\"string\",\"mapping\":\"$.imo_number\"}}}", outputs(spec, "get-ship"));
+    }
+
+    @Test
     void expandAllShouldRejectMappingsInAMockOutput() throws Exception {
         IkanosSpec spec = mcp("", """
                 get-ship:
