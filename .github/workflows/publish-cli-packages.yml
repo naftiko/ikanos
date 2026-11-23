@@ -26,26 +26,31 @@ jobs:
     strategy:
       matrix:
         include:
-          # jdk: the variable jreleaser.yml reads this runner's JDK from.
+          # jdk: the variable jreleaser.yml reads this runner's JDK from. assembler: the jreleaser.yml
+          # assembler that builds this OS's package, and the folder of out/jreleaser/assemble it lands in.
           # macOS Apple Silicon (ARM64)
           - os: macos-latest  # macos-14+ uses Mx runners
             artifact_name: ikanos-cli-macos-arm64.tar.gz
             jdk: IKANOS_JDK_MACOS_ARM64
+            assembler: ikanos-cli
 
           # Linux AMD64
           - os: ubuntu-latest
             artifact_name: ikanos-cli-linux-amd64.tar.gz
             jdk: IKANOS_JDK_LINUX_X64
+            assembler: ikanos-cli
 
           # Linux ARM64
           - os: ubuntu-24.04-arm
             artifact_name: ikanos-cli-linux-arm64.tar.gz
             jdk: IKANOS_JDK_LINUX_ARM64
+            assembler: ikanos-cli
 
-          # Windows AMD64
+          # Windows AMD64: its own assembler, for the two Windows-only modules (jreleaser.yml).
           - os: windows-latest
             artifact_name: ikanos-cli-windows-amd64.zip
             jdk: IKANOS_JDK_WINDOWS_X64
+            assembler: ikanos-cli-windows
 
     defaults:
       run:
@@ -70,6 +75,23 @@ jobs:
             echo "${{ matrix.jdk }}=$JAVA_HOME"
           } >> "$GITHUB_ENV"
 
+      # jreleaser.yml repeats ikanos-cli's settings in ikanos-cli-windows (JReleaser reads no YAML
+      # anchors): the Windows runtime must keep the same modules, plus its two Windows-only ones.
+      - name: The Windows assembler keeps the shared settings
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          ruby -ryaml -e '
+            jlink = YAML.load_file("jreleaser.yml")["assemble"]["jlink"]
+            main, windows = jlink["ikanos-cli"], jlink["ikanos-cli-windows"]
+            extra = %w[jdk.accessibility jdk.crypto.mscapi]
+            problems = []
+            problems << "modules differ" unless windows["additionalModuleNames"].sort == (main["additionalModuleNames"] + extra).sort
+            %w[stereotype executable imageName mainJar jdeps args java fileSets].each do |key|
+              problems << "#{key} differs" unless main[key] == windows[key]
+            end
+            abort("FAIL: ikanos-cli-windows drifted from ikanos-cli: #{problems.join(", ")}") unless problems.empty?
+            puts "ikanos-cli-windows = ikanos-cli + #{extra.join(", ")}"'
+
       # JReleaser builds the jlink runtime and packs it with ikanos.jar (jreleaser.yml): jdeps
       # picks the JDK modules, and jreleaser.yml adds the ones --bind-services used to add. Each
       # runner builds its own OS's package with its own JDK.
@@ -86,7 +108,7 @@ jobs:
       - name: Smoke test the package — extract + run --version
         run: |
           set -euo pipefail
-          PACKAGE="out/jreleaser/assemble/ikanos-cli/jlink/${{ matrix.artifact_name }}"
+          PACKAGE="out/jreleaser/assemble/${{ matrix.assembler }}/jlink/${{ matrix.artifact_name }}"
           TESTDIR="$RUNNER_TEMP/ikanos-package-smoketest"
           mkdir -p "$TESTDIR"
           case "$PACKAGE" in
@@ -99,10 +121,25 @@ jobs:
           test -f "$ROOT/bin/$JAVA" || { echo "FAIL: bin/$JAVA missing"; exit 1; }
           test -f "$ROOT/jars/ikanos.jar" || { echo "FAIL: jars/ikanos.jar missing"; exit 1; }
           "$ROOT/bin/$JAVA" -jar "$ROOT/jars/ikanos.jar" --version
+          # The Windows certificate store, for -Djavax.net.ssl.trustStoreType=Windows-ROOT behind a
+          # TLS-inspecting proxy: jdk.crypto.mscapi must be in the runtime, and the store must open.
+          if [ "$RUNNER_OS" = Windows ]; then
+            cat > "$RUNNER_TEMP/OpenStore.java" <<'JAVA'
+          public class OpenStore {
+              public static void main(String[] args) throws Exception {
+                  java.security.KeyStore store = java.security.KeyStore.getInstance(args[0]);
+                  store.load(null, null);
+                  System.out.println(args[0] + ": " + store.size() + " certificates, from " + store.getProvider().getName());
+              }
+          }
+          JAVA
+            "$ROOT/bin/$JAVA" "$RUNNER_TEMP/OpenStore.java" Windows-ROOT | tee "$RUNNER_TEMP/store.txt"
+            grep -q "from SunMSCAPI" "$RUNNER_TEMP/store.txt" || { echo "FAIL: Windows-ROOT doesn't open through SunMSCAPI"; exit 1; }
+          fi
 
       # The hash alone, as JReleaser writes it on the release (checksum.individual in jreleaser.yml).
       - name: Generate checksum
-        working-directory: out/jreleaser/assemble/ikanos-cli/jlink
+        working-directory: out/jreleaser/assemble/${{ matrix.assembler }}/jlink
         run: |
           set -euo pipefail
           if command -v sha256sum >/dev/null; then SUM="sha256sum"; else SUM="shasum -a 256"; fi
@@ -113,8 +150,8 @@ jobs:
         with:
           name: ${{ matrix.artifact_name }}
           path: |
-            out/jreleaser/assemble/ikanos-cli/jlink/${{ matrix.artifact_name }}
-            out/jreleaser/assemble/ikanos-cli/jlink/${{ matrix.artifact_name }}.sha256
+            out/jreleaser/assemble/${{ matrix.assembler }}/jlink/${{ matrix.artifact_name }}
+            out/jreleaser/assemble/${{ matrix.assembler }}/jlink/${{ matrix.artifact_name }}.sha256
 
       - name: Keep JReleaser's log
         if: always()

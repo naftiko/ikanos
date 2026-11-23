@@ -108,21 +108,90 @@ assemble:
       fileSets:
         - input: '.'
           includes: [LICENSE.md]
-      # The asset names install.sh and install.ps1 download: a .tar.gz for macOS and Linux, a .zip for Windows.
-      formats: [TAR_GZ, ZIP]
+      # The asset names install.sh and install.ps1 download: a .tar.gz for macOS and Linux (ikanos-cli-windows makes
+      # the Windows .zip).
+      formats: [TAR_GZ]
       targetJdks:
         - path: '{{ Env.IKANOS_JDK_LINUX_X64 }}'
           platform: linux-x86_64
-          extraProperties: { skipZip: true }
         - path: '{{ Env.IKANOS_JDK_LINUX_ARM64 }}'
           platform: linux-aarch_64
-          extraProperties: { skipZip: true }
         - path: '{{ Env.IKANOS_JDK_MACOS_ARM64 }}'
           platform: osx-aarch_64
-          extraProperties: { skipZip: true }
+    # The Windows package: the same runtime as ikanos-cli, plus two modules that only a Windows JDK has, and that
+    # --bind-services added there: jdk.crypto.mscapi, the Windows certificate store (what
+    # -Djavax.net.ssl.trustStoreType=Windows-ROOT reads, behind a TLS-inspecting proxy), and jdk.accessibility.
+    # jlink refuses them on the other platforms, hence a Windows-only assembler. JReleaser reads no YAML anchors, so
+    # its settings repeat ikanos-cli's: publish-cli-packages.yml checks that its modules are ikanos-cli's plus these
+    # two. Its package has the same name and layout, in out/jreleaser/assemble/ikanos-cli-windows.
+    ikanos-cli-windows:
+      active: ALWAYS
+      stereotype: CLI
+      executable: ikanos
+      imageName: 'ikanos-cli'
+      mainJar:
+        path: modules/ikanos-cli/target/ikanos.jar
+      jdeps:
+        multiRelease: '21'
+        ignoreMissingDeps: true
+        useWildcardInPath: false
+        targets:
+          - 'modules/ikanos-cli/target/ikanos.jar'
+      additionalModuleNames:
+        - java.datatransfer
+        - java.logging
+        - java.management
+        - java.management.rmi
+        - java.prefs
+        - java.rmi
+        - java.security.sasl
+        - java.smartcardio
+        - java.transaction.xa
+        - java.xml
+        - java.xml.crypto
+        - jdk.attach
+        - jdk.charsets
+        - jdk.compiler
+        - jdk.crypto.cryptoki
+        - jdk.crypto.ec
+        - jdk.editpad
+        - jdk.internal.ed
+        - jdk.internal.jvmstat
+        - jdk.internal.le
+        - jdk.internal.opt
+        - jdk.jartool
+        - jdk.javadoc
+        - jdk.jdeps
+        - jdk.jdi
+        - jdk.jdwp.agent
+        - jdk.jlink
+        - jdk.jpackage
+        - jdk.jshell
+        - jdk.jstatd
+        - jdk.localedata
+        - jdk.management.jfr
+        - jdk.naming.dns
+        - jdk.naming.rmi
+        - jdk.random
+        - jdk.security.auth
+        - jdk.security.jgss
+        - jdk.unsupported.desktop
+        - jdk.zipfs
+        - jdk.accessibility
+        - jdk.crypto.mscapi
+      args:
+        - --no-header-files
+        - --no-man-pages
+        - --compress=zip-0
+      java:
+        mainClass: io.ikanos.Cli
+      fileSets:
+        - input: '.'
+          includes: [LICENSE.md]
+      formats: [ZIP]
+      targetJdks:
         - path: '{{ Env.IKANOS_JDK_WINDOWS_X64 }}'
           platform: windows-x86_64
-          extraProperties: { skipTargz: true }
 
 checksum:
   individual: true
