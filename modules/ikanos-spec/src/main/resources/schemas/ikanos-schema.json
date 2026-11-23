@@ -4989,8 +4989,8 @@
         },
         "wireName": {
           "type": "string",
-          "pattern": "^[A-Za-z_][A-Za-z0-9_-]*(\\.[A-Za-z_][A-Za-z0-9_-]*)*$",
-          "description": "Where the value goes in the request when it differs from the key: a field name, or a dotted path to a nested field (`input.title` fills the `title` field of the `$input` variable; `order.customerId` a nested protobuf message field). Checked against the contract when the capability loads."
+          "pattern": "^[A-Za-z_][A-Za-z0-9_-]*(\\.[A-Za-z0-9_][A-Za-z0-9_-]*)*$",
+          "description": "Where the value goes in the request when it differs from the key: a field name, or a dotted path into the request. Each segment after the first is a field, a key of a map with string keys, or a member of a union (a protobuf oneof, a GraphQL @oneOf input, a Smithy union): `input.title` fills the `title` field of the `$input` variable, `Key.id.S` the `S` member of the `id` entry of the `Key` map. Inputs may not set different members of one union. Checked against the contract when the capability loads."
         }
       },
       "unevaluatedProperties": false

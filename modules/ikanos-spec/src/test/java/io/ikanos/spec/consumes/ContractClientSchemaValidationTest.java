@@ -351,6 +351,15 @@ class ContractClientSchemaValidationTest {
     }
 
     @Test
+    void schemaShouldAcceptAMapKeyAndAUnionMemberInAWireName() throws Exception {
+        String yaml = capability(SMITHY.replace("wireName: cityId", "wireName: Key.2024.S"));
+
+        assertTrue(validate(yaml).isEmpty(), "a map key may start with a digit: " + validate(yaml));
+        assertFalse(validate(capability(SMITHY.replace("wireName: cityId",
+                "wireName: 2024.S"))).isEmpty(), "the first segment is a field");
+    }
+
+    @Test
     void schemaShouldRefuseAnUnknownOperationField() throws Exception {
         String yaml = capability(SMITHY.replace("operation: GetCurrentForecast",
                 "operation: GetCurrentForecast\n      method: GET"));
