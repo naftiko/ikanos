@@ -64,3 +64,51 @@ capability:
                   crew: "$.crew"
                   crew[].fullName: "$.name"
                   tags: "$.labels"
+        get-ship-flow:
+          description: "Get a ship through the fleet flow."
+          ref: registry-flows.get-ship
+    - type: rest
+      port: 3001
+      namespace: fleet-rest
+      description: "Fleet API"
+      definitions:
+        schemas:
+          ship:
+            type: object
+            properties:
+              imo: { type: string }
+              tonnage: { type: number }
+      resources:
+        ships:
+          path: "/ships"
+          description: "Ships"
+          operations:
+            list-ships:
+              method: GET
+              description: "List ships."
+              call: registry.list-ships
+              outputParameters:
+                - type: array
+                  mapping: "$.ships"
+                  items:
+                    schema: ship
+                    mappings:
+                      imo: "$.imo_number"
+                      tonnage: "$.gross_tonnage"
+  aggregates:
+    - display: "Fleet"
+      namespace: registry-flows
+      definitions:
+        schemas:
+          ship:
+            type: object
+            properties:
+              imo: { type: string }
+      flows:
+        get-ship:
+          description: "Get a ship."
+          call: registry.get-ship
+          outputParameters:
+            - schema: ship
+              mappings:
+                imo: "$.imo_number"

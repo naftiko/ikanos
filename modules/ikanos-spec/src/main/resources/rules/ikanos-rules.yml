@@ -333,11 +333,13 @@ rules:
     description: >
       `schema: name` in a mapped (call-mode) output must be bound by `mappings`:
       a path in the schema (property names joined by `.`, `[]` for an array's
-      items) for every scalar and array, each to a JSONPath, which is the
-      `mapping` that node carries once expanded. A path the schema does not
-      have, a property name containing `.`, `[` or `]`, and `mappings` without
-      `schema:` are errors too. The engine rejects the capability at startup
-      otherwise.
+      items) for every scalar, array and object without properties, each to a
+      JSONPath, which is the `mapping` that node carries once expanded. A path
+      the schema does not have, a binding the runtime never reads (object
+      items, below nested arrays, a `mapping` beside `schema:` on an output
+      object), a property name containing `.`, `[` or `]`, `mappings` without
+      `schema:`, and `schema:` or `mappings` in an MCP resource output are
+      errors too. The engine rejects the capability at startup otherwise.
     severity: error
     recommended: true
     given: "$"

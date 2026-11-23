@@ -212,14 +212,53 @@ class DefinitionsSchemaValidationTest {
     }
 
     @Test
-    void validateShouldRejectSchemaWithoutMappingsInMappedOutput() throws Exception {
-        assertRejected(mcp(DEFINITIONS, """
+    void validateShouldAcceptSchemaWithMappingAloneInMappedOutput() throws Exception {
+        // Whether the schema has paths left to bind is the engine's and Polychro's check
+        List<Error> errors = schema.validate(mcp("""
+                definitions:
+                  schemas:
+                    imo: { type: string }
+                """, """
                 get-ship:
                   description: "Get a ship."
                   call: erp.get-ship
                   outputParameters:
-                    - schema: ship
+                    - type: object
+                      properties:
+                        imo: { schema: imo, mapping: "$.imo_number" }
                 """));
+
+        assertTrue(errors.isEmpty(), errors.toString());
+    }
+
+    @Test
+    void validateShouldRejectSchemaInAMappedMcpResourceOutput() throws Exception {
+        String resource = """
+                ikanos: "%s"
+                capability:
+                  exposes:
+                    - type: mcp
+                      port: 3000
+                      namespace: tools
+                      resources:
+                        flagship:
+                          display: "Flagship"
+                          description: "The flagship."
+                          uri: "data://flagship"
+                          call: erp.get-ship
+                          outputParameters:
+                            - %s
+                      tools:
+                        get-ship:
+                          description: "Get a ship."
+                          call: erp.get-ship
+                """;
+        List<Error> inline = schema.validate(read(resource.formatted(IKANOS,
+                "{ type: object, properties: { imo: { type: string, mapping: \"$.imo_number\" } } }")));
+
+        assertTrue(inline.isEmpty(), inline.toString());
+        assertRejected(read(resource.formatted(IKANOS,
+                "{ schema: ship, mappings: { imo: \"$.imo_number\" } }")));
     }
 
     @Test
