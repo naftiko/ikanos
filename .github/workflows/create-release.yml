@@ -29,13 +29,21 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Every artifact of this run named ikanos-cli-*: the four packages, put where JReleaser
-      # assembles them. JReleaser writes their .sha256 files again, the same way.
-      - name: Download the packages
+      # The four packages, each put where its jreleaser.yml assembler writes it: the three .tar.gz
+      # of ikanos-cli, and the Windows .zip of ikanos-cli-windows. JReleaser writes their .sha256
+      # files again, the same way.
+      - name: Download the macOS and Linux packages
         uses: actions/download-artifact@v8
         with:
-          pattern: ikanos-cli-*
+          pattern: ikanos-cli-*.tar.gz
           path: out/jreleaser/assemble/ikanos-cli/jlink
+          merge-multiple: true
+
+      - name: Download the Windows package
+        uses: actions/download-artifact@v8
+        with:
+          pattern: ikanos-cli-windows-*.zip
+          path: out/jreleaser/assemble/ikanos-cli-windows/jlink
           merge-multiple: true
 
       # The version is the tag's: v1.0.0-beta10 releases 1.0.0-beta10, a pre-release.
