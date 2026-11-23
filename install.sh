@@ -28,6 +28,12 @@
 # package):
 #   curl -fsSL https://naftiko.github.io/ikanos/v1.0.0/install.sh | IKANOS_VERSION=v1.0.0 sh
 #
+# An installer from v1.0.0-beta9 or older installs releases up to
+# v1.0.0-beta9 only: from v1.0.0-beta10, a package's .sha256 file holds
+# the hash alone, which those installers don't read ("No checksum entry
+# found"). A pinned installer that old must set IKANOS_VERSION to
+# v1.0.0-beta9 or older too, or be taken from the "latest" alias above.
+#
 # Env overrides:
 #   IKANOS_VERSION   Install a specific release tag (e.g. "v1.0.0-beta2").
 #                     Defaults to the latest GitHub release, including
@@ -121,7 +127,8 @@ info "Verifying checksum..."
 curl -fsSL "$base_url/$checksum" -o "$tmp_dir/$checksum" \
   || fail "Could not download $checksum for verification."
 
-expected_sha=$(grep "  ${asset}\$" "$tmp_dir/$checksum" | awk '{print $1}')
+# The file holds the hash alone (JReleaser, from 1.0.0-beta10), or "<hash>  <asset>" (older releases).
+expected_sha=$(awk -v a="$asset" 'NF == 1 || $2 == a || $2 == "*" a { print $1; exit }' "$tmp_dir/$checksum")
 [ -n "$expected_sha" ] || fail "No checksum entry found for $asset in $checksum."
 
 if command -v shasum >/dev/null 2>&1; then
@@ -153,6 +160,21 @@ rm -rf "$install_dir"
 mkdir -p "$install_dir"
 tar xzf "$tmp_dir/$asset" -C "$install_dir"
 
+# From 1.0.0-beta10 the package is built by JReleaser: one ikanos-cli-<os>-<arch> folder holding the
+# runtime (bin/java) and the jar (jars/ikanos.jar). Older packages hold jre/ and ikanos.jar at the top.
+packaged="$install_dir/ikanos-cli-${os}-${arch}"
+if [ -d "$packaged" ]; then
+  for entry in "$packaged"/*; do mv "$entry" "$install_dir/"; done
+  rmdir "$packaged"
+fi
+if [ -x "$install_dir/bin/java" ]; then
+  java_path="bin/java"; jar_path="jars/ikanos.jar"
+else
+  java_path="jre/bin/java"; jar_path="ikanos.jar"
+fi
+[ -x "$install_dir/$java_path" ] && [ -f "$install_dir/$jar_path" ] \
+  || fail "$asset holds no Java runtime and ikanos.jar that this installer knows."
+
 mkdir -p "$IKANOS_HOME/bin"
 ln -sfn "$install_dir" "$IKANOS_HOME/current"
 
@@ -170,7 +192,7 @@ cat > "$IKANOS_HOME/bin/ikanos" <<WRAPPER
 # An IKANOS_HOME set at run time still wins over the install location.
 ikanos_install_home='$quoted_home'
 IKANOS_HOME="\${IKANOS_HOME:-\$ikanos_install_home}"
-exec "\$IKANOS_HOME/current/jre/bin/java" -jar "\$IKANOS_HOME/current/ikanos.jar" "\$@"
+exec "\$IKANOS_HOME/current/$java_path" -jar "\$IKANOS_HOME/current/$jar_path" "\$@"
 WRAPPER
 chmod +x "$IKANOS_HOME/bin/ikanos"
 
