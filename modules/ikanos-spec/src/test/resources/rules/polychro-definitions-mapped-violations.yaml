@@ -218,6 +218,17 @@ capability:
               outputParameters:
                 - name: cargo
                   schema: cargo
+        cargo-ref:
+          path: "/cargo-ref"
+          description: "Cargo through a flow"
+          operations:
+            get-cargo-ref:
+              method: GET
+              description: "Map-form outputs on a ref operation."
+              ref: cargo.get-load
+              outputParameters:
+                cargo:
+                  schema: cargo
   aggregates:
     - display: "Cargo"
       namespace: cargo

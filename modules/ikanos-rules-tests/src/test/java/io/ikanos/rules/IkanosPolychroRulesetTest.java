@@ -1204,11 +1204,20 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
-    public void definitionsMappingsRuleShouldLeaveMockFlowsAndRestOperationsAlone() {
-        // Mocks return static values: the mappings check does not treat them as mapped
+    public void definitionsMappingsRuleShouldRejectSchemasInMocksWithoutBindingThem() {
+        // Mocks return static values: a schema there is rejected, never bound
         String output = lintFixture("rules/polychro-definitions-mapped-violations.yaml").output();
-        assertFalse(output.contains("'schema: cargo'"), output);
+        assertTrue(output.lines().anyMatch(line -> line.contains("get-cargo")
+                && line.contains("'schema:' and 'mappings' are not allowed in a mock output")),
+            output);
         assertFalse(output.contains("'schema: load'"), output);
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldBindMapFormOutputsOfARefRestOperation() {
+        // A ref operation's own outputs map its flow's result, whatever their form
+        assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
+            .contains("'schema: cargo' in a mapped (call-mode) output needs 'mappings'"));
     }
 
     @Test
