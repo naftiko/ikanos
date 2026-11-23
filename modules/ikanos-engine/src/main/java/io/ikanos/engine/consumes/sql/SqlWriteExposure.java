@@ -13,16 +13,13 @@
  */
 package io.ikanos.engine.consumes.sql;
 
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import io.ikanos.Capability;
-import io.ikanos.engine.aggregates.AggregateFlow;
+import io.ikanos.engine.consumes.ConsumedWriteExposure;
 import io.ikanos.spec.consumes.ClientSpec;
 import io.ikanos.spec.consumes.sql.SqlClientSpec;
 import io.ikanos.spec.consumes.sql.SqlProcedureSpec;
 import io.ikanos.spec.exposes.ServerCallSpec;
-import io.ikanos.spec.util.OperationStepCallSpec;
 import io.ikanos.spec.util.OperationStepSpec;
 
 /**
@@ -45,54 +42,10 @@ public final class SqlWriteExposure {
      */
     public static String writeReached(Capability capability, String ref, ServerCallSpec call,
             Map<String, OperationStepSpec> steps) {
-        Set<AggregateFlow> seen = new HashSet<>();
-        if (ref != null) {
-            return inFlow(capability, findFlow(capability, ref), seen);
-        }
-        String reached = inCall(capability, call, seen);
-        return reached != null ? reached : inSteps(capability, steps, seen);
+        return ConsumedWriteExposure.writeReached(capability, ref, call, steps,
+                target -> isWrite(capability, target));
     }
 
-    private static String inFlow(Capability capability, AggregateFlow flow,
-            Set<AggregateFlow> seen) {
-        if (flow == null || !seen.add(flow)) {
-            return null;
-        }
-        String reached = inCall(capability, flow.getCall(), seen);
-        return reached != null ? reached : inSteps(capability, flow.getSteps(), seen);
-    }
-
-    private static String inCall(Capability capability, ServerCallSpec call,
-            Set<AggregateFlow> seen) {
-        return call != null && call.getOperation() != null
-                ? inTarget(capability, call.getOperation(), seen) : null;
-    }
-
-    private static String inTarget(Capability capability, String target,
-            Set<AggregateFlow> seen) {
-        if (isWrite(capability, target)) {
-            return target;
-        }
-        return inFlow(capability, findFlow(capability, target), seen);
-    }
-
-    private static String inSteps(Capability capability, Map<String, OperationStepSpec> steps,
-            Set<AggregateFlow> seen) {
-        if (steps == null) {
-            return null;
-        }
-        for (OperationStepSpec step : steps.values()) {
-            if (step instanceof OperationStepCallSpec call && call.getCall() != null) {
-                String reached = inTarget(capability, call.getCall(), seen);
-                if (reached != null) {
-                    return reached;
-                }
-            }
-        }
-        return null;
-    }
-
-    /** Whether {@code target} names a consumed SQL procedure declared {@code readOnly: false}. */
     static boolean isWrite(Capability capability, String target) {
         int dot = target.indexOf('.');
         if (dot <= 0 || capability.getSpec() == null || capability.getSpec().getCapability() == null
@@ -108,13 +61,5 @@ public final class SqlWriteExposure {
             }
         }
         return false;
-    }
-
-    private static AggregateFlow findFlow(Capability capability, String ref) {
-        try {
-            return capability.lookupFlow(ref);
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
     }
 }
