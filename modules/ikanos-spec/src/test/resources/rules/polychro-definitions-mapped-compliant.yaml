@@ -95,6 +95,19 @@ capability:
                     mappings:
                       imo: "$.imo_number"
                       tonnage: "$.gross_tonnage"
+        ship:
+          path: "/flagship"
+          description: "One ship"
+          operations:
+            get-ship:
+              method: GET
+              description: "Get a ship through the fleet flow."
+              ref: registry-flows.get-ship
+              outputParameters:
+                - schema: ship
+                  mappings:
+                    imo: "$.imo_number"
+                    tonnage: "$.gross_tonnage"
   aggregates:
     - display: "Fleet"
       namespace: registry-flows

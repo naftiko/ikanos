@@ -358,9 +358,11 @@ public final class DefinitionsExpander {
             }
             boolean orchestrated = operation.getSteps() != null
                     && !operation.getSteps().isEmpty();
-            // An operation with neither call nor steps is a mock, whose outputs are static values
+            // An operation with neither call, ref nor steps is a mock, whose outputs are static
+            // values. A ref operation's own outputs map its flow's result
+            // (ResourceRestlet.executeViaAggregate), as a call's would.
             operation.setOutputParameters(expandOutputs(location, orchestrated,
-                    !orchestrated && operation.getCall() != null,
+                    !orchestrated && (operation.getCall() != null || operation.getRef() != null),
                     operation.getOutputParameters()));
         }
 
@@ -550,9 +552,10 @@ public final class DefinitionsExpander {
                 } else if (mapped) {
                     expanded.add(expandMappedOutput(output, where, Position.TOP));
                 } else {
-                    if (referencesSchema(output)) {
-                        errors.add(where + ": 'schema:' is not allowed in a mock output, which"
-                                + " returns static values. Declare the output inline.");
+                    if (referencesSchema(output) || hasMappings(output)) {
+                        errors.add(where + ": 'schema:' and 'mappings' are not allowed in a mock"
+                                + " output, which returns static values. Declare the output"
+                                + " inline.");
                     }
                     checkJsonSchemaRefs(output, where);
                     expanded.add(output);
