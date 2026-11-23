@@ -392,8 +392,20 @@ public final class McpTaskService {
         if (record == null) {
             return false;
         }
-        if (record.status() != ExecutionStatus.SUSPENDED || responses == null
-                || !responses.isObject()) {
+        if (responses == null || !responses.isObject()) {
+            return true;
+        }
+        if (record.status() == ExecutionStatus.RUNNING && stillAsks(record, responses)) {
+            // A waiting task runs for a moment when it is resumed after a restart: it reads the
+            // answers delivered before the stop, finds none, and waits again (resume). Answers
+            // sent in that moment would be ignored as sent to a running task: let it wait first.
+            awaitWorker(record.executionId());
+            record = find(taskId, principal);
+            if (record == null) {
+                return false;
+            }
+        }
+        if (record.status() != ExecutionStatus.SUSPENDED) {
             return true;
         }
         ExecutionView view = runner.view(record.executionId());
@@ -408,16 +420,7 @@ public final class McpTaskService {
         runner.deliver(record.executionId(), ANSWERS.visit(round), answers);
         // The round that asked may still be finishing on its worker: let it end, so the answers
         // are not left in the inbox with nothing running to read them.
-        Future<?> ending = running.get(record.executionId());
-        if (ending != null) {
-            try {
-                ending.get(ROUND_END_WAIT_MS, TimeUnit.MILLISECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            } catch (ExecutionException | CancellationException | TimeoutException e) {
-                // Ended one way or another, or still running: either way, go on.
-            }
-        }
+        awaitWorker(record.executionId());
         if (!isRunning(record.executionId()) && !draining.get()) {
             Callable<JsonNode> work = workFor.apply(record.entry(),
                     runner.input(record.executionId()).map(JsonNode.class::cast).orElse(null));
@@ -427,6 +430,32 @@ public final class McpTaskService {
         }
         lastUpdated.put(record.executionId(), clock.instant());
         return true;
+    }
+
+    /**
+     * Whether a running task's last round asked questions that are still unanswered and that
+     * these responses answer: the task is about to wait for them, not past them.
+     */
+    private boolean stillAsks(ExecutionRecord record, JsonNode responses) {
+        ExecutionView view = runner.view(record.executionId());
+        int round = InputRounds.lastRound(view);
+        return InputRounds.questions(view, round) != null
+                && view.update(ANSWERS.visit(round)).isEmpty()
+                && !InputRounds.taskAnswers(view, round, responses).isEmpty();
+    }
+
+    /** Waits, at most {@link #ROUND_END_WAIT_MS}, for the worker running a task to end. */
+    private void awaitWorker(ExecutionId executionId) {
+        Future<?> ending = running.get(executionId);
+        if (ending != null) {
+            try {
+                ending.get(ROUND_END_WAIT_MS, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (ExecutionException | CancellationException | TimeoutException e) {
+                // Ended one way or another, or still running: either way, go on.
+            }
+        }
     }
 
     /**
