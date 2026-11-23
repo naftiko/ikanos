@@ -18,6 +18,7 @@ import java.io.InputStream;
 import java.net.ConnectException;
 import java.net.URI;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -32,6 +33,7 @@ import com.google.protobuf.Descriptors.DescriptorValidationException;
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.Descriptors.FileDescriptor;
 import com.google.protobuf.Descriptors.MethodDescriptor;
+import com.google.protobuf.Descriptors.OneofDescriptor;
 import com.google.protobuf.Descriptors.ServiceDescriptor;
 import com.google.protobuf.DynamicMessage;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -65,6 +67,7 @@ import io.ikanos.engine.consumes.contract.ContractClientAdapter;
 import io.ikanos.engine.consumes.contract.ContractInvocation;
 import io.ikanos.engine.consumes.contract.ContractRequest;
 import io.ikanos.engine.consumes.contract.ContractResult;
+import io.ikanos.engine.consumes.contract.UnionChoices;
 import io.ikanos.engine.consumes.tunnel.Tunnel;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.consumes.grpc.GrpcClientSpec;
@@ -77,8 +80,9 @@ import io.ikanos.spec.util.IkanosMappers;
  * {@link GrpcClientAdapter}, on a borrowed HTTP/2 Restlet client.
  *
  * <p>When the capability loads, the descriptor set is resolved, each procedure's {@code rpc} is
- * found in the service and must be unary, and each input's {@code wireName} must name fields of
- * the request message. A call writes the inputs into a JSON tree ({@link ContractRequest}),
+ * found in the service and must be unary, and each input's {@code wireName} must resolve in the
+ * request message (fields, keys of string-keyed maps, {@code oneof} members, at most one of each
+ * {@code oneof}). A call writes the inputs into a JSON tree ({@link ContractRequest}),
  * parses it into the request message with the proto3 JSON mapping (unknown fields refused), runs
  * the call with {@code timeoutMs} as its deadline, and prints the response message in the proto3
  * JSON mapping, fields without presence included, as the result document.</p>
@@ -241,8 +245,9 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
             throw new IllegalArgumentException(where + " calls a streaming rpc: consumes type"
                     + " grpc only calls unary methods");
         }
+        UnionChoices unions = new UnionChoices(where);
         for (InputParameterSpec input : spec.getInputParameters()) {
-            checkPath(where, input, method.getInputType());
+            checkPath(where, input, method.getInputType(), unions);
         }
         checkReadOnly(spec.getName(), noSideEffects(method), true);
         io.grpc.MethodDescriptor<DynamicMessage, DynamicMessage> call =
@@ -257,24 +262,56 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
         return new Procedure(spec.getName(), spec, method, call, view(spec));
     }
 
-    /** Checks that an input's path names fields of the request message, by name or JSON name. */
-    void checkPath(String where, InputParameterSpec input, Descriptor message) {
+    /**
+     * Checks that an input's path resolves in the request message: each segment is a field, by
+     * name or JSON name, or the key of the {@code map<string, ...>} field before it. A
+     * {@code oneof} field the path sets is reported to {@code unions}.
+     */
+    void checkPath(String where, InputParameterSpec input, Descriptor message,
+            UnionChoices unions) {
         Descriptor current = message;
         List<String> path = ContractRequest.path(input);
+        // The path in canonical field names (and map keys), so a JSON name alias is the same place
+        List<String> place = new ArrayList<>();
         for (int i = 0; i < path.size(); i++) {
             FieldDescriptor field = field(current, path.get(i));
             if (field == null) {
                 throw new IllegalArgumentException(where + " input '" + input.getName()
-                        + "' targets '" + String.join(".", path) + "', which message '"
-                        + message.getFullName() + "' does not define");
+                        + "' targets '" + String.join(".", path)
+                        + "', which does not resolve in message '" + message.getFullName()
+                        + "'");
             }
-            if (i < path.size() - 1) {
-                if (field.getJavaType() != FieldDescriptor.JavaType.MESSAGE || field.isRepeated()) {
+            OneofDescriptor oneof = field.getRealContainingOneof();
+            if (oneof != null) {
+                unions.choose(input.getName(), List.copyOf(place), oneof.getName(),
+                        field.getName());
+            }
+            place.add(field.getName());
+            if (i == path.size() - 1) {
+                break;
+            }
+            FieldDescriptor next = field;
+            if (field.isMapField()) {
+                Descriptor entry = field.getMessageType();
+                if (entry.findFieldByName("key").getJavaType() != FieldDescriptor.JavaType.STRING) {
                     throw new IllegalArgumentException(where + " input '" + input.getName()
-                            + "' goes through '" + path.get(i) + "', which is not a message");
+                            + "' goes through map '" + path.get(i)
+                            + "', whose keys are not strings");
                 }
-                current = field.getMessageType();
+                i++;
+                place.add(path.get(i));
+                if (i == path.size() - 1) {
+                    break;
+                }
+                next = entry.findFieldByName("value");
+            } else if (field.isRepeated()) {
+                next = null;
             }
+            if (next == null || next.getJavaType() != FieldDescriptor.JavaType.MESSAGE) {
+                throw new IllegalArgumentException(where + " input '" + input.getName()
+                        + "' goes through '" + path.get(i) + "', which is not a message");
+            }
+            current = next.getMessageType();
         }
     }
 

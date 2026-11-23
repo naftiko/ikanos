@@ -21,7 +21,9 @@ import com.google.protobuf.DescriptorProtos.FieldDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FileDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FileDescriptorSet;
 import com.google.protobuf.DescriptorProtos.MethodDescriptorProto;
+import com.google.protobuf.DescriptorProtos.MessageOptions;
 import com.google.protobuf.DescriptorProtos.MethodOptions;
+import com.google.protobuf.DescriptorProtos.OneofDescriptorProto;
 import com.google.protobuf.DescriptorProtos.ServiceDescriptorProto;
 import com.google.protobuf.Descriptors.Descriptor;
 import com.google.protobuf.Descriptors.FileDescriptor;
@@ -77,7 +79,24 @@ final class OrdersFixture {
                         .addField(field("id", 1, FieldDescriptorProto.Type.TYPE_STRING))
                         .addField(field("reason", 2, FieldDescriptorProto.Type.TYPE_STRING))
                         .addField(field("refund", 3, FieldDescriptorProto.Type.TYPE_MESSAGE)
-                                .setTypeName(".test.orders.Money")))
+                                .setTypeName(".test.orders.Money"))
+                        // map<string, Money> refunds, map<string, string> labels,
+                        // map<int32, string> slots, and oneof payment { by_card, by_voucher }
+                        .addField(mapField("refunds", 4, "RefundsEntry"))
+                        .addField(mapField("labels", 5, "LabelsEntry"))
+                        .addField(mapField("slots", 6, "SlotsEntry"))
+                        .addOneofDecl(OneofDescriptorProto.newBuilder().setName("payment"))
+                        .addField(field("by_card", 7, FieldDescriptorProto.Type.TYPE_STRING)
+                                .setOneofIndex(0))
+                        .addField(field("by_voucher", 8, FieldDescriptorProto.Type.TYPE_STRING)
+                                .setOneofIndex(0))
+                        .addNestedType(entry("RefundsEntry", FieldDescriptorProto.Type.TYPE_STRING,
+                                field("value", 2, FieldDescriptorProto.Type.TYPE_MESSAGE)
+                                        .setTypeName(".test.orders.Money")))
+                        .addNestedType(entry("LabelsEntry", FieldDescriptorProto.Type.TYPE_STRING,
+                                field("value", 2, FieldDescriptorProto.Type.TYPE_STRING)))
+                        .addNestedType(entry("SlotsEntry", FieldDescriptorProto.Type.TYPE_INT32,
+                                field("value", 2, FieldDescriptorProto.Type.TYPE_STRING))))
                 .addMessageType(message("CancelOrderResponse", field("cancelled", 1,
                         FieldDescriptorProto.Type.TYPE_BOOL)))
                 .addService(ServiceDescriptorProto.newBuilder().setName("OrderService")
@@ -102,6 +121,21 @@ final class OrdersFixture {
             builder.addField(field);
         }
         return builder.build();
+    }
+
+    /** A map field, as protoc writes it: a repeated field of a nested map entry message. */
+    private static FieldDescriptorProto.Builder mapField(String name, int number, String entry) {
+        return FieldDescriptorProto.newBuilder().setName(name).setNumber(number)
+                .setType(FieldDescriptorProto.Type.TYPE_MESSAGE)
+                .setLabel(FieldDescriptorProto.Label.LABEL_REPEATED)
+                .setTypeName(".test.orders.CancelOrderRequest." + entry);
+    }
+
+    private static DescriptorProto entry(String name, FieldDescriptorProto.Type key,
+            FieldDescriptorProto.Builder value) {
+        return DescriptorProto.newBuilder().setName(name)
+                .setOptions(MessageOptions.newBuilder().setMapEntry(true))
+                .addField(field("key", 1, key)).addField(value).build();
     }
 
     private static FieldDescriptorProto.Builder field(String name, int number,

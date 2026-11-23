@@ -13,6 +13,7 @@
  */
 package io.ikanos.client.grpc;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -277,6 +278,63 @@ class GrpcConsumedAdapterTest {
                         Map.of()));
 
         assertTrue(e.getMessage().contains("refund.cents"), e.getMessage());
+    }
+
+    @Test
+    void wireNameShouldGoThroughAStringMapKeyIntoItsMessageValue() throws Exception {
+        GrpcConsumedAdapter adapter = started(spec("http://localhost:" + port, PROCEDURES
+                .replace("wireName: refund.amountCents", "wireName: refunds.EUR.amountCents"),
+                ""));
+        try {
+            call(adapter, "cancel-order", Map.of("order-id", "8", "refund", "450"));
+
+            DynamicMessage request = fixture.lastCancel.get();
+            java.util.List<?> entries = (java.util.List<?>) request.getField(
+                    request.getDescriptorForType().findFieldByName("refunds"));
+            assertEquals(1, entries.size());
+            DynamicMessage entry = (DynamicMessage) entries.get(0);
+            assertEquals("EUR", entry.getField(entry.getDescriptorForType()
+                    .findFieldByName("key")));
+            DynamicMessage money = (DynamicMessage) entry.getField(entry.getDescriptorForType()
+                    .findFieldByName("value"));
+            assertEquals(450L, money.getField(money.getDescriptorForType()
+                    .findFieldByName("amount_cents")));
+        } finally {
+            adapter.stop();
+        }
+    }
+
+    @Test
+    void wireNameShouldEndOnAStringMapKeyAndReachAOneofMember() throws Exception {
+        assertDoesNotThrow(() -> new GrpcConsumedAdapter(null, spec("http://localhost:" + port,
+                PROCEDURES.replace("reason: { type: string, description: Why. }",
+                        "reason: { type: string, description: Why., wireName: labels.reason }\n"
+                                + "    card: { type: string, description: Card., wireName: byCard }"),
+                ""), Map.of()));
+    }
+
+    @Test
+    void constructorShouldRefuseAMapWhoseKeysAreNotStrings() throws Exception {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> new GrpcConsumedAdapter(null, spec("http://localhost:" + port,
+                        PROCEDURES.replace("wireName: refund.amountCents", "wireName: slots.1"),
+                        ""), Map.of()));
+
+        assertTrue(e.getMessage().contains("keys are not strings"), e.getMessage());
+    }
+
+    @Test
+    void constructorShouldRefuseTwoMembersOfOneOneof() throws Exception {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> new GrpcConsumedAdapter(null, spec("http://localhost:" + port,
+                        PROCEDURES.replace("reason: { type: string, description: Why. }",
+                                "card: { type: string, description: Card., wireName: by_card }\n"
+                                        + "    voucher: { type: string, description: Voucher.,"
+                                        + " wireName: byVoucher }"),
+                        ""), Map.of()));
+
+        assertTrue(e.getMessage().contains("'card' and 'voucher'"), e.getMessage());
+        assertTrue(e.getMessage().contains("union 'payment'"), e.getMessage());
     }
 
     @Test
