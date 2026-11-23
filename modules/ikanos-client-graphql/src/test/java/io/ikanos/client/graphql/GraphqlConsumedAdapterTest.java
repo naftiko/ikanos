@@ -13,6 +13,7 @@
  */
 package io.ikanos.client.graphql;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -395,6 +396,33 @@ class GraphqlConsumedAdapterTest {
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> new GraphqlConsumedAdapter(null, spec, Map.of()));
         assertTrue(e.getMessage().contains("input.team"), e.getMessage());
+    }
+
+    private static final String FIND_ISSUE = """
+            find-issue:
+              description: One issue by id or number.
+              document: "query Find($by: IssueKey!) { issueFind(by: $by) { id } }"
+              inputParameters:
+                issue-id: { type: string, description: Issue id., wireName: by.id }
+            """;
+
+    @Test
+    void wireNameShouldReachAMemberOfAOneOfInput() throws Exception {
+        GraphqlClientSpec spec = spec(FIND_ISSUE, "");
+
+        assertDoesNotThrow(() -> new GraphqlConsumedAdapter(null, spec, Map.of()));
+    }
+
+    @Test
+    void constructorShouldRefuseTwoMembersOfAOneOfInput() throws Exception {
+        GraphqlClientSpec spec = spec(FIND_ISSUE + """
+                    issue-number: { type: integer, description: Issue number., wireName: by.number }
+                """, "");
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> new GraphqlConsumedAdapter(null, spec, Map.of()));
+        assertTrue(e.getMessage().contains("'issue-id' and 'issue-number'"), e.getMessage());
+        assertTrue(e.getMessage().contains("IssueKey"), e.getMessage());
     }
 
     @Test
