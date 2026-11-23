@@ -609,6 +609,27 @@ class MappedOutputDefinitionsExpanderTest {
     }
 
     @Test
+    void expandAllShouldRejectMappingsInAMockOutput() throws Exception {
+        IkanosSpec spec = mcp("", """
+                get-ship:
+                  description: "Get ship."
+                  outputParameters:
+                    ship:
+                      type: object
+                      mappings:
+                        imo: "$.imo_number"
+                      properties:
+                        imo: { type: string, value: "IMO 9321483" }
+                """);
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', output 'ship': 'schema:' and"
+                + " 'mappings' are not allowed in a mock output, which returns static values."
+                + " Declare the output inline."), errors);
+    }
+
+    @Test
     void expandAllShouldRejectASchemaInAMockFlow() throws Exception {
         IkanosSpec spec = read("""
                 ikanos: "%s"
@@ -633,9 +654,9 @@ class MappedOutputDefinitionsExpanderTest {
 
         List<String> errors = DefinitionsExpander.expandAll(spec).errors();
 
-        assertEquals(List.of("aggregate 'fleet', flow 'get-ship', output 'ship': 'schema:' is not"
-                + " allowed in a mock output, which returns static values. Declare the output"
-                + " inline."), errors);
+        assertEquals(List.of("aggregate 'fleet', flow 'get-ship', output 'ship': 'schema:' and"
+                + " 'mappings' are not allowed in a mock output, which returns static values."
+                + " Declare the output inline."), errors);
     }
 
     @Test
@@ -826,9 +847,9 @@ class MappedOutputDefinitionsExpanderTest {
 
         List<String> errors = DefinitionsExpander.expandAll(spec).errors();
 
-        assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', output 'ship': 'schema:' is"
-                + " not allowed in a mock output, which returns static values. Declare the"
-                + " output inline."), errors);
+        assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', output 'ship': 'schema:' and"
+                + " 'mappings' are not allowed in a mock output, which returns static values."
+                + " Declare the output inline."), errors);
     }
 
     private static String outputs(IkanosSpec spec, String tool) throws Exception {

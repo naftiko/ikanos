@@ -479,6 +479,37 @@ class RestDefinitionsExpanderTest {
     }
 
     @Test
+    void expandAllShouldBindASchemaInTheOutputOfARefRestOperation() throws Exception {
+        // A ref operation's own outputs map its flow's result, as a call's would
+        IkanosSpec spec = rest("""
+                definitions:
+                  schemas:
+                    ship:
+                      type: object
+                      properties:
+                        imo: { type: string }
+                """, """
+                ship:
+                  path: "/ship"
+                  operations:
+                    get-ship:
+                      method: GET
+                      ref: fleet.get-ship
+                      outputParameters:
+                        - schema: ship
+                          mappings:
+                            imo: "$.imo_number"
+                """);
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+
+        assertEquals(List.of(), result.errors());
+        assertEquals("[{\"type\":\"object\",\"properties\":{\"imo\":{\"type\":\"string\","
+                + "\"mapping\":\"$.imo_number\"}}}]", IkanosMappers.json().writeValueAsString(
+                        operation(spec, "ship", "get-ship").getOutputParameters()));
+    }
+
+    @Test
     void expandAllShouldRejectASchemaInAMockRestOutput() throws Exception {
         IkanosSpec spec = rest("""
                 definitions:
@@ -503,8 +534,8 @@ class RestDefinitionsExpanderTest {
         List<String> errors = DefinitionsExpander.expandAll(spec).errors();
 
         assertEquals(List.of("REST adapter 'api', resource 'ship', operation 'get-ship', output"
-                + " 'ship': 'schema:' is not allowed in a mock output, which returns static"
-                + " values. Declare the output inline."), errors);
+                + " 'ship': 'schema:' and 'mappings' are not allowed in a mock output, which"
+                + " returns static values. Declare the output inline."), errors);
     }
 
     private static IkanosSpec rest(String definitions, String resources) throws Exception {

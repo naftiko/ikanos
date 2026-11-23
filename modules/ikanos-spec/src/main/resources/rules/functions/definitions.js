@@ -250,9 +250,11 @@ function buildModel(owner) {
     const orchestrated = Array.isArray(steps) ? steps.length > 0
       : isObject(steps) && Object.keys(steps).length > 0;
     // Mapped (call-mode) outputs are a list; orchestrated and mock outputs a map.
-    // A flow or REST operation without `call` is a mock; an MCP tool may infer its call.
+    // A flow or REST operation without `call` (or, for an operation, `ref`, whose own
+    // outputs map the flow's result) is a mock; an MCP tool may infer its call.
+    const runs = (value) => value !== undefined && value !== null;
     const mapped = !orchestrated && Array.isArray(unit.outputParameters)
-      && (owner.unitKind === "tool" || (unit.call !== undefined && unit.call !== null));
+      && (owner.unitKind === "tool" || runs(unit.call) || runs(unit.ref));
     units.push({ name: u.key, unit, path: unitPath, refs, orchestrated, mapped });
   }
 
@@ -503,6 +505,14 @@ function checkOutputKeywords(model, results) {
   }
 }
 
+/**
+ * Whether a declaration binds anything with `mappings`. An empty map binds
+ * nothing, as in the engine (the JSON Schema rejects it on its own).
+ */
+function declaresMappings(node) {
+  return isObject(node.mappings) && Object.keys(node.mappings).length > 0;
+}
+
 /** Whether a property name can be addressed by a `mappings` path. */
 function addressable(name) {
   return !/[.[\]]/.test(name);
@@ -745,7 +755,7 @@ function walkMapped(model, node, path, position, results) {
     checkBinding(model, node, path, position, results);
     return;
   }
-  if (isObject(node.mappings)) {
+  if (declaresMappings(node)) {
     results.push({
       message: "'mappings' binds a schema, so it needs 'schema:' beside it. Name the schema,"
         + " or declare a 'mapping' on each leaf inline.",
@@ -769,7 +779,7 @@ function bindsDefinitions(node) {
   if (!isObject(node)) {
     return false;
   }
-  if (typeof node.schema === "string" || isObject(node.mappings)) {
+  if (typeof node.schema === "string" || declaresMappings(node)) {
     return true;
   }
   if (bindsDefinitions(node.items) || bindsDefinitions(node.values)) {
