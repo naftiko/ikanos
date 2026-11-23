@@ -124,7 +124,7 @@
           Model 7.13.3). Change it only with a migration path for existing local stores.
         -->
         <h2.version>2.3.232</h2.version>
-        <revision>1.0.0-beta10-SNAPSHOT</revision>
+        <revision>1.0.0-beta10</revision>
         <!--
           JaCoCo coverage gate (Phase A of the 100 % coverage plan, epic #445).
           Each module's BUNDLE LINE / BRANCH coverage must stay >= these floors.
