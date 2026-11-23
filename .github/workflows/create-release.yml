@@ -58,18 +58,6 @@ jobs:
         env:
           JRELEASER_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # JReleaser leaves the release a draft (draft: true in jreleaser.yml): it is published only
-      # now that every file is on it. A final release becomes the latest; a beta stays a pre-release.
-      - name: Publish the draft
-        run: |
-          case "$GITHUB_REF_NAME" in
-            *-*) gh release edit "$GITHUB_REF_NAME" --draft=false ;;
-            *) gh release edit "$GITHUB_REF_NAME" --draft=false --latest ;;
-          esac
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-
       - name: Keep JReleaser's log
         if: always()
         uses: actions/upload-artifact@v7
@@ -107,3 +95,43 @@ jobs:
           keep_files: true
           user_name: 'github-actions[bot]'
           user_email: 'github-actions[bot]@users.noreply.github.com'
+
+  # The last step: the release stays a draft until every file is on it (draft: true in jreleaser.yml)
+  # and until GitHub Pages serves this tag's installers at the latest alias. An installer from
+  # v1.0.0-beta9 or older can't install a JReleaser package, so it must be gone from the alias,
+  # cache included (max-age=600), before the release it would pick becomes visible.
+  publish-release:
+    name: Publish the release
+    needs: publish-installer
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Wait for the latest installers on GitHub Pages
+        run: |
+          set -euo pipefail
+          base="https://naftiko.github.io/ikanos"
+          for _ in $(seq 1 40); do
+            if curl -fsSL "$base/install.sh" | cmp -s - docs/install.sh \
+              && curl -fsSL "$base/install.ps1" | cmp -s - docs/install.ps1; then
+              echo "GitHub Pages serves this tag's installers."
+              exit 0
+            fi
+            sleep 30
+          done
+          echo "::error::GitHub Pages still serves older installers after 20 minutes: the release stays a draft. Publish it by hand once they are live."
+          exit 1
+
+      # A final release becomes the latest; a beta stays a pre-release.
+      - name: Publish the draft
+        run: |
+          case "$GITHUB_REF_NAME" in
+            *-*) gh release edit "$GITHUB_REF_NAME" --draft=false ;;
+            *) gh release edit "$GITHUB_REF_NAME" --draft=false --latest ;;
+          esac
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
