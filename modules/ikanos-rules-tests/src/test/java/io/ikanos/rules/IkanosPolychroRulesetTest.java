@@ -1201,6 +1201,41 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
+    public void definitionsMappingsRuleShouldFireOnAnOutputObjectWithoutProperties() {
+        assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
+            .contains("'schema: meta' is an object without properties, which as an output"
+                + " always returns an empty object."));
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnASchemaBelowInlineNestedArrays() {
+        assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
+            .contains("'schema: record' sits in the items of a nested array, which the runtime"
+                + " passes through as they are"));
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnABindingBelowNestedArraysInASchema() {
+        assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
+            .contains("'schema: grid' binds rows[][].value, which the runtime never reads"));
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnASchemaInAnMcpResourceOutput() {
+        assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
+            .contains("MCP adapter 'fleet', resource 'flagship': 'schema:' and 'mappings' are"
+                + " not supported in an MCP resource output."));
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldLeaveMockFlowsAndRestOperationsAlone() {
+        // Mocks return static values: the mappings check does not treat them as mapped
+        String output = lintFixture("rules/polychro-definitions-mapped-violations.yaml").output();
+        assertFalse(output.contains("'schema: cargo'"), output);
+        assertFalse(output.contains("'schema: load'"), output);
+    }
+
+    @Test
     public void definitionsRulesShouldNotFireForCompliantMappedOutputs() {
         LintResult result = lintFixtureAtSeverity(
             "rules/polychro-definitions-mapped-compliant.yaml", "warn");
