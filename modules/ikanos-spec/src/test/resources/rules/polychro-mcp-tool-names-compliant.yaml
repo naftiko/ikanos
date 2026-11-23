@@ -2,7 +2,7 @@
 #   tools keep the snake_case names of the MCP server they re-implement, a kebab-case
 #   tool sits next to them, one tool reaches an aggregate flow through `ref`, and a
 #   skill names the snake_case tools it depends on.
-ikanos: "1.0.0-beta10"
+ikanos: "1.0.0-beta11"
 info:
   display: "Snake_case MCP tool names — compliant"
   description: "Fixture with MCP tools named in snake_case, as most MCP servers do."

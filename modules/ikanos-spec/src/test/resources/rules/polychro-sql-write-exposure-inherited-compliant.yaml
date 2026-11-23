@@ -7,7 +7,7 @@
 #       resolves to readOnly: false
 #   - a write tool reaching the write through `ref` to a flow declaring
 #       semantics.safe: false, which resolves to readOnly: false
-ikanos: "1.0.0-beta10"
+ikanos: "1.0.0-beta11"
 info:
   display: "Consumed SQL rules — writes overriding inherited readOnly"
   description: "Fixture where SQL write tools override the readOnly default of the MCP exposes block."

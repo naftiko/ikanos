@@ -1,7 +1,7 @@
 # Spectral fixture — no ikanos-mcp-tool-search-* rule MUST FIRE:
 #   deferred mode with a description, ten tools, two pinned tools that exist, and no tool named
 #   like a meta-tool.
-ikanos: "1.0.0-beta10"
+ikanos: "1.0.0-beta11"
 info:
   display: "MCP tool search rules — compliant"
   description: "Fixture that satisfies every MCP tool search Polychro rule."

@@ -6,7 +6,7 @@
 # - records-stdio: a tool `authorization` on the stdio transport.
 # - records-mcp: a tool requires a scope missing from `authentication.scopes`.
 # - records-legacy: an oauth2 adapter lists scopes without any `authorization`.
-ikanos: "1.0.0-beta10"
+ikanos: "1.0.0-beta11"
 
 info:
   display: "Authorization — violations"

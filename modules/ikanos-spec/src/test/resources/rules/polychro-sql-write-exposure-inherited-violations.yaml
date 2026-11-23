@@ -7,7 +7,7 @@
 #   - a tool whose hints set another field only, reaching the write in a step
 #   - a tool reaching the write through `ref` to a flow without semantics
 # MUST NOT FIRE on the tool that calls the read procedure.
-ikanos: "1.0.0-beta10"
+ikanos: "1.0.0-beta11"
 info:
   display: "Consumed SQL rules — writes inheriting readOnly"
   description: "Fixture where SQL write tools inherit readOnly true from the MCP exposes block."

@@ -2,7 +2,7 @@
 # Tests the `$.capability.aggregates[?(@.flows)]` JSONPath of the rule: import entries,
 # which have `from` instead of `flows`, are not targeted.
 # Should trigger: ikanos-aggregates-namespace-required
-ikanos: "1.0.0-beta10"
+ikanos: "1.0.0-beta11"
 
 capability:
   aggregates:

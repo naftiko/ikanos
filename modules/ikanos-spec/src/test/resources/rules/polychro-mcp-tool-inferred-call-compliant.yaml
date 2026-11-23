@@ -1,4 +1,4 @@
-ikanos: 1.0.0-beta10
+ikanos: 1.0.0-beta11
 info:
   display: Inferred MCP tool calls compliant
   description: Positive fixture for the inferred MCP tool call rule

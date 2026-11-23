@@ -4,7 +4,7 @@
 # `value`, a set's header input replaced whole by an own query input) or nothing
 # is cached (no REST ttlMs, MCP's default ttlMs of 0), and ttlFromUpstream only on
 # a single HTTP call.
-ikanos: "1.0.0-beta10"
+ikanos: "1.0.0-beta11"
 info:
   display: "Cache hints compliant"
   description: "Capability whose cache settings match what it declares."

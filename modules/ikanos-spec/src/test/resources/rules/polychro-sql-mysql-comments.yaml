@@ -4,7 +4,7 @@
 #     signs, so {{status}} is a placeholder that matches no declared input
 # and MUST NOT FIRE on {{note}}, after -- and a control character: MySQL reads that --
 # as a comment, so {{note}} is not a placeholder.
-ikanos: "1.0.0-beta10"
+ikanos: "1.0.0-beta11"
 info:
   display: "Consumed SQL MySQL comments"
   description: "Fixture with MySQL -- followed by a Unicode space and by a control character."

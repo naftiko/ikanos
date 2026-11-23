@@ -1,4 +1,4 @@
-ikanos: 1.0.0-beta9
+ikanos: 1.0.0-beta11
 info:
   display: Durability local
   description: Positive fixture declaring the local durability mode on an H2 file

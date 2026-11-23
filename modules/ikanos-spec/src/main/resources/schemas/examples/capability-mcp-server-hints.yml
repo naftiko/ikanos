@@ -11,7 +11,7 @@
 #
 # A tool only declares the fields that differ. The resolved hints are what
 # `tools/list` advertises as the tool's annotations.
-ikanos: "1.0.0-beta10"
+ikanos: "1.0.0-beta11"
 
 info:
   display: "Gong — MCP server default hints example"

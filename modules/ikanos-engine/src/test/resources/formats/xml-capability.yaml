@@ -1,4 +1,4 @@
-ikanos: 1.0.0-beta10
+ikanos: 1.0.0-beta11
 info:
   display: XML Test Capability
   description: Test capability for XML parsing from API responses

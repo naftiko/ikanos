@@ -12,7 +12,7 @@
 #       the same static and steps shapes on `static-mcp`, an authenticated public
 #       adapter with no ttlMs: there ttlFromUpstream caches nothing, so its public
 #       scopes give no caller-dependent warning
-ikanos: "1.0.0-beta10"
+ikanos: "1.0.0-beta11"
 info:
   display: "Cache hint violations"
   description: "Capability whose cache settings contradict what it declares."
