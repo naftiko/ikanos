@@ -86,6 +86,12 @@ public class OutputParameterSerializer extends ValueSerializer<OutputParameterSp
             spec.getSchemaSiblings().forEach(node::set);
         }
 
+        // Beside `schema`, the siblings above already hold them as declared
+        if (!spec.getMappings().isEmpty() && !node.has("mappings")) {
+            ObjectNode mappings = node.putObject("mappings");
+            spec.getMappings().forEach(mappings::put);
+        }
+
         // Kept so that a copy (imports deep-copy through the serializers) is still rejected.
         if (spec.getJsonSchemaRef() != null) {
             node.put("$ref", spec.getJsonSchemaRef());
@@ -209,6 +215,12 @@ public class OutputParameterSerializer extends ValueSerializer<OutputParameterSp
             node.put("schema", spec.getSchema());
             // Kept so that a copy (imports deep-copy through the serializers) is still rejected.
             spec.getSchemaSiblings().forEach(node::set);
+        }
+
+        // Beside `schema`, the siblings above already hold them as declared
+        if (!spec.getMappings().isEmpty() && !node.has("mappings")) {
+            ObjectNode mappings = node.putObject("mappings");
+            spec.getMappings().forEach(mappings::put);
         }
 
         // Kept so that a copy (imports deep-copy through the serializers) is still rejected.

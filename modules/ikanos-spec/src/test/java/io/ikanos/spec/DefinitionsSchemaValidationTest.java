@@ -212,13 +212,118 @@ class DefinitionsSchemaValidationTest {
     }
 
     @Test
-    void validateShouldRejectSchemaInMappedOutput() throws Exception {
+    void validateShouldRejectSchemaWithoutMappingsInMappedOutput() throws Exception {
         assertRejected(mcp(DEFINITIONS, """
                 get-ship:
                   description: "Get a ship."
                   call: erp.get-ship
                   outputParameters:
                     - schema: ship
+                """));
+    }
+
+    @Test
+    void validateShouldAcceptSchemaWithMappingsInEveryMappedOutputPosition() throws Exception {
+        List<Error> errors = schema.validate(mcp(DEFINITIONS, """
+                get-ship:
+                  description: "Get a ship."
+                  call: erp.get-ship
+                  outputParameters:
+                    - schema: ship
+                      mappings:
+                        imo: "$.imo_number"
+                        window.from: "$.start"
+                        window.to: "$.end"
+                list-ships:
+                  description: "List ships."
+                  call: erp.list-ships
+                  outputParameters:
+                    - type: object
+                      properties:
+                        lead:
+                          schema: ship
+                          mapping: "$.lead"
+                          mappings:
+                            imo: "$.imo"
+                            window.from: "$.from"
+                            window.to: "$.to"
+                        ships:
+                          type: array
+                          mapping: "$.ships"
+                          items:
+                            schema: ship
+                            mappings:
+                              imo: "$.imo"
+                              window.from: "$.from"
+                              window.to: "$.to"
+                """));
+
+        assertTrue(errors.isEmpty(), errors.toString());
+    }
+
+    @Test
+    void validateShouldAcceptAnItemsPathInMappings() throws Exception {
+        List<Error> errors = schema.validate(mcp("""
+                definitions:
+                  schemas:
+                    fleet:
+                      type: object
+                      properties:
+                        ships: { type: array, items: { type: object, properties: { imo: { type: string } } } }
+                        tags: { type: array, items: { type: string } }
+                """, """
+                get-fleet:
+                  description: "Get the fleet."
+                  call: erp.get-fleet
+                  outputParameters:
+                    - schema: fleet
+                      mappings:
+                        ships: "$.ships"
+                        ships[].imo: "$.imo"
+                        tags: "$.tags"
+                        tags[]: "$.label"
+                """));
+
+        assertTrue(errors.isEmpty(), errors.toString());
+    }
+
+    @Test
+    void validateShouldRejectKeysBesideSchemaAndMappingsInAMappedOutput() throws Exception {
+        assertRejected(mcp(DEFINITIONS, """
+                get-ship:
+                  description: "Get a ship."
+                  call: erp.get-ship
+                  outputParameters:
+                    - schema: ship
+                      type: object
+                      mappings:
+                        imo: "$.imo_number"
+                """));
+    }
+
+    @Test
+    void validateShouldRejectAMappingsValueThatIsNotAJsonPath() throws Exception {
+        assertRejected(mcp(DEFINITIONS, """
+                get-ship:
+                  description: "Get a ship."
+                  call: erp.get-ship
+                  outputParameters:
+                    - schema: ship
+                      mappings:
+                        imo: "imo_number"
+                """));
+    }
+
+    @Test
+    void validateShouldRejectAMalformedMappingsPath() throws Exception {
+        assertRejected(mcp(DEFINITIONS, """
+                get-ship:
+                  description: "Get a ship."
+                  call: erp.get-ship
+                  outputParameters:
+                    - schema: ship
+                      mappings:
+                        window..from: "$.start"
                 """));
     }
 

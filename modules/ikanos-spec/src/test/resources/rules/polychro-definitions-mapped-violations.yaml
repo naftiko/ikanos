@@ -1,0 +1,101 @@
+ikanos: "1.0.0-beta10"
+info:
+  display: "Mapped definitions violations"
+  description: "Mistakes binding schemas in mapped (call-mode) outputs (#1036)."
+  tags:
+    - Test
+capability:
+  consumes:
+    - type: http
+      namespace: registry
+      description: "Ship registry API"
+      baseUri: "https://registry.acme.org"
+      resources:
+        ships:
+          path: "/ships"
+          description: "Ships"
+          operations:
+            get-ship:
+              method: GET
+  exposes:
+    - type: mcp
+      port: 3000
+      namespace: fleet
+      description: "Fleet tools"
+      definitions:
+        schemas:
+          ship:
+            type: object
+            properties:
+              imo: { type: string, format: imo }
+              crew:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    fullName: { type: string }
+          odd:
+            type: object
+            properties:
+              "call.sign": { type: string }
+          tags:
+            type: array
+            items: { type: string }
+      tools:
+        unbound-crew:
+          description: "Leaves the crew unbound."
+          call: registry.get-ship
+          outputParameters:
+            - schema: ship
+              mappings:
+                imo: "$.imo_number"
+        unknown-path:
+          description: "Binds a path the schema does not have."
+          call: registry.get-ship
+          outputParameters:
+            - schema: ship
+              mappings:
+                imo: "$.imo_number"
+                crew: "$.crew"
+                crew[].fullName: "$.name"
+                flag: "$.flag"
+        not-a-json-path:
+          description: "Binds a static value."
+          call: registry.get-ship
+          outputParameters:
+            - schema: ship
+              mappings:
+                imo: "imo_number"
+                crew: "$.crew"
+                crew[].fullName: "$.name"
+        no-mappings:
+          description: "References a schema without binding it."
+          call: registry.get-ship
+          outputParameters:
+            - schema: ship
+        no-schema:
+          description: "Binds no schema."
+          call: registry.get-ship
+          outputParameters:
+            - type: object
+              mappings:
+                imo: "$.imo_number"
+              properties:
+                imo: { type: string, mapping: "$.imo" }
+        unaddressable:
+          description: "Uses a schema with a property a path cannot address."
+          call: registry.get-ship
+          outputParameters:
+            - schema: odd
+              mappings:
+                imo: "$.imo"
+        unbound-array:
+          description: "Reads an array schema from nowhere."
+          call: registry.get-ship
+          outputParameters:
+            - type: object
+              properties:
+                tags:
+                  schema: tags
+                  mappings:
+                    "[]": "$.label"
