@@ -41,6 +41,17 @@ capability:
           tags:
             type: array
             items: { type: string }
+          tree:
+            type: object
+            properties:
+              label: { type: string }
+              left: { schema: tree }
+              right: { schema: tree }
+          record:
+            type: object
+            properties:
+              id: { type: string }
+              metadata: { type: object }
       tools:
         unbound-crew:
           description: "Leaves the crew unbound."
@@ -99,3 +110,36 @@ capability:
                   schema: tags
                   mappings:
                     "[]": "$.label"
+        cyclic:
+          description: "Binds a schema that references itself twice."
+          call: registry.get-ship
+          outputParameters:
+            - schema: tree
+              mappings:
+                label: "$.label"
+        free-form:
+          description: "Leaves an object without properties unbound."
+          call: registry.get-ship
+          outputParameters:
+            - schema: record
+              mappings:
+                id: "$.id"
+        object-items-mapping:
+          description: "Binds object items, which the runtime reads from each element."
+          call: registry.get-ship
+          outputParameters:
+            - schema: ship
+              mappings:
+                imo: "$.imo_number"
+                crew: "$.crew"
+                crew[]: "$.member"
+                crew[].fullName: "$.name"
+        top-level-mapping:
+          description: "Sets a mapping the runtime ignores on an output object."
+          call: registry.get-ship
+          outputParameters:
+            - schema: record
+              mapping: "$.record"
+              mappings:
+                id: "$.id"
+                metadata: "$.meta"
