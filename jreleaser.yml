@@ -205,8 +205,9 @@ release:
     # Named like the earlier releases; the codename ("Trawler"...) and the story are added by hand.
     releaseName: 'Ikanos v{{projectVersion}}'
     overwrite: false
-    # Created as a draft, and published by create-release.yml once JReleaser has uploaded every file: install.sh
-    # takes the newest release, so it never finds one without its package. (immutableRelease does the same, but
+    # Created as a draft, and published by create-release.yml once JReleaser has uploaded every file and GitHub
+    # Pages serves this tag's installers: install.sh takes the newest release, so it never finds one without its
+    # package, nor an installer too old to read it. (immutableRelease does the same, but
     # JReleaser refuses it with the snapshot version the package workflow builds.)
     draft: true
     # A run that failed before the draft was published leaves it unseen: run it again, then delete the old draft.
