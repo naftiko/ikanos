@@ -15,7 +15,7 @@ package io.ikanos.engine.consumes.tunnel;
 
 import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.consumes.ClientSpec;
-import io.ikanos.spec.consumes.http.HttpClientSpec;
+import io.ikanos.spec.consumes.TunneledClientSpec;
 import io.ikanos.spec.consumes.http.tunnel.TunnelConfigSpec;
 import io.ikanos.spec.consumes.http.tunnel.ZitiTunnelConfigSpec;
 import java.time.Duration;
@@ -121,17 +121,18 @@ public final class TunnelBootstrap {
         boolean success = false;
         try {
             for (ClientSpec clientSpec : clientSpecs) {
-                if (!(clientSpec instanceof HttpClientSpec http)) {
+                if (!(clientSpec instanceof TunneledClientSpec tunneled)) {
                     continue;
                 }
-                TunnelConfigSpec tunnelConfig = http.getTunnel();
+                TunnelConfigSpec tunnelConfig = tunneled.getTunnel();
                 if (tunnelConfig == null) {
                     continue;
                 }
                 String type = tunnelConfig.getType();
                 if (type == null || type.isBlank()) {
                     throw new IllegalStateException(
-                            "tunnel.type is required for ConsumesHttp tunnel block");
+                            "tunnel.type is required for the tunnel block of consumes '"
+                                    + tunneled.getNamespace() + "'");
                 }
                 String identity = resolveIdentity(tunnelConfig, bindings);
                 String previous = identitiesByType.put(type, identity);

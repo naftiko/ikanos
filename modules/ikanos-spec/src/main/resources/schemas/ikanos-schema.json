@@ -5417,18 +5417,36 @@
         "authentication": {
           "$ref": "#/$defs/ConsumedAuthentication",
           "not": {
-            "properties": {
-              "type": {
-                "enum": [
-                  "digest"
+            "anyOf": [
+              {
+                "properties": {
+                  "type": {
+                    "enum": [
+                      "digest"
+                    ]
+                  }
+                },
+                "required": [
+                  "type"
+                ]
+              },
+              {
+                "properties": {
+                  "type": {
+                    "const": "apikey"
+                  },
+                  "placement": {
+                    "const": "query"
+                  }
+                },
+                "required": [
+                  "type",
+                  "placement"
                 ]
               }
-            },
-            "required": [
-              "type"
             ]
           },
-          "description": "Credential sent on every request: `basic`, `bearer`, `apikey` or `awsSigV4`."
+          "description": "Credential sent on every request: `basic`, `bearer`, `apikey` in a header, or `awsSigV4`."
         },
         "tunnel": {
           "$ref": "#/$defs/TunnelConfig",

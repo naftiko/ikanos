@@ -93,10 +93,25 @@ class ClientAdapterRegistryTest {
      */
     @Test
     void defaultRegistryShouldExposeSameTypesAsSpecRegistry() {
-        assertEquals(Set.copyOf(ClientSpecTypes.registeredTypes()),
-                Set.copyOf(ClientAdapterRegistry.getDefault().registeredTypes()));
+        java.util.Set<String> adapters = new java.util.HashSet<>(
+                ClientAdapterRegistry.getDefault().registeredTypes());
+        adapters.addAll(ClientAdapterRegistry.MODULES.keySet());
+        assertEquals(Set.copyOf(ClientSpecTypes.registeredTypes()), adapters,
+                "every spec type has an adapter, built in or from its ikanos-client-* module");
         assertTrue(ClientAdapterRegistry.getDefault().registeredTypes().contains("fake"),
                 "the test fake adapter should be discovered on both sides");
+    }
+
+    @Test
+    void createShouldNameTheMissingModuleOfACoreType() {
+        ClientAdapterRegistry registry = new ClientAdapterRegistry(List.of());
+        ClientSpec spec = new io.ikanos.spec.consumes.graphql.GraphqlClientSpec();
+        spec.setNamespace("tracker");
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> registry.create(null, spec, Map.of()));
+
+        assertTrue(error.getMessage().contains("ikanos-client-graphql"), error.getMessage());
     }
 
     @Test
