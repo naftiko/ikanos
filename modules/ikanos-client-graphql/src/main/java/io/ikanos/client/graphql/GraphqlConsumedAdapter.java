@@ -70,6 +70,7 @@ import io.ikanos.engine.consumes.contract.ContractClientAdapter;
 import io.ikanos.engine.consumes.contract.ContractInvocation;
 import io.ikanos.engine.consumes.contract.ContractRequest;
 import io.ikanos.engine.consumes.contract.ContractResult;
+import io.ikanos.engine.consumes.contract.UnionChoices;
 import io.ikanos.engine.consumes.http.ConsumedAuthentication;
 import io.ikanos.engine.consumes.http.StandardRequestHeaders;
 import io.ikanos.engine.consumes.tunnel.Tunnel;
@@ -266,9 +267,11 @@ public class GraphqlConsumedAdapter extends ContractClientAdapter {
             Map<String, ParsedDocument> documents, GraphqlSelectSpec select) {
         Map<String, List<InputParameterSpec>> inputs = new LinkedHashMap<>();
         Map<String, Set<String>> covered = new LinkedHashMap<>();
+        Map<String, UnionChoices> unions = new LinkedHashMap<>();
         documents.keySet().forEach(key -> {
             inputs.put(key, new java.util.ArrayList<>());
             covered.put(key, new LinkedHashSet<>());
+            unions.put(key, new UnionChoices(where + " document '" + key + "'"));
         });
         for (InputParameterSpec input : spec.getInputParameters()) {
             List<String> path = ContractRequest.path(input);
@@ -279,7 +282,12 @@ public class GraphqlConsumedAdapter extends ContractClientAdapter {
                 if (variable == null) {
                     continue;
                 }
-                if (validPath(path, variable)) {
+                List<String[]> oneOfs = new java.util.ArrayList<>();
+                if (validPath(path, variable, oneOfs)) {
+                    for (String[] oneOf : oneOfs) {
+                        unions.get(document.key()).choose(input.getName(),
+                                path.subList(0, Integer.parseInt(oneOf[0])), oneOf[1], oneOf[2]);
+                    }
                     used = true;
                     inputs.get(document.key()).add(input);
                     covered.get(document.key()).add(path.get(0));
@@ -290,7 +298,7 @@ public class GraphqlConsumedAdapter extends ContractClientAdapter {
             boolean selector = select != null && input.getName().equals(select.getWhen());
             if (!used && invalid != null) {
                 throw new IllegalArgumentException(where + " input '" + input.getName()
-                        + "' targets '" + invalid + "', which the schema does not define");
+                        + "' targets '" + invalid + "', which does not resolve in the schema");
             }
             if (!used && !selector) {
                 throw new IllegalArgumentException(where + " input '" + input.getName()
@@ -312,17 +320,25 @@ public class GraphqlConsumedAdapter extends ContractClientAdapter {
         return Collections.unmodifiableMap(inputs);
     }
 
-    /** Whether a nested path exists under a variable's input type; always without a schema. */
-    boolean validPath(List<String> path, VariableDefinition variable) {
+    /**
+     * Whether a nested path exists under a variable's input type; always without a schema. Each
+     * field of a {@code @oneOf} input object the path goes through is added to {@code oneOfs} as
+     * {index of the segment, input type, field}, for {@link UnionChoices}.
+     */
+    boolean validPath(List<String> path, VariableDefinition variable, List<String[]> oneOfs) {
         if (schema == null || path.size() == 1) {
             return true;
         }
         GraphQLType type = schema.getType(typeName(variable.getType()));
-        for (String segment : path.subList(1, path.size())) {
+        for (int i = 1; i < path.size(); i++) {
+            String segment = path.get(i);
             GraphQLType unwrapped = unwrap(type);
             if (!(unwrapped instanceof GraphQLInputObjectType object)
                     || object.getField(segment) == null) {
                 return false;
+            }
+            if (object.isOneOf()) {
+                oneOfs.add(new String[] {String.valueOf(i), object.getName(), segment});
             }
             GraphQLInputType fieldType = object.getField(segment).getType();
             type = fieldType;

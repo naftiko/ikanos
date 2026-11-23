@@ -3,6 +3,7 @@ type Query {
   secret: Issue!
   slow: String
   headers: String
+  issueFind(by: IssueKey!): Issue
 }
 
 type Mutation {
@@ -31,4 +32,9 @@ input IssueCreateInput {
 input IssueUpdateInput {
   title: String
   priority: Int
+}
+
+input IssueKey @oneOf {
+  id: String
+  number: Int
 }
