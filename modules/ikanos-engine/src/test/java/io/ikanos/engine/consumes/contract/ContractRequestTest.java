@@ -141,6 +141,18 @@ class ContractRequestTest {
     }
 
     @Test
+    void parseNumberShouldTellALongTextThatIsNotANumberFromATooLongNumber() {
+        assertThrows(NumberFormatException.class,
+                () -> ContractRequest.parseNumber("-".repeat(3000)), "dashes");
+        assertThrows(NumberFormatException.class,
+                () -> ContractRequest.parseNumber("1.2.3.".repeat(500)), "dotted digits");
+        assertThrows(ArithmeticException.class,
+                () -> ContractRequest.parseNumber("-1." + "5".repeat(3000) + "e-7"), "a number");
+        assertTrue(ContractRequest.isNumberText(".5E+3"));
+        assertFalse(ContractRequest.isNumberText("5e"));
+    }
+
+    @Test
     void buildShouldWriteNumbersAsTextForAStringInput() {
         ContractRequest request = ContractRequest.build(
                 List.of(input("id", "string", false, null)), Map.of("id", 42), "op");
