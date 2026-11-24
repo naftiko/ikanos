@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.NullNode;
 import io.ikanos.spec.InputParameterSpec;
 
 class ContractRequestTest {
@@ -133,5 +134,55 @@ class ContractRequestTest {
                 Map.of("filter", "{\"state\":\"open\"}"), "op");
 
         assertEquals("open", request.tree().get("filter").get("state").asString());
+    }
+
+    @Test
+    void buildShouldTreatAJsonNullAsAbsent() {
+        Map<String, Object> parameters = Map.of("id", NullNode.getInstance());
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> ContractRequest.build(List.of(input("id", "string", true, null)),
+                        parameters, "op"));
+        assertTrue(e.getMessage().contains("Missing required input 'id'"), e.getMessage());
+
+        ContractRequest request = ContractRequest.build(
+                List.of(input("id", "string", false, null)), parameters, "op");
+        assertFalse(request.tree().has("id"), "never sent as null");
+        assertTrue(request.present().isEmpty());
+    }
+
+    @Test
+    void buildShouldRefuseAValueThatIsNotTheDeclaredType() {
+        Map<String, Object> wrong = Map.of(
+                "integer", 2.5,
+                "number", true,
+                "boolean", 1,
+                "object", List.of("a"),
+                "array", Map.of("a", 1),
+                "string", Map.of("a", 1));
+        for (Map.Entry<String, Object> entry : wrong.entrySet()) {
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                    () -> ContractRequest.build(List.of(input("v", entry.getKey(), false, null)),
+                            Map.of("v", entry.getValue()), "op"), entry.getKey());
+            assertTrue(e.getMessage().contains("is not a valid " + entry.getKey()),
+                    e.getMessage());
+        }
+    }
+
+    @Test
+    void buildShouldAcceptAValueOfTheDeclaredType() {
+        ContractRequest request = ContractRequest.build(
+                List.of(input("n", "integer", false, null), input("x", "number", false, null),
+                        input("b", "boolean", false, null), input("o", "object", false, null),
+                        input("a", "array", false, null)),
+                Map.of("n", 3.0, "x", 2.5, "b", false, "o", Map.of("k", "v"), "a",
+                        List.of(1, 2)), "op");
+
+        assertTrue(request.tree().get("n").isIntegralNumber(), "an integral number is an integer");
+        assertEquals(3, request.tree().get("n").asInt());
+        assertTrue(request.tree().get("x").isNumber());
+        assertFalse(request.tree().get("b").asBoolean());
+        assertEquals("v", request.tree().get("o").get("k").asString());
+        assertEquals(2, request.tree().get("a").size());
     }
 }

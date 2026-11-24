@@ -37,7 +37,8 @@ import io.ikanos.spec.util.IkanosMappers;
  * value is written at the input's {@code wireName}, a dotted path into the tree (default: the
  * input's name). An absent optional input is left out, never sent as {@code null}. A value given
  * as text for an {@code integer}, {@code number} or {@code boolean} input is converted, since step
- * values are often rendered from templates.</p>
+ * values are often rendered from templates; any other value must match the input's {@code type}.
+ * A JSON {@code null} counts as absent.</p>
  */
 public final class ContractRequest {
 
@@ -79,6 +80,10 @@ public final class ContractRequest {
             if (value instanceof CallerRoot) {
                 // The caller root is no call parameter: sent upstream, it would hand every claim
                 // of the token to the upstream (#998)
+                value = null;
+            }
+            if (value instanceof JsonNode node && (node.isNull() || node.isMissingNode())) {
+                // A JSON null is no value: left out, or refused when required
                 value = null;
             }
             if (value == null) {
@@ -133,6 +138,10 @@ public final class ContractRequest {
 
     static JsonNode convert(InputParameterSpec input, Object value, String where) {
         String type = input.getType();
+        if (value instanceof JsonNode json && json.isString()) {
+            // A JSON string is text, converted as such
+            value = json.asString();
+        }
         if (value instanceof String text && type != null) {
             try {
                 switch (type) {
@@ -166,9 +175,49 @@ public final class ContractRequest {
             }
         }
         JsonNode node = JSON.valueToTree(value);
-        if ("string".equals(type) && (node.isNumber() || node.isBoolean())) {
-            return JSON.getNodeFactory().stringNode(node.asString());
+        if (type == null) {
+            return node;
+        }
+        switch (type) {
+            case "string":
+                if (node.isNumber() || node.isBoolean()) {
+                    return JSON.getNodeFactory().stringNode(node.asString());
+                }
+                return checked(node.isString(), node, input, where);
+            case "integer":
+                if (node.isNumber() && !node.isIntegralNumber()) {
+                    try {
+                        return JSON.getNodeFactory().numberNode(
+                                node.decimalValue().toBigIntegerExact());
+                    } catch (ArithmeticException e) {
+                        throw invalid(input, where, e);
+                    }
+                }
+                return checked(node.isIntegralNumber(), node, input, where);
+            case "number":
+                return checked(node.isNumber(), node, input, where);
+            case "boolean":
+                return checked(node.isBoolean(), node, input, where);
+            case "object":
+                return checked(node.isObject(), node, input, where);
+            case "array":
+                return checked(node.isArray(), node, input, where);
+            default:
+                return node;
+        }
+    }
+
+    private static JsonNode checked(boolean valid, JsonNode node, InputParameterSpec input,
+            String where) {
+        if (!valid) {
+            throw invalid(input, where, null);
         }
         return node;
+    }
+
+    private static IllegalArgumentException invalid(InputParameterSpec input, String where,
+            Exception cause) {
+        return new IllegalArgumentException("Input '" + input.getName() + "' of " + where
+                + " is not a valid " + input.getType(), cause);
     }
 }
