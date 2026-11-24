@@ -27,6 +27,9 @@ import io.ikanos.spec.consumes.ClientSpecType;
  */
 public final class FakeProviders {
 
+    /** The namespace of a fake adapter whose factory fails as a module missing a dependency. */
+    public static final String BROKEN_MODULE = "broken-module";
+
     private FakeProviders() {
     }
 
@@ -53,6 +56,10 @@ public final class FakeProviders {
         @Override
         public ClientAdapter create(Capability capability, ClientSpec spec,
                 Map<String, Tunnel> tunnels) {
+            if (BROKEN_MODULE.equals(spec.getNamespace())) {
+                // What a module jar copied without its dependencies throws
+                throw new NoClassDefFoundError("io/ikanos/fake/MissingDependency");
+            }
             return new FakeClientAdapter(capability, (FakeClientSpec) spec);
         }
     }
