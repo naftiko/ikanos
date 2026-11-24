@@ -13,6 +13,7 @@
  */
 package io.ikanos;
 
+import io.ikanos.engine.consumes.fake.FakeProviders;
 import io.ikanos.engine.consumes.tunnel.TestServiceLoaderFakeTunnel;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.VersionHelper;
@@ -160,6 +161,48 @@ public class CapabilityBootstrapTest {
                 () -> new Capability(spec));
 
         assertTrue(error.getMessage().contains("ikanos-client-grpc"), error.getMessage());
+        assertEquals(closedBefore + 1, TestServiceLoaderFakeTunnel.CLOSED.get(),
+                "the tunnel started for the rejected capability is closed");
+    }
+
+    @Test
+    public void constructorShouldCloseTheStartedTunnelsWhenAnAdapterFactoryThrowsAnError()
+            throws Exception {
+        // A module jar copied without its dependencies fails with NoClassDefFoundError, an Error
+        IkanosSpec spec = TestUtils.parseYaml("""
+                ikanos: "%s"
+                capability:
+                  exposes:
+                    - type: "rest"
+                      address: "localhost"
+                      port: 0
+                      namespace: "orders-api"
+                      resources:
+                        - path: "/orders"
+                          operations:
+                            - method: "GET"
+                              name: "list-orders"
+                  consumes:
+                    - type: "fake"
+                      namespace: "%s"
+                    - type: "grpc"
+                      namespace: "orders"
+                      endpoint: "http://orders.internal:50051"
+                      descriptorSet: "orders.binpb"
+                      service: "test.orders.OrderService"
+                      tunnel:
+                        type: "ziti"
+                        service: "orders"
+                        identity: "/etc/ziti/app.json"
+                      procedures:
+                        get-order:
+                          description: "One order."
+                          rpc: "GetOrder"
+                """.formatted(schemaVersion, FakeProviders.BROKEN_MODULE));
+        int closedBefore = TestServiceLoaderFakeTunnel.CLOSED.get();
+
+        assertThrows(NoClassDefFoundError.class, () -> new Capability(spec));
+
         assertEquals(closedBefore + 1, TestServiceLoaderFakeTunnel.CLOSED.get(),
                 "the tunnel started for the rejected capability is closed");
     }
