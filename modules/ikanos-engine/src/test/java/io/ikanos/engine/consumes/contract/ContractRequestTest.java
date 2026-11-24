@@ -117,6 +117,19 @@ class ContractRequestTest {
     }
 
     @Test
+    @org.junit.jupiter.api.Timeout(5)
+    void buildShouldRefuseANumberTooSmallToConvertQuickly() {
+        assertThrows(IllegalArgumentException.class, () -> ContractRequest.build(
+                List.of(input("n", "integer", false, null)), Map.of("n", "1e-200000000"), "op"),
+                "as text");
+        assertThrows(IllegalArgumentException.class, () -> ContractRequest.build(
+                List.of(input("n", "integer", false, null)),
+                Map.of("n", new java.math.BigDecimal("1e-200000000")), "op"), "as a number");
+        assertEquals(new java.math.BigDecimal("0.001"), ContractRequest.boundedNumber(
+                new java.math.BigDecimal("0.001")), "a small number with few zeros is kept");
+    }
+
+    @Test
     void buildShouldWriteNumbersAsTextForAStringInput() {
         ContractRequest request = ContractRequest.build(
                 List.of(input("id", "string", false, null)), Map.of("id", 42), "op");
