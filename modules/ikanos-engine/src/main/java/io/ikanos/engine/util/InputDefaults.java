@@ -26,6 +26,8 @@ import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.aggregates.AggregateFlowSpec;
 import io.ikanos.spec.aggregates.AggregateSpec;
 import io.ikanos.spec.consumes.ClientSpec;
+import io.ikanos.spec.consumes.ContractClientSpec;
+import io.ikanos.spec.consumes.ContractOperationSpec;
 import io.ikanos.spec.consumes.mcp.McpClientSpec;
 import io.ikanos.spec.consumes.mcp.McpClientToolSpec;
 import io.ikanos.spec.exposes.ServerSpec;
@@ -135,7 +137,8 @@ public final class InputDefaults {
     /**
      * @param spec the capability spec, may be null
      * @return one message per default that does not match its parameter's {@code type} or
-     *         {@code enum}: exposed MCP tools, then aggregate flows, then consumed MCP tools
+     *         {@code enum}: exposed MCP tools, then aggregate flows, then consumed MCP tools and
+     *         contract operations
      */
     public static List<String> findErrors(IkanosSpec spec) {
         List<String> errors = new ArrayList<>();
@@ -152,7 +155,7 @@ public final class InputDefaults {
      * @param spec the capability spec, may be null
      * @return one message per example, on a parameter or on its nested {@code items} and
      *         {@code properties}, that does not match its type or enum: exposed MCP tools, then
-     *         aggregate flows, then consumed MCP tools
+     *         aggregate flows, then consumed MCP tools and contract operations
      */
     public static List<String> findExampleErrors(IkanosSpec spec) {
         List<String> errors = new ArrayList<>();
@@ -369,8 +372,10 @@ public final class InputDefaults {
     }
 
     /**
-     * Visit every {@code McpToolInputParameter}: exposed MCP tools, aggregate flows and consumed
-     * MCP tools, in a capability and at the root of a shared section document.
+     * Visit every {@code McpToolInputParameter}: exposed MCP tools, aggregate flows, consumed MCP
+     * tools and the operations of the contract-described consumed adapters ({@code grpc},
+     * {@code graphql}, {@code smithy}), in a capability and at the root of a shared section
+     * document.
      */
     private static void forEachParameter(IkanosSpec spec,
             BiConsumer<String, InputParameterSpec> visitor) {
@@ -418,6 +423,17 @@ public final class InputDefaults {
                     if (tool.getValue() != null) {
                         visit("consumed MCP tool '" + mcp.getNamespace() + "." + tool.getKey()
                                 + "'", tool.getValue().getInputParameters(), visitor);
+                    }
+                }
+            } else if (client instanceof ContractClientSpec contract
+                    && contract.operations() != null) {
+                String kind = "consumed " + contract.getType()
+                        + ("grpc".equals(contract.getType()) ? " procedure '" : " operation '");
+                for (Map.Entry<String, ? extends ContractOperationSpec> operation : contract
+                        .operations().entrySet()) {
+                    if (operation.getValue() != null) {
+                        visit(kind + contract.getNamespace() + "." + operation.getKey() + "'",
+                                operation.getValue().getInputParameters(), visitor);
                     }
                 }
             }

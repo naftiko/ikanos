@@ -18,6 +18,7 @@ import java.io.InputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.Base64;
 import java.util.Collections;
@@ -25,6 +26,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Pattern;
 import org.restlet.Client;
 import org.restlet.Context;
 import org.restlet.data.Protocol;
@@ -60,6 +62,9 @@ public abstract class ContractClientAdapter extends ClientAdapter {
 
     /** Largest contract file read, in bytes. */
     public static final long MAX_CONTRACT_BYTES = 16L * 1024 * 1024;
+
+    private static final Pattern LOOPBACK_IPV4 = Pattern.compile(
+            "127(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}");
 
     private final Map<String, Tunnel> tunnels;
     private final Map<String, String> staticHeaders;
@@ -154,8 +159,16 @@ public abstract class ContractClientAdapter extends ClientAdapter {
     }
 
     /**
-     * Resolves a contract file path: relative to the capability's directory, or to the working
-     * directory when the capability has none. A {@code file:} URI is accepted.
+     * Resolves a contract file path, which must stay inside the capability's directory (the
+     * working directory when the capability has none): a relative path, or a relative
+     * {@code file:} URI ({@code file:///./contracts/x.binpb}), resolved against that directory.
+     * An absolute path, a {@code file:} URI naming one, a {@code ..} that leaves the directory and
+     * a symbolic link that points outside it are refused.
+     *
+     * @param field the spec field, for messages
+     * @param path the path as written, with placeholders
+     * @return the resolved, normalized path
+     * @throws IllegalArgumentException for a path that is empty, remote, or leaves the directory
      */
     protected Path contractPath(String field, String path) {
         if (path == null || path.isBlank()) {
@@ -172,24 +185,55 @@ public abstract class ContractClientAdapter extends ClientAdapter {
             throw new IllegalArgumentException(where() + " " + field
                     + " must be a local file: contracts are never fetched");
         }
-        Path file = Path.of(value);
+        String outside = where() + " " + field + " '" + value
+                + "' must be a relative path inside the capability's directory";
+        Path file;
+        try {
+            file = Path.of(value);
+        } catch (InvalidPathException e) {
+            throw new IllegalArgumentException(outside, e);
+        }
+        if (file.isAbsolute() || file.getRoot() != null) {
+            throw new IllegalArgumentException(outside);
+        }
         Capability capability = getCapability();
-        Path base = capability != null ? capability.getCapabilityDir() : null;
-        return file.isAbsolute() || base == null ? file.normalize() : base.resolve(file).normalize();
+        Path dir = capability != null ? capability.getCapabilityDir() : null;
+        Path base = (dir != null ? dir : Path.of("")).toAbsolutePath().normalize();
+        Path resolved = base.resolve(file).normalize();
+        if (!resolved.startsWith(base)) {
+            throw new IllegalArgumentException(outside);
+        }
+        if (Files.exists(resolved)) {
+            try {
+                if (!resolved.toRealPath().startsWith(base.toRealPath())) {
+                    throw new IllegalArgumentException(outside
+                            + ": it links outside the directory");
+                }
+            } catch (IOException e) {
+                throw new IllegalArgumentException(where() + " cannot read " + field + " '"
+                        + resolved + "': " + e.getMessage(), e);
+            }
+        }
+        return resolved;
     }
 
-    /** Reads a contract file, refusing one larger than {@link #MAX_CONTRACT_BYTES}. */
+    /**
+     * Reads a contract file: a regular file inside the capability's directory
+     * ({@link #contractPath}), refused when larger than {@link #MAX_CONTRACT_BYTES}.
+     */
     protected byte[] readContract(String field, String path) {
         Path file = contractPath(field, path);
-        try {
-            long size = Files.size(file);
-            if (size > MAX_CONTRACT_BYTES) {
-                throw new IllegalArgumentException(where() + " " + field + " is " + size
-                        + " bytes, more than " + MAX_CONTRACT_BYTES);
+        if (!Files.isRegularFile(file)) {
+            throw new IllegalArgumentException(where() + " cannot read " + field + " '" + file
+                    + "': not a regular file");
+        }
+        try (InputStream in = Files.newInputStream(file)) {
+            byte[] bytes = in.readNBytes((int) MAX_CONTRACT_BYTES + 1);
+            if (bytes.length > MAX_CONTRACT_BYTES) {
+                throw new IllegalArgumentException(where() + " " + field + " is more than "
+                        + MAX_CONTRACT_BYTES + " bytes");
             }
-            try (InputStream in = Files.newInputStream(file)) {
-                return in.readAllBytes();
-            }
+            return bytes;
         } catch (IOException e) {
             throw new IllegalArgumentException(where() + " cannot read " + field + " '" + file
                     + "': " + e.getMessage(), e);
@@ -297,13 +341,20 @@ public abstract class ContractClientAdapter extends ClientAdapter {
         return headers;
     }
 
-    /** @return whether the host of a URI is a loopback address */
+    /**
+     * Whether the host of a URI is a loopback address: {@code localhost}, an IPv4 literal in
+     * {@code 127.0.0.0/8}, or {@code ::1} (bracketed or not). Never asks DNS, so a host name
+     * such as {@code 127.example.com} is not loopback.
+     *
+     * @param host the host
+     * @return whether it is a loopback address
+     */
     public static boolean isLoopback(String host) {
         if (host == null) {
             return false;
         }
         String h = host.toLowerCase(Locale.ROOT);
-        return "localhost".equals(h) || h.startsWith("127.") || "::1".equals(h)
-                || "[::1]".equals(h);
+        return "localhost".equals(h) || "::1".equals(h) || "[::1]".equals(h)
+                || LOOPBACK_IPV4.matcher(h).matches();
     }
 }
