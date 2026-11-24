@@ -106,6 +106,17 @@ class ContractRequestTest {
     }
 
     @Test
+    @org.junit.jupiter.api.Timeout(5)
+    void buildShouldRefuseANumberTooLargeToConvertQuickly() {
+        assertThrows(IllegalArgumentException.class, () -> ContractRequest.build(
+                List.of(input("n", "integer", false, null)), Map.of("n", "1e20000000"), "op"),
+                "as text");
+        assertThrows(IllegalArgumentException.class, () -> ContractRequest.build(
+                List.of(input("n", "integer", false, null)),
+                Map.of("n", new java.math.BigDecimal("1e20000000")), "op"), "as a number");
+    }
+
+    @Test
     void buildShouldWriteNumbersAsTextForAStringInput() {
         ContractRequest request = ContractRequest.build(
                 List.of(input("id", "string", false, null)), Map.of("id", 42), "op");

@@ -297,19 +297,21 @@ public class Capability {
                 java.time.Duration.ofSeconds(30),
                 this.bindings.get());
 
-        for (ClientSpec clientSpec : spec.getCapability().getConsumes()) {
-            clientList.add(ClientAdapterRegistry.getDefault().create(this, clientSpec, tunnels));
-        }
-
-        // Check call and forward references against the consumed adapters now that they exist,
-        // so a spec mistake fails at load time rather than on the first request. A read-only
-        // exposed entry must not reach a consumed write either: the readOnly of a
-        // contract-described adapter may come from its contract, known only now. Tunnels were
-        // already started above; close them if the capability is rejected.
+        // Tunnels were started above: close them if the capability is rejected from here on, by
+        // a consumed adapter that cannot be built (a contract file refused, a missing module) or
+        // by the reference checks below.
         try {
+            for (ClientSpec clientSpec : spec.getCapability().getConsumes()) {
+                clientList.add(ClientAdapterRegistry.getDefault().create(this, clientSpec,
+                        tunnels));
+            }
+            // Check call and forward references against the consumed adapters now that they
+            // exist, so a spec mistake fails at load time rather than on the first request. A
+            // read-only exposed entry must not reach a consumed write either: the readOnly of a
+            // contract-described adapter may come from its contract, known only now.
             ConsumedWriteExposure.validate(spec.getCapability(), this, clientList);
             ConsumedReferenceValidator.validate(spec.getCapability(), clientList);
-        } catch (IllegalArgumentException e) {
+        } catch (RuntimeException e) {
             for (Tunnel tunnel : tunnels.values()) {
                 try {
                     tunnel.close();
