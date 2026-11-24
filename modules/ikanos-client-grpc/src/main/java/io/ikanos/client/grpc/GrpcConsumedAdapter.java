@@ -597,8 +597,7 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
      * parser converts with {@code toBigIntegerExact}, so the bound of
      * {@link ContractRequest#boundedNumber} must hold there; a {@code string} or {@code bytes}
      * field keeps any text. A numeric value is bounded whole, since the parser also reads a
-     * number from a one-element array, and a key two fields share is bounded for both, since the
-     * parser keeps the last. Inside a {@code google.protobuf.Any}, whose packed type is only
+     * number from a one-element array, and a key is resolved to its field as the parser does. Inside a {@code google.protobuf.Any}, whose packed type is only
      * known to the parser, every number and every text that reads as one is bounded.
      *
      * @param node a value of the request tree
@@ -621,8 +620,8 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
             return; // no exact integer conversion: text, a Struct, a Value or a ListValue
         }
         for (Map.Entry<String, JsonNode> entry : node.properties()) {
-            // None: the parser refuses a field the message does not define
-            for (FieldDescriptor field : fieldsOf(message, entry.getKey())) {
+            FieldDescriptor field = fieldOf(message, entry.getKey());
+            if (field != null) { // the parser refuses a field the message does not define
                 boundField(entry.getValue(), field,
                         path.isEmpty() ? entry.getKey() : path + "." + entry.getKey(), where);
             }
@@ -676,17 +675,20 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
     }
 
     /**
-     * The fields a proto3 JSON key may name: by json_name or proto name. Two fields can share a
-     * key in a proto2 descriptor, and the parser keeps the last; bounding against each is safe.
+     * The field a proto3 JSON key names, as the parser resolves it: the last field, in
+     * declaration order, whose json_name or proto name is the key (a descriptor can give two
+     * fields one key).
+     *
+     * @return the field, or {@code null} when the message defines none
      */
-    private static List<FieldDescriptor> fieldsOf(Descriptor message, String key) {
-        List<FieldDescriptor> fields = new ArrayList<>(1);
+    private static FieldDescriptor fieldOf(Descriptor message, String key) {
+        FieldDescriptor last = null;
         for (FieldDescriptor field : message.getFields()) {
             if (field.getJsonName().equals(key) || field.getName().equals(key)) {
-                fields.add(field);
+                last = field;
             }
         }
-        return fields;
+        return last;
     }
 
     /** Every number, text that reads as one, and object key, at any depth. */
@@ -711,15 +713,20 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
         if (!node.isNumber() && !node.isString()) {
             return;
         }
-        BigDecimal value;
         try {
-            value = node.isNumber() ? node.decimalValue()
-                    : new BigDecimal(node.asString().trim());
-        } catch (RuntimeException notANumber) {
-            return; // not a number, or infinite: the parser refuses it on its own
-        }
-        try {
+            if (node.isString()) {
+                ContractRequest.parseNumber(node.asString());
+                return;
+            }
+            BigDecimal value;
+            try {
+                value = node.decimalValue();
+            } catch (RuntimeException infinite) {
+                return; // the parser refuses it on its own
+            }
             ContractRequest.boundedNumber(value);
+        } catch (NumberFormatException notANumber) {
+            return; // the parser refuses it on its own
         } catch (ArithmeticException e) {
             throw new IllegalArgumentException("The input '" + path + "' of " + where
                     + " has more than " + ContractRequest.MAX_NUMBER_DIGITS + " digits", e);

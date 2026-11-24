@@ -193,6 +193,12 @@ class GrpcConsumedAdapterTest {
         assertThrows(IllegalArgumentException.class, () -> adapter.prepare("cancel-order",
                 new HashMap<>(Map.of("order-id", "7", "points", "1e-1000000000"))),
                 "a number too small");
+        assertThrows(IllegalArgumentException.class, () -> adapter.prepare("cancel-order",
+                new HashMap<>(Map.of("order-id", "7", "points", "1." + "0".repeat(800_000)))),
+                "a number too long");
+        assertDoesNotThrow(() -> adapter.prepare("cancel-order",
+                new HashMap<>(Map.of("order-id", "7", "reason", "1".repeat(5000)))),
+                "a long text of digits in a string field");
         IllegalArgumentException key = assertThrows(IllegalArgumentException.class,
                 () -> adapter.prepare("cancel-order", new HashMap<>(Map.of("order-id", "7",
                         "tallies", "{\"1e100000000\": \"x\"}"))));
@@ -218,19 +224,28 @@ class GrpcConsumedAdapterTest {
     }
 
     @Test
-    void boundNumbersShouldBoundAKeyThatTwoFieldsShare() throws Exception {
-        // proto2 accepts string foo_bar and uint64 fooBar, both read from "fooBar"; the parser
-        // keeps the last, the uint64
-        Descriptor message = FileDescriptor.buildFrom(FileDescriptorProto.newBuilder()
-                .setName("clash.proto").setSyntax("proto2")
-                .addMessageType(DescriptorProto.newBuilder().setName("Clash")
-                        .addField(clashField("foo_bar", 1, FieldDescriptorProto.Type.TYPE_STRING))
-                        .addField(clashField("fooBar", 2, FieldDescriptorProto.Type.TYPE_UINT64)))
-                .build(), new FileDescriptor[0]).findMessageTypeByName("Clash");
+    void boundNumbersShouldBoundAKeyThatTwoFieldsShareAsItsLastField() throws Exception {
+        // A descriptor may read string foo_bar and uint64 fooBar both from "fooBar": the parser
+        // keeps the last field declared
         JsonNode tree = IkanosMappers.json().readTree("{\"fooBar\": \"1e-1000000000\"}");
 
-        assertThrows(IllegalArgumentException.class,
-                () -> GrpcConsumedAdapter.boundNumbers(tree, message, "", "op"));
+        assertThrows(IllegalArgumentException.class, () -> GrpcConsumedAdapter.boundNumbers(
+                tree, clash(FieldDescriptorProto.Type.TYPE_STRING,
+                        FieldDescriptorProto.Type.TYPE_UINT64), "", "op"), "the uint64 last");
+        assertDoesNotThrow(() -> GrpcConsumedAdapter.boundNumbers(tree,
+                clash(FieldDescriptorProto.Type.TYPE_UINT64,
+                        FieldDescriptorProto.Type.TYPE_STRING), "", "op"), "the string last");
+    }
+
+    /** A message whose foo_bar and fooBar fields, in this order, both read "fooBar". */
+    private static Descriptor clash(FieldDescriptorProto.Type first,
+            FieldDescriptorProto.Type second) throws Exception {
+        return FileDescriptor.buildFrom(FileDescriptorProto.newBuilder()
+                .setName("clash.proto").setSyntax("proto2")
+                .addMessageType(DescriptorProto.newBuilder().setName("Clash")
+                        .addField(clashField("foo_bar", 1, first))
+                        .addField(clashField("fooBar", 2, second)))
+                .build(), new FileDescriptor[0]).findMessageTypeByName("Clash");
     }
 
     private static FieldDescriptorProto clashField(String name, int number,
