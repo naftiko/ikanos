@@ -40,8 +40,17 @@ import org.restlet.Component;
 import org.restlet.data.Protocol;
 import org.restlet.ext.graphql.GraphqlServerAdapter;
 import tools.jackson.databind.JsonNode;
+import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanContext;
+import io.opentelemetry.api.trace.TraceFlags;
+import io.opentelemetry.api.trace.TraceState;
+import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
+import io.opentelemetry.context.Scope;
+import io.opentelemetry.context.propagation.ContextPropagators;
 import io.ikanos.engine.consumes.ClientAdapterRegistry;
 import io.ikanos.engine.consumes.ConsumedResult;
+import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.spec.consumes.ClientSpec;
 import io.ikanos.spec.consumes.graphql.GraphqlClientSpec;
 import io.ikanos.spec.util.IkanosMappers;
@@ -92,6 +101,7 @@ class GraphqlConsumedAdapterTest {
                 String.valueOf(env.getArguments()));
         RuntimeWiring wiring = RuntimeWiring.newRuntimeWiring()
                 .type("Query", t -> t.dataFetcher("issue", issue).dataFetcher("secret", secret)
+                        .dataFetcher("restricted", secret)
                         .dataFetcher("slow", slow).dataFetcher("headers", headers))
                 .type("Mutation", t -> t.dataFetcher("issueCreate", create)
                         .dataFetcher("issueUpdate", update))
@@ -120,7 +130,10 @@ class GraphqlConsumedAdapterTest {
     }
 
     private static Path resource(String name) throws URISyntaxException {
-        return Path.of(GraphqlConsumedAdapterTest.class.getClassLoader().getResource(name).toURI());
+        // Relative to the working directory, the capability directory of an adapter built without
+        // a capability: contract files outside it are refused.
+        return Path.of("").toAbsolutePath().relativize(
+                Path.of(GraphqlConsumedAdapterTest.class.getClassLoader().getResource(name).toURI()));
     }
 
     private static GraphqlClientSpec spec(String operations, String extra) throws Exception {
@@ -268,6 +281,47 @@ class GraphqlConsumedAdapterTest {
         }
     }
 
+    private static final String RESTRICTED = """
+            restricted:
+              description: Forbidden on a nullable field.
+              document: "query { restricted { id } }"
+            """;
+
+    @Test
+    void errorsWithOnlyNullFieldsShouldMapTheErrorCode() throws Exception {
+        GraphqlConsumedAdapter adapter = started(spec(RESTRICTED, ""));
+        try {
+            ConsumedResult result = call(adapter, "restricted", Map.of());
+
+            assertEquals(403, result.status(), "a null field is no partial data");
+            assertEquals("Not allowed", result.reason());
+        } finally {
+            adapter.stop();
+        }
+    }
+
+    @Test
+    void errorsWithOnlyNullFieldsShouldFailEvenWhenPartialDataIsAllowed() throws Exception {
+        GraphqlConsumedAdapter adapter = started(spec(RESTRICTED + "  partialData: allow\n", ""));
+        try {
+            ConsumedResult result = call(adapter, "restricted", Map.of());
+
+            assertEquals(403, result.status());
+        } finally {
+            adapter.stop();
+        }
+    }
+
+    @Test
+    void prepareShouldRefuseAMissingValueForARequiredVariable() throws Exception {
+        GraphqlConsumedAdapter adapter = new GraphqlConsumedAdapter(null,
+                spec(GET_ISSUE.replace("required: true, ", ""), ""), Map.of());
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> adapter.prepare("get-issue", new HashMap<>()));
+        assertEquals("Missing value for variable $id of tracker.get-issue", e.getMessage());
+    }
+
     @Test
     void timeoutShouldFailWith504() throws Exception {
         GraphqlConsumedAdapter adapter = started(spec("""
@@ -306,6 +360,51 @@ class GraphqlConsumedAdapterTest {
             assertTrue(seen.contains("tenant=acme"), seen);
         } finally {
             adapter.stop();
+        }
+    }
+
+    @Test
+    void staticAuthorizationHeaderShouldNotReplaceTheDeclaredCredential() throws Exception {
+        GraphqlConsumedAdapter adapter = started(spec("""
+                headers:
+                  description: Headers seen upstream.
+                  document: "query { headers }"
+                """, """
+                authentication:
+                  type: bearer
+                  token: secret-token
+                inputParameters:
+                  Authorization: { in: header, value: "Basic c3RhdGljOnN0YXRpYw==" }
+                """));
+        try {
+            ConsumedResult result = call(adapter, "headers", Map.of());
+
+            String seen = result.document().get("headers").asString();
+            assertTrue(seen.contains("authorization=Bearer secret-token"), seen);
+        } finally {
+            adapter.stop();
+        }
+    }
+
+    @Test
+    void callShouldSendTheTraceContextOfTheCurrentSpan() throws Exception {
+        TelemetryBootstrap.init(OpenTelemetry.propagating(
+                ContextPropagators.create(W3CTraceContextPropagator.getInstance())));
+        GraphqlConsumedAdapter adapter = started(spec("""
+                headers:
+                  description: Headers seen upstream.
+                  document: "query { headers }"
+                """, ""));
+        Span parent = Span.wrap(SpanContext.create("0af7651916cd43dd8448eb211c80319c",
+                "b7ad6b7169203331", TraceFlags.getSampled(), TraceState.getDefault()));
+        try (Scope scope = parent.makeCurrent()) {
+            ConsumedResult result = call(adapter, "headers", Map.of());
+
+            String seen = result.document().get("headers").asString();
+            assertTrue(seen.contains("traceparent=true"), seen);
+        } finally {
+            adapter.stop();
+            TelemetryBootstrap.reset();
         }
     }
 
