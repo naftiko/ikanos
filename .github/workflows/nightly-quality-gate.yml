@@ -22,6 +22,8 @@ jobs:
         uses: actions/setup-java@v5
         with:
           java-version: '25'
+          # The latest 25.x build, not the runner's cached one: the JDK the next release ships.
+          check-latest: true
           distribution: 'temurin'
           cache: maven
 
