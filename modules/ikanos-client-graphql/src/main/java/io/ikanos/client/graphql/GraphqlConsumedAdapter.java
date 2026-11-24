@@ -20,7 +20,9 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -52,6 +54,7 @@ import graphql.schema.idl.UnExecutableSchemaGenerator;
 import graphql.validation.ValidationError;
 import graphql.validation.Validator;
 import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.context.Context;
 import org.restlet.Client;
 import org.restlet.Request;
 import org.restlet.data.Protocol;
@@ -90,7 +93,8 @@ import io.ikanos.spec.util.IkanosMappers;
  * by the first segment of its {@code wireName}. A call writes the inputs into the variables
  * ({@link ContractRequest}), keeps only the variables the chosen document declares, sends it, and
  * returns {@code data} as the result document. A response with {@code errors} and no
- * {@code data} fails; with some {@code data}, it fails unless {@code partialData: allow}.</p>
+ * {@code data} (or only null top-level fields) fails with the status of its first error; with
+ * some {@code data}, it fails unless {@code partialData: allow}.</p>
  */
 public class GraphqlConsumedAdapter extends ContractClientAdapter {
 
@@ -415,11 +419,14 @@ public class GraphqlConsumedAdapter extends ContractClientAdapter {
         }
     }
 
-    /** Adds the credential, the static headers and the trace context to each request. */
+    /**
+     * Adds the static headers, the credential and the trace context to each request: the declared
+     * credential comes after the static headers, so that it owns {@code Authorization}.
+     */
     void customize(Request request) {
+        staticHeaders().forEach((name, value) -> StandardRequestHeaders.set(request, name, value));
         ConsumedAuthentication.apply(getContractSpec().getAuthentication(), null, request,
                 endpoint, bindings());
-        staticHeaders().forEach((name, value) -> StandardRequestHeaders.set(request, name, value));
         OtelRestletBridge.injectContext(request);
     }
 
@@ -438,6 +445,7 @@ public class GraphqlConsumedAdapter extends ContractClientAdapter {
         ContractRequest request = ContractRequest.build(operation.inputs().get(document.key()),
                 parameters, where);
         Map<String, Object> variables = variables(document, request.tree());
+        checkRequiredVariables(document, variables, where);
         String type = document.type().name().toLowerCase(Locale.ROOT);
         Map<AttributeKey<String>, String> attributes = new LinkedHashMap<>();
         attributes.put(ATTR_OPERATION_TYPE, type);
@@ -468,6 +476,21 @@ public class GraphqlConsumedAdapter extends ContractClientAdapter {
         return variables;
     }
 
+    /**
+     * Refuses the call before it is sent when a non-null variable without a default has no value:
+     * the input that fills it may be optional.
+     */
+    static void checkRequiredVariables(ParsedDocument document, Map<String, Object> variables,
+            String where) {
+        for (VariableDefinition variable : document.variables().values()) {
+            if (variable.getType() instanceof NonNullType && variable.getDefaultValue() == null
+                    && variables.get(variable.getName()) == null) {
+                throw new IllegalArgumentException("Missing value for variable $"
+                        + variable.getName() + " of " + where);
+            }
+        }
+    }
+
     ConsumedResult execute(Operation operation, ParsedDocument document,
             Map<String, Object> variables) {
         GraphqlClientAdapter adapter = client;
@@ -476,9 +499,11 @@ public class GraphqlConsumedAdapter extends ContractClientAdapter {
         }
         int timeout = operation.spec().timeoutMillis();
         // Restlet's GraphQL client has no per-call timeout: the call runs on a virtual thread,
-        // interrupted when timeoutMs elapses
-        Future<ExecutionResult> future = CALLS.submit(
-                () -> adapter.execute(document.text(), document.operationName(), variables));
+        // interrupted when timeoutMs elapses. The call carries the caller's OpenTelemetry
+        // context, so that customize() sends its trace context
+        Callable<ExecutionResult> call =
+                () -> adapter.execute(document.text(), document.operationName(), variables);
+        Future<ExecutionResult> future = CALLS.submit(Context.current().wrap(call));
         try {
             ExecutionResult result = future.get(timeout, TimeUnit.MILLISECONDS);
             return toResult(operation, result);
@@ -516,8 +541,7 @@ public class GraphqlConsumedAdapter extends ContractClientAdapter {
     ContractResult toResult(Operation operation, ExecutionResult result) {
         List<GraphQLError> errors = result.getErrors() != null ? result.getErrors() : List.of();
         Object data = result.getData();
-        boolean hasData = data != null;
-        if (errors.isEmpty() && hasData) {
+        if (errors.isEmpty() && data != null) {
             return ContractResult.success(operation.view(), JSON.valueToTree(data), false);
         }
         if (errors.isEmpty()) {
@@ -525,6 +549,7 @@ public class GraphqlConsumedAdapter extends ContractClientAdapter {
                     "The GraphQL response has neither data nor errors", null, null);
         }
         GraphQLError first = errors.get(0);
+        boolean hasData = hasFieldData(data);
         if (hasData && operation.spec().allowsPartialData()) {
             LOGGER.warning(() -> "GraphQL operation " + getNamespace() + "." + operation.name()
                     + " returned partial data with " + errors.size() + " error(s): "
@@ -534,6 +559,17 @@ public class GraphqlConsumedAdapter extends ContractClientAdapter {
         int status = hasData ? 502 : statusOf(errors);
         return ContractResult.failure(operation.view(), status,
                 bounded(first.getMessage(), MAX_REASON), null, codeOf(first));
+    }
+
+    /**
+     * Whether a response with errors carries partial data: at least one top-level field is not
+     * null. {@code {"data": {"field": null}}} is no data, and its errors decide the status.
+     */
+    static boolean hasFieldData(Object data) {
+        if (data instanceof Map<?, ?> fields) {
+            return fields.values().stream().anyMatch(Objects::nonNull);
+        }
+        return data != null;
     }
 
     static int statusOf(List<GraphQLError> errors) {

@@ -1,6 +1,7 @@
 type Query {
   issue(id: String!): Issue
   secret: Issue!
+  restricted: Issue
   slow: String
   headers: String
   issueFind(by: IssueKey!): Issue
