@@ -336,7 +336,8 @@ final class TunnelSocketChannel extends AbstractChannel {
                     if (!onEventLoop(() -> connected(dialed, promise, timeout))) {
                         closeQuietly(dialed);
                     }
-                } catch (IOException | RuntimeException e) {
+                } catch (Throwable e) {
+                    // Even an Error fails the connect now, rather than when it times out.
                     onEventLoop(() -> connectFailed(promise, timeout, e));
                 }
             });

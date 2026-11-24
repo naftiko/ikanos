@@ -140,12 +140,19 @@ public class McpTaskServiceTest {
         assertTrue(cancelled.isEmpty(), "Nothing the call waits on is cancelled");
     }
 
-    /** A journal that runs a hook once, after a read and before the reader gets its entries. */
+    /**
+     * A journal that runs a hook once, after a read and before the reader gets its entries, and
+     * another once, after the outcome of a given action is appended and before the appender goes
+     * on.
+     */
     private static final class HookedJournal implements JournalStore {
         private final JournalStore delegate;
         private final Stores stores;
         private final java.util.concurrent.atomic.AtomicReference<Runnable> hook =
                 new java.util.concurrent.atomic.AtomicReference<>();
+        private final java.util.concurrent.atomic.AtomicReference<Runnable> appendHook =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        private volatile io.ikanos.durable.NodePath appendHookPath;
 
         HookedJournal(Stores base) {
             this.delegate = base.journal();
@@ -157,6 +164,11 @@ public class McpTaskServiceTest {
             hook.set(action);
         }
 
+        void afterOutcomeOf(io.ikanos.durable.NodePath path, Runnable action) {
+            appendHookPath = path;
+            appendHook.set(action);
+        }
+
         @Override
         public java.util.Set<StoreFeature> features() {
             return delegate.features();
@@ -166,6 +178,14 @@ public class McpTaskServiceTest {
         public void append(ExecutionId executionId, long expectedSequence, long fencingToken,
                 List<JournalEntry> entries) throws ConcurrentAppendException {
             delegate.append(executionId, expectedSequence, fencingToken, entries);
+            io.ikanos.durable.NodePath path = appendHookPath;
+            if (path != null && entries.stream().anyMatch(entry -> path.equals(entry.path())
+                    && entry.kind() == JournalEntry.Kind.ACTION_SUCCEEDED)) {
+                Runnable action = appendHook.getAndSet(null);
+                if (action != null) {
+                    action.run();
+                }
+            }
         }
 
         @Override
@@ -182,6 +202,110 @@ public class McpTaskServiceTest {
         public void truncate(ExecutionId executionId) {
             delegate.truncate(executionId);
         }
+    }
+
+    @Test
+    void updateShouldDeliverTheAnswersWhenTheRunningTaskIsAboutToWaitForThem() throws Exception {
+        HookedJournal journal =
+                new HookedJournal(MemoryStoreProvider.openStores(Clock.systemUTC()));
+        JournaledRunner runner = new JournaledRunner(journal.stores, new JsonPayloadCodec(),
+                Clock.systemUTC(), "test");
+        McpTaskService tasks = new McpTaskService(runner, Clock.systemUTC(), null);
+        AtomicInteger rounds = new AtomicInteger();
+        Callable<JsonNode> work = () -> {
+            if (rounds.incrementAndGet() == 1) {
+                throw new InputRequiredException(List.of(new InputRequiredException.Question(
+                        "steps/confirm", new OperationStepElicitSpec("confirm", "Confirm?",
+                                Map.of("ok", Map.of("type", "boolean"))))));
+            }
+            return IkanosMappers.json().createObjectNode().put("confirmed", true);
+        };
+        // The worker stops once its round recorded the questions, before it waits for them: the
+        // task is still running, as a waiting task resumed after a restart is for a moment.
+        CountDownLatch asked = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        journal.afterOutcomeOf(McpTaskService.TOOL_CALL.visit(1), () -> {
+            asked.countDown();
+            try {
+                release.await(10, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        try {
+            String taskId = tasks.create("mcp:shipyard-ops/clear-for-departure", "agent-7",
+                    IkanosMappers.json().createObjectNode(), work).path("taskId").asString();
+            assertTrue(asked.await(10, TimeUnit.SECONDS));
+            ExecutionId executionId = runner.findByLabel(McpTaskService.TASK_ID, taskId).get(0)
+                    .executionId();
+            assertEquals(ExecutionStatus.RUNNING, runner.status(executionId).orElseThrow());
+            // The update finds the task running with its question open, reads its journal to see
+            // so, and only then lets the worker go on: the update has to wait for it to end.
+            journal.afterNextRead(release::countDown);
+
+            assertTrue(tasks.update(taskId, "agent-7", accept(), (entry, arguments) -> work));
+
+            assertEquals("completed", awaitTaskEnd(tasks, taskId),
+                    "The answers resumed the task, which completed");
+            assertEquals(2, rounds.get());
+            assertTrue(runner.view(executionId).update(McpTaskService.ANSWERS.visit(1))
+                    .isPresent(), "The answers were delivered to the round that asked");
+        } finally {
+            release.countDown();
+        }
+    }
+
+    @Test
+    void updateShouldIgnoreTheResponsesAtOnceWhenTheRunningTaskAsksNothing() throws Exception {
+        Stores stores = MemoryStoreProvider.openStores(Clock.systemUTC());
+        JournaledRunner runner = new JournaledRunner(stores, new JsonPayloadCodec(),
+                Clock.systemUTC(), "test");
+        McpTaskService tasks = new McpTaskService(runner, Clock.systemUTC(), null);
+        AtomicInteger rounds = new AtomicInteger();
+        CountDownLatch inWork = new CountDownLatch(1);
+        CountDownLatch finishWork = new CountDownLatch(1);
+        Callable<JsonNode> work = () -> {
+            rounds.incrementAndGet();
+            inWork.countDown();
+            finishWork.await(10, TimeUnit.SECONDS);
+            return IkanosMappers.json().createObjectNode();
+        };
+        try {
+            String taskId = tasks.create("mcp:shipyard-ops/clear-for-departure", "agent-7",
+                    IkanosMappers.json().createObjectNode(), work).path("taskId").asString();
+            assertTrue(inWork.await(10, TimeUnit.SECONDS));
+            ExecutionId executionId = runner.findByLabel(McpTaskService.TASK_ID, taskId).get(0)
+                    .executionId();
+
+            long start = System.nanoTime();
+            assertTrue(tasks.update(taskId, "agent-7", accept(), (entry, arguments) -> work));
+            long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+
+            assertTrue(elapsedMillis < McpTaskService.ROUND_END_WAIT_MS,
+                    "No question is open: the update does not wait for the worker ("
+                            + elapsedMillis + " ms)");
+            assertEquals(ExecutionStatus.RUNNING, runner.status(executionId).orElseThrow(),
+                    "The worker still runs its round");
+            assertTrue(stores.inbox().pending(executionId).isEmpty(), "Nothing is delivered");
+
+            finishWork.countDown();
+            assertEquals("completed", awaitTaskEnd(tasks, taskId));
+            assertEquals(1, rounds.get(), "The ignored update starts no other round");
+        } finally {
+            finishWork.countDown();
+        }
+    }
+
+    /** Waits, at most 10 seconds, for a task to stop working, and returns its status. */
+    private static String awaitTaskEnd(McpTaskService tasks, String taskId)
+            throws InterruptedException {
+        Instant deadline = Instant.now().plusSeconds(10);
+        String status = tasks.get(taskId, "agent-7").orElseThrow().path("status").asString();
+        while ("working".equals(status) && Instant.now().isBefore(deadline)) {
+            Thread.sleep(20);
+            status = tasks.get(taskId, "agent-7").orElseThrow().path("status").asString();
+        }
+        return status;
     }
 
     @Test
