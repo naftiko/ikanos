@@ -136,6 +136,27 @@ public final class ContractRequest {
         node.set(last, value);
     }
 
+    /**
+     * The most integral digits a number may have. A short text such as {@code 1e20000000} is a
+     * number of twenty million digits, which an exact conversion takes unbounded time to build,
+     * before the call and its timeout start.
+     */
+    public static final int MAX_NUMBER_DIGITS = 1000;
+
+    /**
+     * Refuses a number with more than {@link #MAX_NUMBER_DIGITS} integral digits, to call before
+     * any exact conversion of an input value.
+     *
+     * @return the number itself
+     * @throws ArithmeticException when it is too large
+     */
+    public static BigDecimal boundedNumber(BigDecimal value) {
+        if (value.signum() != 0 && (long) value.precision() - value.scale() > MAX_NUMBER_DIGITS) {
+            throw new ArithmeticException("more than " + MAX_NUMBER_DIGITS + " digits");
+        }
+        return value;
+    }
+
     static JsonNode convert(InputParameterSpec input, Object value, String where) {
         String type = input.getType();
         if (value instanceof JsonNode json && json.isString()) {
@@ -146,10 +167,11 @@ public final class ContractRequest {
             try {
                 switch (type) {
                     case "integer":
-                        return JSON.getNodeFactory().numberNode(new BigDecimal(text.trim())
-                                .toBigIntegerExact());
+                        return JSON.getNodeFactory().numberNode(
+                                boundedNumber(new BigDecimal(text.trim())).toBigIntegerExact());
                     case "number":
-                        return JSON.getNodeFactory().numberNode(new BigDecimal(text.trim()));
+                        return JSON.getNodeFactory().numberNode(
+                                boundedNumber(new BigDecimal(text.trim())));
                     case "boolean":
                         if ("true".equalsIgnoreCase(text.trim())
                                 || "false".equalsIgnoreCase(text.trim())) {
@@ -188,7 +210,7 @@ public final class ContractRequest {
                 if (node.isNumber() && !node.isIntegralNumber()) {
                     try {
                         return JSON.getNodeFactory().numberNode(
-                                node.decimalValue().toBigIntegerExact());
+                                boundedNumber(node.decimalValue()).toBigIntegerExact());
                     } catch (ArithmeticException e) {
                         throw invalid(input, where, e);
                     }
