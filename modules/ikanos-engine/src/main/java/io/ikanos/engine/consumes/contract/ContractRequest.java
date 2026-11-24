@@ -137,24 +137,53 @@ public final class ContractRequest {
     }
 
     /**
-     * The most digits a number may have before or after its point. A short text such as
-     * {@code 1e20000000}, or {@code 1e-20000000}, is a number of twenty million digits, which an
-     * exact conversion takes unbounded time to build, before the call and its timeout start.
+     * The most digits a number may have before or after its point, and the most it may write. A
+     * short text such as {@code 1e20000000}, or {@code 1e-20000000}, is a number of twenty
+     * million digits, which an exact conversion takes unbounded time to build, before the call
+     * and its timeout start; a long text of digits takes superlinear time to convert.
      */
     public static final int MAX_NUMBER_DIGITS = 1000;
 
+    /** The longest number text parsed: the digits {@link #boundedNumber} allows, and notation. */
+    static final int MAX_NUMBER_TEXT = 2 * MAX_NUMBER_DIGITS + 16;
+
     /**
-     * Refuses a nonzero number with more than {@link #MAX_NUMBER_DIGITS} integral digits, or more
+     * Parses a number given as text, refusing it as {@link #boundedNumber} does. A text longer
+     * than any number that bound allows is refused unparsed, since parsing a long text of digits
+     * takes superlinear time.
+     *
+     * @param text the number as text
+     * @return the number
+     * @throws NumberFormatException when the text is not a number
+     * @throws ArithmeticException when the number is too large, too small or too long
+     */
+    public static BigDecimal parseNumber(String text) {
+        String trimmed = text.trim();
+        if (trimmed.length() > MAX_NUMBER_TEXT) {
+            for (int i = 0; i < trimmed.length(); i++) {
+                if ("0123456789+-.eE".indexOf(trimmed.charAt(i)) < 0) {
+                    throw new NumberFormatException("not a number");
+                }
+            }
+            throw new ArithmeticException("more than " + MAX_NUMBER_DIGITS + " digits");
+        }
+        return boundedNumber(new BigDecimal(trimmed));
+    }
+
+    /**
+     * Refuses a nonzero number with more than {@link #MAX_NUMBER_DIGITS} integral digits, more
      * than {@link #MAX_NUMBER_DIGITS} zeros after its point before its first significant digit,
-     * to call before any exact conversion of an input value.
+     * or more than {@link #MAX_NUMBER_DIGITS} significant digits, to call before any exact
+     * conversion of an input value.
      *
      * @return the number itself
-     * @throws ArithmeticException when it is too large or too small
+     * @throws ArithmeticException when it is too large, too small or too long
      */
     public static BigDecimal boundedNumber(BigDecimal value) {
         if (value.signum() != 0) {
             long integral = (long) value.precision() - value.scale();
-            if (integral > MAX_NUMBER_DIGITS || -integral > MAX_NUMBER_DIGITS) {
+            if (integral > MAX_NUMBER_DIGITS || -integral > MAX_NUMBER_DIGITS
+                    || value.precision() > MAX_NUMBER_DIGITS) {
                 throw new ArithmeticException("more than " + MAX_NUMBER_DIGITS + " digits");
             }
         }
@@ -172,10 +201,10 @@ public final class ContractRequest {
                 switch (type) {
                     case "integer":
                         return JSON.getNodeFactory().numberNode(
-                                boundedNumber(new BigDecimal(text.trim())).toBigIntegerExact());
+                                parseNumber(text).toBigIntegerExact());
                     case "number":
                         return JSON.getNodeFactory().numberNode(
-                                boundedNumber(new BigDecimal(text.trim())));
+                                parseNumber(text));
                     case "boolean":
                         if ("true".equalsIgnoreCase(text.trim())
                                 || "false".equalsIgnoreCase(text.trim())) {

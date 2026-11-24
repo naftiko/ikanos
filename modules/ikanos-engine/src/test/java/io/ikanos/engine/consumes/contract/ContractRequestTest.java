@@ -130,6 +130,17 @@ class ContractRequestTest {
     }
 
     @Test
+    @org.junit.jupiter.api.Timeout(5)
+    void buildShouldRefuseANumberWithTooManyDigitsToConvertQuickly() {
+        String text = "1." + "0".repeat(800_000);
+
+        assertThrows(IllegalArgumentException.class, () -> ContractRequest.build(
+                List.of(input("n", "integer", false, null)), Map.of("n", text), "op"));
+        assertEquals(new java.math.BigDecimal("1".repeat(1000)), ContractRequest.boundedNumber(
+                new java.math.BigDecimal("1".repeat(1000))), "a thousand digits are kept");
+    }
+
+    @Test
     void buildShouldWriteNumbersAsTextForAStringInput() {
         ContractRequest request = ContractRequest.build(
                 List.of(input("id", "string", false, null)), Map.of("id", 42), "op");
