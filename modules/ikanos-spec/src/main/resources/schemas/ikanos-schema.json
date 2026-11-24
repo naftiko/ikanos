@@ -1306,7 +1306,7 @@
         "maxRequestsInProgress": {
           "type": "integer",
           "minimum": 1,
-          "description": "How many requests the adapter works on at once. Past it, a request gets an immediate 503 with Retry-After, before any work is done, so an overload slows clients down instead of taking the adapter down. Default: 16 per CPU available to the engine. Lower it for operations that reshape large answers, raise it for operations that mostly wait on a slow upstream. The engine gives Jetty enough threads for it. Ignored by the stdio transport."
+          "description": "How many requests the adapter works on at once. Past it, a request gets an immediate 503 with Retry-After, before any work is done, so an overload slows clients down instead of taking the adapter down. Default: 16 per CPU available to the engine. Lower it for operations that reshape large answers, raise it for operations that mostly wait on a slow upstream. Each request runs on its own virtual thread, so no thread pool caps the requests below this limit. Ignored by the stdio transport."
         },
         "definitions": {
           "$ref": "#/$defs/RestDefinitions",
@@ -1383,7 +1383,7 @@
         "maxRequestsInProgress": {
           "type": "integer",
           "minimum": 1,
-          "description": "How many requests the adapter works on at once. Past it, a request gets an immediate 503 with Retry-After, before any work is done, so an overload slows clients down instead of taking the adapter down. Default: 16 per CPU available to the engine. Lower it for operations that reshape large answers, raise it for operations that mostly wait on a slow upstream. The engine gives Jetty enough threads for it. Ignored by the stdio transport."
+          "description": "How many requests the adapter works on at once. Past it, a request gets an immediate 503 with Retry-After, before any work is done, so an overload slows clients down instead of taking the adapter down. Default: 16 per CPU available to the engine. Lower it for operations that reshape large answers, raise it for operations that mostly wait on a slow upstream. Each request runs on its own virtual thread, so no thread pool caps the requests below this limit. Ignored by the stdio transport."
         },
         "ttlMs": {
           "type": "integer",

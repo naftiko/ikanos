@@ -95,10 +95,11 @@ import org.restlet.util.Series;
  * (restlet/restlet-framework-java#1663, Apache 2.0), identical to the one in Restlet 3.0,
  * including its S3 fix (restlet/restlet-framework-java@f0663336): the whole path is decoded
  * before it is split into segments, so an encoded slash is signed as a separator. Restlet ships it
- * from 3.0.0-m2, which requires Java 25 and replaces the Jetty client connectors this engine
- * extends with Netty. Once Ikanos moves to that Restlet, delete this class and use {@code
- * org.restlet.ext.crypto} with {@code ChallengeScheme.HTTP_AWS_SIGV4} instead (#954). Until then
- * it is registered with the Restlet {@link Engine} by {@link #ensureRegistered()}, like {@link
+ * in {@code org.restlet.ext.crypto} from 3.0.0-m2, the Restlet this engine runs on, but the copy
+ * stays until #959: Ikanos' encoded-path security test can't reach the method of Restlet's signer
+ * it needs. Then delete this class and use {@code org.restlet.ext.crypto} with {@code
+ * ChallengeScheme.HTTP_AWS_SIGV4} instead (#954). Until then it is registered with the Restlet
+ * {@link Engine} by {@link #ensureRegistered()}, like {@link
  * ApiKeyAuthorizationHeaderHelper}, under a scheme of the same name and technical name.
  *
  * @see <a
