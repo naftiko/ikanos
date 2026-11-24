@@ -160,14 +160,54 @@ public final class ContractRequest {
     public static BigDecimal parseNumber(String text) {
         String trimmed = text.trim();
         if (trimmed.length() > MAX_NUMBER_TEXT) {
-            for (int i = 0; i < trimmed.length(); i++) {
-                if ("0123456789+-.eE".indexOf(trimmed.charAt(i)) < 0) {
-                    throw new NumberFormatException("not a number");
-                }
+            if (!isNumberText(trimmed)) {
+                throw new NumberFormatException("not a number");
             }
             throw new ArithmeticException("more than " + MAX_NUMBER_DIGITS + " digits");
         }
         return boundedNumber(new BigDecimal(trimmed));
+    }
+
+    /**
+     * Whether a text is a decimal number as {@link BigDecimal} reads one, in one linear pass:
+     * {@code [+-]? (digits [. digits?] | . digits) ([eE] [+-]? digits)?}.
+     */
+    static boolean isNumberText(String text) {
+        int i = 0;
+        int length = text.length();
+        if (i < length && (text.charAt(i) == '+' || text.charAt(i) == '-')) {
+            i++;
+        }
+        int digits = 0;
+        while (i < length && Character.isDigit(text.charAt(i))) {
+            i++;
+            digits++;
+        }
+        if (i < length && text.charAt(i) == '.') {
+            i++;
+            while (i < length && Character.isDigit(text.charAt(i))) {
+                i++;
+                digits++;
+            }
+        }
+        if (digits == 0) {
+            return false;
+        }
+        if (i < length && (text.charAt(i) == 'e' || text.charAt(i) == 'E')) {
+            i++;
+            if (i < length && (text.charAt(i) == '+' || text.charAt(i) == '-')) {
+                i++;
+            }
+            int exponent = 0;
+            while (i < length && Character.isDigit(text.charAt(i))) {
+                i++;
+                exponent++;
+            }
+            if (exponent == 0) {
+                return false;
+            }
+        }
+        return i == length;
     }
 
     /**
