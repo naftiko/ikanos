@@ -15,6 +15,7 @@ package io.ikanos.client.grpc;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import com.google.protobuf.DescriptorProtos.DescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto;
@@ -55,14 +56,23 @@ final class OrdersFixture {
     final AtomicReference<DynamicMessage> lastCancel = new AtomicReference<>();
     private Server server;
 
+    /** The well-known files orders.proto imports, left out of its descriptor set. */
+    static final List<String> IMPORTS = List.of("google/protobuf/any.proto",
+            "google/protobuf/struct.proto", "google/protobuf/timestamp.proto",
+            "google/protobuf/wrappers.proto");
+
     OrdersFixture() throws Exception {
-        file = FileDescriptor.buildFrom(proto(), new FileDescriptor[0]);
+        FileDescriptor[] imports = new FileDescriptor[IMPORTS.size()];
+        for (int i = 0; i < imports.length; i++) {
+            imports[i] = WellKnownTypes.file(IMPORTS.get(i));
+        }
+        file = FileDescriptor.buildFrom(proto(), imports);
         service = file.findServiceByName("OrderService");
     }
 
     static FileDescriptorProto proto() {
         return FileDescriptorProto.newBuilder().setName("orders.proto")
-                .setPackage("test.orders").setSyntax("proto3")
+                .setPackage("test.orders").setSyntax("proto3").addAllDependency(IMPORTS)
                 .addMessageType(message("GetOrderRequest", field("id", 1,
                         FieldDescriptorProto.Type.TYPE_STRING)))
                 .addMessageType(message("Money",
@@ -74,7 +84,9 @@ final class OrdersFixture {
                         .addField(field("customer_id", 3, FieldDescriptorProto.Type.TYPE_STRING))
                         .addField(field("total", 4, FieldDescriptorProto.Type.TYPE_MESSAGE)
                                 .setTypeName(".test.orders.Money"))
-                        .addField(field("priority", 5, FieldDescriptorProto.Type.TYPE_INT32)))
+                        .addField(field("priority", 5, FieldDescriptorProto.Type.TYPE_INT32))
+                        .addField(field("details", 6, FieldDescriptorProto.Type.TYPE_MESSAGE)
+                                .setTypeName(".google.protobuf.Any")))
                 .addMessageType(DescriptorProto.newBuilder().setName("CancelOrderRequest")
                         .addField(field("id", 1, FieldDescriptorProto.Type.TYPE_STRING))
                         .addField(field("reason", 2, FieldDescriptorProto.Type.TYPE_STRING))
@@ -90,6 +102,13 @@ final class OrdersFixture {
                                 .setOneofIndex(0))
                         .addField(field("by_voucher", 8, FieldDescriptorProto.Type.TYPE_STRING)
                                 .setOneofIndex(0))
+                        // Well-known types: Timestamp placed_at, StringValue note, Struct meta
+                        .addField(field("placed_at", 9, FieldDescriptorProto.Type.TYPE_MESSAGE)
+                                .setTypeName(".google.protobuf.Timestamp"))
+                        .addField(field("note", 10, FieldDescriptorProto.Type.TYPE_MESSAGE)
+                                .setTypeName(".google.protobuf.StringValue"))
+                        .addField(field("meta", 11, FieldDescriptorProto.Type.TYPE_MESSAGE)
+                                .setTypeName(".google.protobuf.Struct"))
                         .addNestedType(entry("RefundsEntry", FieldDescriptorProto.Type.TYPE_STRING,
                                 field("value", 2, FieldDescriptorProto.Type.TYPE_MESSAGE)
                                         .setTypeName(".test.orders.Money")))
@@ -177,15 +196,26 @@ final class OrdersFixture {
                             ? "authorization=" + headers.get(key("authorization")) + ";tenant="
                                     + headers.get(key("x-tenant"))
                             : "open";
-                    out.onNext(DynamicMessage.newBuilder(order)
+                    DynamicMessage total = DynamicMessage.newBuilder(money)
+                            .setField(money.findFieldByName("amount_cents"), 1250L)
+                            .setField(money.findFieldByName("currency"), "EUR").build();
+                    DynamicMessage.Builder reply = DynamicMessage.newBuilder(order)
                             .setField(order.findFieldByName("id"), id)
                             .setField(order.findFieldByName("status"), status)
                             .setField(order.findFieldByName("customer_id"), "c-" + id)
-                            .setField(order.findFieldByName("total"), DynamicMessage
-                                    .newBuilder(money)
-                                    .setField(money.findFieldByName("amount_cents"), 1250L)
-                                    .setField(money.findFieldByName("currency"), "EUR").build())
-                            .build());
+                            .setField(order.findFieldByName("total"), total);
+                    if ("any".equals(id) || "unknown-any".equals(id)) {
+                        // details: an Any packing the total, or a type no descriptor defines
+                        Descriptor any = order.findFieldByName("details").getMessageType();
+                        reply.setField(order.findFieldByName("details"), DynamicMessage
+                                .newBuilder(any)
+                                .setField(any.findFieldByName("type_url"), "any".equals(id)
+                                        ? "type.googleapis.com/test.orders.Money"
+                                        : "type.googleapis.com/test.orders.Unknown")
+                                .setField(any.findFieldByName("value"), total.toByteString())
+                                .build());
+                    }
+                    out.onNext(reply.build());
                     out.onCompleted();
                 }))
                 .addMethod(method(cancel), ServerCalls.asyncUnaryCall((request, out) -> {

@@ -59,9 +59,14 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-javadoc-plugin</artifactId>
             </plugin>
-            <!-- An "-all" jar holding this module, the Restlet extension and grpc-java, so an
-                 operator adds one file to the image's /app/lib. The engine and Restlet core are
-                 not included: they are already in ikanos.jar. -->
+            <!-- An "-all" jar holding this module, the Restlet extension, grpc-java, PerfMark and
+                 protobuf-java-util, so an operator adds one file to the image's /app/lib. What
+                 ikanos.jar already has is left out, so that no second, unrelocated copy can shadow
+                 it: the engine, Restlet core, protobuf-java (4.29.3, the version of
+                 protobuf-java-util), and Guava with failureaccess, Gson, Error Prone annotations
+                 and J2ObjC annotations (ikanos.jar's Guava 33.7.2-android is newer than the
+                 33.6.0-android grpc-java asks for, and grpc-core only uses Gson's JsonReader,
+                 there since Gson 2.0, so its 2.14.0 needs no relocation). -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
@@ -86,11 +91,7 @@
                                     <include>io.ikanos:ikanos-client-grpc</include>
                                     <include>org.restlet:org.restlet.ext.grpc</include>
                                     <include>io.grpc:*</include>
-                                    <include>com.google.guava:*</include>
                                     <include>com.google.protobuf:protobuf-java-util</include>
-                                    <include>com.google.code.gson:*</include>
-                                    <include>com.google.errorprone:*</include>
-                                    <include>com.google.j2objc:*</include>
                                     <include>io.perfmark:*</include>
                                 </includes>
                             </artifactSet>

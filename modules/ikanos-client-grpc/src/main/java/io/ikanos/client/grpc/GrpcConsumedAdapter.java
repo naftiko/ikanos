@@ -19,11 +19,13 @@ import java.net.ConnectException;
 import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import com.google.protobuf.DescriptorProtos.FileDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FileDescriptorSet;
@@ -89,7 +91,9 @@ import io.ikanos.spec.util.IkanosMappers;
  *
  * <p>Restlet 3.0.0-m2's gRPC client is plaintext only (HTTP/2 prior knowledge): an
  * {@code https://} endpoint is refused, and so is a credential sent in clear to a host that is
- * neither a loopback address nor reached through a {@code tunnel}.</p>
+ * neither a loopback address nor reached through a {@code tunnel}. A tunneled endpoint's host
+ * name is never resolved: grpc-java is given a placeholder address, and each request is routed on
+ * the host name, so through the tunnel.</p>
  */
 public class GrpcConsumedAdapter extends ContractClientAdapter {
 
@@ -102,6 +106,28 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
     /** Largest reason taken from a status description. */
     static final int MAX_REASON = 200;
 
+    /**
+     * The address grpc-java dials for a tunneled endpoint, so that it resolves no host name:
+     * {@link MetadataClient} puts the endpoint's host name back on each request before the
+     * connector routes it to the tunnel. RFC 5737 TEST-NET-1, never routed.
+     */
+    static final String TUNNEL_PLACEHOLDER = "192.0.2.1";
+
+    /**
+     * The well-known types whose proto3 JSON is not an object of their fields: an input path can
+     * end on one of them, not go through it.
+     */
+    static final Set<String> OPAQUE_TYPES = Set.of("google.protobuf.Any",
+            "google.protobuf.Duration", "google.protobuf.FieldMask", "google.protobuf.ListValue",
+            "google.protobuf.Timestamp", "google.protobuf.Value", "google.protobuf.BoolValue",
+            "google.protobuf.BytesValue", "google.protobuf.DoubleValue",
+            "google.protobuf.FloatValue", "google.protobuf.Int32Value",
+            "google.protobuf.Int64Value", "google.protobuf.StringValue",
+            "google.protobuf.UInt32Value", "google.protobuf.UInt64Value");
+
+    /** A message printed as a JSON object of any keys: like a {@code map<string, Value>}. */
+    static final String STRUCT = "google.protobuf.Struct";
+
     /** One procedure, ready to call. */
     record Procedure(String name, GrpcProcedureSpec spec, MethodDescriptor method,
             io.grpc.MethodDescriptor<DynamicMessage, DynamicMessage> call,
@@ -113,6 +139,8 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
     private final int port;
     private final ServiceDescriptor service;
     private final Map<String, Procedure> procedures;
+    private final JsonFormat.Printer printer;
+    private final JsonFormat.Parser parser;
     private volatile GrpcClientAdapter channelAdapter;
     private volatile Client restletClient;
 
@@ -131,7 +159,12 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
         if (spec.getAuthentication() != null) {
             credentialHeaders();
         }
-        this.service = findService(loadDescriptors(spec.getDescriptorSet()), spec.getService());
+        Map<String, FileDescriptor> files = loadDescriptors(spec.getDescriptorSet());
+        this.service = findService(files, spec.getService());
+        JsonFormat.TypeRegistry types = typeRegistry(files.values());
+        this.printer = JsonFormat.printer().usingTypeRegistry(types)
+                .alwaysPrintFieldsWithNoPresence();
+        this.parser = JsonFormat.parser().usingTypeRegistry(types);
         Map<String, Procedure> built = new LinkedHashMap<>();
         for (GrpcProcedureSpec procedure : spec.getProcedures().values()) {
             built.put(procedure.getName(), buildProcedure(procedure));
@@ -218,6 +251,18 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
         }
     }
 
+    /**
+     * The message types of the descriptor set and of its imports, so that the proto3 JSON of a
+     * {@code google.protobuf.Any} can name and print the message it packs.
+     */
+    static JsonFormat.TypeRegistry typeRegistry(Collection<FileDescriptor> files) {
+        JsonFormat.TypeRegistry.Builder builder = JsonFormat.TypeRegistry.newBuilder();
+        for (FileDescriptor file : files) {
+            builder.add(file.getMessageTypes());
+        }
+        return builder.build();
+    }
+
     ServiceDescriptor findService(Map<String, FileDescriptor> files, String name) {
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException(where() + " requires service");
@@ -264,8 +309,11 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
 
     /**
      * Checks that an input's path resolves in the request message: each segment is a field, by
-     * name or JSON name, or the key of the {@code map<string, ...>} field before it. A
-     * {@code oneof} field the path sets is reported to {@code unions}.
+     * name or JSON name, or the key of the {@code map<string, ...>} or
+     * {@code google.protobuf.Struct} field before it (a {@code Struct} key ends the path). A path
+     * can end on a well-known type whose proto3 JSON is not an object of fields (such as a
+     * {@code Timestamp} or a wrapper), not go through it. A {@code oneof} field the path sets is
+     * reported to {@code unions}.
      */
     void checkPath(String where, InputParameterSpec input, Descriptor message,
             UnionChoices unions) {
@@ -312,6 +360,22 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
                         + "' goes through '" + path.get(i) + "', which is not a message");
             }
             current = next.getMessageType();
+            if (STRUCT.equals(current.getFullName())) {
+                i++;
+                if (i < path.size() - 1) {
+                    throw new IllegalArgumentException(where + " input '" + input.getName()
+                            + "' goes through key '" + path.get(i) + "' of Struct '"
+                            + path.get(i - 1) + "', whose value is any JSON value: a path ends"
+                            + " on a Struct key");
+                }
+                break;
+            }
+            if (OPAQUE_TYPES.contains(current.getFullName())) {
+                throw new IllegalArgumentException(where + " input '" + input.getName()
+                        + "' goes through '" + path.get(i) + "', a " + current.getFullName()
+                        + " whose proto3 JSON is not an object of fields: a path can end on it,"
+                        + " not go through it");
+            }
         }
     }
 
@@ -338,28 +402,62 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
         return procedure != null && noSideEffects(procedure.method());
     }
 
+    /** Starts the Restlet client and the channel on it; a second start keeps the first. */
     @Override
-    public void start() throws Exception {
+    public synchronized void start() throws Exception {
+        if (restletClient != null) {
+            return;
+        }
         Context context = new Context();
         // ext.grpc requires HTTP/2 with prior knowledge, and redirects left to grpc-java
         context.getParameters().set("httpClientTransportMode", "HTTP2");
         context.getParameters().set("followRedirects", "false");
         Client created = newRestletClient(endpoint, context, List.of(Protocol.HTTP));
-        created.start();
-        GrpcClientAdapter adapter = new GrpcClientAdapter();
-        adapter.setClient(created);
-        adapter.setTarget("dns:///" + host + ":" + port);
-        adapter.setPlaintext(true);
-        adapter.setMaxCallDuration(Duration.ofMillis(maxTimeoutMillis()));
-        adapter.getInterceptors().add(new HeadersInterceptor());
-        adapter.start();
+        GrpcClientAdapter adapter;
+        try {
+            created.start();
+            adapter = newChannelAdapter(created);
+            adapter.start();
+        } catch (Exception e) {
+            try {
+                created.stop();
+            } catch (Exception suppressed) {
+                e.addSuppressed(suppressed);
+            }
+            throw e;
+        }
         this.restletClient = created;
         this.channelAdapter = adapter;
     }
 
+    /** @return the channel adapter on {@code client}, configured and not started */
+    GrpcClientAdapter newChannelAdapter(Client client) {
+        GrpcClientAdapter adapter = new GrpcClientAdapter();
+        adapter.setClient(client);
+        adapter.setTarget(channelTarget());
+        adapter.setPlaintext(true);
+        adapter.setMaxCallDuration(Duration.ofMillis(maxTimeoutMillis()));
+        adapter.getInterceptors().add(new HeadersInterceptor());
+        return adapter;
+    }
+
+    /**
+     * The grpc-java target: the endpoint's host or, for a tunneled endpoint, the
+     * {@link #TUNNEL_PLACEHOLDER}, since ext.grpc requests the address grpc-java resolved while
+     * the tunnel is routed on the host name, which may resolve nowhere but in the tunnel.
+     */
+    String channelTarget() {
+        return "dns:///" + (tunnel() != null ? TUNNEL_PLACEHOLDER : host) + ":" + port;
+    }
+
+    /** @return the started Restlet client, or {@code null} */
+    Client client() {
+        return restletClient;
+    }
+
     @Override
     protected Client createClient(Context context, List<Protocol> protocols) {
-        return new MetadataClient(context, protocols);
+        return new MetadataClient(context, protocols, tunnel() != null ? host : null);
     }
 
     /**
@@ -368,15 +466,29 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
      * which the client connector drops standard headers such as {@code Authorization}: the
      * credential would never leave. This client moves them to
      * {@link HeaderConstants#ATTRIBUTE_RAW_REQUEST_HEADERS}, which the connector writes as is.
+     *
+     * <p>ext.grpc also requests the address grpc-java resolved, not the host name. For a tunneled
+     * endpoint, this client puts the host name back, since the connector picks the tunnel by the
+     * request's host.</p>
      */
     static final class MetadataClient extends Client {
 
-        MetadataClient(Context context, List<Protocol> protocols) {
+        private final String routeHost;
+
+        /**
+         * @param routeHost the host name every request is routed on, or {@code null} to keep
+         *        the request's host
+         */
+        MetadataClient(Context context, List<Protocol> protocols, String routeHost) {
             super(context, protocols);
+            this.routeHost = routeHost;
         }
 
         @Override
         public void handle(Request request, Response response) {
+            if (routeHost != null) {
+                request.getResourceRef().setHostDomain(routeHost);
+            }
             Series<Header> raw = new Series<>(Header.class);
             for (Header header : request.getHeaders()) {
                 raw.add(header.getName(), header.getValue());
@@ -397,16 +509,19 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
     }
 
     @Override
-    public void stop() throws Exception {
+    public synchronized void stop() throws Exception {
         GrpcClientAdapter adapter = channelAdapter;
         channelAdapter = null;
-        if (adapter != null) {
-            adapter.stop();
-        }
         Client created = restletClient;
         restletClient = null;
-        if (created != null) {
-            created.stop();
+        try {
+            if (adapter != null) {
+                adapter.stop();
+            }
+        } finally {
+            if (created != null) {
+                created.stop();
+            }
         }
     }
 
@@ -449,7 +564,7 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
         DynamicMessage.Builder builder =
                 DynamicMessage.newBuilder(procedure.method().getInputType());
         try {
-            JsonFormat.parser().merge(JSON.writeValueAsString(request.tree()), builder);
+            parser.merge(JSON.writeValueAsString(request.tree()), builder);
         } catch (InvalidProtocolBufferException e) {
             throw new IllegalArgumentException("The inputs of " + where + " do not fit message '"
                     + procedure.method().getInputType().getFullName() + "': " + e.getMessage(),
@@ -476,12 +591,26 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
                     procedure.call(), CallOptions.DEFAULT.withDeadlineAfter(
                             procedure.spec().timeoutMillis(), TimeUnit.MILLISECONDS),
                     request);
-            String json = JsonFormat.printer().alwaysPrintFieldsWithNoPresence()
-                    .print(response);
-            return ContractResult.success(procedure.view(), JSON.readTree(json), false);
+            return print(procedure, response);
         } catch (StatusRuntimeException e) {
             return failure(procedure.view(), e.getStatus(), e);
         }
+    }
+
+    /**
+     * @return the proto3 JSON of a response, or a 502 failure when it cannot be printed (such as
+     *         a {@code google.protobuf.Any} packing a type the descriptor set does not define)
+     */
+    ContractResult print(Procedure procedure, DynamicMessage response) {
+        String json;
+        try {
+            json = printer.print(response);
+        } catch (InvalidProtocolBufferException e) {
+            return ContractResult.failure(procedure.view(), 502, "The response of "
+                    + procedure.method().getFullName() + " has no proto3 JSON: "
+                    + bounded(String.valueOf(e.getMessage()), MAX_REASON), e, null);
+        }
+        return ContractResult.success(procedure.view(), JSON.readTree(json), false);
     }
 
     static ContractResult failure(ConsumedOperationView view, Status status, Throwable cause) {
