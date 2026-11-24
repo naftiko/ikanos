@@ -301,15 +301,13 @@ public class Capability {
             clientList.add(ClientAdapterRegistry.getDefault().create(this, clientSpec, tunnels));
         }
 
-        // A read-only MCP tool must not reach a write of a contract-described consumed adapter,
-        // whose readOnly may come from its contract, known only now (the SQL case is checked by
-        // the MCP adapter itself)
-        ConsumedWriteExposure.validate(spec.getCapability(), this, clientList);
-
         // Check call and forward references against the consumed adapters now that they exist,
-        // so a spec mistake fails at load time rather than on the first request. Tunnels were
+        // so a spec mistake fails at load time rather than on the first request. A read-only
+        // exposed entry must not reach a consumed write either: the readOnly of a
+        // contract-described adapter may come from its contract, known only now. Tunnels were
         // already started above; close them if the capability is rejected.
         try {
+            ConsumedWriteExposure.validate(spec.getCapability(), this, clientList);
             ConsumedReferenceValidator.validate(spec.getCapability(), clientList);
         } catch (IllegalArgumentException e) {
             for (Tunnel tunnel : tunnels.values()) {
