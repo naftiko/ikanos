@@ -74,9 +74,81 @@ class McpEmbeddedCallerIntegrationTest {
         }
     }
 
+    @Test
+    void requirementForShouldFindARefToolByTheNameHandleToolCallReceives() throws Exception {
+        McpServerAdapter adapter = loadRefTool();
+
+        assertNull(adapter.getMcpServerSpec().getTools().get("order-status"),
+                "the tool's key in 'tools' is not its name");
+        assertEquals(java.util.List.of("fleet.admin"),
+                adapter.requirementFor("order-status").getScopes());
+    }
+
+    @Test
+    void checkShouldRefuseAnEmbeddedCallerWithoutTheScopesOfARefTool() throws Exception {
+        McpServerAdapter adapter = loadRefTool();
+
+        assertNotNull(AccessControl.check(adapter.requirementFor("order-status"), READER));
+    }
+
+    @Test
+    void requirementForShouldGiveTheAdaptersRequirementForAnUnknownTool() throws Exception {
+        McpServerAdapter adapter = loadRefTool();
+
+        assertEquals(java.util.List.of("fleet.read"),
+                adapter.requirementFor("no-such-tool").getScopes());
+    }
+
     private static AuthorizationSpec requirement(McpServerAdapter adapter, String tool) {
-        return AccessControl.effective(adapter.getMcpServerSpec(),
-                adapter.getMcpServerSpec().getTools().get(tool));
+        return adapter.requirementFor(tool);
+    }
+
+    /**
+     * An adapter whose tool is listed the legacy way, with a {@code ref} and no {@code name}: its
+     * key in {@code tools} is generated, and it takes the flow's name, {@code order-status}.
+     */
+    private static McpServerAdapter loadRefTool() throws Exception {
+        String yaml = """
+                ikanos: "%s"
+                info:
+                  display: "Embedded ref tool"
+                  description: "Embedded caller integration test, ref tool"
+                capability:
+                  aggregates:
+                    - namespace: "orders"
+                      flows:
+                        order-status:
+                          description: "Status of order 42"
+                          call: "shop.get-order"
+                  exposes:
+                    - type: "mcp"
+                      address: "127.0.0.1"
+                      port: 0
+                      namespace: "embedded"
+                      description: "OAuth2 protected MCP adapter, embedded"
+                      authentication:
+                        type: "oauth2"
+                        authorizationServerUri: "http://127.0.0.1:1"
+                        resource: "http://127.0.0.1/mcp"
+                        scopes: ["fleet.read", "fleet.admin"]
+                      authorization:
+                        scopes: ["fleet.read"]
+                      tools:
+                        - ref: "orders.order-status"
+                          authorization:
+                            scopes: ["fleet.admin"]
+                  consumes:
+                    - type: "http"
+                      namespace: "shop"
+                      baseUri: "http://127.0.0.1:1"
+                      resources:
+                        order:
+                          path: "/orders/42"
+                          operations:
+                            get-order:
+                              method: "GET"
+                """.formatted(VersionHelper.getSchemaVersion());
+        return mcpAdapterOf(yaml);
     }
 
     private static McpSchema.CallToolResult call(McpServerAdapter adapter, String tool) {
@@ -129,6 +201,10 @@ class McpEmbeddedCallerIntegrationTest {
                             get-order:
                               method: "GET"
                 """.formatted(VersionHelper.getSchemaVersion(), upstream.baseUri());
+        return mcpAdapterOf(yaml);
+    }
+
+    private static McpServerAdapter mcpAdapterOf(String yaml) throws Exception {
         Capability capability =
                 new Capability(IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class));
         for (ServerAdapter adapter : capability.getServerAdapters()) {
