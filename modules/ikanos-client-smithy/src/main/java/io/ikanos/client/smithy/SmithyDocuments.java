@@ -28,6 +28,7 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
+import io.ikanos.engine.consumes.contract.ContractRequest;
 import io.ikanos.spec.util.IkanosMappers;
 
 /**
@@ -87,8 +88,14 @@ final class SmithyDocuments {
             return Document.of(node.asBoolean());
         }
         if (node.isNumber()) {
-            BigDecimal value = node.isIntegralNumber() ? new BigDecimal(node.bigIntegerValue())
-                    : node.decimalValue();
+            BigDecimal value;
+            try {
+                value = node.isIntegralNumber() ? new BigDecimal(node.bigIntegerValue())
+                        : node.decimalValue();
+            } catch (RuntimeException e) {
+                // A JSON number beyond a double, read as infinity
+                throw new IllegalArgumentException("'" + node + "' is not a finite number", e);
+            }
             Document typed = number(value, type, node.toString());
             if (typed != null) {
                 return typed;
@@ -156,8 +163,9 @@ final class SmithyDocuments {
         }
     }
 
-    /** The number itself, refused when it has a fraction. */
+    /** The number itself, refused when it has a fraction or too many digits to convert. */
     private static BigDecimal integral(BigDecimal value, String text) {
+        ContractRequest.boundedNumber(value);
         if (value.signum() != 0 && value.stripTrailingZeros().scale() > 0) {
             throw new IllegalArgumentException("'" + text + "' is not an integer");
         }

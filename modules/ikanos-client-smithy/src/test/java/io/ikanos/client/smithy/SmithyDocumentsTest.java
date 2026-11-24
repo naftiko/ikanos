@@ -74,6 +74,15 @@ class SmithyDocumentsTest {
     }
 
     @Test
+    @org.junit.jupiter.api.Timeout(5)
+    void toDocumentShouldRefuseANumberTooLargeToConvertQuickly() {
+        assertThrows(IllegalArgumentException.class, () -> member("big", "\"1e20000000\""),
+                "as text");
+        assertThrows(IllegalArgumentException.class, () -> member("big", "1e20000000"),
+                "as a JSON number");
+    }
+
+    @Test
     void toDocumentShouldAcceptAnIntegralNumberWrittenWithAFraction() {
         assertEquals(2, member("i", "2.0").asInteger());
     }
