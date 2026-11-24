@@ -42,6 +42,11 @@ import org.restlet.Client;
 import org.restlet.Context;
 import org.restlet.data.Protocol;
 import org.restlet.ext.grpc.GrpcClientAdapter;
+import com.google.protobuf.DescriptorProtos.DescriptorProto;
+import com.google.protobuf.DescriptorProtos.FieldDescriptorProto;
+import com.google.protobuf.DescriptorProtos.FileDescriptorProto;
+import com.google.protobuf.Descriptors.Descriptor;
+import com.google.protobuf.Descriptors.FileDescriptor;
 import com.google.protobuf.DynamicMessage;
 import io.grpc.Status;
 import tools.jackson.databind.JsonNode;
@@ -192,6 +197,46 @@ class GrpcConsumedAdapterTest {
                 () -> adapter.prepare("cancel-order", new HashMap<>(Map.of("order-id", "7",
                         "tallies", "{\"1e100000000\": \"x\"}"))));
         assertTrue(key.getMessage().contains("tallies"), key.getMessage());
+    }
+
+    @Test
+    @Timeout(5)
+    void prepareShouldRefuseANumberTooSmallGivenAsAOneElementArray() throws Exception {
+        // JsonFormat reads a uint64 from a one-element array through Gson's getAsString
+        GrpcConsumedAdapter adapter = new GrpcConsumedAdapter(null, spec("http://localhost:"
+                + port, """
+                cancel-order:
+                  description: Cancel an order.
+                  rpc: CancelOrder
+                  inputParameters:
+                    order-id: { type: string, required: true, description: Order id., wireName: id }
+                    points: { type: array, description: Loyalty points., wireName: points }
+                """, ""), Map.of());
+
+        assertThrows(IllegalArgumentException.class, () -> adapter.prepare("cancel-order",
+                new HashMap<>(Map.of("order-id", "7", "points", List.of("1e-1000000000")))));
+    }
+
+    @Test
+    void boundNumbersShouldBoundAKeyThatTwoFieldsShare() throws Exception {
+        // proto2 accepts string foo_bar and uint64 fooBar, both read from "fooBar"; the parser
+        // keeps the last, the uint64
+        Descriptor message = FileDescriptor.buildFrom(FileDescriptorProto.newBuilder()
+                .setName("clash.proto").setSyntax("proto2")
+                .addMessageType(DescriptorProto.newBuilder().setName("Clash")
+                        .addField(clashField("foo_bar", 1, FieldDescriptorProto.Type.TYPE_STRING))
+                        .addField(clashField("fooBar", 2, FieldDescriptorProto.Type.TYPE_UINT64)))
+                .build(), new FileDescriptor[0]).findMessageTypeByName("Clash");
+        JsonNode tree = IkanosMappers.json().readTree("{\"fooBar\": \"1e-1000000000\"}");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> GrpcConsumedAdapter.boundNumbers(tree, message, "", "op"));
+    }
+
+    private static FieldDescriptorProto clashField(String name, int number,
+            FieldDescriptorProto.Type type) {
+        return FieldDescriptorProto.newBuilder().setName(name).setNumber(number).setType(type)
+                .setLabel(FieldDescriptorProto.Label.LABEL_OPTIONAL).build();
     }
 
     @Test

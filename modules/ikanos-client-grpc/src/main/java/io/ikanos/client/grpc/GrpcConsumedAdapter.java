@@ -596,8 +596,10 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
      * numeric wrapper. proto3 JSON gives a 64-bit integer (and any map key) as text, which the
      * parser converts with {@code toBigIntegerExact}, so the bound of
      * {@link ContractRequest#boundedNumber} must hold there; a {@code string} or {@code bytes}
-     * field keeps any text. Inside a {@code google.protobuf.Any}, whose packed type is only known
-     * to the parser, every number and every text that reads as one is bounded.
+     * field keeps any text. A numeric value is bounded whole, since the parser also reads a
+     * number from a one-element array, and a key two fields share is bounded for both, since the
+     * parser keeps the last. Inside a {@code google.protobuf.Any}, whose packed type is only
+     * known to the parser, every number and every text that reads as one is bounded.
      *
      * @param node a value of the request tree
      * @param message the message type it fills
@@ -608,7 +610,7 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
     static void boundNumbers(JsonNode node, Descriptor message, String path, String where) {
         String type = message.getFullName();
         if (NUMERIC_WRAPPERS.contains(type)) {
-            boundNumber(node, path, where);
+            boundAll(node, path, where);
             return;
         }
         if (type.equals("google.protobuf.Any")) {
@@ -619,31 +621,34 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
             return; // no exact integer conversion: text, a Struct, a Value or a ListValue
         }
         for (Map.Entry<String, JsonNode> entry : node.properties()) {
-            FieldDescriptor field = fieldOf(message, entry.getKey());
-            if (field == null) {
-                continue; // the parser refuses a field the message does not define
+            // None: the parser refuses a field the message does not define
+            for (FieldDescriptor field : fieldsOf(message, entry.getKey())) {
+                boundField(entry.getValue(), field,
+                        path.isEmpty() ? entry.getKey() : path + "." + entry.getKey(), where);
             }
-            String fieldPath = path.isEmpty() ? entry.getKey() : path + "." + entry.getKey();
-            JsonNode value = entry.getValue();
-            if (field.isMapField()) {
-                FieldDescriptor key = field.getMessageType().findFieldByName("key");
-                FieldDescriptor mapValue = field.getMessageType().findFieldByName("value");
-                for (Map.Entry<String, JsonNode> item : value.properties()) {
-                    String itemPath = fieldPath + "." + item.getKey();
-                    if (isNumeric(key)) {
-                        boundNumber(JSON.getNodeFactory().stringNode(item.getKey()), itemPath,
-                                where);
-                    }
-                    boundValue(item.getValue(), mapValue, itemPath, where);
+        }
+    }
+
+    private static void boundField(JsonNode value, FieldDescriptor field, String fieldPath,
+            String where) {
+        if (field.isMapField()) {
+            FieldDescriptor key = field.getMessageType().findFieldByName("key");
+            FieldDescriptor mapValue = field.getMessageType().findFieldByName("value");
+            for (Map.Entry<String, JsonNode> item : value.properties()) {
+                String itemPath = fieldPath + "." + item.getKey();
+                if (isNumeric(key)) {
+                    boundNumber(JSON.getNodeFactory().stringNode(item.getKey()), itemPath,
+                            where);
                 }
-            } else if (field.isRepeated() && value.isArray()) {
-                int index = 0;
-                for (JsonNode element : value) {
-                    boundValue(element, field, fieldPath + "[" + index++ + "]", where);
-                }
-            } else {
-                boundValue(value, field, fieldPath, where);
+                boundValue(item.getValue(), mapValue, itemPath, where);
             }
+        } else if (field.isRepeated() && value.isArray()) {
+            int index = 0;
+            for (JsonNode element : value) {
+                boundValue(element, field, fieldPath + "[" + index++ + "]", where);
+            }
+        } else {
+            boundValue(value, field, fieldPath, where);
         }
     }
 
@@ -658,7 +663,8 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
         if (field.getJavaType() == FieldDescriptor.JavaType.MESSAGE) {
             boundNumbers(value, field.getMessageType(), path, where);
         } else if (isNumeric(field)) {
-            boundNumber(value, path, where);
+            // All of it: the parser reads a number from a one-element array (Gson getAsString)
+            boundAll(value, path, where);
         }
     }
 
@@ -669,14 +675,18 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
         };
     }
 
-    /** The field a proto3 JSON key names: its json_name or its proto name, as the parser reads. */
-    private static FieldDescriptor fieldOf(Descriptor message, String key) {
+    /**
+     * The fields a proto3 JSON key may name: by json_name or proto name. Two fields can share a
+     * key in a proto2 descriptor, and the parser keeps the last; bounding against each is safe.
+     */
+    private static List<FieldDescriptor> fieldsOf(Descriptor message, String key) {
+        List<FieldDescriptor> fields = new ArrayList<>(1);
         for (FieldDescriptor field : message.getFields()) {
             if (field.getJsonName().equals(key) || field.getName().equals(key)) {
-                return field;
+                fields.add(field);
             }
         }
-        return null;
+        return fields;
     }
 
     /** Every number, text that reads as one, and object key, at any depth. */
