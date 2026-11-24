@@ -80,6 +80,8 @@ class SmithyDocumentsTest {
                 "as text");
         assertThrows(IllegalArgumentException.class, () -> member("big", "1e20000000"),
                 "as a JSON number");
+        assertThrows(IllegalArgumentException.class,
+                () -> member("big", "\"1." + "0".repeat(800_000) + "\""), "as a long text");
     }
 
     @Test

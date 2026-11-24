@@ -201,11 +201,15 @@ final class SmithyDocuments {
                     yield Document.of(Boolean.parseBoolean(text.trim()));
                 }
                 case BYTE, SHORT, INTEGER, INT_ENUM, LONG, BIG_INTEGER, FLOAT, DOUBLE,
-                        BIG_DECIMAL -> number(new BigDecimal(trimmed), type, text);
+                        BIG_DECIMAL -> number(ContractRequest.parseNumber(trimmed), type, text);
                 default -> Document.of(text);
             };
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("'" + text + "' is not a number", e);
+        } catch (ArithmeticException e) {
+            throw new IllegalArgumentException("A number of more than "
+                    + ContractRequest.MAX_NUMBER_DIGITS + " digits is out of range for " + type,
+                    e);
         }
     }
 
