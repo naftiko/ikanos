@@ -20,12 +20,16 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import io.opentelemetry.api.common.AttributeKey;
 import org.restlet.Client;
 import org.restlet.Context;
@@ -108,13 +112,15 @@ import io.ikanos.spec.consumes.smithy.SmithyOperationSpec;
  * <p>When the capability loads, the model files are assembled (with the prelude and the trait
  * definitions on the class path), the service, its protocol and every operation are resolved, and
  * every input is matched to a member of the operation's input structure by its {@code wireName}
- * path; a required input member that no input fills is refused. {@code baseUri} is the endpoint:
- * any endpoint rule set of the model is ignored.</p>
+ * path; a required member (of the input structure, or of a nested structure an input enters)
+ * that no required input or input with a default fills is refused. {@code baseUri} is the
+ * endpoint: any endpoint rule set of the model is ignored.</p>
  *
  * <p>A call writes the inputs into the input structure ({@link ContractRequest}), by member name,
  * and returns the output structure as the result document. A modeled error fails with its
  * {@code @httpError} status (400 for a client error without one, 502 for a server error), an
- * unmodeled error with the HTTP status received.</p>
+ * unmodeled error with the HTTP status received; a call that has not ended, body included, within
+ * {@code timeoutMs} fails with 504.</p>
  */
 public class SmithyConsumedAdapter extends ContractClientAdapter {
 
@@ -355,39 +361,65 @@ public class SmithyConsumedAdapter extends ContractClientAdapter {
     /**
      * Checks that each input's {@code wireName} path resolves in the input structure (members of
      * structures and unions, keys of maps), that no two inputs set different members of one
-     * union, and that each required member without a default is filled by an input.
+     * union, and that each required member without a default is filled by an input that always
+     * has a value (a required input, or one with a default): the members of the input structure,
+     * and those of each nested structure an input path enters.
      */
     void checkInputs(String where, SmithyOperationSpec spec, StructureShape input) {
-        Set<String> covered = new LinkedHashSet<>();
+        List<List<String>> filled = new ArrayList<>();
+        Map<List<String>, StructureShape> entered = new LinkedHashMap<>();
+        entered.put(List.of(), input);
         UnionChoices unions = new UnionChoices(where);
         for (InputParameterSpec parameter : spec.getInputParameters()) {
             List<String> path = ContractRequest.path(parameter);
-            if (!validPath(input, path, parameter.getName(), unions)) {
+            if (!validPath(input, path, parameter.getName(), unions, entered)) {
                 throw new IllegalArgumentException(where + " input '" + parameter.getName()
                         + "' targets '" + String.join(".", path)
                         + "', which does not resolve in the input structure '" + input.getId()
                         + "'");
             }
-            covered.add(path.get(0));
+            // An optional input without a default is left out when it has no value
+            if (parameter.isRequired() || parameter.getDefaultValue() != null) {
+                filled.add(path);
+            }
         }
         List<String> uncovered = new ArrayList<>();
-        for (MemberShape member : input.members()) {
-            if (member.hasTrait(RequiredTrait.class) && !member.hasTrait(DefaultTrait.class)
-                    && !covered.contains(member.getMemberName())) {
-                uncovered.add(member.getMemberName());
+        for (Map.Entry<List<String>, StructureShape> structure : entered.entrySet()) {
+            List<String> prefix = structure.getKey();
+            for (MemberShape member : structure.getValue().members()) {
+                if (member.hasTrait(RequiredTrait.class) && !member.hasTrait(DefaultTrait.class)
+                        && !fills(filled, prefix, member.getMemberName())) {
+                    List<String> path = new ArrayList<>(prefix);
+                    path.add(member.getMemberName());
+                    uncovered.add(String.join(".", path));
+                }
             }
         }
         if (!uncovered.isEmpty()) {
             throw new IllegalArgumentException(where + " requires member(s) " + uncovered
-                    + " of '" + input.getId() + "', which no input fills");
+                    + " of '" + input.getId() + "', which no required input or input with a"
+                    + " default fills");
         }
+    }
+
+    /** Whether one of the paths goes through the member {@code name} of the value at prefix. */
+    static boolean fills(List<List<String>> paths, List<String> prefix, String name) {
+        for (List<String> path : paths) {
+            if (path.size() > prefix.size() && path.subList(0, prefix.size()).equals(prefix)
+                    && path.get(prefix.size()).equals(name)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
      * Whether a path resolves in the input structure; each union member it sets is reported to
-     * {@code unions}, under the path of the union value.
+     * {@code unions}, under the path of the union value, and each structure it goes through is
+     * added to {@code entered}, under the path of the structure value.
      */
-    boolean validPath(StructureShape input, List<String> path, String name, UnionChoices unions) {
+    boolean validPath(StructureShape input, List<String> path, String name, UnionChoices unions,
+            Map<List<String>, StructureShape> entered) {
         Shape current = input;
         for (int i = 0; i < path.size(); i++) {
             String segment = path.get(i);
@@ -397,8 +429,9 @@ public class SmithyConsumedAdapter extends ContractClientAdapter {
                 if (member != null) {
                     unions.choose(name, path.subList(0, i), union.getId().getName(), segment);
                 }
-            } else if (current instanceof StructureShape) {
-                member = current.getMember(segment).orElse(null);
+            } else if (current instanceof StructureShape structure) {
+                entered.putIfAbsent(List.copyOf(path.subList(0, i)), structure);
+                member = structure.getMember(segment).orElse(null);
             } else if (current instanceof MapShape map) {
                 member = map.getValue();
             } else {
@@ -518,28 +551,63 @@ public class SmithyConsumedAdapter extends ContractClientAdapter {
         // The transport aborts the request when no response head arrives within timeoutMs
         RequestOverrideConfig override = RequestOverrideConfig.builder().addInterceptor(call)
                 .putConfig(HttpContext.HTTP_REQUEST_TIMEOUT, Duration.ofMillis(timeout)).build();
+        String name = operation.shape().getId().getName();
+        // The body is read after the head: the whole call, on a virtual thread that keeps the
+        // trace context of the client span, is bounded by timeoutMs
+        Callable<Document> dynamicCall = () -> dynamic.call(name, input, override);
+        FutureTask<Document> task = new FutureTask<>(
+                io.opentelemetry.context.Context.current().wrap(dynamicCall));
+        Thread.ofVirtual().name("ikanos-smithy-" + name).start(task);
         try {
-            Document output = dynamic.call(operation.shape().getId().getName(), input, override);
+            Document output = task.get(timeout, TimeUnit.MILLISECONDS);
             return ContractResult.success(operation.view(), SmithyDocuments.toJson(output), true);
-        } catch (ModeledException e) {
-            return modeledFailure(operation, e);
-        } catch (TransportSocketTimeout e) {
-            return ContractResult.failure(operation.view(), 504,
-                    "The Smithy call timed out after " + timeout + " ms", e, null);
-        } catch (TransportException e) {
+        } catch (TimeoutException e) {
+            task.cancel(true);
+            return timedOut(operation, timeout, e);
+        } catch (InterruptedException e) {
+            task.cancel(true);
+            Thread.currentThread().interrupt();
+            return ContractResult.failure(operation.view(), 0, "The Smithy call was interrupted",
+                    e, null);
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof RuntimeException failure) {
+                return failure(operation, call, timeout, failure);
+            }
+            if (e.getCause() instanceof Error error) {
+                throw error;
+            }
+            return failure(operation, call, timeout, new IllegalStateException(e.getCause()));
+        }
+    }
+
+    /** The failure of a call that threw. */
+    static ContractResult failure(Operation operation, CallHeaders call, int timeout,
+            RuntimeException e) {
+        if (e instanceof ModeledException modeled) {
+            return modeledFailure(operation, modeled);
+        }
+        if (e instanceof TransportSocketTimeout) {
+            return timedOut(operation, timeout, e);
+        }
+        if (e instanceof TransportException) {
             return ContractResult.failure(operation.view(), 0, "No Smithy response was received",
                     e, null);
-        } catch (CallException e) {
+        }
+        if (e instanceof CallException) {
             int status = call.status() > 0 ? call.status() : 502;
             String reason = e.getMessage() != null && !e.getMessage().isBlank()
                     ? bounded(e.getMessage(), MAX_REASON)
                     : "The Smithy service answered " + status;
             return ContractResult.failure(operation.view(), status, reason, e, null);
-        } catch (RuntimeException e) {
-            int status = call.status() > 0 ? 502 : 0;
-            return ContractResult.failure(operation.view(), status,
-                    "The Smithy call failed: " + bounded(e.getMessage(), MAX_REASON), e, null);
         }
+        int status = call.status() > 0 ? 502 : 0;
+        return ContractResult.failure(operation.view(), status,
+                "The Smithy call failed: " + bounded(e.getMessage(), MAX_REASON), e, null);
+    }
+
+    static ContractResult timedOut(Operation operation, int timeout, Throwable e) {
+        return ContractResult.failure(operation.view(), 504,
+                "The Smithy call timed out after " + timeout + " ms", e, null);
     }
 
     static ContractResult modeledFailure(Operation operation, ModeledException e) {

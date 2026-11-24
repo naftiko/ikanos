@@ -34,10 +34,12 @@ import io.ikanos.spec.util.IkanosMappers;
  * Converts between the JSON trees of Ikanos and smithy-java {@link Document}s, which hold the
  * Smithy data model: member names (never {@code @jsonName}), typed scalars, no wire format.
  *
- * <p>Into a document, a JSON tree follows the input shape's schema only where JSON cannot say
- * the type: a blob is given as base64 text, and a number or a boolean may be given as text.
- * smithy-java then converts the rest ({@code StructDocument}), a timestamp from ISO-8601 text
- * or epoch seconds included.</p>
+ * <p>Into a document, a JSON tree follows the input shape's schema where JSON cannot say the
+ * type: a blob is given as base64 text, and a number or a boolean may be given as text. A number
+ * for a numeric member is converted exactly to the member's type: a fraction for an integral
+ * type, a value out of its range, or a finite value that a float or a double cannot hold is
+ * refused rather than narrowed. smithy-java then converts the rest ({@code StructDocument}), a
+ * timestamp from ISO-8601 text or epoch seconds included.</p>
  *
  * <p>Out of a document, members keep their names, a timestamp becomes ISO-8601 text, a blob
  * base64 text, and big integers and big decimals exact JSON numbers.</p>
@@ -54,8 +56,8 @@ final class SmithyDocuments {
      * @param node a JSON value
      * @param schema the schema of the shape it fills, or {@code null} when unknown
      * @return the untyped document
-     * @throws IllegalArgumentException for a blob that is not base64, or a number or boolean
-     *         text that does not parse
+     * @throws IllegalArgumentException for a blob that is not base64, a number or boolean text
+     *         that does not parse, or a number that the member's type cannot hold exactly
      */
     static Document toDocument(JsonNode node, Schema schema) {
         ShapeType type = schema != null ? schema.type() : null;
@@ -84,12 +86,18 @@ final class SmithyDocuments {
         if (node.isBoolean()) {
             return Document.of(node.asBoolean());
         }
-        if (node.isIntegralNumber()) {
-            return node.canConvertToLong() ? Document.of(node.asLong())
-                    : Document.of(node.bigIntegerValue());
-        }
         if (node.isNumber()) {
-            return Document.of(node.decimalValue());
+            BigDecimal value = node.isIntegralNumber() ? new BigDecimal(node.bigIntegerValue())
+                    : node.decimalValue();
+            Document typed = number(value, type, node.toString());
+            if (typed != null) {
+                return typed;
+            }
+            if (node.isIntegralNumber()) {
+                return node.canConvertToLong() ? Document.of(node.asLong())
+                        : Document.of(node.bigIntegerValue());
+            }
+            return Document.of(value);
         }
         throw new IllegalArgumentException("Unsupported JSON value " + node.getNodeType());
     }
@@ -105,9 +113,74 @@ final class SmithyDocuments {
         };
     }
 
+    /**
+     * A number converted exactly to a numeric shape type.
+     *
+     * @param value the number
+     * @param type the shape type, or {@code null} when unknown
+     * @param text the number as given, for error messages
+     * @return the typed document, or {@code null} when the type is not numeric
+     * @throws IllegalArgumentException when the type cannot hold the number exactly
+     */
+    static Document number(BigDecimal value, ShapeType type, String text) {
+        if (type == null) {
+            return null;
+        }
+        try {
+            return switch (type) {
+                case BYTE -> Document.of(integral(value, text).byteValueExact());
+                case SHORT -> Document.of(integral(value, text).shortValueExact());
+                case INTEGER, INT_ENUM -> Document.of(integral(value, text).intValueExact());
+                case LONG -> Document.of(integral(value, text).longValueExact());
+                case BIG_INTEGER -> Document.of(integral(value, text).toBigIntegerExact());
+                case FLOAT -> {
+                    float single = value.floatValue();
+                    if (Float.isInfinite(single)) {
+                        throw new ArithmeticException();
+                    }
+                    yield Document.of(single);
+                }
+                case DOUBLE -> {
+                    double dual = value.doubleValue();
+                    if (Double.isInfinite(dual)) {
+                        throw new ArithmeticException();
+                    }
+                    yield Document.of(dual);
+                }
+                case BIG_DECIMAL -> Document.of(value);
+                default -> null;
+            };
+        } catch (ArithmeticException e) {
+            throw new IllegalArgumentException("'" + text + "' is out of range for "
+                    + type, e);
+        }
+    }
+
+    /** The number itself, refused when it has a fraction. */
+    private static BigDecimal integral(BigDecimal value, String text) {
+        if (value.signum() != 0 && value.stripTrailingZeros().scale() > 0) {
+            throw new IllegalArgumentException("'" + text + "' is not an integer");
+        }
+        return value;
+    }
+
     private static Document fromText(String text, ShapeType type) {
         if (type == null) {
             return Document.of(text);
+        }
+        String trimmed = text.trim();
+        if (type == ShapeType.FLOAT || type == ShapeType.DOUBLE) {
+            // The texts toJson writes for the values JSON has no number for
+            Double special = switch (trimmed) {
+                case "NaN" -> Double.NaN;
+                case "Infinity" -> Double.POSITIVE_INFINITY;
+                case "-Infinity" -> Double.NEGATIVE_INFINITY;
+                default -> null;
+            };
+            if (special != null) {
+                return type == ShapeType.FLOAT ? Document.of(special.floatValue())
+                        : Document.of(special.doubleValue());
+            }
         }
         try {
             return switch (type) {
@@ -119,13 +192,12 @@ final class SmithyDocuments {
                     }
                     yield Document.of(Boolean.parseBoolean(text.trim()));
                 }
-                case BYTE, SHORT, INTEGER, INT_ENUM, LONG, BIG_INTEGER -> Document.of(
-                        new BigDecimal(text.trim()).toBigIntegerExact());
-                case FLOAT, DOUBLE, BIG_DECIMAL -> Document.of(new BigDecimal(text.trim()));
+                case BYTE, SHORT, INTEGER, INT_ENUM, LONG, BIG_INTEGER, FLOAT, DOUBLE,
+                        BIG_DECIMAL -> number(new BigDecimal(trimmed), type, text);
                 default -> Document.of(text);
             };
-        } catch (ArithmeticException e) {
-            throw new IllegalArgumentException("'" + text + "' is not an integer", e);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("'" + text + "' is not a number", e);
         }
     }
 
@@ -166,8 +238,11 @@ final class SmithyDocuments {
             case STRING, ENUM -> NODES.stringNode(document.asString());
             case TIMESTAMP -> NODES.stringNode(document.asTimestamp().toString());
             case BYTE, SHORT, INTEGER, INT_ENUM, LONG -> NODES.numberNode(document.asLong());
-            case FLOAT -> finite(document.asFloat(), new BigDecimal(
-                    Float.toString(document.asFloat())));
+            case FLOAT -> {
+                float single = document.asFloat();
+                yield finite(single, Float.isFinite(single)
+                        ? new BigDecimal(Float.toString(single)) : null);
+            }
             case DOUBLE -> finite(document.asDouble(), null);
             case BIG_INTEGER -> NODES.numberNode(document.asBigInteger());
             case BIG_DECIMAL -> NODES.numberNode(document.asBigDecimal());

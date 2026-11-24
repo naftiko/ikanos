@@ -2,13 +2,16 @@ $version: "2"
 
 namespace example.tracker
 
+use aws.auth#sigv4
 use aws.protocols#restJson1
 
-/// An issue tracker, answered in-process by the tests.
+/// An issue tracker, answered in-process by the tests. The signing name of the sigv4 trait
+/// differs from the namespace, so a test can tell where the signing name came from.
 @restJson1
+@sigv4(name: "issues")
 service Tracker {
     version: "2024-01-01"
-    operations: [GetIssue, CreateIssue, SlowCall, EchoHeaders]
+    operations: [GetIssue, CreateIssue, SlowCall, SlowBodyCall, EchoHeaders]
     errors: [ServerFault]
 }
 
@@ -50,6 +53,8 @@ operation CreateIssue {
         labels: LabelMap
 
         fields: FieldMap
+
+        review: Review
     }
     output := {
         @required
@@ -67,6 +72,15 @@ operation SlowCall {
     }
 }
 
+/// The response head comes at once, the body only after a delay.
+@readonly
+@http(method: "GET", uri: "/slow-body")
+operation SlowBodyCall {
+    output := {
+        done: Boolean
+    }
+}
+
 @readonly
 @http(method: "GET", uri: "/headers")
 operation EchoHeaders {
@@ -74,12 +88,20 @@ operation EchoHeaders {
         authorization: String
         tenant: String
         traceparent: Boolean
+        signatureValid: Boolean
     }
 }
 
 structure Details {
     assignee: String
     estimate: BigDecimal
+}
+
+structure Review {
+    @required
+    reviewer: String
+
+    note: String
 }
 
 map LabelMap {

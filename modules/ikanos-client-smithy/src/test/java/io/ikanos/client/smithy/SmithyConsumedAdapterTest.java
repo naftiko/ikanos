@@ -18,11 +18,20 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.security.GeneralSecurityException;
+import java.security.MessageDigest;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.Map;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -34,6 +43,7 @@ import org.restlet.Restlet;
 import org.restlet.data.MediaType;
 import org.restlet.data.Protocol;
 import org.restlet.data.Status;
+import org.restlet.representation.OutputRepresentation;
 import io.ikanos.engine.consumes.ClientAdapterRegistry;
 import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.engine.consumes.contract.ContractResult;
@@ -52,6 +62,9 @@ class SmithyConsumedAdapterTest {
     private static int port;
     private static Path model;
 
+    /** The secret access key of the awsSigV4 tests, which the upstream checks signatures with. */
+    private static final String SECRET = "secret";
+
     /** Answers the operations of the Tracker service, deterministically. */
     static final class Tracker extends Restlet {
 
@@ -62,7 +75,8 @@ class SmithyConsumedAdapterTest {
             if (path.equals("/headers")) {
                 json(response, 200, "{\"authorization\":" + quoted(header(request,
                         "Authorization")) + ",\"tenant\":" + quoted(header(request, "X-Tenant"))
-                        + ",\"traceparent\":" + (header(request, "traceparent") != null) + "}");
+                        + ",\"traceparent\":" + (header(request, "traceparent") != null)
+                        + ",\"signatureValid\":" + signatureValid(request) + "}");
             } else if (path.equals("/slow")) {
                 try {
                     Thread.sleep(3000);
@@ -70,6 +84,9 @@ class SmithyConsumedAdapterTest {
                     Thread.currentThread().interrupt();
                 }
                 json(response, 200, "{\"done\":true}");
+            } else if (path.equals("/slow-body")) {
+                response.setStatus(Status.SUCCESS_OK);
+                response.setEntity(new DelayedBody());
             } else if (path.startsWith("/projects/")) {
                 String body = request.getEntityAsText();
                 String received = request.getMethod() + " " + path + "?" + query + " " + body;
@@ -80,6 +97,9 @@ class SmithyConsumedAdapterTest {
                         + "\"message\":\"Issue missing not found\"}");
             } else if (path.equals("/issues/fault")) {
                 json(response, 500, "{\"__type\":\"ServerFault\",\"message\":\"Store down\"}");
+            } else if (path.equals("/issues/moved")) {
+                response.setStatus(Status.REDIRECTION_FOUND);
+                response.setLocationRef("http://localhost:" + port + "/issues/elsewhere");
             } else if (path.equals("/issues/teapot")) {
                 response.setStatus(Status.valueOf(418));
             } else if (path.startsWith("/issues/")) {
@@ -97,6 +117,82 @@ class SmithyConsumedAdapterTest {
             return request.getHeaders().getFirstValue(name, true);
         }
 
+        /**
+         * Recomputes the SigV4 signature of the request received, from its method, path, query,
+         * signed headers and body, with {@code SECRET} and the scope of its Authorization header.
+         */
+        static boolean signatureValid(Request request) {
+            String authorization = header(request, "Authorization");
+            String prefix = "AWS4-HMAC-SHA256 ";
+            if (authorization == null || !authorization.startsWith(prefix)) {
+                return false;
+            }
+            Map<String, String> parts = new HashMap<>();
+            for (String part : authorization.substring(prefix.length()).split(",")) {
+                String[] pair = part.trim().split("=", 2);
+                parts.put(pair[0], pair.length > 1 ? pair[1] : "");
+            }
+            String credential = parts.get("Credential");
+            String signedHeaders = parts.get("SignedHeaders");
+            if (credential == null || signedHeaders == null || !credential.contains("/")) {
+                return false;
+            }
+            String scope = credential.substring(credential.indexOf('/') + 1);
+            StringBuilder canonical = new StringBuilder()
+                    .append(request.getMethod().getName()).append('\n')
+                    .append(request.getResourceRef().getPath()).append('\n')
+                    .append(canonicalQuery(request.getResourceRef().getQuery())).append('\n');
+            for (String name : signedHeaders.split(";")) {
+                String value = request.getHeaders().getValues(name, ",", true);
+                if (value == null && name.equals("host")) {
+                    value = "localhost:" + port;
+                }
+                canonical.append(name).append(':')
+                        .append(value == null ? "" : value.trim().replaceAll(" +", " "))
+                        .append('\n');
+            }
+            String body = request.isEntityAvailable() ? request.getEntityAsText() : null;
+            canonical.append('\n').append(signedHeaders).append('\n')
+                    .append(sha256(body == null ? "" : body));
+            String stringToSign = "AWS4-HMAC-SHA256\n" + header(request, "X-Amz-Date") + "\n"
+                    + scope + "\n" + sha256(canonical.toString());
+            // date, region, service, aws4_request
+            byte[] key = ("AWS4" + SECRET).getBytes(StandardCharsets.UTF_8);
+            for (String segment : scope.split("/")) {
+                key = hmac(key, segment);
+            }
+            return HexFormat.of().formatHex(hmac(key, stringToSign))
+                    .equals(parts.get("Signature"));
+        }
+
+        private static String canonicalQuery(String query) {
+            if (query == null || query.isEmpty()) {
+                return "";
+            }
+            String[] pairs = query.split("&");
+            Arrays.sort(pairs);
+            return String.join("&", pairs);
+        }
+
+        private static String sha256(String text) {
+            try {
+                return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                        .digest(text.getBytes(StandardCharsets.UTF_8)));
+            } catch (GeneralSecurityException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+
+        private static byte[] hmac(byte[] key, String data) {
+            try {
+                Mac mac = Mac.getInstance("HmacSHA256");
+                mac.init(new SecretKeySpec(key, "HmacSHA256"));
+                return mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
+            } catch (GeneralSecurityException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+
         private static String quoted(String text) {
             return text == null ? "null" : IkanosMappers.json().getNodeFactory()
                     .stringNode(text).toString();
@@ -105,6 +201,27 @@ class SmithyConsumedAdapterTest {
         private static void json(Response response, int status, String body) {
             response.setStatus(Status.valueOf(status));
             response.setEntity(body, MediaType.APPLICATION_JSON);
+        }
+    }
+
+    /** A JSON body whose first byte is sent at once, the rest three seconds later. */
+    static final class DelayedBody extends OutputRepresentation {
+
+        DelayedBody() {
+            super(MediaType.APPLICATION_JSON);
+        }
+
+        @Override
+        public void write(OutputStream out) throws IOException {
+            out.write('{');
+            out.flush();
+            try {
+                Thread.sleep(3000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            out.write("\"done\":true}".getBytes(StandardCharsets.UTF_8));
+            out.flush();
         }
     }
 
@@ -124,7 +241,10 @@ class SmithyConsumedAdapterTest {
     }
 
     private static Path resource(String name) throws URISyntaxException {
-        return Path.of(SmithyConsumedAdapterTest.class.getClassLoader().getResource(name).toURI());
+        // Relative to the working directory, the capability directory of an adapter built without
+        // a capability: contract files outside it are refused.
+        return Path.of("").toAbsolutePath().relativize(
+                Path.of(SmithyConsumedAdapterTest.class.getClassLoader().getResource(name).toURI()));
     }
 
     private static SmithyClientSpec spec(String operations, String extra) throws Exception {
@@ -168,6 +288,13 @@ class SmithyConsumedAdapterTest {
             slow:
               description: Slow.
               operation: SlowCall
+              timeoutMs: 300
+            """;
+
+    private static final String SLOW_BODY = """
+            slow-body:
+              description: Slow body.
+              operation: SlowBodyCall
               timeoutMs: 300
             """;
 
@@ -336,6 +463,21 @@ class SmithyConsumedAdapterTest {
     }
 
     @Test
+    void timeoutShouldFailWith504WhenTheBodyComesLate() throws Exception {
+        SmithyConsumedAdapter adapter = started(spec(SLOW_BODY, ""));
+        try {
+            long start = System.nanoTime();
+            ConsumedResult result = call(adapter, "slow-body", Map.of());
+
+            assertEquals(504, result.status(), String.valueOf(result.reason()));
+            assertTrue(System.nanoTime() - start < 2_500_000_000L,
+                    "timeoutMs bounds the body as well as the head");
+        } finally {
+            adapter.stop();
+        }
+    }
+
+    @Test
     void connectionFailureShouldReportNoResponse() throws Exception {
         int closed;
         try (ServerSocket socket = new ServerSocket(0)) {
@@ -374,18 +516,21 @@ class SmithyConsumedAdapterTest {
         }
     }
 
+    private static final String SIGV4 = """
+            authentication:
+              type: awsSigV4
+              accessKeyId: AKIDEXAMPLE
+              secretAccessKey: %s
+              region: eu-west-1
+              %s
+            inputParameters:
+              X-Tenant: { in: header, value: acme }
+            """;
+
     @Test
     void awsSigV4ShouldSignTheRequest() throws Exception {
-        SmithyConsumedAdapter adapter = started(spec(HEADERS, """
-                authentication:
-                  type: awsSigV4
-                  accessKeyId: AKIDEXAMPLE
-                  secretAccessKey: secret
-                  region: eu-west-1
-                  service: tracker
-                inputParameters:
-                  X-Tenant: { in: header, value: acme }
-                """));
+        SmithyConsumedAdapter adapter = started(spec(HEADERS,
+                SIGV4.formatted(SECRET, "service: tracker")));
         try {
             ConsumedResult result = call(adapter, "headers", Map.of());
 
@@ -396,7 +541,40 @@ class SmithyConsumedAdapterTest {
             assertTrue(authorization.contains("/eu-west-1/tracker/aws4_request"), authorization);
             assertTrue(authorization.contains("x-tenant"), "static headers are signed: "
                     + authorization);
+            assertTrue(result.document().get("signatureValid").asBoolean(),
+                    "the upstream recomputes the signature: " + authorization);
             assertEquals("acme", result.document().get("tenant").asString());
+        } finally {
+            adapter.stop();
+        }
+    }
+
+    @Test
+    void awsSigV4ShouldSignWithTheModelSigningNameWhenServiceIsOmitted() throws Exception {
+        SmithyConsumedAdapter adapter = started(spec(HEADERS, SIGV4.formatted(SECRET, "")));
+        try {
+            ConsumedResult result = call(adapter, "headers", Map.of());
+
+            assertEquals(200, result.status(), String.valueOf(result.reason()));
+            String authorization = result.document().get("authorization").asString();
+            assertTrue(authorization.contains("/eu-west-1/issues/aws4_request"),
+                    "the name of @aws.auth#sigv4: " + authorization);
+            assertTrue(result.document().get("signatureValid").asBoolean(), authorization);
+        } finally {
+            adapter.stop();
+        }
+    }
+
+    @Test
+    void awsSigV4ShouldFailOnARedirectRatherThanFollowIt() throws Exception {
+        SmithyConsumedAdapter adapter = started(spec(GET_ISSUE,
+                SIGV4.formatted(SECRET, "service: tracker")));
+        try {
+            ConsumedResult result = call(adapter, "get-issue", Map.of("id", "moved"));
+
+            assertEquals(302, result.status(), "not followed to /issues/elsewhere: "
+                    + result.reason());
+            assertFalse(result.isSuccessful());
         } finally {
             adapter.stop();
         }
@@ -465,6 +643,59 @@ class SmithyConsumedAdapterTest {
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> new SmithyConsumedAdapter(null, spec, Map.of()));
         assertTrue(e.getMessage().contains("[title]"), e.getMessage());
+    }
+
+    @Test
+    void constructorShouldRefuseARequiredMemberFilledOnlyByAnOptionalInput() throws Exception {
+        SmithyClientSpec spec = spec("""
+                create-issue:
+                  description: Create an issue.
+                  operation: CreateIssue
+                  inputParameters:
+                    project-id: { type: string, required: true, description: Project., wireName: projectId }
+                    title: { type: string, description: Title left out when absent. }
+                """, "");
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> new SmithyConsumedAdapter(null, spec, Map.of()));
+        assertTrue(e.getMessage().contains("[title]"), e.getMessage());
+    }
+
+    @Test
+    void constructorShouldAcceptARequiredMemberFilledByAnInputWithADefault() throws Exception {
+        SmithyConsumedAdapter adapter = new SmithyConsumedAdapter(null, spec("""
+                create-issue:
+                  description: Create an issue.
+                  operation: CreateIssue
+                  inputParameters:
+                    project-id: { type: string, required: true, description: Project., wireName: projectId }
+                    title: { type: string, default: Untitled, description: Title. }
+                """, ""), Map.of());
+
+        assertTrue(adapter.declaresOperation("create-issue"));
+    }
+
+    @Test
+    void constructorShouldRefuseARequiredMemberOfANestedStructureThatNoInputFills()
+            throws Exception {
+        SmithyClientSpec spec = spec(CREATE_ISSUE + """
+                    note: { type: string, description: Review note., wireName: review.note }
+                """, "");
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> new SmithyConsumedAdapter(null, spec, Map.of()));
+        assertTrue(e.getMessage().contains("[review.reviewer]"), e.getMessage());
+    }
+
+    @Test
+    void constructorShouldAcceptANestedStructureWhoseRequiredMembersAreFilled()
+            throws Exception {
+        SmithyConsumedAdapter adapter = new SmithyConsumedAdapter(null, spec(CREATE_ISSUE + """
+                    note: { type: string, description: Review note., wireName: review.note }
+                    reviewer: { type: string, required: true, description: Reviewer., wireName: review.reviewer }
+                """, ""), Map.of());
+
+        assertTrue(adapter.declaresOperation("create-issue"));
     }
 
     @Test
