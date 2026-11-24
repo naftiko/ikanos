@@ -13,6 +13,7 @@
  */
 package io.ikanos;
 
+import io.ikanos.engine.consumes.tunnel.TestServiceLoaderFakeTunnel;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.VersionHelper;
 import io.ikanos.utils.TestUtils;
@@ -22,6 +23,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class CapabilityBootstrapTest {
 
@@ -117,5 +119,48 @@ public class CapabilityBootstrapTest {
         assertThat(path).isNotNull();
         assertThat(registryToken).isEqualTo("dummy-token");
         assertThat(unknown).isNull();
+    }
+
+    @Test
+    public void constructorShouldCloseTheStartedTunnelsWhenAConsumedAdapterCannotBeBuilt()
+            throws Exception {
+        // The engine's tests have no ikanos-client-grpc module: the tunneled gRPC client fails to
+        // build after its tunnel started, and the rejected capability must close that tunnel.
+        IkanosSpec spec = TestUtils.parseYaml("""
+                ikanos: "%s"
+                capability:
+                  exposes:
+                    - type: "rest"
+                      address: "localhost"
+                      port: 0
+                      namespace: "orders-api"
+                      resources:
+                        - path: "/orders"
+                          operations:
+                            - method: "GET"
+                              name: "list-orders"
+                  consumes:
+                    - type: "grpc"
+                      namespace: "orders"
+                      endpoint: "http://orders.internal:50051"
+                      descriptorSet: "orders.binpb"
+                      service: "test.orders.OrderService"
+                      tunnel:
+                        type: "ziti"
+                        service: "orders"
+                        identity: "/etc/ziti/app.json"
+                      procedures:
+                        get-order:
+                          description: "One order."
+                          rpc: "GetOrder"
+                """.formatted(schemaVersion));
+        int closedBefore = TestServiceLoaderFakeTunnel.CLOSED.get();
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> new Capability(spec));
+
+        assertTrue(error.getMessage().contains("ikanos-client-grpc"), error.getMessage());
+        assertEquals(closedBefore + 1, TestServiceLoaderFakeTunnel.CLOSED.get(),
+                "the tunnel started for the rejected capability is closed");
     }
 }
