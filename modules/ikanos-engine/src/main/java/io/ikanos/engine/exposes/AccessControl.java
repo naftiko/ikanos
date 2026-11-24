@@ -118,7 +118,9 @@ public final class AccessControl {
      * <p>The engine does not validate these claims: passing them asserts that the caller holds
      * them.</p>
      *
-     * @param requirement the requirement that applies ({@link #effective}), or {@code null} for none
+     * @param requirement the requirement that applies, or {@code null} for none: for an MCP tool,
+     *        {@link io.ikanos.engine.exposes.mcp.McpServerAdapter#requirementFor}, which finds the
+     *        tool by the name {@code handleToolCall} receives
      * @param claims the validated claims, by claim name, or {@code null} when the caller has none
      * @return {@code null} when the call may proceed, else why it may not: missing claims get the
      *         denial of a request without a validated token
