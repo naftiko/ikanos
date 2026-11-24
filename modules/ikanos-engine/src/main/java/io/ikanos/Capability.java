@@ -311,7 +311,8 @@ public class Capability {
             // contract-described adapter may come from its contract, known only now.
             ConsumedWriteExposure.validate(spec.getCapability(), this, clientList);
             ConsumedReferenceValidator.validate(spec.getCapability(), clientList);
-        } catch (RuntimeException e) {
+        } catch (RuntimeException | Error e) {
+            // An Error too: a module missing a dependency fails with NoClassDefFoundError
             for (Tunnel tunnel : tunnels.values()) {
                 try {
                     tunnel.close();
