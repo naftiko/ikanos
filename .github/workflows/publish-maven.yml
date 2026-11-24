@@ -25,6 +25,8 @@ jobs:
       - uses: actions/setup-java@v5
         with:
           java-version: '25'
+          # The latest 25.x build, not the runner's cached one: the JDK we ship gets its security fixes.
+          check-latest: true
           distribution: 'temurin'
 
       - name: Publish to GitHub Packages (release)
@@ -46,6 +48,8 @@ jobs:
       - uses: actions/setup-java@v5
         with:
           java-version: '25'
+          # The latest 25.x build, not the runner's cached one: the JDK we ship gets its security fixes.
+          check-latest: true
           distribution: 'temurin'
           cache: 'maven'
 
@@ -100,6 +104,8 @@ jobs:
       - uses: actions/setup-java@v5
         with:
           java-version: '25'
+          # The latest 25.x build, not the runner's cached one: the JDK we ship gets its security fixes.
+          check-latest: true
           distribution: 'temurin'
 
       - name: Get version
