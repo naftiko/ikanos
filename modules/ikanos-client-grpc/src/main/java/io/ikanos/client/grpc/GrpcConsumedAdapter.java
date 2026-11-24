@@ -569,7 +569,7 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
         String where = getNamespace() + "." + operationName;
         ContractRequest request = ContractRequest.build(procedure.spec().getInputParameters(),
                 parameters, where);
-        boundNumbers(request.tree(), "", where);
+        boundNumbers(request.tree(), procedure.method().getInputType(), "", where);
         DynamicMessage.Builder builder =
                 DynamicMessage.newBuilder(procedure.method().getInputType());
         try {
@@ -591,41 +591,128 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
     }
 
     /**
-     * Refuses a number, or a text that reads as one, with too many digits for the exact
-     * conversions of protobuf's JSON parser: proto3 JSON gives a 64-bit integer as text, which
-     * the parser converts with {@code toBigIntegerExact}, so the bound of
-     * {@link ContractRequest#boundedNumber} must hold for every value of the tree.
+     * Refuses a number with too many digits for the exact conversions of protobuf's JSON parser,
+     * wherever the input message gives a numeric type: a field, a map key, a list item or a
+     * numeric wrapper. proto3 JSON gives a 64-bit integer (and any map key) as text, which the
+     * parser converts with {@code toBigIntegerExact}, so the bound of
+     * {@link ContractRequest#boundedNumber} must hold there; a {@code string} or {@code bytes}
+     * field keeps any text. Inside a {@code google.protobuf.Any}, whose packed type is only known
+     * to the parser, every number and every text that reads as one is bounded.
      *
      * @param node a value of the request tree
+     * @param message the message type it fills
      * @param path its wire path, for the error message
      * @param where the procedure, for the error message
      * @throws IllegalArgumentException for a number with too many digits
      */
-    static void boundNumbers(JsonNode node, String path, String where) {
+    static void boundNumbers(JsonNode node, Descriptor message, String path, String where) {
+        String type = message.getFullName();
+        if (NUMERIC_WRAPPERS.contains(type)) {
+            boundNumber(node, path, where);
+            return;
+        }
+        if (type.equals("google.protobuf.Any")) {
+            boundAll(node, path, where);
+            return;
+        }
+        if (!node.isObject() || OPAQUE_TYPES.contains(type) || type.equals(STRUCT)) {
+            return; // no exact integer conversion: text, a Struct, a Value or a ListValue
+        }
+        for (Map.Entry<String, JsonNode> entry : node.properties()) {
+            FieldDescriptor field = fieldOf(message, entry.getKey());
+            if (field == null) {
+                continue; // the parser refuses a field the message does not define
+            }
+            String fieldPath = path.isEmpty() ? entry.getKey() : path + "." + entry.getKey();
+            JsonNode value = entry.getValue();
+            if (field.isMapField()) {
+                FieldDescriptor key = field.getMessageType().findFieldByName("key");
+                FieldDescriptor mapValue = field.getMessageType().findFieldByName("value");
+                for (Map.Entry<String, JsonNode> item : value.properties()) {
+                    String itemPath = fieldPath + "." + item.getKey();
+                    if (isNumeric(key)) {
+                        boundNumber(JSON.getNodeFactory().stringNode(item.getKey()), itemPath,
+                                where);
+                    }
+                    boundValue(item.getValue(), mapValue, itemPath, where);
+                }
+            } else if (field.isRepeated() && value.isArray()) {
+                int index = 0;
+                for (JsonNode element : value) {
+                    boundValue(element, field, fieldPath + "[" + index++ + "]", where);
+                }
+            } else {
+                boundValue(value, field, fieldPath, where);
+            }
+        }
+    }
+
+    /** The integer and floating types, and their wrappers, that the parser converts. */
+    static final Set<String> NUMERIC_WRAPPERS = Set.of("google.protobuf.DoubleValue",
+            "google.protobuf.FloatValue", "google.protobuf.Int32Value",
+            "google.protobuf.Int64Value", "google.protobuf.UInt32Value",
+            "google.protobuf.UInt64Value");
+
+    private static void boundValue(JsonNode value, FieldDescriptor field, String path,
+            String where) {
+        if (field.getJavaType() == FieldDescriptor.JavaType.MESSAGE) {
+            boundNumbers(value, field.getMessageType(), path, where);
+        } else if (isNumeric(field)) {
+            boundNumber(value, path, where);
+        }
+    }
+
+    private static boolean isNumeric(FieldDescriptor field) {
+        return switch (field.getJavaType()) {
+            case INT, LONG, FLOAT, DOUBLE -> true;
+            default -> false;
+        };
+    }
+
+    /** The field a proto3 JSON key names: its json_name or its proto name, as the parser reads. */
+    private static FieldDescriptor fieldOf(Descriptor message, String key) {
+        for (FieldDescriptor field : message.getFields()) {
+            if (field.getJsonName().equals(key) || field.getName().equals(key)) {
+                return field;
+            }
+        }
+        return null;
+    }
+
+    /** Every number, text that reads as one, and object key, at any depth. */
+    private static void boundAll(JsonNode node, String path, String where) {
         if (node.isObject()) {
-            for (Map.Entry<String, JsonNode> field : node.properties()) {
-                boundNumbers(field.getValue(),
-                        path.isEmpty() ? field.getKey() : path + "." + field.getKey(), where);
+            for (Map.Entry<String, JsonNode> entry : node.properties()) {
+                String entryPath = path.isEmpty() ? entry.getKey() : path + "." + entry.getKey();
+                boundNumber(JSON.getNodeFactory().stringNode(entry.getKey()), entryPath, where);
+                boundAll(entry.getValue(), entryPath, where);
             }
         } else if (node.isArray()) {
             int index = 0;
             for (JsonNode element : node) {
-                boundNumbers(element, path + "[" + index++ + "]", where);
+                boundAll(element, path + "[" + index++ + "]", where);
             }
-        } else if (node.isNumber() || node.isString()) {
-            BigDecimal value;
-            try {
-                value = node.isNumber() ? node.decimalValue()
-                        : new BigDecimal(node.asString().trim());
-            } catch (RuntimeException notANumber) {
-                return; // not a number, or infinite: the parser refuses it on its own
-            }
-            try {
-                ContractRequest.boundedNumber(value);
-            } catch (ArithmeticException e) {
-                throw new IllegalArgumentException("The input '" + path + "' of " + where
-                        + " has more than " + ContractRequest.MAX_NUMBER_DIGITS + " digits", e);
-            }
+        } else {
+            boundNumber(node, path, where);
+        }
+    }
+
+    private static void boundNumber(JsonNode node, String path, String where) {
+        if (!node.isNumber() && !node.isString()) {
+            return;
+        }
+        BigDecimal value;
+        try {
+            value = node.isNumber() ? node.decimalValue()
+                    : new BigDecimal(node.asString().trim());
+        } catch (RuntimeException notANumber) {
+            return; // not a number, or infinite: the parser refuses it on its own
+        }
+        try {
+            ContractRequest.boundedNumber(value);
+        } catch (ArithmeticException e) {
+            throw new IllegalArgumentException("The input '" + path + "' of " + where
+                    + " has more than " + ContractRequest.MAX_NUMBER_DIGITS + " digits", e);
         }
     }
 

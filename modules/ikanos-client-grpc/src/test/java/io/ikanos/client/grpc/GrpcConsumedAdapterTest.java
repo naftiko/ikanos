@@ -175,6 +175,8 @@ class GrpcConsumedAdapterTest {
                   inputParameters:
                     order-id: { type: string, required: true, description: Order id., wireName: id }
                     points: { type: string, description: Loyalty points. }
+                    reason: { type: string, description: Why. }
+                    tallies: { type: object, description: Tallies by count. }
                 """, ""), Map.of());
 
         assertDoesNotThrow(() -> adapter.prepare("cancel-order",
@@ -183,6 +185,21 @@ class GrpcConsumedAdapterTest {
                 () -> adapter.prepare("cancel-order",
                         new HashMap<>(Map.of("order-id", "7", "points", "1e1000000000"))));
         assertTrue(refused.getMessage().contains("points"), refused.getMessage());
+        assertThrows(IllegalArgumentException.class, () -> adapter.prepare("cancel-order",
+                new HashMap<>(Map.of("order-id", "7", "points", "1e-1000000000"))),
+                "a number too small");
+        IllegalArgumentException key = assertThrows(IllegalArgumentException.class,
+                () -> adapter.prepare("cancel-order", new HashMap<>(Map.of("order-id", "7",
+                        "tallies", "{\"1e100000000\": \"x\"}"))));
+        assertTrue(key.getMessage().contains("tallies"), key.getMessage());
+    }
+
+    @Test
+    void prepareShouldKeepATextThatReadsAsAHugeNumberInAStringField() throws Exception {
+        GrpcConsumedAdapter adapter = new GrpcConsumedAdapter(null, spec(), Map.of());
+
+        assertDoesNotThrow(() -> adapter.prepare("cancel-order",
+                new HashMap<>(Map.of("order-id", "1e2000", "reason", "1e2000"))));
     }
 
     @Test
