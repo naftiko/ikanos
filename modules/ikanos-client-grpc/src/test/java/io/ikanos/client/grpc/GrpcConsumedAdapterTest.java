@@ -280,6 +280,8 @@ class GrpcConsumedAdapterTest {
             assertFalse(tunnel.hosts.isEmpty(), "the call should be dialed through the tunnel");
             assertTrue(tunnel.hosts.stream().allMatch("orders.tunnel.invalid"::equals),
                     "the tunnel is dialed on the host name: " + tunnel.hosts);
+            assertEquals("orders.tunnel.invalid:50051", fixture.lastAuthority.get(),
+                    "the server sees the endpoint's authority, not the placeholder address");
         } finally {
             adapter.stop();
         }

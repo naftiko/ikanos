@@ -488,6 +488,12 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
         public void handle(Request request, Response response) {
             if (routeHost != null) {
                 request.getResourceRef().setHostDomain(routeHost);
+                // ext.grpc sets the base reference to grpc-java's authority (the placeholder
+                // address), and Restlet writes Host, sent as :authority, from it
+                org.restlet.data.Reference base = request.getResourceRef().getBaseRef();
+                if (base != null) {
+                    base.setHostDomain(routeHost);
+                }
             }
             Series<Header> raw = new Series<>(Header.class);
             for (Header header : request.getHeaders()) {

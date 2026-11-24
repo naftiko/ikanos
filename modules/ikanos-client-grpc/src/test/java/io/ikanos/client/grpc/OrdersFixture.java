@@ -53,6 +53,7 @@ final class OrdersFixture {
     final FileDescriptor file;
     final ServiceDescriptor service;
     final AtomicReference<Metadata> lastHeaders = new AtomicReference<>();
+    final AtomicReference<String> lastAuthority = new AtomicReference<>();
     final AtomicReference<DynamicMessage> lastCancel = new AtomicReference<>();
     private Server server;
 
@@ -231,6 +232,7 @@ final class OrdersFixture {
             public <Q, S> ServerCall.Listener<Q> interceptCall(ServerCall<Q, S> call,
                     Metadata headers, ServerCallHandler<Q, S> next) {
                 lastHeaders.set(headers);
+                lastAuthority.set(call.getAuthority());
                 return Contexts.interceptCall(io.grpc.Context.current(), call, headers, next);
             }
         };
