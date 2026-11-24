@@ -137,22 +137,26 @@ public final class ContractRequest {
     }
 
     /**
-     * The most integral digits a number may have. A short text such as {@code 1e20000000} is a
-     * number of twenty million digits, which an exact conversion takes unbounded time to build,
-     * before the call and its timeout start.
+     * The most digits a number may have before or after its point. A short text such as
+     * {@code 1e20000000}, or {@code 1e-20000000}, is a number of twenty million digits, which an
+     * exact conversion takes unbounded time to build, before the call and its timeout start.
      */
     public static final int MAX_NUMBER_DIGITS = 1000;
 
     /**
-     * Refuses a number with more than {@link #MAX_NUMBER_DIGITS} integral digits, to call before
-     * any exact conversion of an input value.
+     * Refuses a nonzero number with more than {@link #MAX_NUMBER_DIGITS} integral digits, or more
+     * than {@link #MAX_NUMBER_DIGITS} zeros after its point before its first significant digit,
+     * to call before any exact conversion of an input value.
      *
      * @return the number itself
-     * @throws ArithmeticException when it is too large
+     * @throws ArithmeticException when it is too large or too small
      */
     public static BigDecimal boundedNumber(BigDecimal value) {
-        if (value.signum() != 0 && (long) value.precision() - value.scale() > MAX_NUMBER_DIGITS) {
-            throw new ArithmeticException("more than " + MAX_NUMBER_DIGITS + " digits");
+        if (value.signum() != 0) {
+            long integral = (long) value.precision() - value.scale();
+            if (integral > MAX_NUMBER_DIGITS || -integral > MAX_NUMBER_DIGITS) {
+                throw new ArithmeticException("more than " + MAX_NUMBER_DIGITS + " digits");
+            }
         }
         return value;
     }
