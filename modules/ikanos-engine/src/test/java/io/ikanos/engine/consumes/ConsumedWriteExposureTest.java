@@ -13,45 +13,57 @@
  */
 package io.ikanos.engine.consumes;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import io.ikanos.Capability;
+import io.ikanos.engine.aggregates.Aggregate;
+import io.ikanos.engine.aggregates.AggregateFlow;
 import io.ikanos.engine.consumes.contract.ContractClientAdapter;
+import io.ikanos.spec.CapabilitySpec;
+import io.ikanos.spec.IkanosSpec;
+import io.ikanos.spec.aggregates.AggregateSpec;
 import io.ikanos.spec.exposes.ServerCallSpec;
+import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.spec.util.OperationStepCallSpec;
 import io.ikanos.spec.util.OperationStepSpec;
+import io.ikanos.spec.util.VersionHelper;
 
 class ConsumedWriteExposureTest {
 
     @Test
-    void contractWriteShouldAskTheAdapterOfTheNamespace() {
+    void consumedWriteShouldAskTheAdapterOfTheNamespace() {
         ContractClientAdapter orders = mock(ContractClientAdapter.class);
         when(orders.getNamespace()).thenReturn("orders");
         when(orders.isWriteOperation("cancel-order")).thenReturn(true);
 
-        assertTrue(ConsumedWriteExposure.contractWrite(List.of(orders), "orders.cancel-order"));
-        assertFalse(ConsumedWriteExposure.contractWrite(List.of(orders), "orders.get-order"));
-        assertFalse(ConsumedWriteExposure.contractWrite(List.of(orders), "other.cancel-order"));
-        assertFalse(ConsumedWriteExposure.contractWrite(List.of(orders), "no-dot"));
+        assertTrue(ConsumedWriteExposure.consumedWrite(List.of(orders), "orders.cancel-order"));
+        assertFalse(ConsumedWriteExposure.consumedWrite(List.of(orders), "orders.get-order"));
+        assertFalse(ConsumedWriteExposure.consumedWrite(List.of(orders), "other.cancel-order"));
+        assertFalse(ConsumedWriteExposure.consumedWrite(List.of(orders), "no-dot"));
     }
 
     @Test
-    void contractWriteShouldIgnoreOtherAdapters() {
+    void consumedWriteShouldAskAnAdapterOfAnyType() {
         ClientAdapter sql = mock(ClientAdapter.class);
         when(sql.getNamespace()).thenReturn("erp");
         when(sql.isWriteOperation("save")).thenReturn(true);
 
-        assertFalse(ConsumedWriteExposure.contractWrite(List.of(sql), "erp.save"),
-                "SQL writes are checked by the MCP adapter from the spec");
+        assertTrue(ConsumedWriteExposure.consumedWrite(List.of(sql), "erp.save"),
+                "a SQL write procedure is a write too");
+        assertFalse(ConsumedWriteExposure.consumedWrite(List.of(sql), "erp.read"));
     }
 
     @Test
@@ -84,5 +96,166 @@ class ConsumedWriteExposureTest {
 
         assertNull(ConsumedWriteExposure.writeReached(capability, null, call, null,
                 target -> false));
+    }
+
+    // ── validate ──
+
+    private static final String FLOWS = """
+              aggregates:
+                - namespace: billing
+                  flows:
+                    settle:
+                      description: Settles an order.
+                      %s
+                      steps:
+                        cancel:
+                          type: call
+                          call: orders.cancel-order
+            """;
+
+    /** The capability section of a spec with the given flow semantics and exposes block. */
+    private static CapabilitySpec spec(String semantics, String exposes) throws Exception {
+        String yaml = "ikanos: \"" + VersionHelper.getSchemaVersion() + "\"\n"
+                + "capability:\n"
+                + FLOWS.formatted(semantics)
+                + "  exposes:\n" + exposes.indent(4);
+        return IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class).getCapability();
+    }
+
+    /** A capability whose flows are those of the spec, and an orders adapter that writes. */
+    private static void validate(CapabilitySpec spec) {
+        List<Aggregate> aggregates = new ArrayList<>();
+        for (AggregateSpec aggregate : spec.getAggregates().values()) {
+            aggregates.add(new Aggregate(aggregate, null));
+        }
+        Capability capability = mock(Capability.class);
+        when(capability.getAggregates()).thenReturn(aggregates);
+        when(capability.lookupFlow(anyString())).thenAnswer(invocation -> {
+            String ref = invocation.getArgument(0);
+            for (Aggregate aggregate : aggregates) {
+                for (AggregateFlow flow : aggregate.getFlows()) {
+                    if (flow.getRef().equals(ref)) {
+                        return flow;
+                    }
+                }
+            }
+            throw new IllegalArgumentException("Unknown aggregate flow ref: '" + ref + "'");
+        });
+        ContractClientAdapter orders = mock(ContractClientAdapter.class);
+        when(orders.getNamespace()).thenReturn("orders");
+        when(orders.isWriteOperation("cancel-order")).thenReturn(true);
+        ConsumedWriteExposure.validate(spec, capability, List.of(orders));
+    }
+
+    private static String mcp(String serverHints, String tool) {
+        return """
+                - type: mcp
+                  port: 0
+                  namespace: shop
+                %s
+                  tools:
+                %s
+                """.formatted(serverHints.indent(2).stripTrailing(),
+                tool.indent(4).stripTrailing());
+    }
+
+    @Test
+    void validateShouldRefuseAToolDeclaringReadOnlyThatReachesAWrite() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> validate(spec("", mcp("", """
+                        cancel:
+                          description: Cancels an order.
+                          call: orders.cancel-order
+                          hints: { readOnly: true }
+                        """))));
+
+        assertTrue(e.getMessage().contains("MCP tool 'cancel'")
+                && e.getMessage().contains("orders.cancel-order"), e.getMessage());
+    }
+
+    @Test
+    void validateShouldRefuseAToolInheritingReadOnlyThatReachesAWriteThroughAFlow() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> validate(spec("", mcp("hints: { readOnly: true }", """
+                        settle:
+                          description: Settles an order.
+                          ref: billing.settle
+                        """))));
+
+        assertTrue(e.getMessage().contains("MCP tool 'settle'")
+                && e.getMessage().contains("orders.cancel-order"), e.getMessage());
+    }
+
+    @Test
+    void validateShouldAcceptAToolThatIsNotReadOnly() {
+        assertDoesNotThrow(() -> validate(spec("", mcp("hints: { readOnly: true }", """
+                cancel:
+                  description: Cancels an order.
+                  call: orders.cancel-order
+                  hints: { readOnly: false }
+                """))));
+    }
+
+    @Test
+    void validateShouldRefuseAFlowDeclaredSafeThatReachesAWrite() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> validate(spec("semantics: { safe: true }", mcp("", """
+                        settle:
+                          description: Settles an order.
+                          ref: billing.settle
+                          hints: { readOnly: false }
+                        """))));
+
+        assertTrue(e.getMessage().contains("billing.settle")
+                && e.getMessage().contains("semantics.safe")
+                && e.getMessage().contains("orders.cancel-order"), e.getMessage());
+    }
+
+    @Test
+    void validateShouldAcceptAFlowNotDeclaredSafe() {
+        assertDoesNotThrow(() -> validate(spec("semantics: { safe: false }", mcp("", """
+                settle:
+                  description: Settles an order.
+                  ref: billing.settle
+                """))));
+    }
+
+    private static String rest(String method, String target) {
+        return """
+                - type: rest
+                  address: localhost
+                  port: 0
+                  namespace: shop-rest
+                  resources:
+                    orders:
+                      path: /orders
+                      operations:
+                        settle:
+                          method: %s
+                          %s
+                """.formatted(method, target);
+    }
+
+    @Test
+    void validateShouldRefuseASafeRestOperationThatReachesAWrite() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> validate(spec("", rest("GET", "call: orders.cancel-order"))));
+
+        assertTrue(e.getMessage().contains("REST operation 'settle'")
+                && e.getMessage().contains("GET /orders")
+                && e.getMessage().contains("orders.cancel-order"), e.getMessage());
+    }
+
+    @Test
+    void validateShouldRefuseASafeRestOperationThatReachesAWriteThroughAFlow() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> validate(spec("", rest("HEAD", "ref: billing.settle"))));
+
+        assertTrue(e.getMessage().contains("orders.cancel-order"), e.getMessage());
+    }
+
+    @Test
+    void validateShouldAcceptAnUnsafeRestOperationThatReachesAWrite() {
+        assertDoesNotThrow(() -> validate(spec("", rest("POST", "call: orders.cancel-order"))));
     }
 }
