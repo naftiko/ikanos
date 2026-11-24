@@ -18,6 +18,8 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import com.google.protobuf.DescriptorProtos.DescriptorProto;
+import com.google.protobuf.DescriptorProtos.EnumDescriptorProto;
+import com.google.protobuf.DescriptorProtos.EnumValueDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FileDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FileDescriptorSet;
@@ -112,6 +114,13 @@ final class OrdersFixture {
                                 .setTypeName(".google.protobuf.Struct"))
                         .addField(field("points", 12, FieldDescriptorProto.Type.TYPE_UINT64))
                         .addField(mapField("tallies", 13, "TalliesEntry"))
+                        .addField(field("channel", 14, FieldDescriptorProto.Type.TYPE_ENUM)
+                                .setTypeName(".test.orders.CancelOrderRequest.Channel"))
+                        .addEnumType(EnumDescriptorProto.newBuilder().setName("Channel")
+                                .addValue(EnumValueDescriptorProto.newBuilder()
+                                        .setName("CHANNEL_UNSPECIFIED").setNumber(0))
+                                .addValue(EnumValueDescriptorProto.newBuilder().setName("WEB")
+                                        .setNumber(1)))
                         .addNestedType(entry("TalliesEntry", FieldDescriptorProto.Type.TYPE_UINT64,
                                 field("value", 2, FieldDescriptorProto.Type.TYPE_STRING)))
                         .addNestedType(entry("RefundsEntry", FieldDescriptorProto.Type.TYPE_STRING,

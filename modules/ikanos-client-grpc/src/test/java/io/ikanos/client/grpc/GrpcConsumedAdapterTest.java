@@ -255,6 +255,28 @@ class GrpcConsumedAdapterTest {
     }
 
     @Test
+    @Timeout(5)
+    void prepareShouldRefuseALongNumberTextForAnEnum() throws Exception {
+        // JsonFormat reads an enum value that names none as a number, through new BigDecimal
+        GrpcConsumedAdapter adapter = new GrpcConsumedAdapter(null, spec("http://localhost:"
+                + port, """
+                cancel-order:
+                  description: Cancel an order.
+                  rpc: CancelOrder
+                  inputParameters:
+                    order-id: { type: string, required: true, description: Order id., wireName: id }
+                    channel: { type: string, description: Sales channel. }
+                """, ""), Map.of());
+
+        assertDoesNotThrow(() -> adapter.prepare("cancel-order",
+                new HashMap<>(Map.of("order-id", "7", "channel", "WEB"))), "a value name");
+        assertDoesNotThrow(() -> adapter.prepare("cancel-order",
+                new HashMap<>(Map.of("order-id", "7", "channel", "1"))), "a value number");
+        assertThrows(IllegalArgumentException.class, () -> adapter.prepare("cancel-order",
+                new HashMap<>(Map.of("order-id", "7", "channel", "1".repeat(800_000)))));
+    }
+
+    @Test
     void prepareShouldKeepATextThatReadsAsAHugeNumberInAStringField() throws Exception {
         GrpcConsumedAdapter adapter = new GrpcConsumedAdapter(null, spec(), Map.of());
 

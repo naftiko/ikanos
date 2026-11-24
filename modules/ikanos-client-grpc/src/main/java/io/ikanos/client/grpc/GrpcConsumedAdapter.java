@@ -592,8 +592,8 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
 
     /**
      * Refuses a number with too many digits for the exact conversions of protobuf's JSON parser,
-     * wherever the input message gives a numeric type: a field, a map key, a list item or a
-     * numeric wrapper. proto3 JSON gives a 64-bit integer (and any map key) as text, which the
+     * wherever the input message gives a numeric type: a field, a map key, a list item, a
+     * numeric wrapper, or an enum, whose value may be given as its number. proto3 JSON gives a 64-bit integer (and any map key) as text, which the
      * parser converts with {@code toBigIntegerExact}, so the bound of
      * {@link ContractRequest#boundedNumber} must hold there; a {@code string} or {@code bytes}
      * field keeps any text. A numeric value is bounded whole, since the parser also reads a
@@ -661,8 +661,10 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
             String where) {
         if (field.getJavaType() == FieldDescriptor.JavaType.MESSAGE) {
             boundNumbers(value, field.getMessageType(), path, where);
-        } else if (isNumeric(field)) {
-            // All of it: the parser reads a number from a one-element array (Gson getAsString)
+        } else if (isNumeric(field)
+                || field.getJavaType() == FieldDescriptor.JavaType.ENUM) {
+            // An enum too, whose value the parser reads as a number when it names none; all of
+            // it, as the parser reads a number from a one-element array (Gson getAsString)
             boundAll(value, path, where);
         }
     }
