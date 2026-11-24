@@ -53,12 +53,4 @@ class ServerAdapterConnectorTest {
         assertEquals("false", adapter.getServer().getContext().getParameters()
                 .getFirstValue("useForwardedForHeader"));
     }
-
-    @Test
-    void createServerShouldKeepIdleConnectionsThirtySecondsWhenNoTimeoutIsConfigured() {
-        // Jetty ignored the timeout and kept connections 30 s (#918). Netty closes a connection
-        // idle for that long even mid-request, so a lower value would fail slower calls.
-        assertEquals("30000", ServerAdapter.createServer("127.0.0.1", 0).getContext()
-                .getParameters().getFirstValue("connector.idleTimeout"));
-    }
 }

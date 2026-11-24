@@ -14,9 +14,7 @@
 package io.ikanos.engine.consumes.tunnel;
 
 import io.netty.resolver.NoopAddressResolverGroup;
-import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
 import org.restlet.Client;
 import org.restlet.Context;
 import org.restlet.engine.netty.NettyClientTransport;
@@ -31,19 +29,12 @@ import org.restlet.engine.netty.NettyClientTransport;
  * connector runs TLS, HTTP/1.1 and HTTP/2 as over TCP. The host name is never resolved with the
  * system DNS: the tunnel dials it as given.</p>
  *
- * <p>Restlet pools connections per route, and compares the channel factories of two routes by
- * identity, so each origin keeps one route for as long as its tunnel stays the same: a new route
- * per request would open a new connection for each.</p>
- *
  * <p>This replaces the Jetty transport Ikanos attached to each request on Restlet 3.0.0-m1, and
  * applies to every consumed adapter that borrows a Restlet {@link Client}.</p>
  */
 public final class TunnelClientTransport implements NettyClientTransport {
 
     private final TunnelRouteTable routes;
-
-    /** The route given to each tunneled origin, with the tunnel it was built for. */
-    private final Map<Origin, TunneledRoute> tunneledRoutes = new ConcurrentHashMap<>();
 
     /**
      * @param routes the hosts to tunnel, and their tunnels
@@ -63,21 +54,8 @@ public final class TunnelClientTransport implements NettyClientTransport {
         if (tunnel == null) {
             return null;
         }
-        return tunneledRoutes.compute(new Origin(host, port),
-                (origin, current) -> current != null && current.tunnel() == tunnel
-                        ? current
-                        : new TunneledRoute(tunnel, new Route(
-                                () -> new TunnelSocketChannel(tunnel, host, port),
-                                NoopAddressResolverGroup.INSTANCE)))
-                .route();
-    }
-
-    /** A host and port, as Restlet asks for a route to them. */
-    private record Origin(String host, int port) {
-    }
-
-    /** A route to an origin, and the tunnel its channels dial. */
-    private record TunneledRoute(Tunnel tunnel, Route route) {
+        return new Route(() -> new TunnelSocketChannel(tunnel, host, port),
+                NoopAddressResolverGroup.INSTANCE);
     }
 
     /**
