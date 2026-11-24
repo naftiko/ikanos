@@ -72,6 +72,14 @@ public abstract class ServerAdapter extends Adapter {
     }
 
     /**
+     * How long a server connection may stay idle before the connector closes it, in milliseconds.
+     * Jetty ignored the timeout Ikanos set, so listeners ran on its 30 s default (#918). Restlet's
+     * Netty connector applies {@code connector.idleTimeout} to the whole connection, even while a
+     * request is in progress, so a lower value would cut calls that used to succeed.
+     */
+    static final int IDLE_TIMEOUT_MILLIS = 30_000;
+
+    /**
      * Configures a server connector exactly like the one each adapter opens on its own, so that a
      * listener shared by several adapters behaves like a dedicated one.
      */
@@ -90,8 +98,8 @@ public abstract class ServerAdapter extends Adapter {
         result.setContext(new Context());
 
         // Configurable idle timeout is tracked in https://github.com/naftiko/ikanos/issues/835.
-        // The Netty connector reads "connector.idleTimeout"; Jetty ignored "socketTimeout" (#918).
-        result.getContext().getParameters().add("connector.idleTimeout", "12000");
+        result.getContext().getParameters().add("connector.idleTimeout",
+                Integer.toString(IDLE_TIMEOUT_MILLIS));
         // The client address is always the direct peer. With "true", Restlet would take it from
         // the caller-controlled X-Forwarded-For header, which would defeat the MCP
         // trustedNetworks check (issue #483).
