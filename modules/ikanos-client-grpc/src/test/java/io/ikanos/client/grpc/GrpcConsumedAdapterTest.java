@@ -164,6 +164,28 @@ class GrpcConsumedAdapterTest {
     }
 
     @Test
+    @Timeout(5)
+    void prepareShouldRefuseANumberTooLargeForTheParserToConvertQuickly() throws Exception {
+        // proto3 JSON gives a uint64 as text, which JsonFormat converts with toBigIntegerExact
+        GrpcConsumedAdapter adapter = new GrpcConsumedAdapter(null, spec("http://localhost:"
+                + port, """
+                cancel-order:
+                  description: Cancel an order.
+                  rpc: CancelOrder
+                  inputParameters:
+                    order-id: { type: string, required: true, description: Order id., wireName: id }
+                    points: { type: string, description: Loyalty points. }
+                """, ""), Map.of());
+
+        assertDoesNotThrow(() -> adapter.prepare("cancel-order",
+                new HashMap<>(Map.of("order-id", "7", "points", "18446744073709551615"))));
+        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+                () -> adapter.prepare("cancel-order",
+                        new HashMap<>(Map.of("order-id", "7", "points", "1e1000000000"))));
+        assertTrue(refused.getMessage().contains("points"), refused.getMessage());
+    }
+
+    @Test
     void statusShouldMapToItsHttpEquivalent() throws Exception {
         GrpcConsumedAdapter adapter = started(spec());
         try {

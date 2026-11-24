@@ -15,6 +15,7 @@ package io.ikanos.client.grpc;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.net.ConnectException;
 import java.net.URI;
 import java.time.Duration;
@@ -59,6 +60,7 @@ import org.restlet.data.Protocol;
 import org.restlet.engine.header.HeaderConstants;
 import org.restlet.util.Series;
 import org.restlet.ext.grpc.GrpcClientAdapter;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
 import io.ikanos.engine.consumes.ConsumedInvocation;
@@ -567,6 +569,7 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
         String where = getNamespace() + "." + operationName;
         ContractRequest request = ContractRequest.build(procedure.spec().getInputParameters(),
                 parameters, where);
+        boundNumbers(request.tree(), "", where);
         DynamicMessage.Builder builder =
                 DynamicMessage.newBuilder(procedure.method().getInputType());
         try {
@@ -585,6 +588,45 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
                 new ClientSpanDescriptor(service.getFullName() + "/" + procedure.method().getName(),
                         endpoint),
                 attributes, () -> execute(procedure, message));
+    }
+
+    /**
+     * Refuses a number, or a text that reads as one, with too many digits for the exact
+     * conversions of protobuf's JSON parser: proto3 JSON gives a 64-bit integer as text, which
+     * the parser converts with {@code toBigIntegerExact}, so the bound of
+     * {@link ContractRequest#boundedNumber} must hold for every value of the tree.
+     *
+     * @param node a value of the request tree
+     * @param path its wire path, for the error message
+     * @param where the procedure, for the error message
+     * @throws IllegalArgumentException for a number with too many digits
+     */
+    static void boundNumbers(JsonNode node, String path, String where) {
+        if (node.isObject()) {
+            for (Map.Entry<String, JsonNode> field : node.properties()) {
+                boundNumbers(field.getValue(),
+                        path.isEmpty() ? field.getKey() : path + "." + field.getKey(), where);
+            }
+        } else if (node.isArray()) {
+            int index = 0;
+            for (JsonNode element : node) {
+                boundNumbers(element, path + "[" + index++ + "]", where);
+            }
+        } else if (node.isNumber() || node.isString()) {
+            BigDecimal value;
+            try {
+                value = node.isNumber() ? node.decimalValue()
+                        : new BigDecimal(node.asString().trim());
+            } catch (RuntimeException notANumber) {
+                return; // not a number, or infinite: the parser refuses it on its own
+            }
+            try {
+                ContractRequest.boundedNumber(value);
+            } catch (ArithmeticException e) {
+                throw new IllegalArgumentException("The input '" + path + "' of " + where
+                        + " has more than " + ContractRequest.MAX_NUMBER_DIGITS + " digits", e);
+            }
+        }
     }
 
     ConsumedResult execute(Procedure procedure, DynamicMessage request) throws IOException {

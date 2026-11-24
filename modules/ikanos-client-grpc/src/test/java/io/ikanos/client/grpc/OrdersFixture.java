@@ -110,6 +110,7 @@ final class OrdersFixture {
                                 .setTypeName(".google.protobuf.StringValue"))
                         .addField(field("meta", 11, FieldDescriptorProto.Type.TYPE_MESSAGE)
                                 .setTypeName(".google.protobuf.Struct"))
+                        .addField(field("points", 12, FieldDescriptorProto.Type.TYPE_UINT64))
                         .addNestedType(entry("RefundsEntry", FieldDescriptorProto.Type.TYPE_STRING,
                                 field("value", 2, FieldDescriptorProto.Type.TYPE_MESSAGE)
                                         .setTypeName(".test.orders.Money")))
