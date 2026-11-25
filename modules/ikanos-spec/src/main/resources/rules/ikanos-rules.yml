@@ -201,7 +201,11 @@ rules:
     description: >
       `ref` derives the exposed unit's description, MCP hints, and input and
       output schemas from the flow. A `call:` to a flow would bypass all of
-      that, so the engine rejects it at startup.
+      that, so the engine rejects it at startup. This covers the unit's own
+      `call:` only: a `call` step may name a flow, which is how an MCP
+      resource (it has no `ref`) reaches one, and
+      `ikanos-flow-call-semantics-conservative` checks the hints of an MCP
+      tool whose steps do.
     severity: error
     recommended: true
     given: "$"
@@ -225,7 +229,7 @@ rules:
       function: mcp-tool-inferred-call
 
   ikanos-flow-call-semantics-conservative:
-    message: "A flow's semantics must not be less conservative than the targets it calls."
+    message: "A flow's semantics, or an MCP tool's hints, must not be less conservative than the targets it calls."
     description: >
       A flow that declares `safe: true` or `idempotent: true` must only call
       targets that are too: other flows (by their effective semantics),
@@ -233,7 +237,10 @@ rules:
       (by their method, per RFC 9110). Otherwise the flow would publish
       read-only or idempotent MCP hints that do not hold. Calls into an
       imported consumes namespace are not checked: the imported document is
-      out of reach of a single-document lint.
+      out of reach of a single-document lint. The same holds for an exposed
+      MCP tool whose `call` steps reach flows: if its hints resolve to
+      `readOnly: true` (its own, or its server's), every such flow must be
+      effectively safe; if they resolve to `idempotent: true`, idempotent.
     severity: error
     recommended: true
     given: "$"

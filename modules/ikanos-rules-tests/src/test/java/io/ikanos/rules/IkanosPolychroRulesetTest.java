@@ -1007,6 +1007,30 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
+    public void flowCallSemanticsRuleShouldFireWhenAToolsHintsPromiseMoreThanTheFlowsItsStepsCall() {
+        // #828: a call step may reach a flow, but the tool's resolved readOnly / idempotent
+        // hints must hold for that flow, as for a flow calling another flow.
+        LintResult result = lintFixture("rules/polychro-tool-hints-flow-steps.yaml");
+        // Exactly these: quote's flow is safe, pay claims nothing, pay-destructive resolves
+        // readOnly to false, and the resource and the REST operation have no hints.
+        assertEquals(List.of(
+                "$.capability.exposes[0].tools.pay-idempotent.hints.idempotent",
+                "$.capability.exposes[0].tools.pay-read-only.hints.readOnly",
+                "$.capability.exposes[1].tools.pay-by-default"),
+            result.output().lines()
+                .filter(line -> line.contains("ikanos-flow-call-semantics-conservative"))
+                .map(line -> line.substring(0, line.indexOf("  "))).sorted().toList(),
+            result.output());
+    }
+
+    @Test
+    public void exposesCallNotFlowRuleShouldLetACallStepReachAFlow() {
+        // #828: only the unit's own call: is refused; an MCP resource has no ref.
+        LintResult result = lintFixture("rules/polychro-tool-hints-flow-steps.yaml");
+        assertEquals(0, findings(result, "ikanos-exposes-call-not-flow"), result.output());
+    }
+
+    @Test
     public void flowCallSemanticsRuleShouldFireWhenSafeFlowCallsUnsafeOperation() {
         assertRuleFires("rules/polychro-flow-calls-violations.yaml",
             "ikanos-flow-call-semantics-conservative");
