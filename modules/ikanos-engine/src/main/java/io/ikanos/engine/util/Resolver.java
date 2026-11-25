@@ -1119,7 +1119,8 @@ public class Resolver {
      * <li>Three markers of the authored data are never sent (#1132, {@link JsonBodyMarkers}):
      * an object with {@code $when: x} is left out unless {@code x} is present and not
      * {@code false}; a value {@code {$first: [variants]}} takes the first variant whose
-     * {@code $when} holds, or that has none, and is left out when none applies; an object with
+     * {@code $when} holds, or that has none, and is left out when none applies or when the
+     * chosen one resolves to nothing (later variants are not tried); an object with
      * {@code $keep: true} is sent as {@code {}} instead of being left out when emptied. A key
      * written {@code $$...} is sent with one {@code $} less.</li>
      * <li>Any other string containing placeholders stays a JSON string: its text is kept exactly

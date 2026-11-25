@@ -88,7 +88,9 @@ public final class BodyConditionValidator {
                         if (operation.getRef() != null || hasSteps(operation.getSteps())) {
                             continue;
                         }
-                        Set<String> inputs = names(resource.getInputParameters());
+                        // The adapter's own inputs reach the call too
+                        Set<String> inputs = names(rest.getInputParameters());
+                        inputs.addAll(names(resource.getInputParameters()));
                         inputs.addAll(names(operation.getInputParameters()));
                         inputs.addAll(keys(operation.getWith()));
                         check(operation.getCall(), inputs, "REST operation '"

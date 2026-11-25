@@ -165,6 +165,39 @@ class BodyConditionValidatorTest {
     }
 
     @Test
+    void findWarningsShouldAcceptNameThatTheRestAdapterDeclares() throws Exception {
+        // An adapter-level input reaches every operation's call
+        IkanosSpec spec = IkanosMappers.lenientYaml().readValue("""
+                ikanos: "%s"
+                capability:
+                %s
+                  exposes:
+                    - type: "rest"
+                      namespace: "api"
+                      port: 8080
+                      inputParameters:
+                        silent:
+                          in: header
+                          type: boolean
+                          description: "Skip notifications"
+                        icon_emoji:
+                          in: header
+                          type: string
+                          description: "Emoji"
+                      resources:
+                        pages:
+                          path: "/pages/{{page_id}}"
+                          operations:
+                            patch:
+                              method: "PATCH"
+                              call: notion.patch-page
+                """.formatted(IKANOS, CONSUMES.stripTrailing()), IkanosSpec.class);
+
+        assertTrue(BodyConditionValidator.findWarnings(spec).isEmpty(),
+                BodyConditionValidator.findWarnings(spec).toString());
+    }
+
+    @Test
     void findWarningsShouldAcceptNullSpec() {
         assertTrue(BodyConditionValidator.findWarnings(null).isEmpty());
     }

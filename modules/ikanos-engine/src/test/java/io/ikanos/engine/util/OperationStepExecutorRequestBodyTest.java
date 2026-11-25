@@ -1115,6 +1115,21 @@ class OperationStepExecutorRequestBodyTest {
     }
 
     @Test
+    void findClientRequestForShouldLeaveOutValueWhenTheChosenVariantResolvesToNothing()
+            throws Exception {
+        // The chosen variant is emptied: the value is left out, the fallback is not tried
+        assertEquals("{}", send("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    position:
+                                      $first:
+                                        - {$when: after, after_block: {id: "{{after_id}}"}}
+                                        - {type: end}
+                """, Map.of("after", true)));
+    }
+
+    @Test
     void findClientRequestForShouldChooseVariantOfAnArrayElement() throws Exception {
         assertEquals("{\"parents\":[{\"type\":\"workspace\"}]}", send("""
                                 body:

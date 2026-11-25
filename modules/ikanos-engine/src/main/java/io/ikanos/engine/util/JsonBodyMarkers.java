@@ -31,7 +31,8 @@ import java.util.regex.Pattern;
  * an empty string, {@code 0} or the string {@code "false"} hold.</li>
  * <li>{@code $first: [variants]} as the only member of an object: the object is replaced by the
  * first variant whose {@code $when} holds, or that has none (the fallback), and is left out when
- * no variant applies.</li>
+ * no variant applies, or when the chosen variant resolves to nothing (later variants are not
+ * tried).</li>
  * <li>{@code $keep: true} on an object: the object is sent as {@code {}} when all its members are
  * left out, instead of being left out itself (#985).</li>
  * </ul>
