@@ -248,9 +248,9 @@ rules:
       `inputParameterSets: [name]` on an MCP tool, a REST resource or operation,
       or an aggregate flow must name an input parameter set, and `schema: name`
       (on an input, inside a schema, or in an orchestrated or mapped output)
-      must name a schema, and `mappingSets: [name]` beside `schema:` in a
-      mapped output a mapping set, declared in the `definitions` of the same
-      MCP adapter, REST
+      must name a schema, and `mappingSets: [name]` (beside `schema:` in a
+      mapped output, or on a steps-mode `mappings` entry) a mapping set,
+      declared in the `definitions` of the same MCP adapter, REST
       adapter or aggregate. Definitions are local: a tool or an operation cannot
       use an aggregate's definitions (it reaches a flow through `ref`). The
       engine rejects the capability at startup otherwise.
@@ -337,7 +337,10 @@ rules:
       `mappings`, `mappingSets` and `mapping`, a property name containing `.`,
       `[` or `]`, `mappings` or `mappingSets` without `schema:`, `schema:`,
       `mappings` or `mappingSets` in a mock output or an MCP resource output,
-      and a mapping set value that is not a JSONPath are errors too. The engine
+      and a mapping set value that is not a JSONPath are errors too. A
+      steps-mode `mappings` entry that lists `mappingSets` roots their paths
+      with its `target` and `value`: a set path through array items (`[]`), or
+      a path the output it targets does not have, is an error. The engine
       rejects the capability at startup otherwise.
     severity: error
     recommended: true

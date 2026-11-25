@@ -28,7 +28,11 @@
  *                   `mappings`, `mappingSets` and `mapping`, `mappings` or
  *                   `mappingSets` without `schema:`, `schema:` / `mappings` /
  *                   `mappingSets` in a mock output or an MCP resource output,
- *                   or a mapping set value that is not a JSONPath.
+ *                   or a mapping set value that is not a JSONPath. In steps
+ *                   mode (#1150), a `mappings` entry listing `mappingSets`
+ *                   without the roots of their paths, a set path through
+ *                   array items, or a path that the output the entry targets
+ *                   does not have.
  *
  * Covers MCP adapters, REST adapters and aggregates in a capability and at the
  * root of a standalone file. The engine and `ikanos validate` run the same checks when
@@ -264,6 +268,18 @@ function buildModel(owner) {
     }
     for (const p of entries(unit.inputParameters)) {
       walkInput(p.value, unitPath.concat("inputParameters", ...p.locator), refs);
+    }
+    if (Array.isArray(unit.mappings)) {
+      unit.mappings.forEach((mapping, index) => {
+        if (isObject(mapping) && Array.isArray(mapping.mappingSets)) {
+          mapping.mappingSets.forEach((name, setIndex) => {
+            refs.push({
+              kind: "mappingSet", name,
+              path: unitPath.concat("mappings", index, "mappingSets", setIndex),
+            });
+          });
+        }
+      });
     }
     if (isObject(unit.outputParameters)) {
       for (const p of entries(unit.outputParameters)) {
@@ -1053,6 +1069,89 @@ function bindsDefinitions(node) {
     .some((p) => bindsDefinitions(p.value));
 }
 
+/**
+ * Whether an orchestrated output declaration has a property path, following
+ * `schema:` references. An object without properties takes any path, as the
+ * runtime sets it whole.
+ */
+function hasOutputPath(model, declaration, segments) {
+  let current = declaration;
+  for (const segment of segments) {
+    if (isObject(current) && typeof current.schema === "string") {
+      current = rootOf(model, current.schema);
+    }
+    if (!isObject(current) || current.type !== "object") {
+      return false;
+    }
+    if (!isObject(current.properties) || Object.keys(current.properties).length === 0) {
+      return true;
+    }
+    current = Object.prototype.hasOwnProperty.call(current.properties, segment)
+      ? current.properties[segment] : undefined;
+  }
+  return current !== undefined;
+}
+
+/**
+ * Check the steps-mode `mappings` entries of a unit that list `mappingSets`
+ * (#1150), as the engine expands them: the entry roots the merged sets' paths
+ * with its `target` and `value`, no path may go through array items, and when
+ * the target names an output of the unit, every leaf path must exist in it.
+ */
+function checkStepMappingSets(model, unit, results) {
+  if (!Array.isArray(unit.unit.mappings)) {
+    return;
+  }
+  unit.unit.mappings.forEach((mapping, index) => {
+    if (!isObject(mapping) || !declaresMappingSets(mapping)) {
+      return;
+    }
+    const path = unit.path.concat("mappings", index);
+    const merged = mergedMappings(model, { mappingSets: mapping.mappingSets });
+    if (merged.unresolved) {
+      return; // reported by the references check
+    }
+    const root = typeof mapping.value === "string" ? mapping.value.trim() : "";
+    if (typeof mapping.target !== "string" || !root.startsWith("$")) {
+      results.push({
+        message: "'mappingSets' needs 'target' and a 'value' JSONPath ('$.<step>...'), the"
+          + " roots of the sets' paths.",
+        path,
+      });
+      return;
+    }
+    const paths = Object.keys(merged.values);
+    const label = (key) => key + " (mapping set '" + merged.origins[key] + "')";
+    const items = paths.filter((key) => key.includes("[]"));
+    if (items.length > 0) {
+      results.push({
+        message: "[" + items.map(label).join(", ") + "] bind array items, which a steps-mode"
+          + " mapping cannot reach: it sets each target whole. Map the array whole, or bind its"
+          + " items in a call-mode output.",
+        path: path.concat("mappingSets"),
+      });
+      return;
+    }
+    const outputs = unit.unit.outputParameters;
+    const output = !mapping.target.includes(".") && isObject(outputs)
+      && Object.prototype.hasOwnProperty.call(outputs, mapping.target)
+      ? outputs[mapping.target] : undefined;
+    if (output === undefined) {
+      return;
+    }
+    const missing = paths
+      .filter((key) => !paths.some((other) => other.startsWith(key + ".")))
+      .filter((key) => !hasOutputPath(model, output, key.split(".")));
+    if (missing.length > 0) {
+      results.push({
+        message: "Output '" + mapping.target + "' has no path [" + missing.map(label).join(", ")
+          + "].",
+        path: path.concat("mappingSets"),
+      });
+    }
+  });
+}
+
 function checkMappings(model, results) {
   const budget = { visited: 0, reported: false, sizes: new Map(), unsized: new Set() };
   // A mapping set's values are checked once, where it is declared; its paths at each use
@@ -1090,6 +1189,9 @@ function checkMappings(model, results) {
         }
       }
       continue;
+    }
+    if (unit.orchestrated) {
+      checkStepMappingSets(model, unit, results);
     }
     if (!unit.mapped) {
       continue;

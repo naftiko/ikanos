@@ -60,6 +60,9 @@ capability:
             crew: "$.crew"
             crew[]: "$.member"
             crew[].fullName: "$.name"
+          crew-names:
+            crew: "$.crew"
+            crew[].fullName: "$.name"
       tools:
         unknown-set:
           description: "Lists a mapping set the adapter does not declare."
@@ -128,6 +131,36 @@ capability:
           outputParameters:
             - schema: ship
               mappingSets: [1]
+        step-unknown-set:
+          description: "A step mapping that lists an undeclared mapping set."
+          steps:
+            ships: { type: call, call: registry.list-ships }
+          mappings:
+            - target: flagship
+              value: "$.ships.flagship"
+              mappingSets: [ship-from-erp]
+          outputParameters:
+            flagship: { schema: ship }
+        step-extra-path:
+          description: "A step mapping whose set has a path the output does not have."
+          steps:
+            ships: { type: call, call: registry.list-ships }
+          mappings:
+            - target: flagship
+              value: "$.ships.flagship"
+              mappingSets: [ship-with-owner]
+          outputParameters:
+            flagship: { schema: ship }
+        step-items:
+          description: "A step mapping whose set binds array items."
+          steps:
+            ships: { type: call, call: registry.list-ships }
+          mappings:
+            - target: flagship
+              value: "$.ships.flagship"
+              mappingSets: [crew-names]
+          outputParameters:
+            flagship: { type: object }
     - type: rest
       port: 3001
       namespace: fleet-rest

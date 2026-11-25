@@ -44,6 +44,7 @@ import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
 import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
 import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
+import io.ikanos.spec.util.StepOutputMappingSpec;
 import io.ikanos.spec.util.StructureSpec;
 
 /**
@@ -84,6 +85,10 @@ import io.ikanos.spec.util.StructureSpec;
  *       sets of the definitions (#1133), each a map of such paths to JSONPaths. They merge by
  *       path, in order: a later set wins, and the reference's own {@code mappings} win last.
  *       The merged mappings bind the schema exactly as {@code mappings} alone would.</li>
+ *   <li>A steps-mode {@code mappings} entry may list {@code mappingSets} too (#1150): its
+ *       {@code target} roots the sets' paths and its {@code value} their JSONPaths. It expands to
+ *       one entry per leaf path of the merged sets, at its position, and an explicit entry of
+ *       the unit for the same target wins over the expanded one.</li>
  * </ul>
  *
  * <p>The result is the inline equivalent: once expanded, a unit holds no reference, so
@@ -312,6 +317,7 @@ public final class DefinitionsExpander {
                 outputs = keyed;
             }
             tool.setOutputParameters(outputs);
+            expandStepMappings(location, tool.getMappings(), outputs);
         }
 
         void expandFlow(AggregateFlowSpec flow) {
@@ -328,6 +334,7 @@ public final class DefinitionsExpander {
             // A flow with neither call nor steps is a mock, whose outputs are static values
             flow.setOutputParameters(expandOutputs(location, orchestrated,
                     !orchestrated && flow.getCall() != null, flow.getOutputParameters()));
+            expandStepMappings(location, flow.getMappings(), flow.getOutputParameters());
         }
 
         /**
@@ -376,6 +383,8 @@ public final class DefinitionsExpander {
             operation.setOutputParameters(expandOutputs(location, orchestrated,
                     !orchestrated && (operation.getCall() != null || operation.getRef() != null),
                     operation.getOutputParameters()));
+            expandStepMappings(location, operation.getMappings(),
+                    operation.getOutputParameters());
         }
 
         /**
@@ -805,6 +814,170 @@ public final class DefinitionsExpander {
             }
             binding.report(location, name);
             return output;
+        }
+
+        /**
+         * Expand the steps-mode {@code mappings} entries of a unit that list
+         * {@code mappingSets} (#1150), in place. Such an entry roots the merged sets' paths:
+         * each leaf path becomes an entry whose {@code target} is the entry's target joined to
+         * the path, and whose {@code value} is the entry's value followed by the relative
+         * JSONPaths bound along the path, as a call-mode output reads them. A path with a
+         * descendant bound in the sets is not emitted itself: the runtime sets each target
+         * whole. An explicit entry of the unit for the same target wins.
+         *
+         * @param outputs the unit's expanded outputs, against which a target that names one of
+         *                them is checked
+         */
+        void expandStepMappings(String location, List<StepOutputMappingSpec> mappings,
+                List<OutputParameterSpec> outputs) {
+            if (mappings == null || mappings.isEmpty()) {
+                return;
+            }
+            Set<String> explicit = new HashSet<>();
+            for (StepOutputMappingSpec mapping : mappings) {
+                if (mapping.getMappingSets().isEmpty() && mapping.getTarget() != null) {
+                    explicit.add(mapping.getTarget());
+                }
+            }
+            List<StepOutputMappingSpec> expanded = new ArrayList<>();
+            boolean changed = false;
+            for (StepOutputMappingSpec mapping : mappings) {
+                if (mapping.getMappingSets().isEmpty()) {
+                    expanded.add(mapping);
+                    continue;
+                }
+                changed = true;
+                String where = location + ", mapping '" + mapping.getTarget() + "'";
+                for (StepOutputMappingSpec entry : expandStepMapping(mapping, where, outputs)) {
+                    if (!explicit.contains(entry.getTarget())) {
+                        expanded.add(entry);
+                    }
+                }
+            }
+            if (changed) {
+                mappings.clear();
+                mappings.addAll(expanded);
+            }
+        }
+
+        /** The entries one steps-mode mapping entry with {@code mappingSets} expands to. */
+        private List<StepOutputMappingSpec> expandStepMapping(StepOutputMappingSpec mapping,
+                String location, List<OutputParameterSpec> outputs) {
+            Map<String, String> values = new LinkedHashMap<>();
+            Map<String, String> origins = new HashMap<>();
+            boolean unresolved = false;
+            for (String name : mapping.getMappingSets()) {
+                Map<String, String> set = resolveMappingSet(name, location);
+                if (set == null) {
+                    unresolved = true;
+                    continue;
+                }
+                for (Map.Entry<String, String> entry : set.entrySet()) {
+                    values.put(entry.getKey(), entry.getValue());
+                    origins.put(entry.getKey(), name);
+                }
+            }
+            String root = mapping.getValue() != null ? mapping.getValue().trim() : null;
+            if (unresolved || mapping.getTarget() == null || root == null
+                    || !root.startsWith("$")) {
+                if (!unresolved) {
+                    errors.add(location + ": 'mappingSets' needs 'target' and a 'value' JSONPath"
+                            + " ('$.<step>...'), the roots of the sets' paths.");
+                }
+                return List.of();
+            }
+            List<String> items = new ArrayList<>();
+            for (String path : values.keySet()) {
+                if (path.contains("[]")) {
+                    items.add(path + " (mapping set '" + origins.get(path) + "')");
+                }
+            }
+            if (!items.isEmpty()) {
+                errors.add(location + ": " + items + " bind array items, which a steps-mode"
+                        + " mapping cannot reach: it sets each target whole. Map the array whole,"
+                        + " or bind its items in a call-mode output.");
+                return List.of();
+            }
+            List<StepOutputMappingSpec> entries = new ArrayList<>();
+            List<String> missing = new ArrayList<>();
+            OutputParameterSpec output = outputNamed(outputs, mapping.getTarget());
+            for (String path : values.keySet()) {
+                if (hasBoundDescendant(values.keySet(), path)) {
+                    continue;
+                }
+                StringBuilder value = new StringBuilder(root);
+                String[] segments = path.split("\\.");
+                String prefix = "";
+                for (String segment : segments) {
+                    prefix = prefix.isEmpty() ? segment : prefix + "." + segment;
+                    String relative = values.get(prefix);
+                    if (relative != null) {
+                        // Relative to the parent's value, as in a call-mode output
+                        value.append(relative.trim().substring(1));
+                    }
+                }
+                if (output != null && !hasPath(output, segments)) {
+                    missing.add(path + " (mapping set '" + origins.get(path) + "')");
+                }
+                entries.add(new StepOutputMappingSpec(mapping.getTarget() + "." + path,
+                        value.toString()));
+            }
+            if (!missing.isEmpty()) {
+                errors.add(location + ": output '" + output.getName() + "' has no path "
+                        + missing + ".");
+                return List.of();
+            }
+            if (!withinBudget(entries.size())) {
+                return List.of();
+            }
+            return entries;
+        }
+
+        private static boolean hasBoundDescendant(Set<String> paths, String path) {
+            for (String other : paths) {
+                if (other.startsWith(path + ".")) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /** The output a steps-mode target names, by the target's first segment, or null. */
+        private static OutputParameterSpec outputNamed(List<OutputParameterSpec> outputs,
+                String target) {
+            if (outputs == null || target == null || target.contains(".")) {
+                return null;
+            }
+            for (OutputParameterSpec output : outputs) {
+                if (target.equals(output.getName())) {
+                    return output;
+                }
+            }
+            return null;
+        }
+
+        /**
+         * Whether an orchestrated output declares a property path. An object without properties
+         * takes any path, as the runtime sets it whole.
+         */
+        private static boolean hasPath(OutputParameterSpec output, String[] segments) {
+            OutputParameterSpec current = output;
+            for (String segment : segments) {
+                if (current == null || !"object".equals(current.getType())) {
+                    return false;
+                }
+                if (current.getProperties().isEmpty()) {
+                    return true;
+                }
+                OutputParameterSpec next = null;
+                for (OutputParameterSpec property : current.getProperties()) {
+                    if (segment.equals(property.getName())) {
+                        next = property;
+                    }
+                }
+                current = next;
+            }
+            return current != null;
         }
 
         /**

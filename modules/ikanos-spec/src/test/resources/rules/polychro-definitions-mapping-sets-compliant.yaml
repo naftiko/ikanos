@@ -63,6 +63,16 @@ capability:
               items:
                 schema: ship
                 mappingSets: [ship-from-registry]
+        get-fleet:
+          description: "Get the fleet, its flagship mapped by a set."
+          steps:
+            ships: { type: call, call: registry.list-ships }
+          mappings:
+            - target: flagship
+              value: "$.ships.flagship"
+              mappingSets: [ship-from-ais]
+          outputParameters:
+            flagship: { schema: ship }
     - type: rest
       port: 3001
       namespace: fleet-rest
