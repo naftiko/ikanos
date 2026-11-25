@@ -125,6 +125,10 @@ public final class JsonBodyMarkers {
     private static void check(Object data, String path, List<String> errors) {
         if (data instanceof Map<?, ?> object) {
             String where = path.isEmpty() ? "/" : path;
+            if (path.isEmpty() && object.containsKey(WHEN)) {
+                errors.add("/: $when cannot be on the root object, since the body is always sent;"
+                        + " put it on a member");
+            }
             checkObject(object, where, errors);
             for (Map.Entry<?, ?> entry : object.entrySet()) {
                 String key = String.valueOf(entry.getKey());

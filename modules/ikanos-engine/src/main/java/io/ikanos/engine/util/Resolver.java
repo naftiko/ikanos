@@ -1166,6 +1166,8 @@ public class Resolver {
                 return resolveJsonChoice(map.get(JsonBodyMarkers.FIRST), parameters, jsonMapper);
             }
             if (!JsonBodyMarkers.applies(map, parameters)) {
+                // Left out, but its caller claims are still checked, as for any member (#998)
+                requireCallerValuesIn(map, parameters);
                 return null;
             }
             ObjectNode object = jsonMapper.createObjectNode();
@@ -1235,14 +1237,44 @@ public class Resolver {
             throw new IllegalArgumentException(
                     "$first in structured JSON body data must be a list of objects");
         }
+        JsonNode chosen = null;
+        boolean found = false;
         for (Object variant : list) {
-            if (variant instanceof Map<?, ?> object
+            if (found || variant instanceof Map<?, ?> object
                     && !JsonBodyMarkers.applies(object, parameters)) {
+                // Not sent, but its caller claims are still checked, as for any member (#998)
+                requireCallerValuesIn(variant, parameters);
                 continue;
             }
-            return resolveJsonDataNode(variant, parameters, jsonMapper);
+            found = true;
+            chosen = resolveJsonDataNode(variant, parameters, jsonMapper);
         }
-        return null;
+        return chosen;
+    }
+
+    /**
+     * Check the caller claims that structured body data reads, without resolving it: every key,
+     * every string value and every {@code $when} name (#998). Called on data that is left out,
+     * so a missing claim fails the call whether or not its member is sent.
+     */
+    static void requireCallerValuesIn(Object data, Map<String, Object> parameters) {
+        if (data instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                String key = String.valueOf(entry.getKey());
+                if (JsonBodyMarkers.WHEN.equals(key) && entry.getValue() instanceof String name) {
+                    requireCallerValues("{{" + name + "}}", parameters);
+                } else {
+                    requireCallerValues(key, parameters);
+                    requireCallerValuesIn(entry.getValue(), parameters);
+                }
+            }
+        } else if (data instanceof java.util.Collection<?> items) {
+            for (Object item : items) {
+                requireCallerValuesIn(item, parameters);
+            }
+        } else if (data instanceof String text) {
+            requireCallerValues(text, parameters);
+        }
     }
 
     /**

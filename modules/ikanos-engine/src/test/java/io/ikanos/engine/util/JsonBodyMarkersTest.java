@@ -156,6 +156,18 @@ class JsonBodyMarkersTest {
     }
 
     @Test
+    void findErrorsShouldRejectWhenOnTheRootObject() throws Exception {
+        // The body is always sent, so a $when on the root could never leave it out
+        List<String> errors = JsonBodyMarkers.findErrors(data("""
+                $when: silent
+                name: "{{name}}"
+                """));
+
+        assertEquals(List.of("/: $when cannot be on the root object, since the body is always"
+                + " sent; put it on a member"), errors);
+    }
+
+    @Test
     void findErrorsShouldIgnoreEscapedMarkerKeys() throws Exception {
         List<String> errors = JsonBodyMarkers.findErrors(data("""
                 query: {$$when: {$$first: 1}, $ref: "#/x"}

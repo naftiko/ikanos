@@ -1706,6 +1706,40 @@ public class ResolverTest {
     }
 
     @Test
+    void resolveJsonDataShouldCheckAClaimInAnObjectWhoseWhenDoesNotHold() {
+        // #1132: the object is left out by its $when, its claims are still checked (#998)
+        assertThrows(CallerClaimMissingException.class,
+                () -> Resolver.resolveJsonData(Map.of("a", Map.of("$when", "flag",
+                        "owner", "{{auth.claims.email}}")),
+                        callerParameters(Map.of("sub", "alice"))),
+                "#998: a missing claim must fail the call wherever the body reads it");
+    }
+
+    @Test
+    void resolveJsonDataShouldCheckAClaimInAFirstVariantNotChosen() {
+        Map<String, Object> skipped = Map.of("$when", "flag", "owner", "{{auth.claims.email}}");
+        Map<String, Object> untried = Map.of("owner", "{{auth.claims.email}}");
+        // Skipped because its $when does not hold
+        assertThrows(CallerClaimMissingException.class,
+                () -> Resolver.resolveJsonData(Map.of("a", Map.of("$first",
+                        List.of(skipped, Map.of("type", "none")))),
+                        callerParameters(Map.of("sub", "alice"))));
+        // Not tried because a variant before it was chosen
+        assertThrows(CallerClaimMissingException.class,
+                () -> Resolver.resolveJsonData(Map.of("a", Map.of("$first",
+                        List.of(Map.of("type", "none"), untried))),
+                        callerParameters(Map.of("sub", "alice"))));
+    }
+
+    @Test
+    void resolveJsonDataShouldCheckAClaimThatTheWhenOfALeftOutObjectNames() {
+        Map<String, Object> inner = Map.of("$when", "auth.claims.email", "x", 1);
+        assertThrows(CallerClaimMissingException.class,
+                () -> Resolver.resolveJsonData(Map.of("a", Map.of("$when", "flag",
+                        "b", inner)), callerParameters(Map.of("sub", "alice"))));
+    }
+
+    @Test
     void resolveJsonDataShouldCheckAClaimInTheKeyOfAMemberLeftOut() {
         // The member's value is absent, so the member is left out: its key is still checked
         assertThrows(CallerClaimMissingException.class,

@@ -52,7 +52,7 @@ These rules are not covered there yet:
   are JSON-encoded, so string placeholders must be quoted.
 - In a `json` body whose `data` is an object or array, three markers decide what is sent and
   are never sent themselves:
-  - `$when: <input>` on an object sends it only when the input is present, not null and not
+  - `$when: <input>` on an object other than the root sends it only when the input is present, not null and not
     `false` (`""`, `0` and the string `"false"` hold). Inputs are read after their defaults are
     applied, so an input with a `default` always holds.
   - `{$first: [variants]}` as a value takes the first variant object whose `$when` holds, or
