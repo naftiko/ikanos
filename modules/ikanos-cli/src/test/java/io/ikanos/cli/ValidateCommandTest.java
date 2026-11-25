@@ -559,6 +559,65 @@ public class ValidateCommandTest {
         assertFalse(outCapture.toString().contains("Warnings:"), outCapture.toString());
     }
 
+    @Test
+    public void callShouldWarnButPassWhenABodyWhenNamesNoInputOfItsTool() {
+        Path yaml = tempDir.resolve("body-when.yaml");
+        assertDoesNotThrow(() -> Files.writeString(yaml, bodyMarkersCapability(
+                "notifications: {$when: silent, mode: silent}")));
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        assertEquals(0, exitCode, errCapture.toString());
+        assertTrue(outCapture.toString().contains("MCP tool 'patch-page' in 'tools' calls"
+                + " notion.patch-page, whose body has '$when: silent', but 'silent' is not one of"
+                + " its inputs"), outCapture.toString());
+    }
+
+    @Test
+    public void callShouldFailWhenABodyMarkerIsMisused() {
+        Path yaml = tempDir.resolve("body-keep.yaml");
+        assertDoesNotThrow(() -> Files.writeString(yaml, bodyMarkersCapability(
+                "filter: {$keep: false, quiet: \"{{quiet}}\"}")));
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        assertEquals(1, exitCode, "#1132: a misused body marker must fail validate");
+        assertTrue(errCapture.toString().contains("notion.patch-page body /filter: $keep must be"
+                + " true"), errCapture.toString());
+    }
+
+    /** A tool with the input 'quiet', calling an operation whose body has {@code member}. */
+    private static String bodyMarkersCapability(String member) {
+        return """
+                ikanos: "%s"
+                capability:
+                  exposes:
+                    - type: mcp
+                      namespace: tools
+                      port: 3000
+                      tools:
+                        patch-page:
+                          description: "Update a page"
+                          inputParameters:
+                            quiet: {type: boolean, description: "Skip notifications"}
+                          call: notion.patch-page
+                  consumes:
+                    - type: http
+                      namespace: notion
+                      baseUri: "http://localhost:1"
+                      resources:
+                        pages:
+                          path: /pages
+                          operations:
+                            patch-page:
+                              method: PATCH
+                              body:
+                                type: json
+                                data:
+                                  %s
+                """.formatted(IKANOS, member);
+    }
+
     private static String definitionsCapability(String tools) {
         return """
                 ikanos: "%s"

@@ -23,6 +23,7 @@ import tools.jackson.databind.node.ObjectNode;
 import com.networknt.schema.Schema;
 import com.networknt.schema.SchemaRegistry;
 import com.networknt.schema.SpecificationVersion;
+import io.ikanos.engine.consumes.BodyConditionValidator;
 import io.ikanos.engine.consumes.ConsumedQueryParameterValidator;
 import io.ikanos.engine.consumes.ConsumedTemplateValidator;
 import io.ikanos.engine.consumes.http.ConsumedHeaderValidator;
@@ -160,6 +161,10 @@ public class ValidateCommand implements Callable<Integer> {
                 warnings.addAll(InputDefaults.findWarnings(spec));
                 // authentication.scopes no longer required on every call (#999)
                 warnings.addAll(AccessControl.findWarnings(spec));
+                // A body $when that names no input of its caller (#1132), on the expanded inputs
+                if (definitions.errors().isEmpty()) {
+                    warnings.addAll(BodyConditionValidator.findWarnings(spec));
+                }
             }
 
             // Display validation result.
