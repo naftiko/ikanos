@@ -1,0 +1,87 @@
+ikanos: "1.0.0-beta10"
+info:
+  display: "Mapping set violations"
+  description: "Mistakes in named mapping sets of mapped (call-mode) outputs (#1133)."
+  tags:
+    - Test
+capability:
+  consumes:
+    - type: http
+      namespace: registry
+      description: "Ship registry API"
+      baseUri: "https://registry.acme.org"
+      resources:
+        ships:
+          path: "/ships"
+          description: "Ships"
+          operations:
+            list-ships:
+              method: GET
+            get-ship:
+              method: GET
+  exposes:
+    - type: mcp
+      port: 3000
+      namespace: fleet
+      description: "Fleet tools"
+      definitions:
+        schemas:
+          ship:
+            type: object
+            properties:
+              imo: { type: string }
+              flag: { type: string }
+        mappingSets:
+          ship-from-registry:
+            imo: "$.imo_number"
+            flag: "$.flag_state"
+          ship-with-owner:
+            imo: "$.imo_number"
+            flag: "$.flag_state"
+            owner: "$.owner"
+          ship-static:
+            imo: "IMO 9321483"
+            flag: "$.flag_state"
+          never-used:
+            imo: "$.imo"
+      tools:
+        unknown-set:
+          description: "Lists a mapping set the adapter does not declare."
+          call: registry.get-ship
+          outputParameters:
+            - schema: ship
+              mappingSets: [ship-from-crm]
+        schema-as-set:
+          description: "Lists a schema as a mapping set."
+          call: registry.get-ship
+          outputParameters:
+            - schema: ship
+              mappingSets: [ship-from-registry, ship]
+        extra-path:
+          description: "Uses a mapping set with a path the schema does not have."
+          call: registry.get-ship
+          outputParameters:
+            - schema: ship
+              mappingSets: [ship-with-owner]
+        static-value:
+          description: "Uses a mapping set whose value is not a JSONPath."
+          call: registry.get-ship
+          outputParameters:
+            - schema: ship
+              mappingSets: [ship-static]
+        sets-without-schema:
+          description: "Lists mapping sets without a schema."
+          call: registry.get-ship
+          outputParameters:
+            - type: object
+              mappingSets: [ship-from-registry]
+              properties:
+                imo: { type: string, mapping: "$.imo" }
+        mock-ship:
+          description: "A mock that lists mapping sets."
+          outputParameters:
+            ship:
+              type: object
+              mappingSets: [ship-from-registry]
+              properties:
+                imo: { type: string, value: "IMO 9321483" }

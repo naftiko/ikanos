@@ -261,7 +261,8 @@ class MappedOutputDefinitionsExpanderTest {
 
         assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', output: 'schema: ship' leaves"
                 + " paths unbound: [specs.tonnage, crew, crew[].fullName, tags]. Give each scalar,"
-                + " array and object without properties a mapping in 'mappings'."), errors);
+                + " array and object without properties a mapping in 'mappings' or"
+                + " 'mappingSets'."), errors);
     }
 
     @Test
@@ -342,7 +343,7 @@ class MappedOutputDefinitionsExpanderTest {
         assertEquals(List.of("MCP adapter 'tools', tool 'get-tags', output, property 'tags':"
                 + " 'schema: tags' leaves paths unbound: [(the output itself: set 'mapping'"
                 + " beside 'schema:')]. Give each scalar, array and object without properties a"
-                + " mapping in 'mappings'."), errors);
+                + " mapping in 'mappings' or 'mappingSets'."), errors);
     }
 
     @Test
@@ -369,7 +370,7 @@ class MappedOutputDefinitionsExpanderTest {
 
         assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', output: 'schema: ship' leaves"
                 + " paths unbound: [metadata]. Give each scalar, array and object without"
-                + " properties a mapping in 'mappings'."), errors);
+                + " properties a mapping in 'mappings' or 'mappingSets'."), errors);
     }
 
     @Test
@@ -603,8 +604,9 @@ class MappedOutputDefinitionsExpanderTest {
 
         List<String> errors = DefinitionsExpander.expandAll(spec).errors();
 
-        assertEquals(List.of("MCP adapter 'tools', resource 'flagship': 'schema:' and"
-                + " 'mappings' are not supported in an MCP resource output. Declare the output"
+        assertEquals(List.of("MCP adapter 'tools', resource 'flagship': 'schema:', 'mappings'"
+                + " and 'mappingSets' are not supported in an MCP resource output. Declare the"
+                + " output"
                 + " inline."), errors);
     }
 
@@ -651,8 +653,10 @@ class MappedOutputDefinitionsExpanderTest {
 
         List<String> errors = DefinitionsExpander.expandAll(spec).errors();
 
-        assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', output 'ship': 'schema:' and"
-                + " 'mappings' are not allowed in a mock output, which returns static values."
+        assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', output 'ship': 'schema:',"
+                + " 'mappings'"
+                + " and 'mappingSets' are not allowed in a mock output, which returns static"
+                + " values."
                 + " Declare the output inline."), errors);
     }
 
@@ -681,8 +685,10 @@ class MappedOutputDefinitionsExpanderTest {
 
         List<String> errors = DefinitionsExpander.expandAll(spec).errors();
 
-        assertEquals(List.of("aggregate 'fleet', flow 'get-ship', output 'ship': 'schema:' and"
-                + " 'mappings' are not allowed in a mock output, which returns static values."
+        assertEquals(List.of("aggregate 'fleet', flow 'get-ship', output 'ship': 'schema:',"
+                + " 'mappings'"
+                + " and 'mappingSets' are not allowed in a mock output, which returns static"
+                + " values."
                 + " Declare the output inline."), errors);
     }
 
@@ -798,7 +804,8 @@ class MappedOutputDefinitionsExpanderTest {
         List<String> errors = DefinitionsExpander.expandAll(spec).errors();
 
         assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', output: 'schema: ship' takes"
-                + " only 'mappings' and 'mapping' in a mapped output, found [type]."), errors);
+                + " only 'mappings', 'mappingSets' and 'mapping' in a mapped output, found"
+                + " [type]."), errors);
     }
 
     @Test
@@ -898,8 +905,10 @@ class MappedOutputDefinitionsExpanderTest {
 
         List<String> errors = DefinitionsExpander.expandAll(spec).errors();
 
-        assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', output 'ship': 'schema:' and"
-                + " 'mappings' are not allowed in a mock output, which returns static values."
+        assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', output 'ship': 'schema:',"
+                + " 'mappings'"
+                + " and 'mappingSets' are not allowed in a mock output, which returns static"
+                + " values."
                 + " Declare the output inline."), errors);
     }
 
@@ -933,6 +942,332 @@ class MappedOutputDefinitionsExpanderTest {
         assertEquals(List.of(), DefinitionsExpander.expandAll(spec).errors());
     }
 
+    private static final String SHIP_SETS = """
+            definitions:
+              schemas:
+                ship:
+                  type: object
+                  properties:
+                    imo: { type: string }
+                    flag: { type: string }
+              mappingSets:
+                ship-from-registry:
+                  imo: "$.imo_number"
+                  flag: "$.flag_state"
+                ship-from-ais:
+                  flag: "$.ais.flag"
+            """;
+
+    @Test
+    void expandAllShouldBindAMappingSetLikeTheSameMappingsInline() throws Exception {
+        IkanosSpec named = mcp(SHIP.replace("definitions:\n", """
+                definitions:
+                  mappingSets:
+                    ship-from-erp:
+                      imo: "$.imo_number"
+                      specs.tonnage: "$.gross_tonnage"
+                      crew: "$.crew"
+                      crew[].fullName: "$.name"
+                      tags: "$.labels"
+                """), """
+                list-ships:
+                  description: "List ships."
+                  call: erp.list-ships
+                  outputParameters:
+                    - type: array
+                      mapping: "$.ships"
+                      items: { schema: ship, mappingSets: [ship-from-erp] }
+                """);
+        IkanosSpec inline = mcp(SHIP, """
+                list-ships:
+                  description: "List ships."
+                  call: erp.list-ships
+                  outputParameters:
+                    - type: array
+                      mapping: "$.ships"
+                      items:
+                        schema: ship
+                        mappings:
+                          imo: "$.imo_number"
+                          specs.tonnage: "$.gross_tonnage"
+                          crew: "$.crew"
+                          crew[].fullName: "$.name"
+                          tags: "$.labels"
+                """);
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(named);
+        DefinitionsExpander.expandAll(inline);
+
+        assertEquals(List.of(), result.errors());
+        assertEquals(List.of(), result.warnings());
+        assertEquals(outputs(inline, "list-ships"), outputs(named, "list-ships"));
+    }
+
+    @Test
+    void expandAllShouldLetALaterMappingSetWinAndTheOwnMappingsWinLast() throws Exception {
+        IkanosSpec spec = mcp(SHIP_SETS, """
+                get-ship:
+                  description: "Get ship."
+                  call: erp.get-ship
+                  outputParameters:
+                    - schema: ship
+                      mappingSets: [ship-from-registry, ship-from-ais]
+                      mappings:
+                        imo: "$.imo"
+                """);
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+
+        assertEquals(List.of(), result.errors());
+        assertEquals("{\"type\":\"object\",\"properties\":{\"imo\":{\"type\":\"string\","
+                + "\"mapping\":\"$.imo\"},\"flag\":{\"type\":\"string\",\"mapping\":"
+                + "\"$.ais.flag\"}}}", outputs(spec, "get-ship"));
+    }
+
+    @Test
+    void expandAllShouldBindAMappingSetInACallModeFlow() throws Exception {
+        IkanosSpec spec = read("""
+                ikanos: "%s"
+                capability:
+                  aggregates:
+                    - namespace: fleet
+                      definitions:
+                        schemas:
+                          ship:
+                            type: object
+                            properties:
+                              imo: { type: string }
+                        mappingSets:
+                          ship-from-erp:
+                            imo: "$.imo_number"
+                      flows:
+                        get-ship:
+                          description: "Get ship."
+                          call: erp.get-ship
+                          outputParameters:
+                            - schema: ship
+                              mappingSets: [ship-from-erp]
+                """.formatted(IKANOS));
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+        AggregateFlowSpec flow = spec.getCapability().getAggregates().values().iterator().next()
+                .getFlows().get("get-ship");
+
+        assertEquals(List.of(), result.errors());
+        assertEquals("[{\"type\":\"object\",\"properties\":{\"imo\":{\"type\":\"string\","
+                + "\"mapping\":\"$.imo_number\"}}}]",
+                IkanosMappers.json().writeValueAsString(flow.getOutputParameters()));
+    }
+
+    @Test
+    void expandAllShouldRejectAnUnknownMappingSetWithoutReportingItsPathsUnbound()
+            throws Exception {
+        IkanosSpec spec = mcp(SHIP_SETS, """
+                get-ship:
+                  description: "Get ship."
+                  call: erp.get-ship
+                  outputParameters:
+                    - schema: ship
+                      mappingSets: [ship-from-crm]
+                """);
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', output: unknown mapping set"
+                + " 'ship-from-crm'. MCP adapter 'tools' declares ship-from-registry,"
+                + " ship-from-ais."), errors);
+    }
+
+    @Test
+    void expandAllShouldRejectASchemaListedAsAMappingSet() throws Exception {
+        IkanosSpec spec = mcp(SHIP_SETS, """
+                get-ship:
+                  description: "Get ship."
+                  call: erp.get-ship
+                  outputParameters:
+                    - schema: ship
+                      mappingSets: [ship-from-registry, ship]
+                """);
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', output: 'ship' is a schema,"
+                + " not a mapping set. Use it with 'schema: ship'."), errors);
+    }
+
+    @Test
+    void expandAllShouldNameTheMappingSetOfAPathThatTheSchemaDoesNotHave() throws Exception {
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    ship:
+                      type: object
+                      properties:
+                        imo: { type: string }
+                  mappingSets:
+                    ship-from-registry:
+                      imo: "$.imo_number"
+                      flag: "$.flag_state"
+                """, """
+                get-ship:
+                  description: "Get ship."
+                  call: erp.get-ship
+                  outputParameters:
+                    - schema: ship
+                      mappingSets: [ship-from-registry]
+                """);
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', output: 'schema: ship' has no"
+                + " path [flag (mapping set 'ship-from-registry')]. Its paths are imo."), errors);
+    }
+
+    @Test
+    void expandAllShouldRejectAMappingSetValueThatIsNotAJsonPathOnceWhereItIsDeclared()
+            throws Exception {
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    ship:
+                      type: object
+                      properties:
+                        imo: { type: string }
+                  mappingSets:
+                    ship-from-registry:
+                      imo: "IMO 9321483"
+                """, """
+                get-ship:
+                  description: "Get ship."
+                  call: erp.get-ship
+                  outputParameters:
+                    - schema: ship
+                      mappingSets: [ship-from-registry]
+                list-ships:
+                  description: "List ships."
+                  call: erp.list-ships
+                  outputParameters:
+                    - type: array
+                      mapping: "$.ships"
+                      items: { schema: ship, mappingSets: [ship-from-registry] }
+                """);
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        assertEquals(List.of("MCP adapter 'tools', mapping set 'ship-from-registry' binds [imo] to"
+                + " a value that is not a JSONPath (starting with '$'). A static 'value' is"
+                + " declared inline."), errors);
+    }
+
+    @Test
+    void expandAllShouldWarnThatAMappingSetIsUnused() throws Exception {
+        IkanosSpec spec = mcp(SHIP_SETS, """
+                get-ship:
+                  description: "Get ship."
+                  call: erp.get-ship
+                  outputParameters:
+                    - schema: ship
+                      mappingSets: [ship-from-registry]
+                """);
+
+        assertEquals(List.of("MCP adapter 'tools' declares the mapping set 'ship-from-ais',"
+                + " which no tool uses."), DefinitionsExpander.expandAll(spec).warnings());
+    }
+
+    @Test
+    void expandAllShouldRejectMappingSetsWithoutASchema() throws Exception {
+        IkanosSpec spec = mcp(SHIP_SETS, """
+                get-ship:
+                  description: "Get ship."
+                  call: erp.get-ship
+                  outputParameters:
+                    - type: object
+                      mappingSets: [ship-from-registry]
+                      properties:
+                        imo: { type: string, mapping: "$.imo" }
+                """);
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+
+        assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', output: 'mappingSets' binds a"
+                + " schema, so it needs 'schema:' beside it. Name the schema, or declare a"
+                + " 'mapping' on each leaf inline."), result.errors());
+        assertTrue(result.warnings().stream().noneMatch(w -> w.contains("ship-from-registry")),
+                result.warnings().toString());
+    }
+
+    @Test
+    void expandAllShouldRejectMappingSetsInAMockOutput() throws Exception {
+        IkanosSpec spec = mcp(SHIP_SETS, """
+                get-ship:
+                  description: "Get ship."
+                  outputParameters:
+                    ship:
+                      type: object
+                      mappingSets: [ship-from-registry]
+                      properties:
+                        imo: { type: string, value: "IMO 9321483" }
+                """);
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', output 'ship': 'schema:',"
+                + " 'mappings' and 'mappingSets' are not allowed in a mock output, which returns"
+                + " static values. Declare the output inline."), errors);
+    }
+
+    @Test
+    void expandAllShouldRejectMappingSetsInAnOrchestratedOutput() throws Exception {
+        IkanosSpec spec = mcp(SHIP_SETS, """
+                get-ship:
+                  description: "Get ship."
+                  steps:
+                    fetch: { type: call, call: erp.get-ship }
+                  mappings:
+                    - target: ship
+                      value: "$.fetch"
+                  outputParameters:
+                    ship:
+                      schema: ship
+                      mappingSets: [ship-from-registry]
+                    owner:
+                      type: object
+                      mappingSets: [ship-from-ais]
+                      properties:
+                        name: { type: string }
+                """);
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', output 'ship': 'schema: ship'"
+                + " takes no other key in an output, found [mappingSets].",
+                "MCP adapter 'tools', tool 'get-ship', output 'owner': 'mappingSets' is only"
+                + " allowed beside 'schema:' in a mapped (call-mode) output. An orchestrated"
+                + " output is filled by the unit's step 'mappings'."), errors);
+    }
+
+    @Test
+    void expandAllShouldBindMappingSetsTheSameAfterAYamlRoundTrip() throws Exception {
+        // Imports deep-copy adapters and aggregates through the serializers
+        IkanosSpec spec = mcp(SHIP_SETS, """
+                get-ship:
+                  description: "Get ship."
+                  call: erp.get-ship
+                  outputParameters:
+                    - schema: ship
+                      mappingSets: [ship-from-registry, ship-from-ais]
+                      mappings:
+                        imo: "$.imo"
+                """);
+        IkanosSpec copy = read(IkanosMappers.yaml().writeValueAsString(spec));
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(copy);
+        DefinitionsExpander.expandAll(spec);
+
+        assertEquals(List.of(), result.errors());
+        assertEquals(outputs(spec, "get-ship"), outputs(copy, "get-ship"));
+    }
+
     @Test
     void expandAllShouldResolveTheSchemasOfChildrenRejectedBesideASchema() throws Exception {
         IkanosSpec spec = mcp("""
@@ -962,7 +1297,8 @@ class MappedOutputDefinitionsExpanderTest {
         DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
 
         assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', output: 'schema: ship' takes"
-                + " only 'mappings' and 'mapping' in a mapped output, found [properties].",
+                + " only 'mappings', 'mappingSets' and 'mapping' in a mapped output, found"
+                + " [properties].",
                 "MCP adapter 'tools', tool 'get-ship', output: unknown schema 'nope'. MCP adapter"
                 + " 'tools' declares ship, crew."), result.errors());
         assertTrue(result.warnings().stream().noneMatch(w -> w.contains("'crew'")),
@@ -991,9 +1327,9 @@ class MappedOutputDefinitionsExpanderTest {
 
         DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
 
-        assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', output 'ship': 'schema:' and"
-                + " 'mappings' are not allowed in a mock output, which returns static values."
-                + " Declare the output inline.",
+        assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', output 'ship': 'schema:',"
+                + " 'mappings' and 'mappingSets' are not allowed in a mock output, which returns"
+                + " static values. Declare the output inline.",
                 "MCP adapter 'tools', tool 'get-ship', output 'ship': unknown schema 'nope'. MCP"
                 + " adapter 'tools' declares ship."), result.errors());
         assertEquals(List.of(), result.warnings());

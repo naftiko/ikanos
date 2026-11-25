@@ -534,7 +534,8 @@ class RestDefinitionsExpanderTest {
         List<String> errors = DefinitionsExpander.expandAll(spec).errors();
 
         assertEquals(List.of("REST adapter 'api', resource 'ship', operation 'get-ship', output"
-                + " 'ship': 'schema: ship' in a mapped (call-mode) output needs 'mappings', the"
+                + " 'ship': 'schema: ship' in a mapped (call-mode) output needs 'mappings' or"
+                + " 'mappingSets', the"
                 + " mapping of each path of the schema."), errors);
     }
 
@@ -563,7 +564,8 @@ class RestDefinitionsExpanderTest {
         List<String> errors = DefinitionsExpander.expandAll(spec).errors();
 
         assertEquals(List.of("REST adapter 'api', resource 'ship', operation 'get-ship', output"
-                + " 'ship': 'schema:' and 'mappings' are not allowed in a mock output, which"
+                + " 'ship': 'schema:', 'mappings' and 'mappingSets' are not allowed in a mock"
+                + " output, which"
                 + " returns static values. Declare the output inline."), errors);
     }
 

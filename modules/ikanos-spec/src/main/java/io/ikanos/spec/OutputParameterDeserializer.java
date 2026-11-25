@@ -110,6 +110,20 @@ public class OutputParameterDeserializer extends ValueDeserializer<OutputParamet
             }
         }
 
+        // The mapping sets that bind a schema reference in a mapped output (#1133). Read even
+        // without `schema`, so that the definitions expander can reject them there. A value that
+        // is not a list keeps its JSON form, which is not a bare name: the expander reports it.
+        if (node.has("mappingSets")) {
+            JsonNode sets = node.get("mappingSets");
+            if (sets.isArray()) {
+                for (JsonNode set : sets) {
+                    spec.getMappingSets().add(set.isString() ? set.asString() : set.toString());
+                }
+            } else {
+                spec.getMappingSets().add(sets.toString());
+            }
+        }
+
         // Handle nested "items" array for array types
         if (node.has("items")) {
             JsonNode itemsNode = node.get("items");

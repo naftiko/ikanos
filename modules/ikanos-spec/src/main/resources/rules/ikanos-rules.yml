@@ -248,7 +248,9 @@ rules:
       `inputParameterSets: [name]` on an MCP tool, a REST resource or operation,
       or an aggregate flow must name an input parameter set, and `schema: name`
       (on an input, inside a schema, or in an orchestrated or mapped output)
-      must name a schema, declared in the `definitions` of the same MCP adapter, REST
+      must name a schema, and `mappingSets: [name]` beside `schema:` in a
+      mapped output a mapping set, declared in the `definitions` of the same
+      MCP adapter, REST
       adapter or aggregate. Definitions are local: a tool or an operation cannot
       use an aggregate's definitions (it reaches a flow through `ref`). The
       engine rejects the capability at startup otherwise.
@@ -292,9 +294,9 @@ rules:
   ikanos-definitions-unused:
     message: "{{error}}"
     description: >
-      An input parameter set or schema that no tool, REST resource or
-      operation, or flow of its namespace uses, directly or through another definition, is dead weight: remove it
-      or use it.
+      An input parameter set, schema or mapping set that no tool, REST resource
+      or operation, or flow of its namespace uses, directly or through another
+      definition, is dead weight: remove it or use it.
     severity: warn
     recommended: true
     given: "$"
@@ -324,17 +326,19 @@ rules:
   ikanos-definitions-mappings:
     message: "{{error}}"
     description: >
-      `schema: name` in a mapped (call-mode) output must be bound by `mappings`:
-      a path in the schema (property names joined by `.`, `[]` for an array's
-      items) for every scalar, array and object without properties, each to a
-      JSONPath, which is the `mapping` that node carries once expanded. A path
-      the schema does not have, a binding the runtime never reads (object
-      items, below nested arrays, a `mapping` beside `schema:` on an output
-      object), a key beside `schema:` other than `mappings` and `mapping`, a
-      property name containing `.`, `[` or `]`, `mappings` without
-      `schema:`, and `schema:` or `mappings` in a mock output or an MCP
-      resource output are
-      errors too. The engine rejects the capability at startup otherwise.
+      `schema: name` in a mapped (call-mode) output must be bound by `mappings`
+      and the mapping sets listed in `mappingSets`, merged by path (a later set
+      wins, `mappings` win last): a path in the schema (property names joined
+      by `.`, `[]` for an array's items) for every scalar, array and object
+      without properties, each to a JSONPath, which is the `mapping` that node
+      carries once expanded. A path the schema does not have, a binding the
+      runtime never reads (object items, below nested arrays, a `mapping`
+      beside `schema:` on an output object), a key beside `schema:` other than
+      `mappings`, `mappingSets` and `mapping`, a property name containing `.`,
+      `[` or `]`, `mappings` or `mappingSets` without `schema:`, `schema:`,
+      `mappings` or `mappingSets` in a mock output or an MCP resource output,
+      and a mapping set value that is not a JSONPath are errors too. The engine
+      rejects the capability at startup otherwise.
     severity: error
     recommended: true
     given: "$"

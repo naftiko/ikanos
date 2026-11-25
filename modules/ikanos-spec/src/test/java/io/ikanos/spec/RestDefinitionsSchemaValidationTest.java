@@ -159,6 +159,34 @@ class RestDefinitionsSchemaValidationTest {
                 """));
     }
 
+    @Test
+    void validateShouldAcceptMappingSetsInACallModeRestOperation() throws Exception {
+        List<Error> errors = schema.validate(rest("""
+                definitions:
+                  schemas:
+                    ship:
+                      type: object
+                      properties:
+                        imo: { type: string }
+                  mappingSets:
+                    ship-from-registry:
+                      imo: "$.imo_number"
+                """, """
+                ships:
+                  path: "/ships"
+                  operations:
+                    list-ships:
+                      method: GET
+                      call: registry.list-ships
+                      outputParameters:
+                        - type: array
+                          mapping: "$.ships"
+                          items: { schema: ship, mappingSets: [ship-from-registry] }
+                """));
+
+        assertTrue(errors.isEmpty(), errors.toString());
+    }
+
     private static void assertRejected(JsonNode document) {
         List<Error> errors = schema.validate(document);
         assertFalse(errors.isEmpty(), "Expected the document to be rejected");
