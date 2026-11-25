@@ -163,6 +163,15 @@ public class ValidateCommand implements Callable<Integer> {
                 warnings.addAll(AccessControl.findWarnings(spec));
                 // A body $when that names no input of its caller (#1132), on the expanded inputs
                 if (definitions.errors().isEmpty()) {
+                    // As at load: a tool with no call reaches the operation it is named after
+                    if (inferredCallErrors.isEmpty()) {
+                        try {
+                            InferredToolCallResolver.resolve(spec);
+                        } catch (IllegalArgumentException e) {
+                            // An operation in an import is not visible here; such a tool is
+                            // checked when the capability loads
+                        }
+                    }
                     warnings.addAll(BodyConditionValidator.findWarnings(spec));
                 }
             }

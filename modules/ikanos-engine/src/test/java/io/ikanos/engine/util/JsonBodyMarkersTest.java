@@ -59,6 +59,17 @@ class JsonBodyMarkersTest {
     }
 
     @Test
+    void findErrorsShouldRejectWhenThatIsADotWithoutAName() throws Exception {
+        List<String> errors = JsonBodyMarkers.findErrors(data("""
+                a: {$when: ".", mode: silent}
+                b: {$when: "silent.", mode: silent}
+                c: {$when: "auth..sub", mode: silent}
+                """));
+
+        assertEquals(3, errors.size(), errors.toString());
+    }
+
+    @Test
     void findErrorsShouldRejectWhenThatIsNotAString() throws Exception {
         List<String> errors = JsonBodyMarkers.findErrors(data("""
                 notifications: {$when: true, mode: silent}
@@ -190,6 +201,13 @@ class JsonBodyMarkersTest {
 
         assertTrue(JsonBodyMarkers.applies(Map.of("$when", "step.id"), parameters));
         assertFalse(JsonBodyMarkers.applies(Map.of("$when", "step.name"), parameters));
+    }
+
+    @Test
+    void appliesShouldFailTheCallWhenTheCallerClaimIsMissing() {
+        // As in a placeholder (#998): a missing claim fails, it does not leave the object out
+        assertThrows(CallerClaimMissingException.class, () -> JsonBodyMarkers.applies(
+                Map.of("$when", "auth.claims.sub"), new HashMap<>()));
     }
 
     @Test

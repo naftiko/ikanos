@@ -50,6 +50,20 @@ These rules are not covered there yet:
 - In a `json` body whose `data` is an object, a placeholder in a key is resolved too, but two
   members that resolve to the same key fail the call. In a string template, substituted values
   are JSON-encoded, so string placeholders must be quoted.
+- In a `json` body whose `data` is an object or array, three markers decide what is sent and
+  are never sent themselves:
+  - `$when: <input>` on an object sends it only when the input is present, not null and not
+    `false` (`""`, `0` and the string `"false"` hold). Inputs are read after their defaults are
+    applied, so an input with a `default` always holds.
+  - `{$first: [variants]}` as a value takes the first variant object whose `$when` holds, or
+    that has no `$when`. It is left out when no variant applies, or when the chosen one resolves
+    to nothing.
+  - `$keep: true` on an object sends it as `{}` when all its members are left out.
+
+  A key that starts with `$$` is sent with one `$` less, so `$$when` sends a member named
+  `$when`. A misused marker, or a marker in form fields, fails when the capability loads, and
+  `ikanos validate` warns about a `$when` that names no input of a tool, REST operation or flow
+  that calls the operation.
 - In a `multipartForm` part whose `contentType` is `application/json` or a `+json` type,
   substituted values are JSON-encoded and the rendered `value` must be a single JSON document
   with no repeated member key, as for a `json` body.

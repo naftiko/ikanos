@@ -54,8 +54,12 @@ public final class JsonBodyMarkers {
     /** The prefix of a key that is sent with one {@code $} less. */
     private static final String ESCAPE = "$$";
 
-    /** The name a {@code $when} takes: what a {@code "{{name}}"} placeholder holds. */
-    private static final Pattern NAME = Pattern.compile("^[A-Za-z0-9_.\\-]+$");
+    /**
+     * The name a {@code $when} takes: what a {@code "{{name}}"} placeholder holds, a name or a
+     * dotted path of non-empty segments.
+     */
+    private static final Pattern NAME =
+            Pattern.compile("^[A-Za-z0-9_\\-]+(\\.[A-Za-z0-9_\\-]+)*$");
 
     private JsonBodyMarkers() {
     }

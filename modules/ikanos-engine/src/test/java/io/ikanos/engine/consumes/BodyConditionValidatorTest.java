@@ -129,6 +129,42 @@ class BodyConditionValidatorTest {
     }
 
     @Test
+    void findWarningsShouldReportRestOperationThatDoesNotDeclareTheName() throws Exception {
+        // page_id is declared on the resource, icon_emoji on the operation: both count
+        IkanosSpec spec = IkanosMappers.lenientYaml().readValue("""
+                ikanos: "%s"
+                capability:
+                %s
+                  exposes:
+                    - type: "rest"
+                      namespace: "api"
+                      port: 8080
+                      resources:
+                        pages:
+                          path: "/pages/{{page_id}}"
+                          inputParameters:
+                            page_id:
+                              in: path
+                              type: string
+                              description: "Page"
+                          operations:
+                            patch:
+                              method: "PATCH"
+                              inputParameters:
+                                icon_emoji:
+                                  in: body
+                                  type: string
+                                  description: "Emoji"
+                              call: notion.patch-page
+                """.formatted(IKANOS, CONSUMES.stripTrailing()), IkanosSpec.class);
+
+        assertEquals(List.of("REST operation 'PATCH /pages/{{page_id}}' in 'api' calls"
+                + " notion.patch-page, whose body has '$when: silent', but 'silent' is not one of"
+                + " its inputs: that object is never sent from it"),
+                BodyConditionValidator.findWarnings(spec));
+    }
+
+    @Test
     void findWarningsShouldAcceptNullSpec() {
         assertTrue(BodyConditionValidator.findWarnings(null).isEmpty());
     }

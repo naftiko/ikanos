@@ -574,6 +574,22 @@ public class ValidateCommandTest {
     }
 
     @Test
+    public void callShouldWarnWhenABodyWhenNamesNoInputOfAToolWithAnInferredCall() {
+        // #988: the tool 'patch-page' has no call, it reaches the operation it is named after
+        Path yaml = tempDir.resolve("body-when-inferred.yaml");
+        String capability = bodyMarkersCapability("notifications: {$when: silent, mode: silent}")
+                .replace("          call: notion.patch-page\n", "");
+        assertFalse(capability.contains("call:"), capability);
+        assertDoesNotThrow(() -> Files.writeString(yaml, capability));
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        assertEquals(0, exitCode, errCapture.toString());
+        assertTrue(outCapture.toString().contains("MCP tool 'patch-page' in 'tools' calls"
+                + " notion.patch-page, whose body has '$when: silent'"), outCapture.toString());
+    }
+
+    @Test
     public void callShouldFailWhenABodyMarkerIsMisused() {
         Path yaml = tempDir.resolve("body-keep.yaml");
         assertDoesNotThrow(() -> Files.writeString(yaml, bodyMarkersCapability(
