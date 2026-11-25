@@ -916,7 +916,10 @@ rules:
       A tool's description is how the model tells what it does. A listed tool
       with a blank description, or a `ref` tool whose flow has none, leaves the
       model only the name. Tools pinned with `toolSearch.alwaysListed` count as
-      listed.
+      listed. Only `toolSearch.mode: deferred` raises it to an error (see
+      ikanos-mcp-tool-description-deferred): a client may still select deferred
+      mode with `?toolSearch=deferred` on any adapter where `clientSelectable` is
+      not false, and search then finds the tool by its name only.
     severity: warn
     recommended: true
     given: "$"
@@ -946,7 +949,9 @@ rules:
       A description that only repeats the tool name ("sync_application syncs
       application") adds nothing for the model or for tool search. Fires when,
       once the name's words and filler words are removed, fewer than two words
-      are left. A heuristic, so it stays a warning in deferred mode too: an
+      are left. A description a `ref` tool inherits from its flow is checked
+      against the tool's name, under which tools/list sends it. Skipped for
+      Chinese and Japanese, which do not separate words with spaces. A heuristic, so it stays a warning in deferred mode too: an
       error would let a false positive fail the build.
     severity: warn
     recommended: true

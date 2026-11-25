@@ -16,7 +16,10 @@
  *                        search can only find by its name without a description;
  *   - "restatesName":    once the words of the tool name and common filler words
  *                        are removed, fewer than MIN_EXTRA_WORDS words are left in
- *                        the description ("sync_application syncs application");
+ *                        the description ("sync_application syncs application").
+ *                        An inherited description is checked too, against the name
+ *                        of the tool it is listed under. Skipped for descriptions in
+ *                        Chinese or Japanese, which do not separate words with spaces;
  *   - "similar":         two tools of the same adapter have descriptions whose
  *                        word sets overlap by SIMILARITY_THRESHOLD or more
  *                        (Jaccard index), so the model can swap them.
@@ -104,16 +107,20 @@ function scan(exposes, basePath, check, flows, results) {
         }
         continue;
       }
-      // Inherited descriptions are checked on the flow, where the author can fix them.
+      // tools/list sends an inherited description under the tool's name, so it is checked
+      // against that name, and reported on the tool (no `description` key to point at).
       const descriptionPath = own !== null ? path.concat(name, "description") : path.concat(name);
       const words = informativeWords(description);
-      if (check === "restatesName") {
+      if (check === "restatesName" && !hasUnspacedScript(description)) {
         const nameWords = new Set(wordsOf(name));
         const extra = new Set([...words].filter((word) => !nameWords.has(word)));
-        if (own !== null && extra.size < MIN_EXTRA_WORDS) {
+        if (extra.size < MIN_EXTRA_WORDS) {
           results.push({
-            message: "The description of tool '" + name + "' mostly repeats its name. Say"
-              + " what it acts on, when to use it, or what it returns.",
+            message: (own !== null
+              ? "The description of tool '" + name + "'"
+              : "The description tool '" + name + "' inherits from its flow '" + tool.ref + "'")
+              + " mostly repeats its name. Say what it acts on, when to use it, or what it"
+              + " returns" + (own !== null ? "." : ", on the flow or in a description on the tool."),
             path: descriptionPath,
           });
         }
@@ -176,6 +183,14 @@ function indexFlows(aggregates, flows) {
       }
     }
   }
+}
+
+/**
+ * Whether the text holds Han, Hiragana or Katakana letters: Chinese and Japanese do not
+ * separate words with spaces, so a whole sentence would count as a single word.
+ */
+function hasUnspacedScript(value) {
+  return /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(value);
 }
 
 /** The stemmed words of a description, without filler words. */

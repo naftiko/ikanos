@@ -694,10 +694,10 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
-    public void mcpToolDescriptionRestatesNameRuleShouldNotFireOnAnInheritedDescription() {
-        String output = lintFixture(SHARED_TOOL_DESCRIPTIONS).output();
-        assertFalse(output.contains("ikanos-mcp-tool-description-restates-name"),
-            "An inherited description is checked on its flow, not on the tool.\n" + output);
+    public void mcpToolDescriptionRestatesNameRuleShouldFireOnAnInheritedDescription() {
+        // tools/list sends the flow's description under the tool's name.
+        assertReportsAt(SHARED_TOOL_DESCRIPTIONS, "ikanos-mcp-tool-description-restates-name",
+            "$.exposes[0].tools.get-forecast");
     }
 
     private void assertToolSearchRuleFires(String ruleId) {

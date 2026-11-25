@@ -9,7 +9,7 @@
 #     themselves with their own name, and `list-users` adds only filler words ("that have");
 #   - ikanos-mcp-tool-description-similar: `list-closed-incidents` has the same description words
 #     as `list-open-incidents`.
-ikanos: "1.0.0-beta10"
+ikanos: "1.0.0-beta11"
 info:
   display: "MCP tool description rules — violations"
   description: "Fixture that breaks every MCP tool description Polychro rule."

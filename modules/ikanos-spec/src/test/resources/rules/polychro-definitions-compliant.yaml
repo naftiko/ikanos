@@ -28,7 +28,7 @@ capability:
               sku: { type: string }
       flows:
         list-lines:
-          description: "List order lines."
+          description: "List the lines of an order, with the SKU of each."
           steps:
             lines: { type: call, call: erp.list-orders }
           mappings:

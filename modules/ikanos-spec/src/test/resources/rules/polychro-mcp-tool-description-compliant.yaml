@@ -2,8 +2,9 @@
 #   every tool says more than its name, `inherited-restart` takes the description of its flow,
 #   `imported-restart` refs a flow this document does not hold (nothing to check), and the two
 #   incident tools say what sets them apart. `get-invoice` is described in Japanese, whose
-#   letters are words, not separators. The deferred adapter's tools are all described.
-ikanos: "1.0.0-beta10"
+#   letters are words, not separators, and `get-invoice-ja` and `get-invoice-zh` in Japanese and
+#   Chinese with no punctuation to split them. The deferred adapter's tools are all described.
+ikanos: "1.0.0-beta11"
 info:
   display: "MCP tool description rules — compliant"
   description: "Fixture that satisfies every MCP tool description Polychro rule."
@@ -51,6 +52,12 @@ capability:
           call: ops-api.read
         get-invoice:
           description: "請求書を1件取得し、金額と期日を返します。"
+          call: ops-api.read
+        get-invoice-ja:
+          description: "請求書の金額と支払期日を顧客ごとに返します"
+          call: ops-api.read
+        get-invoice-zh:
+          description: "返回指定客户发票的金额和到期日"
           call: ops-api.read
     - type: mcp
       namespace: ops-deferred
