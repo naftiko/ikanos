@@ -27,7 +27,7 @@ import io.ikanos.spec.util.IkanosMappers;
 
 /**
  * Unit tests for {@link JsonBodyMarkers} (#1132): the load-time check of the markers and the
- * {@code $when} test.
+ * {@code $onlyIf} test.
  */
 class JsonBodyMarkersTest {
 
@@ -38,41 +38,41 @@ class JsonBodyMarkersTest {
         List<String> errors = JsonBodyMarkers.findErrors(data("""
                 icon:
                   $first:
-                    - {$when: icon_emoji, type: emoji, emoji: "{{icon_emoji}}"}
-                    - {$when: icon_url, type: external, external: {url: "{{icon_url}}"}}
+                    - {$onlyIf: icon_emoji, type: emoji, emoji: "{{icon_emoji}}"}
+                    - {$onlyIf: icon_url, type: external, external: {url: "{{icon_url}}"}}
                     - {type: none}
                 filter: {$keep: true, team: "{{team}}"}
-                content: {$when: auth.claims.sub, brief: true}
+                content: {$onlyIf: auth.claims.sub, brief: true}
                 """));
 
         assertTrue(errors.isEmpty(), errors.toString());
     }
 
     @Test
-    void findErrorsShouldRejectWhenThatIsAPlaceholder() throws Exception {
+    void findErrorsShouldRejectOnlyIfThatIsAPlaceholder() throws Exception {
         List<String> errors = JsonBodyMarkers.findErrors(data("""
-                notifications: {$when: "{{silent}}", mode: silent}
+                notifications: {$onlyIf: "{{silent}}", mode: silent}
                 """));
 
-        assertEquals(List.of("/notifications: $when must name an input, without braces, such as"
-                + " '$when: silent'"), errors);
+        assertEquals(List.of("/notifications: $onlyIf must name an input, without braces, such as"
+                + " '$onlyIf: silent'"), errors);
     }
 
     @Test
-    void findErrorsShouldRejectWhenThatIsADotWithoutAName() throws Exception {
+    void findErrorsShouldRejectOnlyIfThatIsADotWithoutAName() throws Exception {
         List<String> errors = JsonBodyMarkers.findErrors(data("""
-                a: {$when: ".", mode: silent}
-                b: {$when: "silent.", mode: silent}
-                c: {$when: "auth..sub", mode: silent}
+                a: {$onlyIf: ".", mode: silent}
+                b: {$onlyIf: "silent.", mode: silent}
+                c: {$onlyIf: "auth..sub", mode: silent}
                 """));
 
         assertEquals(3, errors.size(), errors.toString());
     }
 
     @Test
-    void findErrorsShouldRejectWhenThatIsNotAString() throws Exception {
+    void findErrorsShouldRejectOnlyIfThatIsNotAString() throws Exception {
         List<String> errors = JsonBodyMarkers.findErrors(data("""
-                notifications: {$when: true, mode: silent}
+                notifications: {$onlyIf: true, mode: silent}
                 """));
 
         assertEquals(1, errors.size(), errors.toString());
@@ -91,11 +91,11 @@ class JsonBodyMarkersTest {
     void findErrorsShouldRejectFirstWithSiblingMembers() throws Exception {
         List<String> errors = JsonBodyMarkers.findErrors(data("""
                 icon:
-                  $when: icon
+                  $onlyIf: icon
                   $first: [{type: emoji}]
                 """));
 
-        assertEquals(List.of("/icon: an object with $first has no other member; put $when,"
+        assertEquals(List.of("/icon: an object with $first has no other member; put $onlyIf,"
                 + " $keep and the members in its variants"), errors);
     }
 
@@ -123,11 +123,11 @@ class JsonBodyMarkersTest {
                 icon:
                   $first:
                     - {type: none}
-                    - {$when: icon_url, type: external}
+                    - {$onlyIf: icon_url, type: external}
                 """));
 
         assertEquals(List.of("/icon/$first/1: never used, since a variant before it has no"
-                + " $when"), errors);
+                + " $onlyIf"), errors);
     }
 
     @Test
@@ -135,14 +135,14 @@ class JsonBodyMarkersTest {
         List<String> errors = JsonBodyMarkers.findErrors(data("""
                 icon:
                   $first:
-                    - {$when: icon_url, external: {$keep: 1}}
+                    - {$onlyIf: icon_url, external: {$keep: 1}}
                 children:
-                  - {$when: "", type: paragraph}
+                  - {$onlyIf: "", type: paragraph}
                 """));
 
         assertEquals(List.of("/icon/$first/0/external: $keep must be true; leave it out"
-                + " otherwise", "/children/0: $when must name an input, without braces, such as"
-                + " '$when: silent'"), errors);
+                + " otherwise", "/children/0: $onlyIf must name an input, without braces, such as"
+                + " '$onlyIf: silent'"), errors);
     }
 
     @Test
@@ -156,45 +156,45 @@ class JsonBodyMarkersTest {
     }
 
     @Test
-    void findErrorsShouldAcceptWhenThatNamesANamespacedClaim() throws Exception {
+    void findErrorsShouldAcceptOnlyIfThatNamesANamespacedClaim() throws Exception {
         List<String> errors = JsonBodyMarkers.findErrors(data("""
-                admin: {$when: "auth.claims.https://example.com/role", include: true}
-                groups: {$when: "auth.claims.cognito:groups", include: true}
+                admin: {$onlyIf: "auth.claims.https://example.com/role", include: true}
+                groups: {$onlyIf: "auth.claims.cognito:groups", include: true}
                 """));
 
         assertTrue(errors.isEmpty(), errors.toString());
     }
 
     @Test
-    void findErrorsShouldRejectWhenOnTheRootObject() throws Exception {
-        // The body is always sent, so a $when on the root could never leave it out
+    void findErrorsShouldRejectOnlyIfOnTheRootObject() throws Exception {
+        // The body is always sent, so an $onlyIf on the root could never leave it out
         List<String> errors = JsonBodyMarkers.findErrors(data("""
-                $when: silent
+                $onlyIf: silent
                 name: "{{name}}"
                 """));
 
-        assertEquals(List.of("/: $when cannot be on the root object, since the body is always"
+        assertEquals(List.of("/: $onlyIf cannot be on the root object, since the body is always"
                 + " sent; put it on a member"), errors);
     }
 
     @Test
     void findErrorsShouldIgnoreEscapedMarkerKeys() throws Exception {
         List<String> errors = JsonBodyMarkers.findErrors(data("""
-                query: {$$when: {$$first: 1}, $ref: "#/x"}
+                query: {$$onlyIf: {$$first: 1}, $ref: "#/x"}
                 """));
 
         assertTrue(errors.isEmpty(), errors.toString());
     }
 
     @Test
-    void conditionsShouldListEveryWhenNameOnce() throws Exception {
+    void conditionsShouldListEveryOnlyIfNameOnce() throws Exception {
         Set<String> names = JsonBodyMarkers.conditions(data("""
                 icon:
                   $first:
-                    - {$when: icon_emoji, type: emoji}
-                    - {$when: icon_url, type: external}
-                cover: {$when: icon_url, type: external}
-                children: [{$when: silent}]
+                    - {$onlyIf: icon_emoji, type: emoji}
+                    - {$onlyIf: icon_url, type: external}
+                cover: {$onlyIf: icon_url, type: external}
+                children: [{$onlyIf: silent}]
                 """));
 
         assertEquals(List.of("icon_emoji", "icon_url", "silent"), List.copyOf(names));
@@ -209,43 +209,43 @@ class JsonBodyMarkersTest {
         parameters.put("no", false);
         parameters.put("nothing", null);
 
-        assertTrue(JsonBodyMarkers.applies(Map.of("$when", "empty"), parameters));
-        assertTrue(JsonBodyMarkers.applies(Map.of("$when", "zero"), parameters));
-        assertTrue(JsonBodyMarkers.applies(Map.of("$when", "text"), parameters));
-        assertFalse(JsonBodyMarkers.applies(Map.of("$when", "no"), parameters));
-        assertFalse(JsonBodyMarkers.applies(Map.of("$when", "nothing"), parameters));
-        assertFalse(JsonBodyMarkers.applies(Map.of("$when", "missing"), parameters));
+        assertTrue(JsonBodyMarkers.applies(Map.of("$onlyIf", "empty"), parameters));
+        assertTrue(JsonBodyMarkers.applies(Map.of("$onlyIf", "zero"), parameters));
+        assertTrue(JsonBodyMarkers.applies(Map.of("$onlyIf", "text"), parameters));
+        assertFalse(JsonBodyMarkers.applies(Map.of("$onlyIf", "no"), parameters));
+        assertFalse(JsonBodyMarkers.applies(Map.of("$onlyIf", "nothing"), parameters));
+        assertFalse(JsonBodyMarkers.applies(Map.of("$onlyIf", "missing"), parameters));
     }
 
     @Test
     void appliesShouldReadDottedNamesThroughNestedValues() {
         Map<String, Object> parameters = Map.of("step", Map.of("id", "42"));
 
-        assertTrue(JsonBodyMarkers.applies(Map.of("$when", "step.id"), parameters));
-        assertFalse(JsonBodyMarkers.applies(Map.of("$when", "step.name"), parameters));
+        assertTrue(JsonBodyMarkers.applies(Map.of("$onlyIf", "step.id"), parameters));
+        assertFalse(JsonBodyMarkers.applies(Map.of("$onlyIf", "step.name"), parameters));
     }
 
     @Test
     void appliesShouldFailTheCallWhenTheCallerClaimIsMissing() {
         // As in a placeholder (#998): a missing claim fails, it does not leave the object out
         assertThrows(CallerClaimMissingException.class, () -> JsonBodyMarkers.applies(
-                Map.of("$when", "auth.claims.sub"), new HashMap<>()));
+                Map.of("$onlyIf", "auth.claims.sub"), new HashMap<>()));
     }
 
     @Test
-    void appliesShouldHoldWhenObjectHasNoWhen() {
+    void appliesShouldHoldWhenObjectHasNoOnlyIf() {
         assertTrue(JsonBodyMarkers.applies(Map.of("mode", "silent"), null));
     }
 
     @Test
-    void appliesShouldRejectWhenThatDoesNotNameAnInput() {
+    void appliesShouldRejectOnlyIfThatDoesNotNameAnInput() {
         assertThrows(IllegalArgumentException.class,
-                () -> JsonBodyMarkers.applies(Map.of("$when", "{{x}}"), Map.of("x", 1)));
+                () -> JsonBodyMarkers.applies(Map.of("$onlyIf", "{{x}}"), Map.of("x", 1)));
     }
 
     @Test
     void unescapeShouldRemoveOneDollarFromAnEscapedKey() {
-        assertEquals("$when", JsonBodyMarkers.unescape("$$when"));
+        assertEquals("$onlyIf", JsonBodyMarkers.unescape("$$onlyIf"));
         assertEquals("$ref", JsonBodyMarkers.unescape("$ref"));
         assertEquals("$$x", JsonBodyMarkers.unescape("$$$x"));
     }

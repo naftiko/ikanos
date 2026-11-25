@@ -39,7 +39,7 @@ import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 
 /**
- * Finds the {@code $when} markers of a consumed body that name no input of a caller (#1132).
+ * Finds the {@code $onlyIf} markers of a consumed body that name no input of a caller (#1132).
  * Such an object is never sent from that caller, which is most likely a misspelled name.
  *
  * <p>Only the callers whose inputs are known from the spec are checked: an MCP tool, a REST
@@ -56,7 +56,7 @@ public final class BodyConditionValidator {
 
     /**
      * @param spec the capability spec, with its definitions expanded; may be null
-     * @return one message per caller and {@code $when} name it does not provide
+     * @return one message per caller and {@code $onlyIf} name it does not provide
      */
     public static List<String> findWarnings(IkanosSpec spec) {
         List<String> warnings = new ArrayList<>();
@@ -119,7 +119,7 @@ public final class BodyConditionValidator {
         return warnings;
     }
 
-    /** The {@code $when} names of a consumed body, and the inputs its operation declares. */
+    /** The {@code $onlyIf} names of a consumed body, and the inputs its operation declares. */
     private record ConsumedBody(Set<String> conditions, Set<String> inputs) {
     }
 
@@ -138,13 +138,13 @@ public final class BodyConditionValidator {
         for (String name : body.conditions()) {
             if (!name.contains(".") && !inputs.contains(name)) {
                 warnings.add(caller + " calls " + call.getOperation() + ", whose body has '"
-                        + JsonBodyMarkers.WHEN + ": " + name + "', but '" + name
+                        + JsonBodyMarkers.ONLY_IF + ": " + name + "', but '" + name
                         + "' is not one of its inputs: that object is never sent from it");
             }
         }
     }
 
-    /** The consumed HTTP operations whose body has a {@code $when}, by {@code ns.operation}. */
+    /** The consumed HTTP operations whose body has an {@code $onlyIf}, by {@code ns.operation}. */
     private static Map<String, ConsumedBody> consumedBodies(IkanosSpec spec) {
         Map<String, ConsumedBody> bodies = new LinkedHashMap<>();
         for (ClientSpec client : consumes(spec)) {

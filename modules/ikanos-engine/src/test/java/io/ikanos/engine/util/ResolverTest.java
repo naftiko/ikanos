@@ -1706,10 +1706,10 @@ public class ResolverTest {
     }
 
     @Test
-    void resolveJsonDataShouldCheckAClaimInAnObjectWhoseWhenDoesNotHold() {
-        // #1132: the object is left out by its $when, its claims are still checked (#998)
+    void resolveJsonDataShouldCheckAClaimInAnObjectWhoseOnlyIfDoesNotHold() {
+        // #1132: the object is left out by its $onlyIf, its claims are still checked (#998)
         assertThrows(CallerClaimMissingException.class,
-                () -> Resolver.resolveJsonData(Map.of("a", Map.of("$when", "flag",
+                () -> Resolver.resolveJsonData(Map.of("a", Map.of("$onlyIf", "flag",
                         "owner", "{{auth.claims.email}}")),
                         callerParameters(Map.of("sub", "alice"))),
                 "#998: a missing claim must fail the call wherever the body reads it");
@@ -1717,9 +1717,9 @@ public class ResolverTest {
 
     @Test
     void resolveJsonDataShouldCheckAClaimInAFirstVariantNotChosen() {
-        Map<String, Object> skipped = Map.of("$when", "flag", "owner", "{{auth.claims.email}}");
+        Map<String, Object> skipped = Map.of("$onlyIf", "flag", "owner", "{{auth.claims.email}}");
         Map<String, Object> untried = Map.of("owner", "{{auth.claims.email}}");
-        // Skipped because its $when does not hold
+        // Skipped because its $onlyIf does not hold
         assertThrows(CallerClaimMissingException.class,
                 () -> Resolver.resolveJsonData(Map.of("a", Map.of("$first",
                         List.of(skipped, Map.of("type", "none")))),
@@ -1732,10 +1732,10 @@ public class ResolverTest {
     }
 
     @Test
-    void resolveJsonDataShouldCheckAClaimThatTheWhenOfALeftOutObjectNames() {
-        Map<String, Object> inner = Map.of("$when", "auth.claims.email", "x", 1);
+    void resolveJsonDataShouldCheckAClaimThatTheOnlyIfOfALeftOutObjectNames() {
+        Map<String, Object> inner = Map.of("$onlyIf", "auth.claims.email", "x", 1);
         assertThrows(CallerClaimMissingException.class,
-                () -> Resolver.resolveJsonData(Map.of("a", Map.of("$when", "flag",
+                () -> Resolver.resolveJsonData(Map.of("a", Map.of("$onlyIf", "flag",
                         "b", inner)), callerParameters(Map.of("sub", "alice"))));
     }
 

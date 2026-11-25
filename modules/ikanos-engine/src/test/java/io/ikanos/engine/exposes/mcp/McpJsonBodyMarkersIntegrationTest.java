@@ -36,7 +36,7 @@ import io.ikanos.spec.util.VersionHelper;
 
 /**
  * Integration test for #1132 (YAML, then Capability, then MCP tools/call, then HTTP against a
- * local recording upstream): the {@code $when}, {@code $first} and {@code $keep} markers of a
+ * local recording upstream): the {@code $onlyIf}, {@code $first} and {@code $keep} markers of a
  * structured JSON body, on the Notion {@code patch-page} and Gong {@code search-calls} bodies
  * that motivated them.
  */
@@ -139,13 +139,13 @@ public class McpJsonBodyMarkersIntegrationTest {
                                 data:
                                   icon:
                                     $first:
-                                      - {$when: icon_emoji, type: emoji, emoji: "{{icon_emoji}}"}
-                                      - {$when: icon_url, type: external, external: {url: "{{icon_url}}"}}
+                                      - {$onlyIf: icon_emoji, type: emoji, emoji: "{{icon_emoji}}"}
+                                      - {$onlyIf: icon_url, type: external, external: {url: "{{icon_url}}"}}
                                   template:
                                     $first:
-                                      - {$when: template_id, type: template_id, template_id: "{{template_id}}", timezone: "{{timezone}}"}
-                                      - {$when: use_default_template, type: default, timezone: "{{timezone}}"}
-                                  notifications: {$when: silent, mode: silent}
+                                      - {$onlyIf: template_id, type: template_id, template_id: "{{template_id}}", timezone: "{{timezone}}"}
+                                      - {$onlyIf: use_default_template, type: default, timezone: "{{timezone}}"}
+                                  notifications: {$onlyIf: silent, mode: silent}
                     - namespace: gong
                       type: http
                       baseUri: "http://localhost:%d"
@@ -162,7 +162,7 @@ public class McpJsonBodyMarkersIntegrationTest {
                                   contentSelector:
                                     exposedFields:
                                       parties: true
-                                      content: {$when: includeContent, brief: true, keyPoints: true}
+                                      content: {$onlyIf: includeContent, brief: true, keyPoints: true}
                                   cursor: "{{cursor}}"
                   exposes:
                     - type: mcp

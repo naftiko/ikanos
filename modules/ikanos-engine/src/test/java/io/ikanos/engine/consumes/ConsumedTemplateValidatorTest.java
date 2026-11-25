@@ -236,17 +236,17 @@ public class ConsumedTemplateValidatorTest {
 
     @Test
     void findErrorsShouldReportMarkerInFormFields() throws Exception {
-        // In a form map, a marker would be sent as a form field named $when
+        // In a form map, a marker would be sent as a form field named $onlyIf
         List<String> errors = ConsumedTemplateValidator.findErrors(spec("""
                               body:
                                 type: "formUrlEncoded"
                                 data:
-                                  $when: "silent"
+                                  $onlyIf: "silent"
                                   scope: "read"
                 """, "/items"));
 
-        assertEquals(List.of("svc.create body: $when applies to structured json data only: a"
-                + " form field cannot be named $when"), errors);
+        assertEquals(List.of("svc.create body: $onlyIf applies to structured json data only: a"
+                + " form field cannot be named $onlyIf"), errors);
     }
 
     @Test
@@ -257,10 +257,10 @@ public class ConsumedTemplateValidatorTest {
                                 data:
                                   icon:
                                     $first:
-                                      - {$when: emoji, type: emoji, emoji: "{{emoji}}"}
+                                      - {$onlyIf: emoji, type: emoji, emoji: "{{emoji}}"}
                                       - {type: external, external: {url: "{{url}}"}}
                                   filter: {$keep: true, team: "{{team}}"}
-                                  notifications: {$when: silent, mode: silent}
+                                  notifications: {$onlyIf: silent, mode: silent}
                 """, "/items"));
 
         assertTrue(errors.isEmpty(), errors.toString());

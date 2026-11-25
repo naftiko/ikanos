@@ -39,7 +39,7 @@ import io.ikanos.spec.consumes.mcp.McpClientSpec;
  * of a request body (a plain string body, string {@code data}, and each string inside structured
  * {@code data}, including form fields and multipart parts), and the authentication values that
  * {@code ConsumedAuthentication} renders for HTTP and MCP adapters (basic and digest username and
- * password, bearer token, API key name and value), and the {@code $when}, {@code $first} and
+ * password, bearer token, API key name and value), and the {@code $onlyIf}, {@code $first} and
  * {@code $keep} markers of structured body data (#1132). Templates are compiled the way the engine
  * renders them ({@link Resolver#templateError}). Messages name the adapter namespace, the
  * operation and the location, plus the kind and line of the parse error, and never echo the
@@ -218,7 +218,7 @@ public final class ConsumedTemplateValidator {
     }
 
     /**
-     * Checks the {@code $when}, {@code $first} and {@code $keep} markers of a body (#1132). They
+     * Checks the {@code $onlyIf}, {@code $first} and {@code $keep} markers of a body (#1132). They
      * apply to structured data that is built as a JSON tree; in the field map of a
      * {@code formUrlEncoded} body they would be sent as form fields, so they are refused there.
      * Multipart parts and string data hold no markers.

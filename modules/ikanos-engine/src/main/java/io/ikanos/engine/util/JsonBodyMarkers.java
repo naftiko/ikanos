@@ -26,11 +26,11 @@ import java.util.regex.Pattern;
  * before any key is resolved, and never sent:
  *
  * <ul>
- * <li>{@code $when: x} on an object: the object is sent only when {@code x} is present and not
+ * <li>{@code $onlyIf: x} on an object: the object is sent only when {@code x} is present and not
  * {@code false}. {@code x} is looked up like the {@code x} of a {@code "{{x}}"} placeholder, so
  * an empty string, {@code 0} or the string {@code "false"} hold.</li>
  * <li>{@code $first: [variants]} as the only member of an object: the object is replaced by the
- * first variant whose {@code $when} holds, or that has none (the fallback), and is left out when
+ * first variant whose {@code $onlyIf} holds, or that has none (the fallback), and is left out when
  * no variant applies, or when the chosen variant resolves to nothing (later variants are not
  * tried).</li>
  * <li>{@code $keep: true} on an object: the object is sent as {@code {}} when all its members are
@@ -38,13 +38,13 @@ import java.util.regex.Pattern;
  * </ul>
  *
  * <p>A key written {@code $$...} is sent with one {@code $} less, so a payload can still carry a
- * member named {@code $when}. Any other key that starts with {@code $}, such as {@code $ref}, is
+ * member named {@code $onlyIf}. Any other key that starts with {@code $}, such as {@code $ref}, is
  * sent as written.</p>
  */
 public final class JsonBodyMarkers {
 
     /** Sends the object only when the input it names is present and not {@code false}. */
-    public static final String WHEN = "$when";
+    public static final String ONLY_IF = "$onlyIf";
 
     /** Takes the first applicable variant. */
     public static final String FIRST = "$first";
@@ -56,7 +56,7 @@ public final class JsonBodyMarkers {
     private static final String ESCAPE = "$$";
 
     /**
-     * The name a {@code $when} takes: what a {@code "{{name}}"} placeholder holds, a name or a
+     * The name an {@code $onlyIf} takes: what a {@code "{{name}}"} placeholder holds, a name or a
      * dotted path of non-empty segments.
      */
     private static final Pattern NAME =
@@ -71,17 +71,17 @@ public final class JsonBodyMarkers {
     private JsonBodyMarkers() {
     }
 
-    /** @return whether {@code text} is what a {@code $when} may name: an input or a claim */
+    /** @return whether {@code text} is what an {@code $onlyIf} may name: an input or a claim */
     static boolean isName(String text) {
         return NAME.matcher(text).matches() || CLAIM.matcher(text).matches();
     }
 
     /** @return whether {@code key}, as authored, is one of the three markers */
     public static boolean isMarker(String key) {
-        return WHEN.equals(key) || FIRST.equals(key) || KEEP.equals(key);
+        return ONLY_IF.equals(key) || FIRST.equals(key) || KEEP.equals(key);
     }
 
-    /** @return {@code key} with the escape removed: {@code $$when} becomes {@code $when} */
+    /** @return {@code key} with the escape removed: {@code $$onlyIf} becomes {@code $onlyIf} */
     static String unescape(String key) {
         return key.startsWith(ESCAPE) ? key.substring(1) : key;
     }
@@ -99,19 +99,19 @@ public final class JsonBodyMarkers {
     /**
      * @param object an object of structured body data, as authored
      * @param parameters the request parameters, may be null
-     * @return {@code true} when {@code object} has no {@code $when}, or when the input it names
+     * @return {@code true} when {@code object} has no {@code $onlyIf}, or when the input it names
      *         is present and not {@code false}
-     * @throws IllegalArgumentException when {@code $when} does not name an input; the load-time
+     * @throws IllegalArgumentException when {@code $onlyIf} does not name an input; the load-time
      *         check ({@link #findErrors}) reports it first
      */
     static boolean applies(Map<?, ?> object, Map<String, Object> parameters) {
-        if (!object.containsKey(WHEN)) {
+        if (!object.containsKey(ONLY_IF)) {
             return true;
         }
-        Object name = object.get(WHEN);
+        Object name = object.get(ONLY_IF);
         if (!(name instanceof String text) || !isName(text)) {
             throw new IllegalArgumentException(
-                    "$when in structured JSON body data must name an input");
+                    "$onlyIf in structured JSON body data must name an input");
         }
         // A caller claim is checked as in a placeholder: a missing claim fails the call (#998)
         Resolver.requireCallerValues("{{" + text + "}}", parameters);
@@ -136,8 +136,8 @@ public final class JsonBodyMarkers {
     private static void check(Object data, String path, List<String> errors) {
         if (data instanceof Map<?, ?> object) {
             String where = path.isEmpty() ? "/" : path;
-            if (path.isEmpty() && object.containsKey(WHEN)) {
-                errors.add("/: $when cannot be on the root object, since the body is always sent;"
+            if (path.isEmpty() && object.containsKey(ONLY_IF)) {
+                errors.add("/: $onlyIf cannot be on the root object, since the body is always sent;"
                         + " put it on a member");
             }
             checkObject(object, where, errors);
@@ -161,10 +161,10 @@ public final class JsonBodyMarkers {
     }
 
     private static void checkObject(Map<?, ?> object, String where, List<String> errors) {
-        if (object.containsKey(WHEN) && !(object.get(WHEN) instanceof String name
+        if (object.containsKey(ONLY_IF) && !(object.get(ONLY_IF) instanceof String name
                 && isName(name))) {
-            errors.add(where + ": $when must name an input, without braces, such as"
-                    + " '$when: silent'");
+            errors.add(where + ": $onlyIf must name an input, without braces, such as"
+                    + " '$onlyIf: silent'");
         }
         if (object.containsKey(KEEP) && !Boolean.TRUE.equals(object.get(KEEP))) {
             errors.add(where + ": $keep must be true; leave it out otherwise");
@@ -173,7 +173,7 @@ public final class JsonBodyMarkers {
             return;
         }
         if (object.size() > 1) {
-            errors.add(where + ": an object with $first has no other member; put $when, $keep"
+            errors.add(where + ": an object with $first has no other member; put $onlyIf, $keep"
                     + " and the members in its variants");
         }
         if (!(object.get(FIRST) instanceof Collection<?> variants) || variants.isEmpty()) {
@@ -189,9 +189,9 @@ public final class JsonBodyMarkers {
                 continue;
             }
             if (fallbackSeen) {
-                errors.add(at + ": never used, since a variant before it has no $when");
+                errors.add(at + ": never used, since a variant before it has no $onlyIf");
             }
-            if (!map.containsKey(WHEN)) {
+            if (!map.containsKey(ONLY_IF)) {
                 fallbackSeen = true;
             }
         }
@@ -199,7 +199,7 @@ public final class JsonBodyMarkers {
 
     /**
      * @param data the structured body data, as authored
-     * @return the names the {@code $when} markers of {@code data} hold, in order, once each
+     * @return the names the {@code $onlyIf} markers of {@code data} hold, in order, once each
      */
     public static Set<String> conditions(Object data) {
         Set<String> names = new LinkedHashSet<>();
@@ -209,11 +209,11 @@ public final class JsonBodyMarkers {
 
     private static void collect(Object data, Set<String> names) {
         if (data instanceof Map<?, ?> object) {
-            if (object.get(WHEN) instanceof String name) {
+            if (object.get(ONLY_IF) instanceof String name) {
                 names.add(name);
             }
             for (Map.Entry<?, ?> entry : object.entrySet()) {
-                if (!WHEN.equals(String.valueOf(entry.getKey()))) {
+                if (!ONLY_IF.equals(String.valueOf(entry.getKey()))) {
                     collect(entry.getValue(), names);
                 }
             }

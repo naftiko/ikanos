@@ -52,21 +52,21 @@ These rules are not covered there yet:
   are JSON-encoded, so string placeholders must be quoted.
 - In a `json` body whose `data` is an object or array, three markers decide what is sent and
   are never sent themselves:
-  - `$when: <input>` on an object other than the root sends it only when the input is present, not null and not
+  - `$onlyIf: <input>` on an object other than the root sends it only when the input is present, not null and not
     `false` (`""`, `0` and the string `"false"` hold). Inputs are read after their defaults are
     applied, so an input with a `default` holds unless its default is `false`.
-  - `{$first: [variants]}` as a value takes the first variant object whose `$when` holds, or
-    that has no `$when`. It is left out when no variant applies, or when the chosen one resolves
+  - `{$first: [variants]}` as a value takes the first variant object whose `$onlyIf` holds, or
+    that has no `$onlyIf`. It is left out when no variant applies, or when the chosen one resolves
     to nothing.
   - `$keep: true` on an object sends it as `{}` when all its members are left out.
 
-  A key that starts with `$$` is sent with one `$` less, so `$$when` sends a member named
-  `$when`. A misused marker fails when the capability loads.
+  A key that starts with `$$` is sent with one `$` less, so `$$onlyIf` sends a member named
+  `$onlyIf`. A misused marker fails when the capability loads.
 
-  Form fields have no markers and no `$$` escape, so a `formUrlEncoded` field named `$when`,
+  Form fields have no markers and no `$$` escape, so a `formUrlEncoded` field named `$onlyIf`,
   `$first` or `$keep` also fails when the capability loads.
 
-  `ikanos validate` warns about a `$when` that names no input of a tool, REST operation or flow
+  `ikanos validate` warns about an `$onlyIf` that names no input of a tool, REST operation or flow
   that calls the operation.
 - In a `multipartForm` part whose `contentType` is `application/json` or a `+json` type,
   substituted values are JSON-encoded and the rendered `value` must be a single JSON document

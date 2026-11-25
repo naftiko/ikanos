@@ -279,11 +279,11 @@ public class McpCallHandlersFactory {
     }
 
     /**
-     * Whether {@code member} is a body {@code $when} that names a caller claim (#1132): its value
+     * Whether {@code member} is a body {@code $onlyIf} that names a caller claim (#1132): its value
      * is a name, not a template, and reads what {@code "{{name}}"} would.
      */
     private static boolean readsCallerClaimsInCondition(Map.Entry<String, JsonNode> member) {
-        return JsonBodyMarkers.WHEN.equals(member.getKey()) && member.getValue().isString()
+        return JsonBodyMarkers.ONLY_IF.equals(member.getKey()) && member.getValue().isString()
                 && Resolver.readsCallerClaims("{{" + member.getValue().asString() + "}}");
     }
 

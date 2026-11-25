@@ -22,7 +22,7 @@ import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.spec.util.VersionHelper;
 
 /**
- * Unit tests for {@link BodyConditionValidator} (#1132): a body {@code $when} that names no
+ * Unit tests for {@link BodyConditionValidator} (#1132): a body {@code $onlyIf} that names no
  * input of a caller.
  */
 class BodyConditionValidatorTest {
@@ -46,16 +46,16 @@ class BodyConditionValidatorTest {
                           body:
                             type: "json"
                             data:
-                              notifications: {$when: silent, mode: silent}
+                              notifications: {$onlyIf: silent, mode: silent}
                               icon:
                                 $first:
-                                  - {$when: icon_emoji, type: emoji, emoji: "{{icon_emoji}}"}
-                                  - {$when: step.icon, type: external}
-                              archived: {$when: page_id, value: true}
+                                  - {$onlyIf: icon_emoji, type: emoji, emoji: "{{icon_emoji}}"}
+                                  - {$onlyIf: step.icon, type: external}
+                              archived: {$onlyIf: page_id, value: true}
             """;
 
     @Test
-    void findWarningsShouldReportWhenNameThatTheToolDoesNotDeclare() throws Exception {
+    void findWarningsShouldReportOnlyIfNameThatTheToolDoesNotDeclare() throws Exception {
         List<String> warnings = BodyConditionValidator.findWarnings(spec("""
                             silnt:
                               type: boolean
@@ -66,7 +66,7 @@ class BodyConditionValidatorTest {
                 """, ""));
 
         assertEquals(List.of("MCP tool 'patch-page' in 'tools' calls notion.patch-page, whose"
-                + " body has '$when: silent', but 'silent' is not one of its inputs: that object"
+                + " body has '$onlyIf: silent', but 'silent' is not one of its inputs: that object"
                 + " is never sent from it"), warnings);
     }
 
@@ -124,7 +124,7 @@ class BodyConditionValidatorTest {
                 """.formatted(IKANOS, CONSUMES.stripTrailing()), IkanosSpec.class);
 
         assertEquals(List.of("aggregate 'pages' flow 'patch' calls notion.patch-page, whose body"
-                + " has '$when: silent', but 'silent' is not one of its inputs: that object is"
+                + " has '$onlyIf: silent', but 'silent' is not one of its inputs: that object is"
                 + " never sent from it"), BodyConditionValidator.findWarnings(spec));
     }
 
@@ -159,7 +159,7 @@ class BodyConditionValidatorTest {
                 """.formatted(IKANOS, CONSUMES.stripTrailing()), IkanosSpec.class);
 
         assertEquals(List.of("REST operation 'PATCH /pages/{{page_id}}' in 'api' calls"
-                + " notion.patch-page, whose body has '$when: silent', but 'silent' is not one of"
+                + " notion.patch-page, whose body has '$onlyIf: silent', but 'silent' is not one of"
                 + " its inputs: that object is never sent from it"),
                 BodyConditionValidator.findWarnings(spec));
     }

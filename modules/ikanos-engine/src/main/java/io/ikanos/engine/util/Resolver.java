@@ -1117,9 +1117,9 @@ public class Resolver {
      * placeholder whose value is an empty string, object or array: it is a value, not an
      * absence. A root object or array is always sent, empty if need be.</li>
      * <li>Three markers of the authored data are never sent (#1132, {@link JsonBodyMarkers}):
-     * an object with {@code $when: x} is left out unless {@code x} is present and not
+     * an object with {@code $onlyIf: x} is left out unless {@code x} is present and not
      * {@code false}; a value {@code {$first: [variants]}} takes the first variant whose
-     * {@code $when} holds, or that has none, and is left out when none applies or when the
+     * {@code $onlyIf} holds, or that has none, and is left out when none applies or when the
      * chosen one resolves to nothing (later variants are not tried); an object with
      * {@code $keep: true} is sent as {@code {}} instead of being left out when emptied. A key
      * written {@code $$...} is sent with one {@code $} less.</li>
@@ -1225,7 +1225,7 @@ public class Resolver {
     }
 
     /**
-     * Resolve a {@code $first} choice (#1132): the first variant whose {@code $when} holds, or
+     * Resolve a {@code $first} choice (#1132): the first variant whose {@code $onlyIf} holds, or
      * that has none, is resolved as the value. A chosen variant that resolves to nothing leaves
      * the value out; the variants after it are not tried.
      *
@@ -1254,14 +1254,14 @@ public class Resolver {
 
     /**
      * Check the caller claims that structured body data reads, without resolving it: every key,
-     * every string value and every {@code $when} name (#998). Called on data that is left out,
+     * every string value and every {@code $onlyIf} name (#998). Called on data that is left out,
      * so a missing claim fails the call whether or not its member is sent.
      */
     static void requireCallerValuesIn(Object data, Map<String, Object> parameters) {
         if (data instanceof Map<?, ?> map) {
             for (Map.Entry<?, ?> entry : map.entrySet()) {
                 String key = String.valueOf(entry.getKey());
-                if (JsonBodyMarkers.WHEN.equals(key) && entry.getValue() instanceof String name) {
+                if (JsonBodyMarkers.ONLY_IF.equals(key) && entry.getValue() instanceof String name) {
                     requireCallerValues("{{" + name + "}}", parameters);
                 } else {
                     requireCallerValues(key, parameters);
@@ -1279,7 +1279,7 @@ public class Resolver {
 
     /**
      * The value of a whole-value reference of structured body data: the {@code x} of a
-     * {@code "{{x}}"} placeholder, or the input a {@code $when} names. Called after
+     * {@code "{{x}}"} placeholder, or the input an {@code $onlyIf} names. Called after
      * {@link #requireCallerValues} checked it.
      *
      * @return the value, or {@code null} when it is absent or null

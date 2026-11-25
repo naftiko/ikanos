@@ -296,10 +296,10 @@ class CallerClaimsTest {
     }
 
     @Test
-    void bodyWhenShouldReadANamespacedClaimByItsExactName() {
-        // #1132: a $when names a claim as the token writes it, as a placeholder does
+    void bodyOnlyIfShouldReadANamespacedClaimByItsExactName() {
+        // #1132: an $onlyIf names a claim as the token writes it, as a placeholder does
         Map<String, Object> data = Map.of("admin", Map.of(
-                "$when", "auth.claims.https://example.com/role", "include", true));
+                "$onlyIf", "auth.claims.https://example.com/role", "include", true));
         Map<String, Object> parameters = new HashMap<>();
         CallerClaims.putInto(parameters, rootOf(new JWTClaimsSet.Builder()
                 .claim("https://example.com/role", "editor").build()));
@@ -309,9 +309,9 @@ class CallerClaimsTest {
     }
 
     @Test
-    void bodyWhenShouldFailWhenTheNamespacedClaimIsMissing() {
+    void bodyOnlyIfShouldFailWhenTheNamespacedClaimIsMissing() {
         Map<String, Object> data = Map.of("admin", Map.of(
-                "$when", "auth.claims.https://example.com/role", "include", true));
+                "$onlyIf", "auth.claims.https://example.com/role", "include", true));
         Map<String, Object> parameters = new HashMap<>();
         CallerClaims.putInto(parameters, rootOf(new JWTClaimsSet.Builder()
                 .claim("sub", "alice").build()));

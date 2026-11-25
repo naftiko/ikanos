@@ -560,24 +560,24 @@ public class ValidateCommandTest {
     }
 
     @Test
-    public void callShouldWarnButPassWhenABodyWhenNamesNoInputOfItsTool() {
+    public void callShouldWarnButPassWhenABodyOnlyIfNamesNoInputOfItsTool() {
         Path yaml = tempDir.resolve("body-when.yaml");
         assertDoesNotThrow(() -> Files.writeString(yaml, bodyMarkersCapability(
-                "notifications: {$when: silent, mode: silent}")));
+                "notifications: {$onlyIf: silent, mode: silent}")));
 
         int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
 
         assertEquals(0, exitCode, errCapture.toString());
         assertTrue(outCapture.toString().contains("MCP tool 'patch-page' in 'tools' calls"
-                + " notion.patch-page, whose body has '$when: silent', but 'silent' is not one of"
+                + " notion.patch-page, whose body has '$onlyIf: silent', but 'silent' is not one of"
                 + " its inputs"), outCapture.toString());
     }
 
     @Test
-    public void callShouldWarnWhenABodyWhenNamesNoInputOfAToolWithAnInferredCall() {
+    public void callShouldWarnWhenABodyOnlyIfNamesNoInputOfAToolWithAnInferredCall() {
         // #988: the tool 'patch-page' has no call, it reaches the operation it is named after
         Path yaml = tempDir.resolve("body-when-inferred.yaml");
-        String capability = bodyMarkersCapability("notifications: {$when: silent, mode: silent}")
+        String capability = bodyMarkersCapability("notifications: {$onlyIf: silent, mode: silent}")
                 .replace("          call: notion.patch-page\n", "");
         assertFalse(capability.contains("call:"), capability);
         assertDoesNotThrow(() -> Files.writeString(yaml, capability));
@@ -586,7 +586,7 @@ public class ValidateCommandTest {
 
         assertEquals(0, exitCode, errCapture.toString());
         assertTrue(outCapture.toString().contains("MCP tool 'patch-page' in 'tools' calls"
-                + " notion.patch-page, whose body has '$when: silent'"), outCapture.toString());
+                + " notion.patch-page, whose body has '$onlyIf: silent'"), outCapture.toString());
     }
 
     @Test

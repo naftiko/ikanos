@@ -161,7 +161,7 @@ public class ValidateCommand implements Callable<Integer> {
                 warnings.addAll(InputDefaults.findWarnings(spec));
                 // authentication.scopes no longer required on every call (#999)
                 warnings.addAll(AccessControl.findWarnings(spec));
-                // A body $when that names no input of its caller (#1132), on the expanded inputs
+                // A body $onlyIf that names no input of its caller (#1132), on the expanded inputs
                 if (definitions.errors().isEmpty()) {
                     // As at load: a tool with no call reaches the operation it is named after
                     if (inferredCallErrors.isEmpty()) {

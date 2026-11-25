@@ -251,7 +251,7 @@ class McpCallerClaimsCacheScopeTest {
         assertDoesNotThrow(() -> loadAggregate("inner.deep", "static", "static", "static"));
     }
 
-    /** A public {@code report} resource whose consumed body has {@code $when: <condition>}. */
+    /** A public {@code report} resource whose consumed body has {@code $onlyIf: <condition>}. */
     private static Capability loadBodyCondition(String condition) throws Exception {
         String yaml = """
                 ikanos: "%s"
@@ -288,14 +288,14 @@ class McpCallerClaimsCacheScopeTest {
                             body:
                               type: json
                               data:
-                                internal: {$when: "%s", include: true}
+                                internal: {$onlyIf: "%s", include: true}
                 """.formatted(VersionHelper.getSchemaVersion(), condition);
         return new Capability(IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class));
     }
 
     @Test
-    void loadShouldRefuseAPublicResourceWhoseConsumedBodyWhenReadsAClaim() {
-        // #1132: a $when names its input without braces, yet the body depends on the claim
+    void loadShouldRefuseAPublicResourceWhoseConsumedBodyOnlyIfReadsAClaim() {
+        // #1132: an $onlyIf names its input without braces, yet the body depends on the claim
         Exception error = assertThrows(Exception.class,
                 () -> loadBodyCondition("auth.claims.admin"));
 
@@ -304,7 +304,7 @@ class McpCallerClaimsCacheScopeTest {
     }
 
     @Test
-    void loadShouldAcceptAPublicResourceWhoseConsumedBodyWhenReadsNoClaim() {
+    void loadShouldAcceptAPublicResourceWhoseConsumedBodyOnlyIfReadsNoClaim() {
         assertDoesNotThrow(() -> loadBodyCondition("verbose"));
     }
 }
