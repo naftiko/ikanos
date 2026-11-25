@@ -17,6 +17,7 @@ import org.restlet.Context;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import io.ikanos.Capability;
+import io.ikanos.engine.util.JsonBodyMarkers;
 import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.CapabilitySpec;
 import io.ikanos.engine.aggregates.FlowCallValidator;
@@ -264,7 +265,8 @@ public class McpCallHandlersFactory {
         }
         for (Map.Entry<String, JsonNode> member : node.properties()) {
             if (Resolver.readsCallerClaims(member.getKey())
-                    || readsCallerClaims(member.getValue())) {
+                    || readsCallerClaims(member.getValue())
+                    || readsCallerClaimsInCondition(member)) {
                 return true;
             }
         }
@@ -274,6 +276,15 @@ public class McpCallHandlersFactory {
             }
         }
         return false;
+    }
+
+    /**
+     * Whether {@code member} is a body {@code $when} that names a caller claim (#1132): its value
+     * is a name, not a template, and reads what {@code "{{name}}"} would.
+     */
+    private static boolean readsCallerClaimsInCondition(Map.Entry<String, JsonNode> member) {
+        return JsonBodyMarkers.WHEN.equals(member.getKey()) && member.getValue().isString()
+                && Resolver.readsCallerClaims("{{" + member.getValue().asString() + "}}");
     }
 
     private static String describe(String subject, CacheScopes.Decision decision) {

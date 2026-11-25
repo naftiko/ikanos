@@ -4243,7 +4243,7 @@
           "const": "formUrlEncoded"
         },
         "data": {
-          "description": "Form fields. Provide either a pre-encoded string or a key\u2192value object whose values are URL-encoded by the framework.",
+          "description": "Form fields. Provide either a pre-encoded string or a key\u2192value object whose values are URL-encoded by the framework. A field cannot be named `$when`, `$first` or `$keep`, the markers of structured json data.",
           "oneOf": [
             {
               "type": "string",

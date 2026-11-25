@@ -233,8 +233,8 @@ public final class ConsumedTemplateValidator {
             if (data instanceof Map<?, ?> fields) {
                 for (Object key : fields.keySet()) {
                     if (JsonBodyMarkers.isMarker(String.valueOf(key))) {
-                        errors.add(where + ": " + key + " applies to structured json data only,"
-                                + " not to form fields");
+                        errors.add(where + ": " + key + " applies to structured json data only:"
+                                + " a form field cannot be named " + key);
                     }
                 }
             }

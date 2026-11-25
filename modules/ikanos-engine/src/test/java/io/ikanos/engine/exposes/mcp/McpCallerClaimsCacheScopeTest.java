@@ -250,4 +250,61 @@ class McpCallerClaimsCacheScopeTest {
     void loadShouldAcceptAPublicResourceWhoseFlowsReadNoClaim() {
         assertDoesNotThrow(() -> loadAggregate("inner.deep", "static", "static", "static"));
     }
+
+    /** A public {@code report} resource whose consumed body has {@code $when: <condition>}. */
+    private static Capability loadBodyCondition(String condition) throws Exception {
+        String yaml = """
+                ikanos: "%s"
+                capability:
+                  exposes:
+                  - type: mcp
+                    port: 0
+                    namespace: reports
+                    description: "Reports"
+                    tools:
+                      hello:
+                        description: "Say hello"
+                        outputParameters:
+                          msg:
+                            type: string
+                            value: "hi"
+                    resources:
+                      report:
+                        display: "Report"
+                        uri: "data://report"
+                        description: "The report"
+                        cacheScope: public
+                        call: shop.search
+                  consumes:
+                  - type: http
+                    namespace: shop
+                    baseUri: "http://127.0.0.1:1"
+                    resources:
+                      search:
+                        path: "/search"
+                        operations:
+                          search:
+                            method: POST
+                            body:
+                              type: json
+                              data:
+                                internal: {$when: "%s", include: true}
+                """.formatted(VersionHelper.getSchemaVersion(), condition);
+        return new Capability(IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class));
+    }
+
+    @Test
+    void loadShouldRefuseAPublicResourceWhoseConsumedBodyWhenReadsAClaim() {
+        // #1132: a $when names its input without braces, yet the body depends on the claim
+        Exception error = assertThrows(Exception.class,
+                () -> loadBodyCondition("auth.claims.admin"));
+
+        assertTrue(messages(error).contains("MCP resource 'report': cacheScope public"),
+                messages(error));
+    }
+
+    @Test
+    void loadShouldAcceptAPublicResourceWhoseConsumedBodyWhenReadsNoClaim() {
+        assertDoesNotThrow(() -> loadBodyCondition("verbose"));
+    }
 }

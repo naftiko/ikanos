@@ -245,8 +245,8 @@ public class ConsumedTemplateValidatorTest {
                                   scope: "read"
                 """, "/items"));
 
-        assertEquals(List.of("svc.create body: $when applies to structured json data only, not"
-                + " to form fields"), errors);
+        assertEquals(List.of("svc.create body: $when applies to structured json data only: a"
+                + " form field cannot be named $when"), errors);
     }
 
     @Test

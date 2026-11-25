@@ -61,7 +61,11 @@ These rules are not covered there yet:
   - `$keep: true` on an object sends it as `{}` when all its members are left out.
 
   A key that starts with `$$` is sent with one `$` less, so `$$when` sends a member named
-  `$when`. A misused marker, or a marker in form fields, fails when the capability loads, and
+  `$when`. A misused marker fails when the capability loads.
+
+  Form fields have no markers and no `$$` escape, so a `formUrlEncoded` field named `$when`,
+  `$first` or `$keep` also fails when the capability loads.
+
   `ikanos validate` warns about a `$when` that names no input of a tool, REST operation or flow
   that calls the operation.
 - In a `multipartForm` part whose `contentType` is `application/json` or a `+json` type,
