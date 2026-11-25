@@ -62,7 +62,18 @@ public final class JsonBodyMarkers {
     private static final Pattern NAME =
             Pattern.compile("^[A-Za-z0-9_\\-]+(\\.[A-Za-z0-9_\\-]+)*$");
 
+    /**
+     * A caller claim, named as the token writes it, so a namespaced claim such as
+     * {@code https://example.com/role} or {@code cognito:groups} can be read too (#998).
+     */
+    private static final Pattern CLAIM = Pattern.compile("^auth\\.claims\\.[^\\s{}]+$");
+
     private JsonBodyMarkers() {
+    }
+
+    /** @return whether {@code text} is what a {@code $when} may name: an input or a claim */
+    static boolean isName(String text) {
+        return NAME.matcher(text).matches() || CLAIM.matcher(text).matches();
     }
 
     /** @return whether {@code key}, as authored, is one of the three markers */
@@ -98,7 +109,7 @@ public final class JsonBodyMarkers {
             return true;
         }
         Object name = object.get(WHEN);
-        if (!(name instanceof String text) || !NAME.matcher(text).matches()) {
+        if (!(name instanceof String text) || !isName(text)) {
             throw new IllegalArgumentException(
                     "$when in structured JSON body data must name an input");
         }
@@ -151,7 +162,7 @@ public final class JsonBodyMarkers {
 
     private static void checkObject(Map<?, ?> object, String where, List<String> errors) {
         if (object.containsKey(WHEN) && !(object.get(WHEN) instanceof String name
-                && NAME.matcher(name).matches())) {
+                && isName(name))) {
             errors.add(where + ": $when must name an input, without braces, such as"
                     + " '$when: silent'");
         }

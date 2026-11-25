@@ -27,6 +27,7 @@ import org.junit.jupiter.api.Test;
 import org.restlet.Request;
 import org.restlet.data.Method;
 import com.nimbusds.jwt.JWTClaimsSet;
+import io.ikanos.engine.util.CallerClaimMissingException;
 import io.ikanos.engine.util.CallerRoot;
 import io.ikanos.engine.util.Resolver;
 
@@ -292,6 +293,31 @@ class CallerClaimsTest {
         assertEquals(CallerClaims.claim(root, "org.id"),
                 Resolver.resolveMustacheTemplate("{{auth.claims.org.id}}", parameters),
                 "#998: the claim of that exact name is read first, as for an identity header");
+    }
+
+    @Test
+    void bodyWhenShouldReadANamespacedClaimByItsExactName() {
+        // #1132: a $when names a claim as the token writes it, as a placeholder does
+        Map<String, Object> data = Map.of("admin", Map.of(
+                "$when", "auth.claims.https://example.com/role", "include", true));
+        Map<String, Object> parameters = new HashMap<>();
+        CallerClaims.putInto(parameters, rootOf(new JWTClaimsSet.Builder()
+                .claim("https://example.com/role", "editor").build()));
+
+        assertEquals("{\"admin\":{\"include\":true}}",
+                Resolver.resolveJsonData(data, parameters).toString());
+    }
+
+    @Test
+    void bodyWhenShouldFailWhenTheNamespacedClaimIsMissing() {
+        Map<String, Object> data = Map.of("admin", Map.of(
+                "$when", "auth.claims.https://example.com/role", "include", true));
+        Map<String, Object> parameters = new HashMap<>();
+        CallerClaims.putInto(parameters, rootOf(new JWTClaimsSet.Builder()
+                .claim("sub", "alice").build()));
+
+        assertThrows(CallerClaimMissingException.class,
+                () -> Resolver.resolveJsonData(data, parameters));
     }
 
     @Test

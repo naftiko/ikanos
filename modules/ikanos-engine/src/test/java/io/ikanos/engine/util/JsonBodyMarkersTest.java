@@ -156,6 +156,16 @@ class JsonBodyMarkersTest {
     }
 
     @Test
+    void findErrorsShouldAcceptWhenThatNamesANamespacedClaim() throws Exception {
+        List<String> errors = JsonBodyMarkers.findErrors(data("""
+                admin: {$when: "auth.claims.https://example.com/role", include: true}
+                groups: {$when: "auth.claims.cognito:groups", include: true}
+                """));
+
+        assertTrue(errors.isEmpty(), errors.toString());
+    }
+
+    @Test
     void findErrorsShouldRejectWhenOnTheRootObject() throws Exception {
         // The body is always sent, so a $when on the root could never leave it out
         List<String> errors = JsonBodyMarkers.findErrors(data("""
