@@ -54,7 +54,7 @@ These rules are not covered there yet:
   are never sent themselves:
   - `$when: <input>` on an object other than the root sends it only when the input is present, not null and not
     `false` (`""`, `0` and the string `"false"` hold). Inputs are read after their defaults are
-    applied, so an input with a `default` always holds.
+    applied, so an input with a `default` holds unless its default is `false`.
   - `{$first: [variants]}` as a value takes the first variant object whose `$when` holds, or
     that has no `$when`. It is left out when no variant applies, or when the chosen one resolves
     to nothing.
