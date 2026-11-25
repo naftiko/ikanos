@@ -561,7 +561,7 @@ public class ValidateCommandTest {
 
     @Test
     public void callShouldWarnButPassWhenABodyOnlyIfNamesNoInputOfItsTool() {
-        Path yaml = tempDir.resolve("body-when.yaml");
+        Path yaml = tempDir.resolve("body-only-if.yaml");
         assertDoesNotThrow(() -> Files.writeString(yaml, bodyMarkersCapability(
                 "notifications: {$onlyIf: silent, mode: silent}")));
 
@@ -576,7 +576,7 @@ public class ValidateCommandTest {
     @Test
     public void callShouldWarnWhenABodyOnlyIfNamesNoInputOfAToolWithAnInferredCall() {
         // #988: the tool 'patch-page' has no call, it reaches the operation it is named after
-        Path yaml = tempDir.resolve("body-when-inferred.yaml");
+        Path yaml = tempDir.resolve("body-only-if-inferred.yaml");
         String capability = bodyMarkersCapability("notifications: {$onlyIf: silent, mode: silent}")
                 .replace("          call: notion.patch-page\n", "");
         assertFalse(capability.contains("call:"), capability);
