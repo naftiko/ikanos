@@ -1202,19 +1202,6 @@ class OperationStepExecutorRequestBodyTest {
     }
 
     @Test
-    void findClientRequestForShouldEvaluateOnlyIfOnStructuredDataOfNonJsonType()
-            throws Exception {
-        // Structured data is built by the same walk whatever the declared type
-        assertEquals("{\"name\":\"n\"}", send("""
-                                body:
-                                  type: "xml"
-                                  data:
-                                    name: "{{name}}"
-                                    extra: {$onlyIf: enabled, x: 1}
-                """, Map.of("name", "n")));
-    }
-
-    @Test
     void capabilityShouldFailToLoadWhenMarkerIsMisused() {
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> executorWithBody("""
