@@ -903,6 +903,36 @@ class MappedOutputDefinitionsExpanderTest {
                 + " Declare the output inline."), errors);
     }
 
+    @Test
+    void expandAllShouldNotRequireAPathForAPropertyTheRuntimeNeverReads() throws Exception {
+        // Below nested arrays nothing is read, so a name no path can address is harmless
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    grid:
+                      type: object
+                      properties:
+                        rows:
+                          type: array
+                          items:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                "cell.value": { type: string }
+                """, """
+                get-grid:
+                  description: "Get grid."
+                  call: erp.get-grid
+                  outputParameters:
+                    - schema: grid
+                      mappings:
+                        rows: "$.rows"
+                """);
+
+        assertEquals(List.of(), DefinitionsExpander.expandAll(spec).errors());
+    }
+
     private static String outputs(IkanosSpec spec, String tool) throws Exception {
         McpServerToolSpec unit = ((McpServerSpec) spec.getCapability().getExposes().get(0))
                 .getTools().get(tool);
