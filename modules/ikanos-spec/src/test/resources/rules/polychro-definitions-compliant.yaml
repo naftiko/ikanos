@@ -30,7 +30,7 @@ capability:
         list-lines:
           description: "List the lines of an order, with the SKU of each."
           steps:
-            lines: { type: call, call: erp.list-orders }
+            - {name: lines, type: call, what: erp.list-orders }
           mappings:
             - target: lines
               value: "$.lines"

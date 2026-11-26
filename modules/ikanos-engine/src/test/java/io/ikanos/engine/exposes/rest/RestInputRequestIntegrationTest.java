@@ -152,7 +152,7 @@ public class RestInputRequestIntegrationTest {
                       confirm-departure:
                         description: Ask the duty officer to confirm a departure.
                         steps:
-                          confirm:
+                          - name: confirm
                             type: elicit
                             message: Confirm the departure?
                             fields:
@@ -168,10 +168,10 @@ public class RestInputRequestIntegrationTest {
                       book-then-confirm:
                         description: Book a slot, then ask to keep it.
                         steps:
-                          book-slot:
+                          - name: book-slot
                             type: call
-                            call: port.book-slot
-                          confirm:
+                            what: port.book-slot
+                          - name: confirm
                             type: elicit
                             message: Keep the booked slot?
                             fields:
@@ -187,16 +187,16 @@ public class RestInputRequestIntegrationTest {
                       confirm-then-log:
                         description: Ask to confirm a departure, then log it for the caller.
                         steps:
-                          confirm:
+                          - name: confirm
                             type: elicit
                             message: Confirm the departure?
                             fields:
                               confirmed:
                                 type: boolean
                                 description: Whether the departure is confirmed
-                          log:
+                          - name: log
                             type: call
-                            call: port.log-departure
+                            what: port.log-departure
                         mappings:
                         - target: confirmed
                           value: $.confirm.confirmed
@@ -209,14 +209,14 @@ public class RestInputRequestIntegrationTest {
                       confirm-twice:
                         description: Ask to confirm a departure, then to confirm it again.
                         steps:
-                          first:
+                          - name: first
                             type: elicit
                             message: Confirm the departure?
                             fields:
                               confirmed:
                                 type: boolean
                                 description: Whether the departure is confirmed
-                          second:
+                          - name: second
                             type: elicit
                             message: Confirm it again?
                             fields:
@@ -232,9 +232,9 @@ public class RestInputRequestIntegrationTest {
                       confirm-through-a-call:
                         description: Ask through the flow that asks.
                         steps:
-                          ask:
+                          - name: ask
                             type: call
-                            call: departure.confirm-departure
+                            what: departure.confirm-departure
                   exposes:
                   - type: rest
                     address: localhost

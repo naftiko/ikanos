@@ -58,7 +58,7 @@ class RestDefinitionsSchemaValidationTest {
 
     private static final String ORCHESTRATED = """
             steps:
-              crew: { type: call, call: registry.list-crew }
+              - {name: crew, type: call, what: registry.list-crew }
             mappings:
               - target: crew
                 value: "$.crew"

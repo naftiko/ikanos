@@ -32,6 +32,7 @@ import io.ikanos.engine.exposes.mcp.InferredToolCallResolver;
 import io.ikanos.engine.exposes.rest.ForwardTrustedHeadersValidator;
 import io.ikanos.engine.exposes.rest.ForwardResponseHeaders;
 import io.ikanos.engine.imports.RootSectionsValidator;
+import io.ikanos.spec.util.OperationStepMapDeserializer;
 import io.ikanos.engine.util.InputDefaults;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.exposes.ServerSpecDeserializer;
@@ -59,6 +60,11 @@ import io.ikanos.spec.util.YamlAliases;
 public class ValidateCommand implements Callable<Integer> {
 
     private static final Logger logger = LoggerFactory.getLogger(ValidateCommand.class);
+
+    /** Reported for each {@code steps} in the form used before steps became a list (#1166). */
+    static final String EARLIER_STEPS_MESSAGE = "'steps' is a list of steps, each with a 'name',"
+            + " and a call step names what it calls with 'what:', not 'call:'. "
+            + OperationStepMapDeserializer.MIGRATE_HINT;
 
     @Parameters(index = "0", description = "Path to the YAML capability configuration file to validate")
     private String filePath;
@@ -102,18 +108,26 @@ public class ValidateCommand implements Callable<Integer> {
             // instead of the schema's mismatch against every remaining adapter type. Root
             // sections of a capability document are reported with where to move them, and the
             // rest of the document is validated without them, for the same reason (#955).
+            // Steps written before they became a list are reported with the migrate hint, and the
+            // rest of the document is validated as 'ikanos migrate' would rewrite it (#1166).
             List<String> rootSections = misplacedRootSections(dataNode);
             List<String> removedAdapters = removedSkillAdapters(dataNode);
+            List<String> earlierSteps = StepsMigrator.findEarlierForms(dataNode);
+            JsonNode checked = withoutSections(dataNode, rootSections);
+            if (!earlierSteps.isEmpty()) {
+                checked = checked.deepCopy();
+                StepsMigrator.migrateNode(checked);
+            }
             List<com.networknt.schema.Error> errors = schema
-                    .validate(withoutSections(dataNode, rootSections)).stream()
+                    .validate(checked).stream()
                     .filter(error -> !isWithin(error.getInstanceLocation().toString(),
                             removedAdapters))
                     .toList();
 
             // Compile consumed templates the way the engine renders them (#849), only once the
             // document matches the schema, so the spec can be read.
-            boolean schemaValid =
-                    errors.isEmpty() && removedAdapters.isEmpty() && rootSections.isEmpty();
+            boolean schemaValid = errors.isEmpty() && removedAdapters.isEmpty()
+                    && rootSections.isEmpty() && earlierSteps.isEmpty();
             IkanosSpec spec = schemaValid
                     ? IkanosMappers.lenientYaml().treeToValue(dataNode, IkanosSpec.class)
                     : null;
@@ -183,6 +197,11 @@ public class ValidateCommand implements Callable<Integer> {
                     System.err.println("\n  [" + errorCount + "] "
                             + RootSectionsValidator.message(section));
                     System.err.println("      Path: $." + section);
+                    errorCount++;
+                }
+                for (String path : earlierSteps) {
+                    System.err.println("\n  [" + errorCount + "] " + EARLIER_STEPS_MESSAGE);
+                    System.err.println("      Path: " + path);
                     errorCount++;
                 }
                 for (String path : removedAdapters) {

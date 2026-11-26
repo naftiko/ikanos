@@ -69,7 +69,7 @@ class ElicitFieldsSchemaValidationTest {
                       confirm-departure:
                         description: Ask the duty officer to confirm a departure.
                         steps:
-                          confirm:
+                          - name: confirm
                             type: elicit
                             message: Confirm the departure?
                             fields:

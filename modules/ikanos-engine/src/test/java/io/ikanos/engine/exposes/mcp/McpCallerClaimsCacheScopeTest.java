@@ -157,24 +157,24 @@ class McpCallerClaimsCacheScopeTest {
                         description: "The catalogue"
                         cacheScope: public
                         steps:
-                          list:
+                          - name: list
                             type: call
-                            call: cat.list
+                            what: cat.list
                   aggregates:
                   - namespace: cat
                     flows:
                       list:
                         description: "Lists the catalogue"
                         steps:
-                          fetch:
+                          - name: fetch
                             type: call
-                            call: %s
+                            what: %s
                       other:
                         description: "A sibling flow"
                         steps:
-                          fetch:
+                          - name: fetch
                             type: call
-                            call: shop.list
+                            what: shop.list
                             with:
                               user: "%s"
                   - namespace: inner
@@ -182,9 +182,9 @@ class McpCallerClaimsCacheScopeTest {
                       deep:
                         description: "Called by another flow"
                         steps:
-                          fetch:
+                          - name: fetch
                             type: call
-                            call: shop.list
+                            what: shop.list
                             with:
                               user: "%s"
                   consumes:

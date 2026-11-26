@@ -35,12 +35,12 @@ capability:
       book-then-declare:
         description: Books, then calls the flow that may ask
         steps:
-          book-slot:
+          - name: book-slot
             type: call
-            call: port.book-departure-slot
-          declare:
+            what: port.book-departure-slot
+          - name: declare
             type: call
-            call: departure.declare
+            what: departure.declare
   exposes:
   - type: mcp
     address: localhost

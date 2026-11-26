@@ -29,10 +29,10 @@ capability:
           interaction:
             mode: task
         steps:
-          book-slot:
+          - name: book-slot
             type: call
-            call: port.book-departure-slot
-          confirm:
+            what: port.book-departure-slot
+          - name: confirm
             type: elicit
             message: Confirm the departure
             fields:

@@ -59,9 +59,9 @@ capability:
               method: GET
               description: "List the crew of a ship."
               steps:
-                crew:
+                - name: crew
                   type: call
-                  call: registry.list-crew
+                  what: registry.list-crew
               mappings:
                 - target: crew
                   value: "$.crew"

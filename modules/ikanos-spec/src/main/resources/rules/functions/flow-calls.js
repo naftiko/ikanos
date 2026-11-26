@@ -117,8 +117,8 @@ function buildModel(capability) {
       }
       for (const s of entries(flow.steps)) {
         const step = s.value;
-        if (step && step.type === "call" && typeof step.call === "string") {
-          calls.push({ ref: step.call, path: path.concat("steps", ...s.locator, "call") });
+        if (step && step.type === "call" && typeof step.what === "string") {
+          calls.push({ ref: step.what, path: path.concat("steps", ...s.locator, "what") });
         }
       }
       flows.set(aggregate.namespace + "." + f.key, { flow, path, calls });

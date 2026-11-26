@@ -47,9 +47,9 @@ capability:
           description: Ships an order in a step.
           hints: { readOnly: true }
           steps:
-            ship:
+            - name: ship
               type: call
-              call: erp.mark-shipped
+              what: erp.mark-shipped
         archive:
           description: Archives an order through a flow.
           hints: { readOnly: true }

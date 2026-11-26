@@ -1180,15 +1180,12 @@
           "$ref": "#/$defs/WithInjector"
         },
         "steps": {
-          "type": "object",
-          "propertyNames": {
-            "$ref": "#/$defs/IdentifierKebab"
-          },
-          "additionalProperties": {
+          "type": "array",
+          "items": {
             "$ref": "#/$defs/OperationStep"
           },
-          "description": "Orchestration steps, keyed by step name.",
-          "minProperties": 1
+          "description": "Orchestration steps, run in the order they are listed. Step names are unique within the list.",
+          "minItems": 1
         },
         "mappings": {
           "type": "array",
@@ -1813,15 +1810,12 @@
           "$ref": "#/$defs/WithInjector"
         },
         "steps": {
-          "type": "object",
-          "propertyNames": {
-            "$ref": "#/$defs/IdentifierKebab"
-          },
-          "additionalProperties": {
+          "type": "array",
+          "items": {
             "$ref": "#/$defs/OperationStep"
           },
-          "description": "Orchestration steps, keyed by step name.",
-          "minProperties": 1
+          "description": "Orchestration steps, run in the order they are listed. Step names are unique within the list.",
+          "minItems": 1
         },
         "mappings": {
           "type": "array",
@@ -2400,15 +2394,12 @@
           "$ref": "#/$defs/WithInjector"
         },
         "steps": {
-          "type": "object",
-          "propertyNames": {
-            "$ref": "#/$defs/IdentifierKebab"
-          },
-          "additionalProperties": {
+          "type": "array",
+          "items": {
             "$ref": "#/$defs/OperationStep"
           },
-          "description": "Orchestration steps, keyed by step name.",
-          "minProperties": 1
+          "description": "Orchestration steps, run in the order they are listed. Step names are unique within the list.",
+          "minItems": 1
         },
         "mappings": {
           "type": "array",
@@ -2920,15 +2911,12 @@
         },
         "outputParameters": true,
         "steps": {
-          "type": "object",
-          "propertyNames": {
-            "$ref": "#/$defs/IdentifierKebab"
-          },
-          "additionalProperties": {
+          "type": "array",
+          "items": {
             "$ref": "#/$defs/OperationStep"
           },
-          "description": "Orchestration steps, keyed by step name.",
-          "minProperties": 1
+          "description": "Orchestration steps, run in the order they are listed. Step names are unique within the list.",
+          "minItems": 1
         },
         "mappings": {
           "type": "array",
@@ -3935,6 +3923,10 @@
     "OperationStepBase": {
       "type": "object",
       "properties": {
+        "name": {
+          "$ref": "#/$defs/IdentifierKebab",
+          "description": "The step name, unique within its list. Later steps, templates and mappings read the step output under this name."
+        },
         "type": {
           "type": "string",
           "enum": [
@@ -3946,6 +3938,7 @@
         }
       },
       "required": [
+        "name",
         "type"
       ]
     },
@@ -3959,9 +3952,9 @@
             "type": {
               "const": "call"
             },
-            "call": {
+            "what": {
               "type": "string",
-              "description": "Reference to a consumed operation, or to another aggregate flow. Format: {namespace}.{name}, split on the first dot: the name may contain dots and underscores (consumed MCP tools are keyed by their upstream name).",
+              "description": "What the step calls: a consumed operation, or another aggregate flow. Format: {namespace}.{name}, split on the first dot: the name may contain dots and underscores (consumed MCP tools are keyed by their upstream name).",
               "pattern": "^[a-zA-Z0-9-]+\\.[a-zA-Z0-9-_.]+$"
             },
             "with": {
@@ -3969,7 +3962,7 @@
             }
           },
           "required": [
-            "call"
+            "what"
           ]
         }
       ],

@@ -91,7 +91,7 @@ public class OperationStepExecutorIntegrationTest {
                                   steps:
                                     - type: call
                                       name: fetch-users
-                                      call: testns.list-users
+                                      what: testns.list-users
                                     - type: lookup
                                       name: find-user
                                       index: fetch-users
@@ -102,12 +102,12 @@ public class OperationStepExecutorIntegrationTest {
                                         - email
                                     - type: call
                                       name: fetch-profile
-                                      call: testns.fetch-profile
+                                      what: testns.fetch-profile
                                       with:
                                         userId: "{{requestingUserId}}"
                                     - type: call
                                       name: echo-region
-                                      call: testns.echo-region
+                                      what: testns.echo-region
                                       with:
                                         region: "{{fetch-profile.region}}"
                       consumes:
@@ -475,12 +475,12 @@ public class OperationStepExecutorIntegrationTest {
                               steps:
                                 - type: call
                                   name: read-part
-                                  call: shop.get-part
+                                  what: shop.get-part
                                   with:
                                     partId: "{{partId}}"
                                 - type: call
                                   name: charge
-                                  call: shop.create-charge
+                                  what: shop.create-charge
                                   with:
                                     amount: "{{read-part.amount}}"
                               mappings:

@@ -164,12 +164,12 @@ public class McpTaskCrashIntegrationTest {
                             type: string
                             description: Voyage to clear
                         steps:
-                          book-slot:
+                          - name: book-slot
                             type: call
-                            call: port.book-slot
-                          get-declaration:
+                            what: port.book-slot
+                          - name: get-declaration
                             type: call
-                            call: port.get-declaration
+                            what: port.get-declaration
                   exposes:
                   - type: mcp
                     address: localhost

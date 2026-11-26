@@ -276,9 +276,9 @@ public class McpArrayQueryParameterIntegrationTest {
                               type: array
                               description: "Statuses to include"
                           steps:
-                            list:
+                            - name: list
                               type: call
-                              call: lago.list-subscriptions
+                              what: lago.list-subscriptions
                               with:
                                 status: "{{statuses}}"
                 """.formatted(schemaVersion, port);

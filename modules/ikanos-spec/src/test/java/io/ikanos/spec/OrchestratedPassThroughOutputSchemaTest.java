@@ -128,9 +128,9 @@ class OrchestratedPassThroughOutputSchemaTest {
                       type: "string"
                       description: "ID of the page"
                   steps:
-                    page:
+                    - name: page
                       type: "call"
-                      call: "notion.get-page"
+                      what: "notion.get-page"
                       with:
                         page_id: "{{page_id}}"
                   mappings:

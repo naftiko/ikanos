@@ -23,10 +23,10 @@ capability:
       book-then-confirm:
         description: Inline flow that books before it asks
         steps:
-          book-slot:
+          - name: book-slot
             type: call
-            call: port.book-departure-slot
-          confirm:
+            what: port.book-departure-slot
+          - name: confirm
             type: elicit
             message: Confirm the departure
             fields:

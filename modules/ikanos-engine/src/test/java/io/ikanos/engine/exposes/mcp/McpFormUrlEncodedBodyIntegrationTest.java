@@ -257,12 +257,12 @@ public class McpFormUrlEncodedBodyIntegrationTest {
                               type: string
                               description: "User id"
                           steps:
-                            profile:
+                            - name: profile
                               type: call
-                              call: auth.get-profile
-                            token:
+                              what: auth.get-profile
+                            - name: token
                               type: call
-                              call: auth.get-token
+                              what: auth.get-token
                           mappings:
                             - target: id
                               value: "$.token.id"

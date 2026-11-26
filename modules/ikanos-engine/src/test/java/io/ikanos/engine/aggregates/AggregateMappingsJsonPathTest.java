@@ -54,9 +54,9 @@ class AggregateMappingsJsonPathTest {
                     first-record:
                       description: Return the first and last records of a listing.
                       steps:
-                        list-records:
+                        - name: list-records
                           type: call
-                          call: canned.list-records
+                          what: canned.list-records
                       mappings:
                         - target: first-id
                           value: $.list-records.records[0].id

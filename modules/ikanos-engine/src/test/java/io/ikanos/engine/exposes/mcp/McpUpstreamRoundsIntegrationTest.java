@@ -156,18 +156,18 @@ public class McpUpstreamRoundsIntegrationTest {
                         confirm-up:
                           description: Ask through the upstream.
                           steps:
-                            ask:
+                            - name: ask
                               type: call
-                              call: customs.confirm
+                              what: customs.confirm
                         confirm-task:
                           description: Ask through the upstream, as a task.
                           semantics:
                             interaction:
                               mode: task
                           steps:
-                            ask:
+                            - name: ask
                               type: call
-                              call: customs.confirm
+                              what: customs.confirm
                   exposes:
                     - type: mcp
                       transport: http

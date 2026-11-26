@@ -28,7 +28,7 @@
  *   `hints.readOnly: true`, or inheriting it from the `hints` of its MCP
  *   exposes block, an MCP resource, a REST GET or HEAD operation, or
  *   an aggregate flow declaring `semantics.safe: true`. A target reaches a
- *   procedure through its `call`, its steps' `call`, its `ref`, and any flow
+ *   procedure through its `call`, its steps' `what`, its `ref`, and any flow
  *   those name, followed transitively.
  */
 export default function sqlProcedures(targetVal, opts) {
@@ -105,7 +105,7 @@ function writeProcedures(targetVal) {
   return writes;
 }
 
-/** Every `call` an exposed target or a flow makes: its own `call` and each step's. */
+/** Every call an exposed target or a flow makes: its own `call` and each step's `what`. */
 function callsOf(target) {
   const calls = [];
   if (!isObject(target)) {
@@ -114,10 +114,10 @@ function callsOf(target) {
   if (typeof target.call === "string") {
     calls.push(target.call);
   }
-  if (isObject(target.steps)) {
-    for (const step of Object.values(target.steps)) {
-      if (isObject(step) && typeof step.call === "string") {
-        calls.push(step.call);
+  if (Array.isArray(target.steps)) {
+    for (const step of target.steps) {
+      if (isObject(step) && typeof step.what === "string") {
+        calls.push(step.what);
       }
     }
   }

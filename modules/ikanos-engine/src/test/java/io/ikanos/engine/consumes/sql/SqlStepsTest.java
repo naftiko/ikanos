@@ -94,9 +94,9 @@ class SqlStepsTest {
                               type: string
                               description: Ledger id
                           steps:
-                            ledger:
+                            - name: ledger
                               type: call
-                              call: erp.get-total
+                              what: erp.get-total
                               with:
                                 id: books.ledger-id
                           mappings:

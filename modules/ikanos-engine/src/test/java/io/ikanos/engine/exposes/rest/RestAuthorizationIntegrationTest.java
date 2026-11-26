@@ -153,7 +153,7 @@ public class RestAuthorizationIntegrationTest {
                         approve:
                           description: "Ask the caller to confirm an approval."
                           steps:
-                            confirm:
+                            - name: confirm
                               type: "elicit"
                               message: "Approve the record?"
                               fields:

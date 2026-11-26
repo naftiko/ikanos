@@ -190,9 +190,9 @@ class InferredToolCallResolverTest {
                 list-repos:
                   description: "Orchestrated"
                   steps:
-                    fetch:
+                    - name: fetch
                       type: "call"
-                      call: "github.list-repos"
+                      what: "github.list-repos"
                 get-weather:
                   description: "From a flow"
                   ref: "weather.get-weather"

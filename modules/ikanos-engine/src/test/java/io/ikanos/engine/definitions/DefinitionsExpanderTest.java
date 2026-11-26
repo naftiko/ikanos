@@ -285,7 +285,7 @@ class DefinitionsExpanderTest {
                 list-ships:
                   description: "List ships."
                   steps:
-                    ships: { type: call, call: erp.list-ships }
+                    - {name: ships, type: call, what: erp.list-ships }
                   mappings:
                     - target: ships
                       value: "$.ships"
@@ -816,7 +816,7 @@ class DefinitionsExpanderTest {
                 list-ships:
                   description: "List ships."
                   steps:
-                    ships: { type: call, call: erp.list-ships }
+                    - {name: ships, type: call, what: erp.list-ships }
                   mappings:
                     - target: flagship
                       value: "$.ships"
@@ -1024,7 +1024,7 @@ class DefinitionsExpanderTest {
                 list-labels:
                   description: "List labels."
                   steps:
-                    labels: { type: call, call: erp.list-labels }
+                    - {name: labels, type: call, what: erp.list-labels }
                   mappings:
                     - target: direct
                       value: "$.labels"
@@ -1057,7 +1057,7 @@ class DefinitionsExpanderTest {
                 list-ships:
                   description: "List ships."
                   steps:
-                    ships: { type: call, call: erp.list-ships }
+                    - {name: ships, type: call, what: erp.list-ships }
                   mappings:
                     - target: flagship
                       value: "$.ships"
@@ -1086,7 +1086,7 @@ class DefinitionsExpanderTest {
                 get-grid:
                   description: "Get the grid."
                   steps:
-                    grid: { type: call, call: erp.get-grid }
+                    - {name: grid, type: call, what: erp.get-grid }
                   mappings:
                     - target: grid
                       value: "$.grid"
@@ -1108,7 +1108,7 @@ class DefinitionsExpanderTest {
                 get-tree:
                   description: "Get the tree."
                   steps:
-                    tree: { type: call, call: erp.get-tree }
+                    - {name: tree, type: call, what: erp.get-tree }
                   mappings:
                     - target: tree
                       value: "$.tree"

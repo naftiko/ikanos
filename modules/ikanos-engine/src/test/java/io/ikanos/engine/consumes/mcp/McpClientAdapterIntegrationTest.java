@@ -199,9 +199,9 @@ class McpClientAdapterIntegrationTest {
                           inputParameters:
                             invoice-id: { type: string, description: Invoice identifier }
                           steps:
-                            inv:
+                            - name: inv
                               type: call
-                              call: billing.get-invoice
+                              what: billing.get-invoice
                               with:
                                 invoice-id: collections.invoice-id
                           mappings:

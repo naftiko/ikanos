@@ -72,7 +72,7 @@ class ToolSearchCallToolRoundsTest {
                             type: string
                             description: Voyage to confirm
                         steps:
-                          confirm:
+                          - name: confirm
                             type: elicit
                             message: Confirm the departure?
                             fields:

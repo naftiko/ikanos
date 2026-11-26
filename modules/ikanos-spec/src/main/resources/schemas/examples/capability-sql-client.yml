@@ -86,14 +86,14 @@ capability:
               required: true
               description: "ERP customer id."
           steps:
-            cust:
+            - name: cust
               type: "call"
-              call: "erp.get-customer"
+              what: "erp.get-customer"
               with:
                 customer-id: "{{customer-id}}"
-            acct:
+            - name: acct
               type: "call"
-              call: "crm.get-account"
+              what: "crm.get-account"
               with:
                 account-id: "{{cust.account-id}}"
           mappings:

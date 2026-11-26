@@ -446,7 +446,7 @@ public class ValidateCommandTest {
                             list-items:
                               method: GET
                               steps:
-                                items: { type: call, call: svc.list }
+                                - {name: items, type: call, what: svc.list }
                               mappings:
                                 - target: first
                                   value: "$.items"
@@ -1025,6 +1025,74 @@ public class ValidateCommandTest {
         assertTrue(err.contains("Path: $.binds"), err);
         assertFalse(err.contains("[2]"),
                 "Root binds should not also be reported as a schema mismatch:\n" + err);
+    }
+
+    @Test
+    public void callShouldReportAStepMapWithTheMigrateHintAndNothingElse() {
+        Path yaml = tempDir.resolve("step-map.yaml");
+        assertDoesNotThrow(() -> Files.writeString(yaml, """
+                ikanos: "%s"
+                info:
+                  display: "Step map"
+                  description: "Steps written as a map keyed by step name"
+                capability:
+                  consumes:
+                    - type: "http"
+                      namespace: "api"
+                      baseUri: "https://api.example.com"
+                      resources:
+                        items:
+                          path: "/items"
+                          operations:
+                            list-items:
+                              method: "GET"
+                  exposes:
+                    - type: "mcp"
+                      port: 3000
+                      namespace: "tools"
+                      description: "Tools"
+                      tools:
+                        list:
+                          description: "List the items"
+                          steps:
+                            fetch:
+                              type: "call"
+                              call: "api.list-items"
+                          mappings:
+                            - target: "items"
+                              value: "$.fetch"
+                          outputParameters:
+                            items:
+                              type: "array"
+                """.formatted(IKANOS)));
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        String err = errCapture.toString();
+        assertEquals(1, exitCode);
+        assertTrue(err.contains("ikanos migrate"), err);
+        assertTrue(err.contains("Path: $.capability.exposes[0].tools.list.steps"), err);
+        assertFalse(err.contains("[2]"),
+                "A step map should not also be reported as a schema mismatch:\n" + err);
+    }
+
+    @Test
+    public void findEarlierFormsShouldFindACallInAStepListThatAlreadyHasNames() throws Exception {
+        JsonNode data = IkanosMappers.yaml().readTree("""
+                flows:
+                  f:
+                    steps:
+                      - name: fetch
+                        type: call
+                        call: api.list-items
+                  g:
+                    steps:
+                      - name: fetch
+                        type: call
+                        what: api.list-items
+                """);
+
+        assertEquals(java.util.List.of("$.flows.f.steps"), StepsMigrator.findEarlierForms(data));
     }
 
     @Test

@@ -32,12 +32,12 @@ capability:
       book-then-declare:
         description: Books, then files a declaration that may ask
         steps:
-          book-slot:
+          - name: book-slot
             type: call
-            call: port.book-departure-slot
-          declare:
+            what: port.book-departure-slot
+          - name: declare
             type: call
-            call: customs.file-export-declaration
+            what: customs.file-export-declaration
   exposes:
   - type: mcp
     address: localhost

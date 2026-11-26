@@ -467,7 +467,7 @@ public class OasExportBuilderTest {
                           steps:
                             method: POST
                             steps:
-                              declare: { type: call, call: customs.declare }
+                              - {name: declare, type: call, what: customs.declare }
                       single:
                         path: /single
                         operations:

@@ -28,10 +28,10 @@ import io.ikanos.spec.util.OperationStepElicitSpec;
  * A compiled sequence of steps, walked by a {@link StepInterpreter}.
  *
  * <p>The steps of a flow, of an exposed operation, tool or resource, all compile the same way.
- * The map form of {@code steps:} runs in document order: the spec setters only accept maps with a
- * defined order, so iterating the map gives the order the author wrote. Each node's path is built
- * from its step name ({@code steps/<name>}), never from its position, so it stays stable when the
- * list form of {@code steps:} replaces the map form.</p>
+ * {@code steps:} is a list, held by the spec objects as a map keyed by step name in list order:
+ * the spec setters only accept maps with a defined order, so iterating the map gives the order the
+ * author wrote. Each node's path is built from its step name ({@code steps/<name>}), never from its
+ * position, so a journaled run stays valid when a step is added before another.</p>
  */
 public final class ExecutionTree {
 
@@ -44,7 +44,7 @@ public final class ExecutionTree {
     }
 
     /**
-     * Compiles a {@code steps:} map. A step whose name has a handler in {@code registry} becomes a
+     * Compiles the steps of a {@code steps:} list, keyed by name. A step whose name has a handler in {@code registry} becomes a
      * {@link StepNode.Kind#HANDLER} node.
      *
      * @param steps the steps, in the order they run; may be {@code null} or empty

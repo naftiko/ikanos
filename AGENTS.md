@@ -264,7 +264,7 @@ When designing or modifying a Capability:
 - Write a fallback value for an optional MCP tool input as a Mustache idiom (`{{#x}}{{x}}{{/x}}{{^x}}fallback{{/x}}`) in the consumed templates — declare `default` on the `McpToolInputParameter` instead, with the input's JSON type: it is advertised in the tool's `inputSchema` and applied before `call`, `steps` or `ref` run
 - Use YAML list syntax (`- type: object`) for `items` in `MappedOutputParameterArray` — `items` is a single `MappedOutputParameter` object, not an array
 - Use snake_case identifiers where the schema expects `IdentifierKebab` (e.g. `match`, `name`, `namespace`) — use kebab-case
-- Use `operation` instead of `call` in steps — `operation` is not a valid property in `OperationStepCall`, only `call` is
+- Write `steps` as a map keyed by step name, or name what a call step calls with `call:` or `operation:` — `steps` is a list whose items carry a `name`, and a call step names its target with `what:` (`ikanos migrate` rewrites a document in the old form)
 - Use `MappedOutputParameter` (with `mapping`, no `name`) when the tool/operation uses `steps` — use `OrchestratedOutputParameter` (with `name`, no `mapping`) instead
 - Use typed objects for lookup step `outputParameters` — they are plain string arrays of field names to extract (e.g. `- "fullName"`)
 - Put a `path` property on an `ExposedOperation` — extract multi-step operations with a different path into their own `ExposedResource`

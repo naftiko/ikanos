@@ -25,7 +25,7 @@ aggregates:
         inputParameters:
           flag: { type: string, description: "Flag state." }
         steps:
-          ships: { type: call, call: registry.list-ships }
+          - {name: ships, type: call, what: registry.list-ships }
         mappings:
           - target: ships
             value: "$.ships.ships"

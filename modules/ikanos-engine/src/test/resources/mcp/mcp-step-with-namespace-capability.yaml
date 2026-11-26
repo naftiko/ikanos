@@ -27,9 +27,9 @@ capability:
             description: Voyage ID
             required: true
         steps:
-          get-voyage:
+          - name: get-voyage
             type: call
-            call: registry.get-voyage
+            what: registry.get-voyage
             with:
               voyageId: shipyard-tools.voyageId
         mappings:

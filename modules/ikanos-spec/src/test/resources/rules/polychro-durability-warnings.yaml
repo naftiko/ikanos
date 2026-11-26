@@ -13,7 +13,7 @@ capability:
       confirm-departure:
         description: Asks the caller to confirm
         steps:
-          confirm:
+          - name: confirm
             type: elicit
             message: Confirm the departure
             fields:
@@ -22,9 +22,9 @@ capability:
       clear-for-departure:
         description: Calls the asking flow
         steps:
-          confirm:
+          - name: confirm
             type: call
-            call: departure.confirm-departure
+            what: departure.confirm-departure
       get-voyage:
         description: Mock voyage lookup, asks nothing
         outputParameters:
@@ -43,7 +43,7 @@ capability:
           confirm-inline:
             method: POST
             steps:
-              confirm:
+              - name: confirm
                 type: elicit
                 message: Confirm the departure
                 fields:

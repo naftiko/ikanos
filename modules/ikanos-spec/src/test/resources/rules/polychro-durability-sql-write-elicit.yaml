@@ -38,12 +38,12 @@ capability:
         inputParameters:
           id: { type: string, description: Order id }
         steps:
-          ship:
+          - name: ship
             type: call
-            call: erp.mark-shipped
+            what: erp.mark-shipped
             with:
               id: orders.id
-          confirm:
+          - name: confirm
             type: elicit
             message: Confirm the shipment
             fields:
@@ -54,12 +54,12 @@ capability:
         inputParameters:
           id: { type: string, description: Order id }
         steps:
-          read:
+          - name: read
             type: call
-            call: erp.get-order
+            what: erp.get-order
             with:
               id: orders.id
-          confirm:
+          - name: confirm
             type: elicit
             message: Confirm the order
             fields:

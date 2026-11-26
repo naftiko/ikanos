@@ -76,22 +76,22 @@ class McpElicitMessageIntegrationTest {
                             type: string
                             description: Post to delete
                         steps:
-                          post:
+                          - name: post
                             type: call
-                            call: blog.get-post
+                            what: blog.get-post
                             with:
                               postId: posts.postId
-                          authors:
+                          - name: authors
                             type: call
-                            call: blog.list-authors
-                          author:
+                            what: blog.list-authors
+                          - name: author
                             type: lookup
                             index: authors
                             match: id
                             lookupValue: $.post.author
                             outputParameters:
                               - name
-                          approve:
+                          - name: approve
                             type: elicit
                             message: "Permanently delete '{{post.title}}' by {{author.name}} (#{{postId}})?"
                             fields:

@@ -26,18 +26,18 @@ capability:
       clear-for-departure:
         description: Synchronous flow asking before the first write
         steps:
-          screen:
+          - name: screen
             type: call
-            call: port.check-dangerous-goods
-          confirm:
+            what: port.check-dangerous-goods
+          - name: confirm
             type: elicit
             message: Confirm the dangerous-goods declaration
             fields:
               confirmed:
                 type: boolean
-          book-slot:
+          - name: book-slot
             type: call
-            call: port.book-departure-slot
+            what: port.book-departure-slot
   exposes:
   - type: mcp
     address: localhost

@@ -14,6 +14,7 @@
 package io.ikanos.spec.util;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import io.ikanos.spec.scripting.OperationStepScriptSpec;
@@ -22,7 +23,7 @@ import io.ikanos.spec.scripting.OperationStepScriptSpec;
  * Base Operation Step Specification Element
  * 
  * Represents a step in an orchestrated operation. OperationStep is a discriminated union
- * with two subtypes: OperationStepCall and OperationStepLookup.
+ * whose subtypes (call, lookup, script, elicit) are told apart by {@code type}.
  */
 @JsonTypeInfo(
     use = JsonTypeInfo.Id.NAME,
@@ -36,6 +37,7 @@ import io.ikanos.spec.scripting.OperationStepScriptSpec;
     @JsonSubTypes.Type(value = OperationStepScriptSpec.class, name = "script"),
     @JsonSubTypes.Type(value = OperationStepElicitSpec.class, name = "elicit")
 })
+@JsonPropertyOrder({"name", "type"})
 public abstract class OperationStepSpec {
 
     @JsonProperty("type")

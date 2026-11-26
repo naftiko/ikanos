@@ -59,9 +59,9 @@ capability:
           description: Ships an order in a step.
           hints: { idempotent: true }
           steps:
-            ship:
+            - name: ship
               type: call
-              call: erp.mark-shipped
+              what: erp.mark-shipped
         settle:
           description: Settles an order through a flow.
           ref: orders.settle

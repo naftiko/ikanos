@@ -114,15 +114,15 @@ class FakeAdapterAcceptanceTest {
                               type: string
                               description: User id
                           steps:
-                            user:
+                            - name: user
                               type: call
-                              call: canned.get-user
+                              what: canned.get-user
                               with:
                                 userId: people.user-id
-                            teams:
+                            - name: teams
                               type: call
-                              call: canned.list-teams
-                            team:
+                              what: canned.list-teams
+                            - name: team
                               type: lookup
                               index: teams
                               match: id
@@ -374,8 +374,8 @@ class FakeAdapterAcceptanceTest {
 
     @Test
     void aggregateStepCallingUnknownOperationShouldFailAtLoad() {
-        String yaml = replaceOnce(capabilityYaml(), "call: canned.list-teams",
-                "call: canned.nope");
+        String yaml = replaceOnce(capabilityYaml(), "what: canned.list-teams",
+                "what: canned.nope");
 
         IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
                 () -> capabilityFromYaml(yaml));

@@ -95,9 +95,9 @@ class FlowPreconditionIntegrationTest {
                               type: string
                               description: "Entity tag the update is conditional on"
                           steps:
-                            update:
+                            - name: update
                               type: call
-                              call: up.update-item
+                              what: up.update-item
                   exposes:
                     - type: rest
                       address: "localhost"
@@ -126,9 +126,9 @@ class FlowPreconditionIntegrationTest {
                                   type: string
                                   description: "Entity tag the update is conditional on"
                               steps:
-                                update:
+                                - name: update
                                   type: call
-                                  call: catalog.update
+                                  what: catalog.update
                         flow-steps-ref:
                           path: "/flow-steps-ref"
                           operations:
@@ -151,9 +151,9 @@ class FlowPreconditionIntegrationTest {
                                   type: string
                                   description: "Entity tag the update is conditional on"
                               steps:
-                                update:
+                                - name: update
                                   type: call
-                                  call: catalog.update-steps
+                                  what: catalog.update-steps
                 """.formatted(IKANOS, upstream.getAddress().getPort(), restPort),
                 IkanosSpec.class));
         capability.start();

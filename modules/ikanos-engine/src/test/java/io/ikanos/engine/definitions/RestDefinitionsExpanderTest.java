@@ -174,9 +174,9 @@ class RestDefinitionsExpanderTest {
                     list-crew:
                       method: GET
                       steps:
-                        list:
+                        - name: list
                           type: call
-                          call: registry.list-crew
+                          what: registry.list-crew
                       mappings:
                         - target: crew
                           value: "$.list"
@@ -355,9 +355,9 @@ class RestDefinitionsExpanderTest {
                     get-lead:
                       method: GET
                       steps:
-                        lead:
+                        - name: lead
                           type: call
-                          call: registry.get-lead
+                          what: registry.get-lead
                       mappings:
                         - target: lead
                           value: "$.lead"
@@ -392,9 +392,9 @@ class RestDefinitionsExpanderTest {
                     get-lead:
                       method: GET
                       steps:
-                        lead:
+                        - name: lead
                           type: call
-                          call: registry.get-lead
+                          what: registry.get-lead
                       mappings:
                         - target: lead
                           value: "$.lead"

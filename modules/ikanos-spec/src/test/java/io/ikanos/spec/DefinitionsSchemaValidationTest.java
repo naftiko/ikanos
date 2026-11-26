@@ -88,7 +88,7 @@ class DefinitionsSchemaValidationTest {
                 list-ships:
                   description: "List ships."
                   steps:
-                    ships: { type: call, call: erp.list-ships }
+                    - {name: ships, type: call, what: erp.list-ships }
                   mappings:
                     - target: ships
                       value: "$.ships"
@@ -372,7 +372,7 @@ class DefinitionsSchemaValidationTest {
                 list-ships:
                   description: "List ships."
                   steps:
-                    ships: { type: call, call: erp.list-ships }
+                    - {name: ships, type: call, what: erp.list-ships }
                   mappings:
                     - target: flagship
                       value: "$.ships"
@@ -477,7 +477,7 @@ class DefinitionsSchemaValidationTest {
                           description: "The fleet."
                           uri: "data://fleet"
                           steps:
-                            ships: { type: call, call: erp.list-ships }
+                            - {name: ships, type: call, what: erp.list-ships }
                           mappings:
                             - target: result
                               value: "$.ships"
