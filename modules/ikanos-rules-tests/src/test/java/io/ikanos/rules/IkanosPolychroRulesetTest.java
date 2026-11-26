@@ -1254,6 +1254,25 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
+    public void definitionsMappingsRuleShouldFireOnAKeyBesideASchemaInARefToolOutput() {
+        // The JSON Schema leaves a ref tool's outputs open: the rule checks the keys itself
+        String output = lintFixture("rules/polychro-definitions-mapped-violations.yaml").output();
+        assertTrue(output.lines().anyMatch(line -> line.contains("ref-extra-key")
+                && line.contains("'schema: tags' takes only 'mappings' and 'mapping' in a mapped"
+                    + " output, found [description].")), output);
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldSpendOneBudgetAcrossTheBindingsOfANamespace() {
+        // Each binding stays under the budget alone; together they exceed it, as in the engine
+        String output = lintFixture("rules/polychro-definitions-mapped-budget.yaml").output();
+        List<String> lines = output.lines()
+            .filter(line -> line.contains("its definitions expand to more than 100000")).toList();
+        assertEquals(1, lines.size(), output);
+        assertTrue(lines.get(0).contains("second-grid"), output);
+    }
+
+    @Test
     public void definitionsRulesShouldNotFireForCompliantMappedOutputs() {
         LintResult result = lintFixtureAtSeverity(
             "rules/polychro-definitions-mapped-compliant.yaml", "warn");

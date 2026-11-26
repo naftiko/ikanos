@@ -254,8 +254,8 @@ rules:
     description: >
       `inputParameterSets: [name]` on an MCP tool, a REST resource or operation,
       or an aggregate flow must name an input parameter set, and `schema: name`
-      (on an input, inside a schema, or in an orchestrated output) must name a
-      schema, declared in the `definitions` of the same MCP adapter, REST
+      (on an input, inside a schema, or in an orchestrated or mapped output)
+      must name a schema, declared in the `definitions` of the same MCP adapter, REST
       adapter or aggregate. Definitions are local: a tool or an operation cannot
       use an aggregate's definitions (it reaches a flow through `ref`). The
       engine rejects the capability at startup otherwise.
@@ -337,7 +337,8 @@ rules:
       JSONPath, which is the `mapping` that node carries once expanded. A path
       the schema does not have, a binding the runtime never reads (object
       items, below nested arrays, a `mapping` beside `schema:` on an output
-      object), a property name containing `.`, `[` or `]`, `mappings` without
+      object), a key beside `schema:` other than `mappings` and `mapping`, a
+      property name containing `.`, `[` or `]`, `mappings` without
       `schema:`, and `schema:` or `mappings` in a mock output or an MCP
       resource output are
       errors too. The engine rejects the capability at startup otherwise.
