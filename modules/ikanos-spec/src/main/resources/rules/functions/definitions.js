@@ -522,12 +522,17 @@ function addressable(name) {
   return !/[.[\]]/.test(name);
 }
 
-/** Keys a mapped output takes beside `schema:`, as the engine's check. */
+/**
+ * Keys a mapped output takes beside `schema:`, as the engine's check. `$ref` is reported on
+ * its own, by `walkMapped`.
+ */
 const BESIDE_MAPPED_SCHEMA = ["schema", "name", "$ref", "mappings", "mapping"];
 
 /**
- * Upper bound on the nodes the binding walks of one namespace visit together, as the engine's
- * expansion budget, which is spent across the namespace.
+ * Upper bound on the nodes the binding walks of one namespace visit together. The engine spends
+ * the same bound across the namespace on everything it expands (inputs and orchestrated outputs
+ * too); this check counts the mapped bindings only, so a namespace it accepts may still exceed
+ * the engine's budget, never the reverse.
  */
 const MAX_BINDING_NODES = 100000;
 
@@ -703,7 +708,7 @@ function checkBinding(model, node, path, position, results, budget) {
   }
   if (binding.stopped === "budget") {
     if (!budget.reported) {
-      // Once per namespace, as the engine's budget
+      // Once per namespace, as the engine reports its budget
       budget.reported = true;
       results.push({
         message: model.owner.label + ": its definitions expand to more than "
@@ -773,6 +778,14 @@ function checkBinding(model, node, path, position, results, budget) {
 function walkMapped(model, node, path, position, results, budget) {
   if (!isObject(node)) {
     return;
+  }
+  // As the engine: the JSON Schema leaves a ref unit's outputs open, so it may not reject it
+  if (Object.prototype.hasOwnProperty.call(node, "$ref")) {
+    results.push({
+      message: "'$ref' is not supported. Reference a schema of the definitions by its bare name,"
+        + " with 'schema: name'.",
+      path: path.concat("$ref"),
+    });
   }
   if (typeof node.schema === "string") {
     checkBinding(model, node, path, position, results, budget);
