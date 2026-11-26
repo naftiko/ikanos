@@ -29,6 +29,7 @@ import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Map;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -44,9 +45,23 @@ import org.restlet.data.MediaType;
 import org.restlet.data.Protocol;
 import org.restlet.data.Status;
 import org.restlet.representation.OutputRepresentation;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanContext;
+import io.opentelemetry.api.trace.SpanKind;
+import io.opentelemetry.api.trace.TraceFlags;
+import io.opentelemetry.api.trace.TraceState;
+import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
+import io.opentelemetry.context.Scope;
+import io.opentelemetry.context.propagation.ContextPropagators;
+import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
+import io.opentelemetry.sdk.trace.SdkTracerProvider;
+import io.opentelemetry.sdk.trace.data.SpanData;
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 import io.ikanos.engine.consumes.ClientAdapterRegistry;
 import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.engine.consumes.contract.ContractResult;
+import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.spec.consumes.ClientSpec;
 import io.ikanos.spec.consumes.smithy.SmithyClientSpec;
 import io.ikanos.spec.util.IkanosMappers;
@@ -599,6 +614,72 @@ class SmithyConsumedAdapterTest {
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> new SmithyConsumedAdapter(null, spec, Map.of()));
         assertTrue(e.getMessage().contains("'create-issue'"), e.getMessage());
+    }
+
+    @Test
+    void constructorShouldRefuseAStreamingBlobOutput() throws Exception {
+        SmithyClientSpec spec = spec("""
+                download:
+                  description: An attachment.
+                  operation: DownloadAttachment
+                  inputParameters:
+                    id: { type: string, required: true, description: Id., wireName: attachmentId }
+                """, "");
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> new SmithyConsumedAdapter(null, spec, Map.of()));
+        assertTrue(e.getMessage().contains("'download'")
+                && e.getMessage().contains("streaming output member 'data'"), e.getMessage());
+    }
+
+    @Test
+    void constructorShouldRefuseAnEventStreamOutput() throws Exception {
+        SmithyClientSpec spec = spec("""
+                watch:
+                  description: Issue events.
+                  operation: WatchIssues
+                """, "");
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> new SmithyConsumedAdapter(null, spec, Map.of()));
+        assertTrue(e.getMessage().contains("'watch'")
+                && e.getMessage().contains("streaming output member 'events'"), e.getMessage());
+    }
+
+    @Test
+    void callShouldSendTheTraceContextAndSetTheRpcAttributesOfTheClientSpan() throws Exception {
+        InMemorySpanExporter spans = InMemorySpanExporter.create();
+        TelemetryBootstrap.init(OpenTelemetrySdk.builder()
+                .setTracerProvider(SdkTracerProvider.builder()
+                        .addSpanProcessor(SimpleSpanProcessor.create(spans)).build())
+                .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
+                .build());
+        SmithyConsumedAdapter adapter = started(spec(HEADERS, ""));
+        String traceId = "0af7651916cd43dd8448eb211c80319c";
+        Span parent = Span.wrap(SpanContext.create(traceId, "b7ad6b7169203331",
+                TraceFlags.getSampled(), TraceState.getDefault()));
+        try (Scope scope = parent.makeCurrent()) {
+            ConsumedResult result = call(adapter, "headers", Map.of());
+
+            assertEquals(200, result.status(), String.valueOf(result.reason()));
+            assertTrue(result.document().get("traceparent").asBoolean(),
+                    "the upstream saw no traceparent");
+            List<SpanData> clients = spans.getFinishedSpanItems().stream()
+                    .filter(span -> span.getKind() == SpanKind.CLIENT).toList();
+            assertEquals(1, clients.size(), String.valueOf(clients));
+            SpanData span = clients.get(0);
+            assertEquals(traceId, span.getTraceId(), "the client span continues the trace");
+            assertEquals("smithy", span.getAttributes().get(SmithyConsumedAdapter.ATTR_RPC_SYSTEM));
+            assertEquals("example.tracker#Tracker",
+                    span.getAttributes().get(SmithyConsumedAdapter.ATTR_RPC_SERVICE));
+            assertEquals("EchoHeaders",
+                    span.getAttributes().get(SmithyConsumedAdapter.ATTR_RPC_METHOD));
+            assertEquals("aws.protocols#restJson1",
+                    span.getAttributes().get(SmithyConsumedAdapter.ATTR_PROTOCOL));
+        } finally {
+            adapter.stop();
+            TelemetryBootstrap.reset();
+        }
     }
 
     @Test

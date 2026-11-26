@@ -83,6 +83,7 @@ import software.amazon.smithy.model.traits.ErrorTrait;
 import software.amazon.smithy.model.traits.HttpErrorTrait;
 import software.amazon.smithy.model.traits.ReadonlyTrait;
 import software.amazon.smithy.model.traits.RequiredTrait;
+import software.amazon.smithy.model.traits.StreamingTrait;
 import software.amazon.smithy.model.traits.Trait;
 import tools.jackson.databind.JsonNode;
 import io.ikanos.Capability;
@@ -334,12 +335,30 @@ public class SmithyConsumedAdapter extends ContractClientAdapter {
         String where = where() + " operation '" + spec.getName() + "'";
         OperationShape shape = findOperation(where, spec.getOperation());
         StructureShape input = model.expectShape(shape.getInputShape(), StructureShape.class);
+        refuseStreaming(where, "input", input);
+        refuseStreaming(where, "output",
+                model.expectShape(shape.getOutputShape(), StructureShape.class));
         checkInputs(where, spec, input);
         boolean readOnly = shape.hasTrait(ReadonlyTrait.class);
         checkReadOnly(spec.getName(), readOnly, false);
         boolean effective = spec.getReadOnly() != null ? spec.getReadOnly() : readOnly;
         return new Operation(spec.getName(), spec, shape, converter.getSchema(input), view(spec),
                 effective);
+    }
+
+    /**
+     * Refuses a structure with a member that targets a {@code @streaming} shape: a streaming blob
+     * (as S3 {@code GetObject}) or an event stream. Neither fits one JSON document per call.
+     */
+    void refuseStreaming(String where, String kind, StructureShape structure) {
+        for (MemberShape member : structure.members()) {
+            if (model.expectShape(member.getTarget()).hasTrait(StreamingTrait.class)) {
+                throw new IllegalArgumentException(where + " has the streaming " + kind
+                        + " member '" + member.getMemberName() + "' (@streaming): streaming"
+                        + " operations, with a streaming blob or an event stream, are not"
+                        + " supported");
+            }
+        }
     }
 
     /** An operation of the service, by shape name or by full shape ID. */

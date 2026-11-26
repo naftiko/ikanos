@@ -11,7 +11,8 @@ use aws.protocols#restJson1
 @sigv4(name: "issues")
 service Tracker {
     version: "2024-01-01"
-    operations: [GetIssue, CreateIssue, SlowCall, SlowBodyCall, EchoHeaders]
+    operations: [GetIssue, CreateIssue, SlowCall, SlowBodyCall, EchoHeaders, DownloadAttachment,
+        WatchIssues]
     errors: [ServerFault]
 }
 
@@ -90,6 +91,44 @@ operation EchoHeaders {
         traceparent: Boolean
         signatureValid: Boolean
     }
+}
+
+/// A streaming blob output, which the adapter refuses at load time.
+@readonly
+@http(method: "GET", uri: "/attachments/{attachmentId}")
+operation DownloadAttachment {
+    input := {
+        @required
+        @httpLabel
+        attachmentId: String
+    }
+    output := {
+        @required
+        @httpPayload
+        data: AttachmentData
+    }
+}
+
+@streaming
+blob AttachmentData
+
+/// An event stream output, which the adapter refuses at load time.
+@readonly
+@http(method: "GET", uri: "/events")
+operation WatchIssues {
+    output := {
+        @httpPayload
+        events: IssueEvents
+    }
+}
+
+@streaming
+union IssueEvents {
+    changed: IssueChanged
+}
+
+structure IssueChanged {
+    id: String
 }
 
 structure Details {
