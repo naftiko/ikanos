@@ -57,7 +57,7 @@ import io.ikanos.spec.util.StructureSpec;
  *   <li>On a REST adapter, {@code inputParameterSets} apply to resources (whose inputs their
  *       operations inherit) and to operations, and set entries are REST inputs ({@code in},
  *       {@code type}, {@code pattern}, {@code value}). REST inputs are flat, so its schemas are
- *       used in orchestrated outputs only: {@code schema:} on a REST input is an error.</li>
+ *       used in outputs only: {@code schema:} on a REST input is an error.</li>
  *   <li>{@code inputParameterSets: [names]} on an MCP tool or a flow applies the sets in order,
  *       then the unit's own {@code inputParameters}. An own entry replaces the set's entry with
  *       the same name whole, at the set entry's position. Two sets of one unit must not declare
@@ -258,7 +258,7 @@ public final class DefinitionsExpander {
         /**
          * @param inputSchemas whether the inputs of this namespace may use {@code schema:}. REST
          *                     inputs are flat ({@code in}, {@code type}, {@code pattern}), so a
-         *                     REST adapter uses its schemas in orchestrated outputs only.
+         *                     REST adapter uses its schemas in outputs only.
          */
         Namespace(String owner, String unitKind, DefinitionsSpec definitions, Set<String> errors,
                 Set<String> warnings, boolean inputSchemas) {
@@ -1334,7 +1334,7 @@ public final class DefinitionsExpander {
             }
             errors.add(location + ": 'schema:' is not supported on a REST input, which is flat"
                     + " ('in', 'type', 'pattern'). Declare the input inline: a REST adapter uses"
-                    + " its schemas in orchestrated (steps) outputs.");
+                    + " its schemas in outputs.");
         }
 
         private void checkOutputBesideSchema(OutputParameterSpec param, String location) {

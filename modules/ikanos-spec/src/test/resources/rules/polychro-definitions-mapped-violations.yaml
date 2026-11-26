@@ -188,6 +188,14 @@ capability:
           outputParameters:
             cargo:
               schema: record
+        ref-extra-key:
+          description: "A key beside schema in a ref tool's mapped output."
+          ref: cargo.get-load
+          outputParameters:
+            labels:
+              schema: tags
+              description: "The tags."
+              mapping: "$.tags"
       resources:
         flagship:
           display: "Flagship"

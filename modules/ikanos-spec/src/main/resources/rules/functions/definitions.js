@@ -23,7 +23,8 @@
  *                   not have, a binding the runtime never reads (object
  *                   items, below nested arrays, a `mapping` on an output
  *                   object), a value that is not a JSONPath, a property name
- *                   a path cannot address, `mappings` without `schema:`, or
+ *                   a path cannot address, a key beside `schema:` other than
+ *                   `mappings` and `mapping`, `mappings` without `schema:`, or
  *                   `schema:` / `mappings` in a mock output or an MCP resource
  *                   output.
  *
@@ -521,7 +522,13 @@ function addressable(name) {
   return !/[.[\]]/.test(name);
 }
 
-/** Upper bound on the nodes one binding walk visits, as the engine's expansion budget. */
+/** Keys a mapped output takes beside `schema:`, as the engine's check. */
+const BESIDE_MAPPED_SCHEMA = ["schema", "name", "$ref", "mappings", "mapping"];
+
+/**
+ * Upper bound on the nodes the binding walks of one namespace visit together, as the engine's
+ * expansion budget, which is spent across the namespace.
+ */
 const MAX_BINDING_NODES = 100000;
 
 /** Upper bound on the nesting depth of a binding walk, as the engine's. */
@@ -545,13 +552,12 @@ function withProperties(schema) {
  * @param rootIsItems whether the schema is an array used as the items of
  *   another array, whose own items the runtime never shapes
  */
-function bindingOf(model, node, rootIsItems) {
+function bindingOf(model, node, rootIsItems, budget) {
   const mappings = isObject(node.mappings) ? node.mappings : {};
   const binding = {
     paths: [], unbound: [], unaddressable: [], ineffective: [], used: new Set(),
     stopped: null,
   };
-  let visited = 0;
   // Follow references from a declaration, recording each schema it passes
   // through; null when one of them is already on the walk's path.
   const target = (declaration, onPath, entered) => {
@@ -571,8 +577,8 @@ function bindingOf(model, node, rootIsItems) {
     if (binding.stopped) {
       return;
     }
-    visited += 1;
-    if (visited > MAX_BINDING_NODES) {
+    budget.visited += 1;
+    if (budget.visited > MAX_BINDING_NODES) {
       binding.stopped = "budget";
       return;
     }
@@ -647,12 +653,21 @@ function rootOf(model, name) {
  *   read from the response root), "items" (array items or map values, read
  *   from each element) or "property"
  */
-function checkBinding(model, node, path, position, results) {
+function checkBinding(model, node, path, position, results, budget) {
   const name = node.schema;
+  const prefix = "'schema: " + name + "' ";
+  // As the engine: beside `schema:`, a mapped output takes only its binding
+  const extra = Object.keys(node).filter((key) => !BESIDE_MAPPED_SCHEMA.includes(key));
+  if (extra.length > 0) {
+    results.push({
+      message: prefix + "takes only 'mappings' and 'mapping' in a mapped output, found ["
+        + extra.join(", ") + "].",
+      path: path.concat(extra[0]),
+    });
+  }
   if (!(name in model.schemas)) {
     return; // reported by the references check
   }
-  const prefix = "'schema: " + name + "' ";
   if (position === "unread") {
     results.push({
       message: prefix + "sits in the items of a nested array, which the runtime passes"
@@ -673,7 +688,7 @@ function checkBinding(model, node, path, position, results) {
     return;
   }
   const binding = bindingOf(model, node, position === "items" && isObject(root)
-    && root.type === "array");
+    && root.type === "array", budget);
   const empty = !isObject(node.mappings) || Object.keys(node.mappings).length === 0;
   if (empty && binding.unbound.length > 0 && !binding.stopped) {
     results.push({
@@ -687,11 +702,16 @@ function checkBinding(model, node, path, position, results) {
     return; // reported by the cycles check, or by the engine's depth bound
   }
   if (binding.stopped === "budget") {
-    results.push({
-      message: prefix + "expands to more than " + MAX_BINDING_NODES + " declarations."
-        + " Expansion is bounded, so that a document cannot multiply itself without limit.",
-      path: path.concat("schema"),
-    });
+    if (!budget.reported) {
+      // Once per namespace, as the engine's budget
+      budget.reported = true;
+      results.push({
+        message: model.owner.label + ": its definitions expand to more than "
+          + MAX_BINDING_NODES + " parameter declarations. Expansion is bounded, so that a"
+          + " document cannot multiply itself without limit.",
+        path: path.concat("schema"),
+      });
+    }
     return;
   }
   const rootWithProperties = withProperties(root);
@@ -750,12 +770,12 @@ function checkBinding(model, node, path, position, results) {
 }
 
 /** Walk a mapped output and check each schema reference and stray `mappings`. */
-function walkMapped(model, node, path, position, results) {
+function walkMapped(model, node, path, position, results, budget) {
   if (!isObject(node)) {
     return;
   }
   if (typeof node.schema === "string") {
-    checkBinding(model, node, path, position, results);
+    checkBinding(model, node, path, position, results, budget);
     return;
   }
   if (declaresMappings(node)) {
@@ -769,11 +789,12 @@ function walkMapped(model, node, path, position, results) {
   // The items of an array that is itself items are passed through as they are
   const nested = position === "items" && node.type === "array";
   walkMapped(model, node.items, path.concat("items"), unread || nested ? "unread" : "items",
-    results);
-  walkMapped(model, node.values, path.concat("values"), unread ? "unread" : "items", results);
+    results, budget);
+  walkMapped(model, node.values, path.concat("values"), unread ? "unread" : "items", results,
+    budget);
   for (const p of entries(isObject(node.properties) ? node.properties : null)) {
     walkMapped(model, p.value, path.concat("properties", ...p.locator),
-      unread ? "unread" : "property", results);
+      unread ? "unread" : "property", results, budget);
   }
 }
 
@@ -793,6 +814,7 @@ function bindsDefinitions(node) {
 }
 
 function checkMappings(model, results) {
+  const budget = { visited: 0, reported: false };
   for (const unit of model.units) {
     if (!unit.mapped && !unit.orchestrated) {
       // A mock returns static values: nothing there can bind a schema
@@ -812,7 +834,7 @@ function checkMappings(model, results) {
     }
     for (const p of entries(unit.unit.outputParameters)) {
       walkMapped(model, p.value, unit.path.concat("outputParameters", ...p.locator), "top",
-        results);
+        results, budget);
     }
   }
   // Definitions do not reach MCP resources: a reference there would never be expanded
