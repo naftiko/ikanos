@@ -529,10 +529,11 @@ function addressable(name) {
 const BESIDE_MAPPED_SCHEMA = ["schema", "name", "$ref", "mappings", "mapping"];
 
 /**
- * Upper bound on the nodes the binding walks of one namespace visit together. The engine spends
- * the same bound across the namespace on everything it expands (inputs and orchestrated outputs
- * too); this check counts the mapped bindings only, so a namespace it accepts may still exceed
- * the engine's budget, never the reverse.
+ * Upper bound on the declarations the mapped bindings of one namespace expand to together, each
+ * charged the size of its schema as the engine charges it. The engine spends the same bound
+ * across the namespace on everything it expands (inputs and orchestrated outputs too); this
+ * check counts the mapped bindings only, so a namespace it accepts may still exceed the
+ * engine's budget, never the reverse.
  */
 const MAX_BINDING_NODES = 100000;
 
@@ -551,14 +552,20 @@ function withProperties(schema) {
  * scalars, arrays and objects without properties its `mappings` leave
  * unbound, the bindings the runtime never reads, and the property names a path
  * cannot address. The walk stops at a schema already on its path (a cycle,
- * which the cycles check reports), past the engine's depth bound, and past its
- * node budget: `stopped` then says why, and the binding is not judged.
+ * which the cycles check reports) and past the engine's depth bound: `stopped`
+ * then says why, and the binding is not judged. It does not enter a subtree
+ * the runtime never reads unless a mapping reaches into it, so a large schema
+ * below nested arrays costs nothing to walk.
  *
  * @param rootIsItems whether the schema is an array used as the items of
  *   another array, whose own items the runtime never shapes
  */
-function bindingOf(model, node, rootIsItems, budget) {
+function bindingOf(model, node, rootIsItems) {
   const mappings = isObject(node.mappings) ? node.mappings : {};
+  const keys = Object.keys(mappings);
+  // Whether a mapping names the path or a path below it
+  const reached = (path) => keys.some((key) => key === path || key.startsWith(path + ".")
+    || key.startsWith(path + "["));
   const binding = {
     paths: [], unbound: [], unaddressable: [], ineffective: [], used: new Set(),
     stopped: null,
@@ -579,12 +586,8 @@ function bindingOf(model, node, rootIsItems, budget) {
     return current;
   };
   const visit = (declaration, path, depth, unread, onPath) => {
-    if (binding.stopped) {
-      return;
-    }
-    budget.visited += 1;
-    if (budget.visited > MAX_BINDING_NODES) {
-      binding.stopped = "budget";
+    if (binding.stopped || (unread && !reached(path))) {
+      // Nothing below binds what the runtime never reads: nothing to judge there
       return;
     }
     if (depth > MAX_BINDING_DEPTH) {
@@ -658,6 +661,38 @@ function rootOf(model, name) {
  *   read from the response root), "items" (array items or map values, read
  *   from each element) or "property"
  */
+/**
+ * Number of parameter declarations a schema expands to, as the engine's
+ * `size(name)` counts them (each declaration, its items, values and
+ * properties, through references, capped just past the budget), once per
+ * schema. A reference that closes a cycle counts one.
+ */
+function schemaSize(model, name, sizes) {
+  if (sizes.has(name)) {
+    const known = sizes.get(name);
+    return known === null ? 1 : known;
+  }
+  sizes.set(name, null);
+  const size = declarationSize(model, model.schemas[name], sizes);
+  sizes.set(name, size);
+  return size;
+}
+
+function declarationSize(model, node, sizes) {
+  if (!isObject(node)) {
+    return 0;
+  }
+  if (typeof node.schema === "string") {
+    return node.schema in model.schemas ? schemaSize(model, node.schema, sizes) : 1;
+  }
+  let total = 1 + declarationSize(model, node.items, sizes)
+    + declarationSize(model, node.values, sizes);
+  for (const p of entries(isObject(node.properties) ? node.properties : null)) {
+    total = Math.min(total + declarationSize(model, p.value, sizes), MAX_BINDING_NODES + 1);
+  }
+  return Math.min(total, MAX_BINDING_NODES + 1);
+}
+
 function checkBinding(model, node, path, position, results, budget) {
   const name = node.schema;
   const prefix = "'schema: " + name + "' ";
@@ -682,31 +717,9 @@ function checkBinding(model, node, path, position, results, budget) {
     });
     return;
   }
-  const root = rootOf(model, name);
-  const object = isObject(root) && root.type === "object";
-  if (position === "top" && object && !withProperties(root)) {
-    results.push({
-      message: prefix + "is an object without properties, which as an output always returns"
-        + " an empty object. Use it as a property, with a 'mapping'.",
-      path: path.concat("schema"),
-    });
-    return;
-  }
-  const binding = bindingOf(model, node, position === "items" && isObject(root)
-    && root.type === "array", budget);
-  const empty = !isObject(node.mappings) || Object.keys(node.mappings).length === 0;
-  if (empty && binding.unbound.length > 0 && !binding.stopped) {
-    results.push({
-      message: prefix + "in a mapped (call-mode) output needs 'mappings', the mapping of"
-        + " each path of the schema.",
-      path: path.concat("schema"),
-    });
-    return;
-  }
-  if (binding.stopped === "cycle" || binding.stopped === "depth") {
-    return; // reported by the cycles check, or by the engine's depth bound
-  }
-  if (binding.stopped === "budget") {
+  // Charged as the engine charges a binding: the size of the schema it expands
+  budget.visited += schemaSize(model, name, budget.sizes);
+  if (budget.visited > MAX_BINDING_NODES) {
     if (!budget.reported) {
       // Once per namespace, as the engine reports its budget
       budget.reported = true;
@@ -718,6 +731,30 @@ function checkBinding(model, node, path, position, results, budget) {
       });
     }
     return;
+  }
+  const root = rootOf(model, name);
+  const object = isObject(root) && root.type === "object";
+  if (position === "top" && object && !withProperties(root)) {
+    results.push({
+      message: prefix + "is an object without properties, which as an output always returns"
+        + " an empty object. Use it as a property, with a 'mapping'.",
+      path: path.concat("schema"),
+    });
+    return;
+  }
+  const binding = bindingOf(model, node, position === "items" && isObject(root)
+    && root.type === "array");
+  const empty = !isObject(node.mappings) || Object.keys(node.mappings).length === 0;
+  if (empty && binding.unbound.length > 0 && !binding.stopped) {
+    results.push({
+      message: prefix + "in a mapped (call-mode) output needs 'mappings', the mapping of"
+        + " each path of the schema.",
+      path: path.concat("schema"),
+    });
+    return;
+  }
+  if (binding.stopped === "cycle" || binding.stopped === "depth") {
+    return; // reported by the cycles check, or by the engine's depth bound
   }
   const rootWithProperties = withProperties(root);
   if (typeof node.mapping === "string" && object && position !== "property"
@@ -827,7 +864,7 @@ function bindsDefinitions(node) {
 }
 
 function checkMappings(model, results) {
-  const budget = { visited: 0, reported: false };
+  const budget = { visited: 0, reported: false, sizes: new Map() };
   for (const unit of model.units) {
     if (!unit.mapped && !unit.orchestrated) {
       // A mock returns static values: nothing there can bind a schema
