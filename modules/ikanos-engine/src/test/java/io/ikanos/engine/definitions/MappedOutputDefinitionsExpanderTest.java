@@ -933,6 +933,72 @@ class MappedOutputDefinitionsExpanderTest {
         assertEquals(List.of(), DefinitionsExpander.expandAll(spec).errors());
     }
 
+    @Test
+    void expandAllShouldResolveTheSchemasOfChildrenRejectedBesideASchema() throws Exception {
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    ship:
+                      type: object
+                      properties:
+                        imo: { type: string }
+                    crew:
+                      type: object
+                      properties:
+                        name: { type: string }
+                """, """
+                get-ship:
+                  description: "Get ship."
+                  call: erp.get-ship
+                  outputParameters:
+                    - schema: ship
+                      mappings:
+                        imo: "$.imo"
+                      properties:
+                        x: { schema: crew }
+                        z: { schema: nope }
+                """);
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+
+        assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', output: 'schema: ship' takes"
+                + " only 'mappings' and 'mapping' in a mapped output, found [properties].",
+                "MCP adapter 'tools', tool 'get-ship', output: unknown schema 'nope'. MCP adapter"
+                + " 'tools' declares ship, crew."), result.errors());
+        assertTrue(result.warnings().stream().noneMatch(w -> w.contains("'crew'")),
+                result.warnings().toString());
+    }
+
+    @Test
+    void expandAllShouldResolveTheSchemasOfAMockOutput() throws Exception {
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    ship:
+                      type: object
+                      properties:
+                        imo: { type: string }
+                """, """
+                get-ship:
+                  description: "Get ship."
+                  outputParameters:
+                    ship:
+                      type: object
+                      properties:
+                        imo: { schema: ship }
+                        flag: { schema: nope }
+                """);
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+
+        assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', output 'ship': 'schema:' and"
+                + " 'mappings' are not allowed in a mock output, which returns static values."
+                + " Declare the output inline.",
+                "MCP adapter 'tools', tool 'get-ship', output 'ship': unknown schema 'nope'. MCP"
+                + " adapter 'tools' declares ship."), result.errors());
+        assertEquals(List.of(), result.warnings());
+    }
+
     private static String outputs(IkanosSpec spec, String tool) throws Exception {
         McpServerToolSpec unit = ((McpServerSpec) spec.getCapability().getExposes().get(0))
                 .getTools().get(tool);
