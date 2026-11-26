@@ -194,13 +194,13 @@ function walkOutput(node, path, refs) {
   if (typeof node.schema === "string") {
     refs.push({ kind: "schema", name: node.schema, path: path.concat("schema"), output: true });
   }
-  if (typeof node.mappingSets === "string") {
-    refs.push({ kind: "mappingSet", name: node.mappingSets, path: path.concat("mappingSets") });
-  } else if (Array.isArray(node.mappingSets)) {
-    node.mappingSets.forEach((name, index) => {
-      refs.push({ kind: "mappingSet", name, path: path.concat("mappingSets", index) });
+  setNames(node).forEach((name, index) => {
+    refs.push({
+      kind: "mappingSet", name,
+      path: Array.isArray(node.mappingSets) ? path.concat("mappingSets", index)
+        : path.concat("mappingSets"),
     });
-  }
+  });
   for (const item of itemsOf(node, path)) {
     walkOutput(item.value, item.path, refs);
   }
@@ -585,10 +585,14 @@ function declaresMappings(node) {
  * one-name list, as in the engine (the JSON Schema wants a list).
  */
 function setNames(node) {
-  if (typeof node.mappingSets === "string") {
-    return [node.mappingSets];
+  // As the engine reads them: no value is no list, and a number, a boolean or null names a set
+  // by its text (an unknown one); an object stays as is, which no set is named after
+  const name = (value) => (value === null || typeof value !== "object" ? String(value) : value);
+  const sets = node.mappingSets;
+  if (sets === undefined || sets === null) {
+    return [];
   }
-  return Array.isArray(node.mappingSets) ? node.mappingSets : [];
+  return Array.isArray(sets) ? sets.map(name) : [name(sets)];
 }
 
 /** The path of a mapping set a declaration lists, for a finding. */

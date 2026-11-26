@@ -1294,7 +1294,7 @@ public class IkanosPolychroRulesetTest {
         String output = lintFixture(MAPPING_SETS).output();
         assertTrue(output.contains("Unknown mapping set 'ship-from-crm'. MCP adapter 'fleet'"
             + " declares ship-from-registry, ship-with-owner, ship-static, never-used,"
-            + " empty-set."), output);
+            + " empty-set, mock-only, crew-items."), output);
         assertFalse(output.lines().anyMatch(line -> line.contains("unknown-set")
             && line.contains("leaves paths unbound")), output);
     }
@@ -1348,6 +1348,41 @@ public class IkanosPolychroRulesetTest {
     public void definitionsMappingsRuleShouldFireOnAMappingSetThatDeclaresNoMapping() {
         assertTrue(lintFixture(MAPPING_SETS).output().contains("MCP adapter 'fleet', mapping set"
             + " 'empty-set' declares no mapping. Declare it as a map of paths to JSONPaths."));
+    }
+
+    @Test
+    public void definitionsUnusedRuleShouldNotWarnOnAMappingSetListedOnlyWhereItIsRejected() {
+        String output = lintFixture(MAPPING_SETS).output();
+        assertFalse(output.contains("mapping set 'mock-only', which no tool uses"), output);
+    }
+
+    @Test
+    public void definitionsRulesShouldReadASingleMappingSetNameAsAList() {
+        String output = lintFixture(MAPPING_SETS).output();
+        assertFalse(output.lines().anyMatch(line -> line.contains("single-name")
+            && line.contains("ikanos-definitions-")), output);
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldNameTheMappingSetOfABindingTheRuntimeNeverReads() {
+        String output = lintFixture(MAPPING_SETS).output();
+        assertTrue(output.lines().anyMatch(line -> line.contains("set-never-read")
+            && line.contains("'schema: crewed' binds crew[] (mapping set 'crew-items'), which the"
+                + " runtime never reads")), output);
+    }
+
+    @Test
+    public void definitionsReferenceRuleShouldFireOnAnUnknownMappingSetUnderValues() {
+        String output = lintFixture(MAPPING_SETS).output();
+        assertTrue(output.lines().anyMatch(line -> line.contains("values-typo")
+            && line.contains("Unknown mapping set 'ship-from-typo'.")), output);
+    }
+
+    @Test
+    public void definitionsReferenceRuleShouldReadANumericMappingSetNameAsItsText() {
+        String output = lintFixture(MAPPING_SETS).output();
+        assertTrue(output.lines().anyMatch(line -> line.contains("numeric-name")
+            && line.contains("Unknown mapping set '1'.")), output);
     }
 
     @Test

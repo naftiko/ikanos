@@ -590,8 +590,9 @@ public final class DefinitionsExpander {
                         ? location + ", output '" + output.getName() + "'"
                         : location + ", output";
                 if (!mapped) {
-                    // Rejected there, but used: not also reported unused, as in Polychro
-                    markListedMappingSets(output);
+                    // Rejected there, but resolved: an unknown name is reported and a known one
+                    // is not also reported unused, as Polychro does
+                    resolveListedMappingSets(output, where);
                 }
                 if (orchestrated) {
                     checkNoMappings(output, where);
@@ -836,8 +837,8 @@ public final class DefinitionsExpander {
         }
 
         /**
-         * Mark used the declared mapping sets an output lists anywhere, where they are rejected
-         * (a mock, MCP resource or orchestrated output), without resolving them.
+         * Mark used the declared mapping sets an MCP resource output lists anywhere, where they
+         * are rejected, without resolving them: Polychro has no reference to check there.
          */
         private void markListedMappingSets(OutputParameterSpec param) {
             if (param == null) {
@@ -852,6 +853,22 @@ public final class DefinitionsExpander {
             markListedMappingSets(param.getValues());
             for (OutputParameterSpec property : param.getProperties()) {
                 markListedMappingSets(property);
+            }
+        }
+
+        /**
+         * Resolve the mapping sets an output lists anywhere, where they are rejected (a mock or
+         * orchestrated output): an unknown name is reported, a known one is marked used.
+         */
+        private void resolveListedMappingSets(OutputParameterSpec param, String location) {
+            if (param == null) {
+                return;
+            }
+            resolveMappingSets(param.getMappingSets(), location);
+            resolveListedMappingSets(param.getItems(), location);
+            resolveListedMappingSets(param.getValues(), location);
+            for (OutputParameterSpec property : param.getProperties()) {
+                resolveListedMappingSets(property, location);
             }
         }
 

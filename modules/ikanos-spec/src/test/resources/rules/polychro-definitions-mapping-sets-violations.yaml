@@ -31,6 +31,15 @@ capability:
             properties:
               imo: { type: string }
               flag: { type: string }
+          crewed:
+            type: object
+            properties:
+              crew:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    fullName: { type: string }
         mappingSets:
           ship-from-registry:
             imo: "$.imo_number"
@@ -45,6 +54,12 @@ capability:
           never-used:
             imo: "$.imo"
           empty-set:
+          mock-only:
+            imo: "$.imo"
+          crew-items:
+            crew: "$.crew"
+            crew[]: "$.member"
+            crew[].fullName: "$.name"
       tools:
         unknown-set:
           description: "Lists a mapping set the adapter does not declare."
@@ -83,6 +98,33 @@ capability:
           outputParameters:
             ship:
               type: object
-              mappingSets: [ship-from-registry]
+              mappingSets: [ship-from-registry, mock-only]
               properties:
                 imo: { type: string, value: "IMO 9321483" }
+        single-name:
+          description: "Lists one mapping set by name, not in a list."
+          call: registry.get-ship
+          outputParameters:
+            - schema: ship
+              mappingSets: ship-from-registry
+        set-never-read:
+          description: "A mapping set binds object items, which the runtime never reads."
+          call: registry.get-ship
+          outputParameters:
+            - schema: crewed
+              mappingSets: [crew-items]
+        values-typo:
+          description: "Lists an undeclared mapping set under values."
+          call: registry.get-ship
+          outputParameters:
+            - type: object
+              mapping: "$.ships"
+              values:
+                schema: ship
+                mappingSets: [ship-from-typo]
+        numeric-name:
+          description: "Lists a mapping set name that is a number."
+          call: registry.get-ship
+          outputParameters:
+            - schema: ship
+              mappingSets: [1]
