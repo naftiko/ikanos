@@ -231,7 +231,7 @@ public class ConsumedTemplateValidatorTest {
                 """, "/items"));
 
         assertEquals(List.of("svc.create body /filter: $keep must be true; leave it out"
-                + " otherwise"), errors);
+                + " otherwise; write $$keep to send a member named $keep"), errors);
     }
 
     @Test

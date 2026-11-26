@@ -54,14 +54,22 @@ These rules are not covered there yet:
   are never sent themselves:
   - `$onlyIf: <input>` on an object other than the root sends it only when the input is present, not null and not
     `false` (`""`, `0` and the string `"false"` hold). Inputs are read after their defaults are
-    applied, so an input with a `default` holds unless its default is `false`.
+    applied, so an input with a `default` holds unless its default is `false`. `$onlyIf` can
+    also name a caller claim, `auth.claims.<name>`, namespaced claims included
+    (`auth.claims.https://example.com/role`). A missing claim fails the call instead of leaving
+    the object out, as does a claim read inside an object or a `$first` variant that is left
+    out, and an MCP resource whose body has such an `$onlyIf` cannot be `cacheScope: public`.
+    An `$onlyIf` on an input shapes the body but is no access control, since the caller decides
+    whether the input is present: gate a part of the body on identity with a claim.
   - `{$first: [variants]}` as a value takes the first variant object whose `$onlyIf` holds, or
     that has no `$onlyIf`. It is left out when no variant applies, or when the chosen one resolves
-    to nothing.
+    to nothing. `$first` is a marker only when its value is a list: with any other value, such
+    as the MongoDB accumulator `{$first: "$items"}`, it is sent as written.
   - `$keep: true` on an object sends it as `{}` when all its members are left out.
 
-  A key that starts with `$$` is sent with one `$` less, so `$$onlyIf` sends a member named
-  `$onlyIf`. A misused marker fails when the capability loads.
+  A key that starts with `$$` is sent with one `$` less, so `$$onlyIf`, `$$first` and `$$keep`
+  send a member of that name. A misused marker fails when the capability loads, with a message
+  that names this escape.
 
   Form fields have no markers and no `$$` escape, so a `formUrlEncoded` field named `$onlyIf`,
   `$first` or `$keep` also fails when the capability loads.

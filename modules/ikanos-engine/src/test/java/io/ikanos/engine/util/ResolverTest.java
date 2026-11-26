@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -1729,6 +1730,25 @@ public class ResolverTest {
                 () -> Resolver.resolveJsonData(Map.of("a", Map.of("$first",
                         List.of(Map.of("type", "none"), untried))),
                         callerParameters(Map.of("sub", "alice"))));
+    }
+
+    @Test
+    void resolveJsonDataShouldSendAFirstThatIsNotAListAsWritten() {
+        // #1132: only a list makes $first a marker, so a MongoDB accumulator is sent as written
+        Map<String, Object> group = new LinkedHashMap<>();
+        group.put("_id", "$customer");
+        group.put("item", Map.of("$first", "$items"));
+        group.put("top", Map.of("$first", Map.of("$slice", List.of("$items", 1))));
+
+        assertEquals("{\"$group\":{\"_id\":\"$customer\",\"item\":{\"$first\":\"$items\"},"
+                + "\"top\":{\"$first\":{\"$slice\":[\"$items\",1]}}}}",
+                Resolver.resolveJsonData(Map.of("$group", group), Map.of()).toString());
+    }
+
+    @Test
+    void resolveJsonDataShouldSendAnEscapedFirstListAsAMember() {
+        assertEquals("{\"$first\":[\"$a\"]}",
+                Resolver.resolveJsonData(Map.of("$$first", List.of("$a")), Map.of()).toString());
     }
 
     @Test

@@ -55,7 +55,7 @@ class JsonBodyMarkersTest {
                 """));
 
         assertEquals(List.of("/notifications: $onlyIf must name an input, without braces, such as"
-                + " '$onlyIf: silent'"), errors);
+                + " '$onlyIf: silent'; write $$onlyIf to send a member named $onlyIf"), errors);
     }
 
     @Test
@@ -84,7 +84,8 @@ class JsonBodyMarkersTest {
                 filter: {$keep: "yes", team: "{{team}}"}
                 """));
 
-        assertEquals(List.of("/filter: $keep must be true; leave it out otherwise"), errors);
+        assertEquals(List.of("/filter: $keep must be true; leave it out otherwise; write $$keep to"
+                + " send a member named $keep"), errors);
     }
 
     @Test
@@ -96,16 +97,30 @@ class JsonBodyMarkersTest {
                 """));
 
         assertEquals(List.of("/icon: an object with $first has no other member; put $onlyIf,"
-                + " $keep and the members in its variants"), errors);
+                + " $keep and the members in its variants; write $$first to send a member named"
+                + " $first"), errors);
     }
 
     @Test
-    void findErrorsShouldRejectFirstThatIsNotAList() throws Exception {
+    void findErrorsShouldRejectFirstThatIsAnEmptyList() throws Exception {
         List<String> errors = JsonBodyMarkers.findErrors(data("""
-                icon: {$first: {type: emoji}}
+                icon: {$first: []}
                 """));
 
-        assertEquals(List.of("/icon: $first must be a non-empty list of objects"), errors);
+        assertEquals(List.of("/icon: $first must be a non-empty list of objects; write $$first to"
+                + " send a member named $first"), errors);
+    }
+
+    @Test
+    void findErrorsShouldAcceptFirstThatIsNotAListAsData() throws Exception {
+        // The MongoDB $first accumulator is sent as written, as issue 1132 promised
+        List<String> errors = JsonBodyMarkers.findErrors(data("""
+                pipeline:
+                  - $group: {_id: "$customer", item: {$first: "$items"}, total: {$sum: 1}}
+                  - $project: {top: {$first: {$slice: ["$items", 1]}}, other: 1}
+                """));
+
+        assertTrue(errors.isEmpty(), errors.toString());
     }
 
     @Test
@@ -114,7 +129,8 @@ class JsonBodyMarkersTest {
                 icon: {$first: ["{{icon}}"]}
                 """));
 
-        assertEquals(List.of("/icon/$first/0: a $first variant must be an object"), errors);
+        assertEquals(List.of("/icon/$first/0: a $first variant must be an object; write $$first to"
+                + " send a member named $first"), errors);
     }
 
     @Test
@@ -141,8 +157,9 @@ class JsonBodyMarkersTest {
                 """));
 
         assertEquals(List.of("/icon/$first/0/external: $keep must be true; leave it out"
-                + " otherwise", "/children/0: $onlyIf must name an input, without braces, such as"
-                + " '$onlyIf: silent'"), errors);
+                + " otherwise; write $$keep to send a member named $keep", "/children/0: $onlyIf"
+                + " must name an input, without braces, such as '$onlyIf: silent'; write $$onlyIf"
+                + " to send a member named $onlyIf"), errors);
     }
 
     @Test
@@ -152,7 +169,8 @@ class JsonBodyMarkersTest {
                 name: "{{name}}"
                 """));
 
-        assertEquals(List.of("/: $keep must be true; leave it out otherwise"), errors);
+        assertEquals(List.of("/: $keep must be true; leave it out otherwise; write $$keep to send"
+                + " a member named $keep"), errors);
     }
 
     @Test
@@ -174,7 +192,8 @@ class JsonBodyMarkersTest {
                 """));
 
         assertEquals(List.of("/: $onlyIf cannot be on the root object, since the body is always"
-                + " sent; put it on a member"), errors);
+                + " sent; put it on a member; write $$onlyIf to send a member named $onlyIf"),
+                errors);
     }
 
     @Test

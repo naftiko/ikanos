@@ -32,13 +32,14 @@ import java.util.regex.Pattern;
  * <li>{@code $first: [variants]} as the only member of an object: the object is replaced by the
  * first variant whose {@code $onlyIf} holds, or that has none (the fallback), and is left out when
  * no variant applies, or when the chosen variant resolves to nothing (later variants are not
- * tried).</li>
+ * tried). Only a list makes {@code $first} a marker: with any other value, such as the MongoDB
+ * accumulator {@code {$first: "$items"}}, it is a member sent as written.</li>
  * <li>{@code $keep: true} on an object: the object is sent as {@code {}} when all its members are
  * left out, instead of being left out itself (#985).</li>
  * </ul>
  *
  * <p>A key written {@code $$...} is sent with one {@code $} less, so a payload can still carry a
- * member named {@code $onlyIf}. Any other key that starts with {@code $}, such as {@code $ref}, is
+ * member named {@code $onlyIf}, or a {@code $first} whose value is a list. Any other key that starts with {@code $}, such as {@code $ref}, is
  * sent as written.</p>
  */
 public final class JsonBodyMarkers {
@@ -46,7 +47,7 @@ public final class JsonBodyMarkers {
     /** Sends the object only when the input it names is present and not {@code false}. */
     public static final String ONLY_IF = "$onlyIf";
 
-    /** Takes the first applicable variant. */
+    /** Takes the first applicable variant, when its value is a list. */
     public static final String FIRST = "$first";
 
     /** Sends the object as {@code {}} when all its members are left out. */
@@ -76,9 +77,18 @@ public final class JsonBodyMarkers {
         return NAME.matcher(text).matches() || CLAIM.matcher(text).matches();
     }
 
-    /** @return whether {@code key}, as authored, is one of the three markers */
+    /** @return whether {@code key}, as authored, is one of the three marker names */
     public static boolean isMarker(String key) {
         return ONLY_IF.equals(key) || FIRST.equals(key) || KEEP.equals(key);
+    }
+
+    /**
+     * @return whether {@code key}, a member of {@code object} as authored, is a marker there:
+     *         {@code $onlyIf} and {@code $keep} always are, {@code $first} only when its value is
+     *         a list, so that a MongoDB {@code {$first: "$items"}} is sent as written
+     */
+    static boolean isMarkerIn(Map<?, ?> object, String key) {
+        return ONLY_IF.equals(key) || KEEP.equals(key) || FIRST.equals(key) && isChoice(object);
     }
 
     /** @return {@code key} with the escape removed: {@code $$onlyIf} becomes {@code $onlyIf} */
@@ -86,9 +96,17 @@ public final class JsonBodyMarkers {
         return key.startsWith(ESCAPE) ? key.substring(1) : key;
     }
 
-    /** @return whether {@code object} is a {@code $first} choice */
+    /**
+     * @return the hint a load-time message about a misused {@code marker} ends with, so a payload
+     *         that needs a member of that name knows how to send it
+     */
+    private static String sendAsData(String marker) {
+        return "; write $" + marker + " to send a member named " + marker;
+    }
+
+    /** @return whether {@code object} is a {@code $first} choice: its {@code $first} is a list */
     static boolean isChoice(Map<?, ?> object) {
-        return object.containsKey(FIRST);
+        return object.get(FIRST) instanceof Collection<?>;
     }
 
     /** @return whether {@code object} is sent as {@code {}} when all its members are left out */
@@ -138,7 +156,7 @@ public final class JsonBodyMarkers {
             String where = path.isEmpty() ? "/" : path;
             if (path.isEmpty() && object.containsKey(ONLY_IF)) {
                 errors.add("/: $onlyIf cannot be on the root object, since the body is always sent;"
-                        + " put it on a member");
+                        + " put it on a member" + sendAsData(ONLY_IF));
             }
             checkObject(object, where, errors);
             for (Map.Entry<?, ?> entry : object.entrySet()) {
@@ -148,7 +166,7 @@ public final class JsonBodyMarkers {
                     for (Object variant : variants) {
                         check(variant, path + "/" + FIRST + "/" + index++, errors);
                     }
-                } else if (!isMarker(key)) {
+                } else if (!isMarkerIn(object, key)) {
                     check(entry.getValue(), path + "/" + key, errors);
                 }
             }
@@ -164,20 +182,23 @@ public final class JsonBodyMarkers {
         if (object.containsKey(ONLY_IF) && !(object.get(ONLY_IF) instanceof String name
                 && isName(name))) {
             errors.add(where + ": $onlyIf must name an input, without braces, such as"
-                    + " '$onlyIf: silent'");
+                    + " '$onlyIf: silent'" + sendAsData(ONLY_IF));
         }
         if (object.containsKey(KEEP) && !Boolean.TRUE.equals(object.get(KEEP))) {
-            errors.add(where + ": $keep must be true; leave it out otherwise");
+            errors.add(where + ": $keep must be true; leave it out otherwise" + sendAsData(KEEP));
         }
-        if (!object.containsKey(FIRST)) {
+        if (!isChoice(object)) {
+            // A $first that is not a list is data, such as a MongoDB accumulator
             return;
         }
+        String sendAsData = sendAsData(FIRST);
         if (object.size() > 1) {
             errors.add(where + ": an object with $first has no other member; put $onlyIf, $keep"
-                    + " and the members in its variants");
+                    + " and the members in its variants" + sendAsData);
         }
-        if (!(object.get(FIRST) instanceof Collection<?> variants) || variants.isEmpty()) {
-            errors.add(where + ": $first must be a non-empty list of objects");
+        Collection<?> variants = (Collection<?>) object.get(FIRST);
+        if (variants.isEmpty()) {
+            errors.add(where + ": $first must be a non-empty list of objects" + sendAsData);
             return;
         }
         int index = 0;
@@ -185,7 +206,7 @@ public final class JsonBodyMarkers {
         for (Object variant : variants) {
             String at = where + (where.endsWith("/") ? "" : "/") + FIRST + "/" + index++;
             if (!(variant instanceof Map<?, ?> map)) {
-                errors.add(at + ": a $first variant must be an object");
+                errors.add(at + ": a $first variant must be an object" + sendAsData);
                 continue;
             }
             if (fallbackSeen) {

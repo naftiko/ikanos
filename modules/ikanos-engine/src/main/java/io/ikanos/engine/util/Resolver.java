@@ -1120,7 +1120,8 @@ public class Resolver {
      * an object with {@code $onlyIf: x} is left out unless {@code x} is present and not
      * {@code false}; a value {@code {$first: [variants]}} takes the first variant whose
      * {@code $onlyIf} holds, or that has none, and is left out when none applies or when the
-     * chosen one resolves to nothing (later variants are not tried); an object with
+     * chosen one resolves to nothing (later variants are not tried), while a {@code $first}
+     * whose value is not a list, such as a MongoDB accumulator, is sent as written; an object with
      * {@code $keep: true} is sent as {@code {}} instead of being left out when emptied. A key
      * written {@code $$...} is sent with one {@code $} less.</li>
      * <li>Any other string containing placeholders stays a JSON string: its text is kept exactly
@@ -1174,7 +1175,7 @@ public class Resolver {
             int members = 0;
             for (Map.Entry<?, ?> entry : map.entrySet()) {
                 String authoredKey = String.valueOf(entry.getKey());
-                if (JsonBodyMarkers.isMarker(authoredKey)) {
+                if (JsonBodyMarkers.isMarkerIn(map, authoredKey)) {
                     continue;
                 }
                 members++;
