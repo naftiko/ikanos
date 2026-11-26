@@ -196,6 +196,23 @@ capability:
               schema: tags
               description: "The tags."
               mapping: "$.tags"
+        ref-list-items:
+          description: "A ref tool's mapped items written as a list."
+          ref: cargo.get-load
+          outputParameters:
+            - type: array
+              mapping: "$.ships"
+              items:
+                - schema: nope-in-list
+                  mappings: { imo: "$.imo" }
+        ref-named-items:
+          description: "A ref tool's mapped items written as named declarations."
+          ref: cargo.get-load
+          outputParameters:
+            - type: array
+              mapping: "$.ships"
+              items:
+                lead: { schema: record }
         values-unknown:
           description: "Names an undeclared schema under values."
           call: registry.get-ship
