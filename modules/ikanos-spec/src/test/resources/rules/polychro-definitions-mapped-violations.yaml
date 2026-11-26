@@ -196,6 +196,13 @@ capability:
               schema: tags
               description: "The tags."
               mapping: "$.tags"
+        values-unknown:
+          description: "Names an undeclared schema under values."
+          call: registry.list-ships
+          outputParameters:
+            - type: object
+              mapping: "$.ships"
+              values: { schema: nope-values }
         ref-json-ref:
           description: "A JSON Schema $ref in a ref tool's mapped output."
           ref: cargo.get-load
