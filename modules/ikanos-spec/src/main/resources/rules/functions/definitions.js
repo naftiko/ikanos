@@ -624,7 +624,10 @@ function bindingOf(model, node, rootIsItems) {
       if (schema.type === "object") {
         for (const p of entries(isObject(schema.properties) ? schema.properties : null)) {
           if (!addressable(p.key)) {
-            binding.unaddressable.push(p.key);
+            // Below nested arrays nothing is read, so nothing needs a path, as in the engine
+            if (!unread) {
+              binding.unaddressable.push(p.key);
+            }
             continue;
           }
           visit(p.value, path === "" ? p.key : path + "." + p.key, depth + 1, unread, onPath);
@@ -665,25 +668,56 @@ function rootOf(model, name) {
  * Number of parameter declarations a schema expands to, as the engine's
  * `size(name)` counts them (each declaration, its items, values and
  * properties, through references, capped just past the budget), once per
- * schema. A reference that closes a cycle counts one.
+ * schema; or null for a schema the engine does not expand, as it is in a
+ * cycle or a chain of references deeper than its depth bound. A reference to
+ * such a schema counts one, as in the engine. The references are followed
+ * iteratively, so a long chain of schemas cannot overflow the call stack.
  */
-function schemaSize(model, name, sizes) {
-  if (sizes.has(name)) {
-    const known = sizes.get(name);
-    return known === null ? 1 : known;
+function schemaSize(model, name, budget) {
+  const { sizes, unsized } = budget;
+  const referenced = (schema) => (model.schemaRefs.get(schema) || [])
+    .map((ref) => ref.name)
+    .filter((ref) => typeof ref === "string" && ref in model.schemas);
+  const stack = [{ name, refs: referenced(name), next: 0 }];
+  const chain = [name];
+  while (stack.length > 0 && !sizes.has(name) && !unsized.has(name)) {
+    const top = stack[stack.length - 1];
+    if (top.next < top.refs.length) {
+      const ref = top.refs[top.next];
+      top.next += 1;
+      if (sizes.has(ref) || unsized.has(ref)) {
+        continue;
+      }
+      const at = chain.indexOf(ref);
+      if (at >= 0) {
+        chain.slice(at).forEach((member) => unsized.add(member));
+      } else if (chain.length >= MAX_BINDING_DEPTH) {
+        chain.forEach((member) => unsized.add(member));
+      } else {
+        chain.push(ref);
+        stack.push({ name: ref, refs: referenced(ref), next: 0 });
+      }
+      continue;
+    }
+    stack.pop();
+    chain.pop();
+    if (!unsized.has(top.name)) {
+      sizes.set(top.name, declarationSize(model, model.schemas[top.name], sizes));
+    }
   }
-  sizes.set(name, null);
-  const size = declarationSize(model, model.schemas[name], sizes);
-  sizes.set(name, size);
-  return size;
+  return sizes.has(name) ? sizes.get(name) : null;
 }
 
+/**
+ * Number of declarations of one declaration, its references counted from the
+ * sizes already computed (one for a schema that has none: not expanded).
+ */
 function declarationSize(model, node, sizes) {
   if (!isObject(node)) {
     return 0;
   }
   if (typeof node.schema === "string") {
-    return node.schema in model.schemas ? schemaSize(model, node.schema, sizes) : 1;
+    return sizes.has(node.schema) ? sizes.get(node.schema) : 1;
   }
   let total = 1 + declarationSize(model, node.items, sizes)
     + declarationSize(model, node.values, sizes);
@@ -717,8 +751,11 @@ function checkBinding(model, node, path, position, results, budget) {
     });
     return;
   }
-  // Charged as the engine charges a binding: the size of the schema it expands
-  budget.visited += schemaSize(model, name, budget.sizes);
+  // Charged as the engine charges a binding: the size of the schema it expands. A schema the
+  // engine does not expand (a cycle, past the depth bound) is not charged: the binding walk
+  // stops on it, and the cycles check or the engine reports it
+  const size = schemaSize(model, name, budget);
+  budget.visited += size === null ? 0 : size;
   if (budget.visited > MAX_BINDING_NODES) {
     if (!budget.reported) {
       // Once per namespace, as the engine reports its budget
@@ -864,7 +901,7 @@ function bindsDefinitions(node) {
 }
 
 function checkMappings(model, results) {
-  const budget = { visited: 0, reported: false, sizes: new Map() };
+  const budget = { visited: 0, reported: false, sizes: new Map(), unsized: new Set() };
   for (const unit of model.units) {
     if (!unit.mapped && !unit.orchestrated) {
       // A mock returns static values: nothing there can bind a schema
