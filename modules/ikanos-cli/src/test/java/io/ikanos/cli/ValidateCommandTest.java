@@ -474,6 +474,57 @@ public class ValidateCommandTest {
     }
 
     @Test
+    public void callShouldFailWhenAMappedOutputLeavesAPathUnbound() {
+        Path yaml = tempDir.resolve("unbound-path.yaml");
+        assertDoesNotThrow(() -> Files.writeString(yaml, """
+                ikanos: "%s"
+                capability:
+                  exposes:
+                    - type: rest
+                      port: 3002
+                      namespace: api
+                      definitions:
+                        schemas:
+                          item:
+                            type: object
+                            properties:
+                              id: { type: string }
+                              label: { type: string }
+                      resources:
+                        items:
+                          path: /items
+                          operations:
+                            list-items:
+                              method: GET
+                              call: svc.list
+                              outputParameters:
+                                - type: array
+                                  mapping: "$.items"
+                                  items:
+                                    schema: item
+                                    mappings:
+                                      id: "$.id"
+                  consumes:
+                    - type: http
+                      namespace: svc
+                      baseUri: "http://localhost:1"
+                      resources:
+                        items:
+                          path: /items
+                          operations:
+                            list:
+                              method: GET
+                """.formatted(IKANOS)));
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        assertEquals(1, exitCode, "#1036: an unbound path of a mapped output must fail validate");
+        assertTrue(errCapture.toString().contains("Invalid definitions: REST adapter 'api',"
+                + " resource 'items', operation 'list-items', output, items: 'schema: item'"
+                + " leaves paths unbound: [label]."), errCapture.toString());
+    }
+
+    @Test
     public void callShouldWarnButPassWhenADefinitionIsUnused() {
         Path yaml = tempDir.resolve("unused-set.yaml");
         assertDoesNotThrow(() -> Files.writeString(yaml, definitionsCapability("""
