@@ -5049,7 +5049,7 @@
     },
     "ConsumesGrpc": {
       "type": "object",
-      "description": "Inline gRPC service adapter. Declares the unary methods of one service a capability may call, callable from steps exactly like a consumed HTTP operation (`call: namespace.procedure`).\n\n**Execution model** \u2014 Binary protobuf over HTTP/2, with the request and response messages taken from a local protobuf descriptor set. The response message becomes a JSON document in the proto3 JSON mapping, which `outputParameters` read with JsonPath. Requires the `ikanos-client-grpc` module at runtime.\n**See also** \u2014 `ConsumesGraphql`, `ConsumesSmithy`.",
+      "description": "Inline gRPC service adapter. Declares the unary methods of one service a capability may call, callable from steps exactly like a consumed HTTP operation (`call: namespace.procedure`).\n\n**Execution model** \u2014 Binary protobuf over HTTP/2, with the request and response messages taken from a local protobuf descriptor set. The response message becomes a JSON document in the proto3 JSON mapping, which `outputParameters` read with JsonPath. A request or response message is limited to 1 MiB, and an adapter runs at most 128 calls at once: a larger message, or a call beyond that limit, fails with status 429 (`RESOURCE_EXHAUSTED`) raised by Ikanos itself, not by the service. Requires the `ikanos-client-grpc` module at runtime.\n**See also** \u2014 `ConsumesGraphql`, `ConsumesSmithy`.",
       "properties": {
         "namespace": {
           "$ref": "#/$defs/IdentifierKebab",
@@ -5111,7 +5111,7 @@
               }
             ]
           },
-          "description": "Credential sent as gRPC metadata on every call: `basic`, `bearer`, or `apikey` in a header. Refused over a plaintext endpoint unless it is a loopback address or a `tunnel` is set."
+          "description": "Credential sent as gRPC metadata on every call: `basic`, `bearer`, or `apikey` in a header. Refused over a plaintext endpoint unless it is a loopback address or a `tunnel` is set; so is a static `Authorization`, `Proxy-Authorization` or `Cookie` header input, and a static header input whose value comes from a binding."
         },
         "tunnel": {
           "$ref": "#/$defs/TunnelConfig",

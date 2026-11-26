@@ -209,6 +209,8 @@ final class OrdersFixture {
                     String status = "headers".equals(id) && headers != null
                             ? "authorization=" + headers.get(key("authorization")) + ";tenant="
                                     + headers.get(key("x-tenant"))
+                            : "big".equals(id)
+                                    ? "x".repeat(GrpcConsumedAdapter.MAX_MESSAGE_BYTES + 1)
                             : "open";
                     DynamicMessage total = DynamicMessage.newBuilder(money)
                             .setField(money.findFieldByName("amount_cents"), 1250L)

@@ -38,6 +38,8 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.restlet.Client;
 import org.restlet.Context;
 import org.restlet.data.Protocol;
@@ -335,6 +337,40 @@ class GrpcConsumedAdapterTest {
                 Status.UNAVAILABLE.withCause(new ConnectException("Connection refused"))));
     }
 
+    @ParameterizedTest
+    @EnumSource(Status.Code.class)
+    void httpStatusShouldFollowAip193(Status.Code code) {
+        int expected = switch (code) {
+            case OK -> 200;
+            case CANCELLED -> 499;
+            case INVALID_ARGUMENT, FAILED_PRECONDITION, OUT_OF_RANGE -> 400;
+            case UNAUTHENTICATED -> 401;
+            case PERMISSION_DENIED -> 403;
+            case NOT_FOUND -> 404;
+            case ALREADY_EXISTS, ABORTED -> 409;
+            case RESOURCE_EXHAUSTED -> 429;
+            case UNIMPLEMENTED -> 501;
+            case UNAVAILABLE -> 503;
+            case DEADLINE_EXCEEDED -> 504;
+            case UNKNOWN, INTERNAL, DATA_LOSS -> 500;
+        };
+
+        assertEquals(expected, GrpcConsumedAdapter.httpStatus(code.toStatus()), code.name());
+    }
+
+    @Test
+    void responseOverTheMessageLimitShouldFailWith429() throws Exception {
+        GrpcConsumedAdapter adapter = started(spec());
+        try {
+            ConsumedResult result = call(adapter, "get-order", Map.of("order-id", "big"));
+
+            assertEquals(429, result.status(), result.reason());
+            assertEquals("RESOURCE_EXHAUSTED", ((ContractResult) result).nativeCode());
+        } finally {
+            adapter.stop();
+        }
+    }
+
     @Test
     void httpStatusShouldMapAnUnavailableWithoutConnectionFailureTo503() {
         assertEquals(503, GrpcConsumedAdapter.httpStatus(
@@ -548,6 +584,51 @@ class GrpcConsumedAdapterTest {
                                 """), Map.of()));
 
         assertTrue(e.getMessage().contains("tunnel"), e.getMessage());
+    }
+
+    @Test
+    void constructorShouldRefuseACredentialHeaderInClearToARemoteHost() throws Exception {
+        for (String header : List.of("Authorization", "proxy-authorization", "Cookie")) {
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                    () -> new GrpcConsumedAdapter(null, spec("http://orders.internal:50051",
+                            PROCEDURES, """
+                                    inputParameters:
+                                      %s: { in: header, value: "Bearer secret-token" }
+                                    """.formatted(header)), Map.of()));
+
+            assertTrue(e.getMessage().contains("'" + header + "'")
+                    && e.getMessage().contains("tunnel"), e.getMessage());
+        }
+    }
+
+    @Test
+    void credentialSentShouldFindAStaticHeaderWhoseValueComesFromABinding() throws Exception {
+        GrpcClientSpec spec = spec("http://orders.internal:50051", PROCEDURES, """
+                inputParameters:
+                  X-Tenant: { in: header, value: acme }
+                  X-Api-Key: { in: header, value: "{{ORDERS_KEY}}" }
+                """);
+
+        String credential = GrpcConsumedAdapter.credentialSent(spec);
+        assertTrue(credential != null && credential.contains("'X-Api-Key'"), credential);
+    }
+
+    @Test
+    void credentialSentShouldIgnoreStaticHeadersWithoutCredential() throws Exception {
+        assertNull(GrpcConsumedAdapter.credentialSent(spec("http://orders.internal:50051",
+                PROCEDURES, """
+                        inputParameters:
+                          X-Tenant: { in: header, value: acme }
+                        """)));
+    }
+
+    @Test
+    void constructorShouldAcceptAStaticHeaderWithoutCredentialToARemoteHost() throws Exception {
+        assertDoesNotThrow(() -> new GrpcConsumedAdapter(null, spec(
+                "http://orders.internal:50051", PROCEDURES, """
+                        inputParameters:
+                          X-Tenant: { in: header, value: acme }
+                        """), Map.of()));
     }
 
     @Test

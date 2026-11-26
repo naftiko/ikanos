@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -108,6 +109,12 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
     /** Largest reason taken from a status description. */
     static final int MAX_REASON = 200;
 
+    /** Largest request or response message, in bytes. */
+    static final int MAX_MESSAGE_BYTES = 1024 * 1024;
+
+    /** Most calls in flight at once on one adapter's channel. */
+    static final int MAX_CONCURRENT_CALLS = 128;
+
     /**
      * The address grpc-java dials for a tunneled endpoint, so that it resolves no host name:
      * {@link MetadataClient} puts the endpoint's host name back on each request before the
@@ -153,10 +160,12 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
         URI uri = parseEndpoint(this.endpoint);
         this.host = uri.getHost();
         this.port = uri.getPort();
-        if (spec.getAuthentication() != null && !isLoopback(host) && tunnel() == null) {
-            throw new IllegalArgumentException(where() + " sends a credential over plaintext"
-                    + " HTTP/2 to '" + host + "': reach it on a loopback address or through a"
-                    + " tunnel, since Restlet 3.0.0-m2's gRPC client does not support TLS");
+        String credential = credentialSent(spec);
+        if (credential != null && !isLoopback(host) && tunnel() == null) {
+            throw new IllegalArgumentException(where() + " sends " + credential
+                    + " over plaintext HTTP/2 to '" + host + "': reach it on a loopback address"
+                    + " or through a tunnel, since Restlet 3.0.0-m2's gRPC client does not"
+                    + " support TLS");
         }
         if (spec.getAuthentication() != null) {
             credentialHeaders();
@@ -172,6 +181,34 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
             built.put(procedure.getName(), buildProcedure(procedure));
         }
         this.procedures = Collections.unmodifiableMap(built);
+    }
+
+    /** Static headers that carry a credential whatever their value. */
+    static final Set<String> CREDENTIAL_HEADERS = Set.of("authorization",
+            "proxy-authorization", "cookie");
+
+    /**
+     * What this adapter sends that may be a credential: its {@code authentication}, a static
+     * {@code Authorization}, {@code Proxy-Authorization} or {@code Cookie} header, or a static
+     * header whose value comes from a binding, as {@code X-Api-Key: "{{API_KEY}}"}.
+     *
+     * @return a description for the load error, or {@code null} when nothing is
+     */
+    static String credentialSent(GrpcClientSpec spec) {
+        if (spec.getAuthentication() != null) {
+            return "a credential";
+        }
+        for (InputParameterSpec header : spec.getInputParameters()) {
+            String name = header.getName();
+            if (name != null && CREDENTIAL_HEADERS.contains(name.toLowerCase(Locale.ROOT))) {
+                return "the header '" + name + "'";
+            }
+            String value = header.getValue();
+            if (value != null && value.contains("{{")) {
+                return "the header '" + name + "', whose value comes from a binding,";
+            }
+        }
+        return null;
     }
 
     URI parseEndpoint(String value) {
@@ -439,6 +476,10 @@ public class GrpcConsumedAdapter extends ContractClientAdapter {
         adapter.setTarget(channelTarget());
         adapter.setPlaintext(true);
         adapter.setMaxCallDuration(Duration.ofMillis(maxTimeoutMillis()));
+        // ext.grpc's defaults, set here so that they match the ConsumesGrpc description: a
+        // larger message, or a call beyond the limit, fails with RESOURCE_EXHAUSTED (429)
+        adapter.setMaxMessageBytes(MAX_MESSAGE_BYTES);
+        adapter.setMaxConcurrentCalls(MAX_CONCURRENT_CALLS);
         adapter.getInterceptors().add(new HeadersInterceptor());
         return adapter;
     }
