@@ -122,7 +122,7 @@ delivery). The follow-up sub-issues (family A / B) are the actionable test outpu
 | 2 | Mock mode (`MockOutputParameter`) | SHIPPED | JVM | no dedicated design doc | `Step1ShipyardMcpClientIntegrationTest` (in-process boot). The ITD *Capability Mocking & Resolution Policies* design doc describes a broader future `scenarios`/`resolution` model, not this shipped base-spec primitive. |
 | 3 | Consumed HTTP + output shaping | SHIPPED | JVM | no dedicated design doc | Steps 2–7 (in-process boot, Microcks backend). Base-spec primitive. |
 | 4 | Consumed auth — bearer | SHIPPED | JVM | no dedicated design doc | `Step3ShipyardMcpClientIntegrationTest`. Base-spec auth scheme. |
-| 5 | Consumed auth — basic / apikey / digest | SHIPPED | NONE | no dedicated design doc | No integration test launches a capability against a backend requiring these schemes. Base-spec auth schemes. |
+| 5 | Consumed auth — basic / apikey / digest | SHIPPED | PACKAGE | no dedicated design doc | Basic and apikey (header, query, raw `Authorization`) are covered by the nightly `consumed-auth` feature (`.github/e2e/resources/features/consumed-auth/`): the engine image runs against Microcks behind an authenticating proxy (`authgw`), each scheme as a correct / wrong-credentials pair. **Digest is not covered**: the engine does not answer the 401 digest challenge yet, so those tests wait for that fix. Base-spec auth schemes. |
 | 6 | Request body — JSON | SHIPPED | JVM | no dedicated design doc | `Step6ShipyardMcpClientIntegrationTest` (write operations). Base-spec primitive. |
 | 7 | Request body — form-urlencoded / multipart / text / raw | SHIPPED | NONE | no dedicated design doc | No end-user test sends these content types. Base-spec primitives. |
 | 8 | Multi-step orchestration (call + lookup) | SHIPPED | JVM | no dedicated design doc | `Step7ShipyardMcpClientIntegrationTest`. Base-spec orchestration steps. |
@@ -198,7 +198,7 @@ backend are reusable as-is — only the **launch path** changes from in-process 
 - **CLI serve** (#24): already exercised at package level by the nightly package regression guards — the same subprocess pattern is the PACKAGE vector to reuse for the other adapters.
 - **MCP resources / prompts** (#21/#22): extend a fixture with `resources:` / `prompts:`; launch; call `resources/*` / `prompts/*`.
 - **Request body variants** (#7): add a Microcks operation accepting `x-www-form-urlencoded`; launch a capability that posts to it.
-- **Consumed auth basic/apikey/digest** (#5): add Microcks examples per scheme; launch a capability consuming each.
+- **Consumed auth digest** (#5): basic and apikey are covered; digest waits for the engine to answer the 401 challenge, then add its tests back to the `consumed-auth` feature.
 
 ---
 
@@ -218,7 +218,7 @@ a first end-user test for a NONE feature.
 | 🟠 Medium | A1 | Import mechanism launched | Medium |
 | 🟠 Medium | A0 | **Extend the package smoke** (`serve-http` fixture) to drive the **MCP** adapter at package level — the fixture already declares a skills-only MCP port (formerly the Skill port) that is never probed; follow the control port pattern ([#608](https://github.com/naftiko/ikanos/issues/608)) | Medium — fixture exists, add a real client call |
 | 🟡 Low | A1 | OTel via control port (`/metrics` + `/traces`) | Low |
-| 🟡 Low | A1 | Consumed auth basic / apikey / digest | Low |
+| 🟡 Low | A1 | Consumed auth digest (basic / apikey done) | Low |
 | 🟡 Low | A1 | Request body form / multipart | Medium |
 | ⬜ Special | A1 | Reverse tunnel (Ziti) — contract test first, sandbox e2e later | High |
 
@@ -252,6 +252,7 @@ a first end-user test for a NONE feature.
 | 2026-11-12 | Row #42: start-up check shipped in [#1054](https://github.com/naftiko/ikanos/issues/1054); the four MVP blocks are in. |
 | 2026-11-12 | Row #42: writes shipped in [#1053](https://github.com/naftiko/ikanos/issues/1053). |
 | 2026-11-12 | Row #42: stored procedures shipped in [#1052](https://github.com/naftiko/ikanos/issues/1052). |
+| 2026-11-19 | Row #5 (consumed auth) moved from NONE to PACKAGE for basic and apikey: the nightly `consumed-auth` feature launches the engine image against an authenticating proxy, each scheme as a correct / wrong-credentials pair. Digest stays uncovered until the engine answers the 401 digest challenge. |
 | 2026-11-12 | Added row #42 for the SQL client adapter (`consumes: type: sql`), read statements shipped in [#1051](https://github.com/naftiko/ikanos/issues/1051). |
 | 2026-11-09 | [#914](https://github.com/naftiko/ikanos/issues/914) dropped the GraalVM native binary: the NATIVE coverage level becomes PACKAGE (the installed jlink package or the Docker image). The nightly `smoke-tests` now calls `publish-cli-packages.yml`; the control port guard ([#608](https://github.com/naftiko/ikanos/issues/608)) moved there (Linux and macOS), and the fixtures moved to `package-regression/`. Rows #10, #14 and #24 are PACKAGE. |
 | 2026-11-03 | Rows #34–#37 updated for the durable execution E1 slice on branch `feat/durable-execution-e1` (not merged): MCP tasks on `memory` durability, MRTR replay-from-start on `tools/call` and `resources/read` with a `binds`-sourced sealing key, `resultType: input_required` and `task`, per-request client capabilities. These rows are the trackers #34–#36 cited by the durable execution memo. |
