@@ -659,7 +659,7 @@
     },
     "MappingSetNames": {
       "type": "array",
-      "description": "Names of mapping sets declared in the `definitions` of the same MCP adapter, REST adapter or aggregate, which bind the schema beside them in a mapped output (#1133), or whose paths a steps-mode `mappings` entry roots (#1150). Their mappings merge by path, in order: a later set wins, and the output's own `mappings` win last. The merged mappings bind the schema exactly as `mappings` alone would.",
+      "description": "Names of mapping sets declared in the `definitions` of the same MCP adapter, REST adapter or aggregate, which bind the schema beside them in a mapped output (#1133), or whose paths a steps-mode `mappings` entry roots (#1150). Their mappings merge by path, in order: a later set wins, and the output's own `mappings` win last. Beside `schema:`, the merged mappings bind the schema exactly as `mappings` alone would; on a steps-mode `mappings` entry, the entry's `target` and `value` root their paths and explicit entries of the unit win.",
       "items": {
         "$ref": "#/$defs/DefinitionName"
       },
@@ -2428,9 +2428,14 @@
         },
         "mappings": {
           "type": "array",
-          "description": "Maps step outputs to the resource content.",
+          "description": "Maps step outputs to the resource content. Mapping sets do not reach MCP resources: an entry takes no `mappingSets`.",
           "items": {
-            "$ref": "#/$defs/StepOutputMapping"
+            "$ref": "#/$defs/StepOutputMapping",
+                "not": {
+                  "required": [
+                    "mappingSets"
+                  ]
+                }
           }
         },
         "outputParameters": {

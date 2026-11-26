@@ -132,6 +132,13 @@ public final class DefinitionsExpander {
      */
     public static final int MAX_EXPANDED_DEPTH = 64;
 
+    /**
+     * The root of a steps-mode mapping: {@code $.} and a step name, which
+     * {@code OperationStepExecutor.resolveJsonPathFromStepContext} reads up to the first
+     * {@code .} or {@code [}.
+     */
+    private static final Pattern STEP_ROOT = Pattern.compile("\\$\\.[^.\\[\\]\\s]+");
+
     /** A bare definition name: no qualifier, no pointer. */
     private static final Pattern BARE_NAME = Pattern.compile("[a-zA-Z0-9-]+");
 
@@ -317,7 +324,7 @@ public final class DefinitionsExpander {
                 outputs = keyed;
             }
             tool.setOutputParameters(outputs);
-            expandStepMappings(location, tool.getMappings(), outputs);
+            expandStepMappings(location, tool.getMappings(), outputs, orchestrated);
         }
 
         void expandFlow(AggregateFlowSpec flow) {
@@ -334,7 +341,8 @@ public final class DefinitionsExpander {
             // A flow with neither call nor steps is a mock, whose outputs are static values
             flow.setOutputParameters(expandOutputs(location, orchestrated,
                     !orchestrated && flow.getCall() != null, flow.getOutputParameters()));
-            expandStepMappings(location, flow.getMappings(), flow.getOutputParameters());
+            expandStepMappings(location, flow.getMappings(), flow.getOutputParameters(),
+                    orchestrated);
         }
 
         /**
@@ -384,7 +392,7 @@ public final class DefinitionsExpander {
                     !orchestrated && (operation.getCall() != null || operation.getRef() != null),
                     operation.getOutputParameters()));
             expandStepMappings(location, operation.getMappings(),
-                    operation.getOutputParameters());
+                    operation.getOutputParameters(), orchestrated);
         }
 
         /**
@@ -823,14 +831,24 @@ public final class DefinitionsExpander {
          * the path, and whose {@code value} is the entry's value followed by the relative
          * JSONPaths bound along the path, as a call-mode output reads them. A path with a
          * descendant bound in the sets is not emitted itself: the runtime sets each target
-         * whole. An explicit entry of the unit for the same target wins.
+         * whole. An explicit entry of the unit for the same target, or for a target above or
+         * below it, wins: the runtime sets each target whole, in list order.
          *
-         * @param outputs the unit's expanded outputs, against which a target that names one of
-         *                them is checked
+         * @param outputs      the unit's expanded outputs, against which a target that names one
+         *                     of them is checked
+         * @param orchestrated whether the unit has steps; step mappings serve no other unit, so
+         *                     there the sets are only resolved, to report unknown names
          */
         void expandStepMappings(String location, List<StepOutputMappingSpec> mappings,
-                List<OutputParameterSpec> outputs) {
+                List<OutputParameterSpec> outputs, boolean orchestrated) {
             if (mappings == null || mappings.isEmpty()) {
+                return;
+            }
+            if (!orchestrated) {
+                for (StepOutputMappingSpec mapping : mappings) {
+                    resolveMappingSets(mapping.getMappingSets(),
+                            location + ", mapping '" + mapping.getTarget() + "'");
+                }
                 return;
             }
             Set<String> explicit = new HashSet<>();
@@ -849,7 +867,7 @@ public final class DefinitionsExpander {
                 changed = true;
                 String where = location + ", mapping '" + mapping.getTarget() + "'";
                 for (StepOutputMappingSpec entry : expandStepMapping(mapping, where, outputs)) {
-                    if (!explicit.contains(entry.getTarget())) {
+                    if (!overlaps(explicit, entry.getTarget())) {
                         expanded.add(entry);
                     }
                 }
@@ -879,7 +897,7 @@ public final class DefinitionsExpander {
             }
             String root = mapping.getValue() != null ? mapping.getValue().trim() : null;
             if (unresolved || mapping.getTarget() == null || root == null
-                    || !root.startsWith("$")) {
+                    || !STEP_ROOT.matcher(root).lookingAt()) {
                 if (!unresolved) {
                     errors.add(location + ": 'mappingSets' needs 'target' and a 'value' JSONPath"
                             + " ('$.<step>...'), the roots of the sets' paths.");
@@ -913,7 +931,7 @@ public final class DefinitionsExpander {
                     String relative = values.get(prefix);
                     if (relative != null) {
                         // Relative to the parent's value, as in a call-mode output
-                        value.append(relative.trim().substring(1));
+                        value.append(relativeSuffix(relative));
                     }
                 }
                 if (output != null && !hasPath(output, segments)) {
@@ -931,6 +949,26 @@ public final class DefinitionsExpander {
                 return List.of();
             }
             return entries;
+        }
+
+        /**
+         * The part of a relative JSONPath that follows its root: nothing for {@code $} and
+         * {@code $.}, which {@code Converter.jsonPathFind} reads as the root itself.
+         */
+        static String relativeSuffix(String jsonPath) {
+            String trimmed = jsonPath.trim();
+            return "$".equals(trimmed) || "$.".equals(trimmed) ? "" : trimmed.substring(1);
+        }
+
+        /** Whether a target equals, contains or sits inside one of the explicit targets. */
+        private static boolean overlaps(Set<String> explicit, String target) {
+            for (String other : explicit) {
+                if (other.equals(target) || other.startsWith(target + ".")
+                        || target.startsWith(other + ".")) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private static boolean hasBoundDescendant(Set<String> paths, String path) {

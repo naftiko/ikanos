@@ -19,12 +19,15 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import io.ikanos.engine.util.OperationStepExecutor;
+import io.ikanos.engine.util.StepExecutionContext;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.aggregates.AggregateFlowSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.util.IkanosMappers;
+import io.ikanos.spec.util.StepOutputMappingSpec;
 import io.ikanos.spec.util.VersionHelper;
 
 /**
@@ -331,6 +334,153 @@ class StepMappingSetsExpanderTest {
 
         assertEquals(List.of(), result.errors());
         assertEquals(mappings(spec, "get-fleet"), mappings(copy, "get-fleet"));
+    }
+
+    @Test
+    void expandAllShouldComposeARelativeRootAsNothing() throws Exception {
+        // "$" and "$." select the object itself, as in a call-mode output
+        IkanosSpec spec = mcp("""
+                definitions:
+                  mappingSets:
+                    flat-position:
+                      self: "$."
+                      position: "$"
+                      position.lat: "$.latitude"
+                """, """
+                get-fleet:
+                  description: "Get the fleet."
+                  steps:
+                    ships: { type: call, call: registry.list-ships }
+                  mappings:
+                    - target: flagship
+                      value: "$.ships.flagship"
+                      mappingSets: [flat-position]
+                  outputParameters:
+                    flagship: { type: object }
+                """);
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+
+        assertEquals(List.of(), result.errors());
+        assertEquals("[{\"target\":\"flagship.self\",\"value\":\"$.ships.flagship\"},"
+                + "{\"target\":\"flagship.position.lat\",\"value\":"
+                + "\"$.ships.flagship.latitude\"}]", mappings(spec, "get-fleet"));
+    }
+
+    @Test
+    void expandAllShouldLetAnExplicitEntryWinOverAnExpandedAncestorOrDescendant()
+            throws Exception {
+        IkanosSpec spec = mcp(DEFINITIONS, """
+                get-fleet:
+                  description: "Get the fleet."
+                  steps:
+                    ships: { type: call, call: registry.list-ships }
+                  mappings:
+                    - target: flagship.specs
+                      value: "$.ships.specs"
+                    - target: flagship
+                      value: "$.ships.flagship"
+                      mappingSets: [ship-from-registry]
+                  outputParameters:
+                    flagship: { schema: ship }
+                """);
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+
+        assertEquals(List.of(), result.errors());
+        assertEquals("[{\"target\":\"flagship.specs\",\"value\":\"$.ships.specs\"},"
+                + "{\"target\":\"flagship.imo\",\"value\":\"$.ships.flagship.imo_number\"},"
+                + "{\"target\":\"flagship.flag\",\"value\":\"$.ships.flagship.flag_state\"}]",
+                mappings(spec, "get-fleet"));
+    }
+
+    @Test
+    void expandAllShouldRejectARootWithoutAStepName() throws Exception {
+        IkanosSpec spec = mcp(DEFINITIONS, """
+                get-fleet:
+                  description: "Get the fleet."
+                  steps:
+                    ships: { type: call, call: registry.list-ships }
+                  mappings:
+                    - target: flagship
+                      value: "$."
+                      mappingSets: [ship-from-ais]
+                  outputParameters:
+                    flagship: { schema: ship }
+                """);
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        assertEquals(List.of("MCP adapter 'tools', tool 'get-fleet', mapping 'flagship':"
+                + " 'mappingSets' needs 'target' and a 'value' JSONPath ('$.<step>...'), the roots"
+                + " of the sets' paths."), errors);
+    }
+
+    @Test
+    void expandAllShouldOnlyResolveStepMappingSetsOfAUnitWithoutSteps() throws Exception {
+        IkanosSpec spec = mcp(DEFINITIONS, """
+                get-ship:
+                  description: "Get a ship."
+                  call: registry.get-ship
+                  mappings:
+                    - target: flagship
+                      value: "$.ships.flagship"
+                      mappingSets: [ship-from-crm]
+                """);
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+
+        assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', mapping 'flagship': unknown"
+                + " mapping set 'ship-from-crm'. MCP adapter 'tools' declares ship-from-registry,"
+                + " ship-from-ais."), result.errors());
+        assertEquals("[{\"target\":\"flagship\",\"value\":\"$.ships.flagship\","
+                + "\"mappingSets\":[\"ship-from-crm\"]}]", mappings(spec, "get-ship"));
+    }
+
+    @Test
+    void expandedEntriesShouldResolveLikeTheInlineEntriesAtRuntime() throws Exception {
+        // The runtime reads the composed values: a "$." set value and nested paths included
+        IkanosSpec spec = mcp("""
+                definitions:
+                  mappingSets:
+                    ship-from-registry:
+                      imo: "$.imo_number"
+                      position: "$."
+                      position.lat: "$.latitude"
+                      specs: "$.specs"
+                      specs.tonnage: "$.gross_tonnage"
+                """, """
+                get-fleet:
+                  description: "Get the fleet."
+                  steps:
+                    ships: { type: call, call: registry.list-ships }
+                  mappings:
+                    - target: flagship
+                      value: "$.ships.flagship"
+                      mappingSets: [ship-from-registry]
+                  outputParameters:
+                    flagship: { type: object }
+                """);
+        DefinitionsExpander.expandAll(spec);
+        List<StepOutputMappingSpec> inline = List.of(
+                new StepOutputMappingSpec("flagship.imo", "$.ships.flagship.imo_number"),
+                new StepOutputMappingSpec("flagship.position.lat", "$.ships.flagship.latitude"),
+                new StepOutputMappingSpec("flagship.specs.tonnage",
+                        "$.ships.flagship.specs.gross_tonnage"));
+        StepExecutionContext context = new StepExecutionContext();
+        context.storeStepOutput("ships", IkanosMappers.json().readTree("""
+                {"flagship": {"imo_number": "9321483", "latitude": 51.9,
+                  "specs": {"gross_tonnage": 151000}}}
+                """));
+        OperationStepExecutor executor = new OperationStepExecutor(null);
+        McpServerToolSpec tool = ((McpServerSpec) spec.getCapability().getExposes().get(0))
+                .getTools().get("get-fleet");
+
+        String expanded = executor.resolveStepMappings(tool.getMappings(), context);
+
+        assertEquals(executor.resolveStepMappings(inline, context), expanded);
+        assertEquals("{\"flagship\":{\"imo\":\"9321483\",\"position\":{\"lat\":51.9},"
+                + "\"specs\":{\"tonnage\":151000}}}", expanded);
     }
 
     private static String mappings(IkanosSpec spec, String tool) throws Exception {

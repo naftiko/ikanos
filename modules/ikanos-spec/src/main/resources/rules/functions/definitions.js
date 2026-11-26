@@ -1112,7 +1112,8 @@ function checkStepMappingSets(model, unit, results) {
       return; // reported by the references check
     }
     const root = typeof mapping.value === "string" ? mapping.value.trim() : "";
-    if (typeof mapping.target !== "string" || !root.startsWith("$")) {
+    // `$.` and a step name, as the runtime reads a step mapping's value
+    if (typeof mapping.target !== "string" || !/^\$\.[^.[\]\s]+/.test(root)) {
       results.push({
         message: "'mappingSets' needs 'target' and a 'value' JSONPath ('$.<step>...'), the"
           + " roots of the sets' paths.",
