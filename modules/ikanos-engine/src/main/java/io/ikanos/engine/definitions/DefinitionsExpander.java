@@ -787,7 +787,8 @@ public final class DefinitionsExpander {
                         String propertyName = property.getName();
                         if (propertyName.contains(".") || propertyName.contains("[")
                                 || propertyName.contains("]")) {
-                            unaddressable.add(propertyName);
+                            // Below nested arrays nothing is read, so nothing needs a path
+                            addIf(unaddressable, propertyName, !unread);
                             continue;
                         }
                         output.getProperties().add(bind(property,
