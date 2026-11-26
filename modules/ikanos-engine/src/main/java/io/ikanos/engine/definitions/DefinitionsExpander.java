@@ -558,6 +558,7 @@ public final class DefinitionsExpander {
                         errors.add(where + ": 'schema:' and 'mappings' are not allowed in a mock"
                                 + " output, which returns static values. Declare the output"
                                 + " inline.");
+                        resolveListedSchemas(output, where);
                     }
                     checkJsonSchemaRefs(output, where);
                     expanded.add(output);
@@ -672,6 +673,13 @@ public final class DefinitionsExpander {
         private OutputParameterSpec bindSchema(OutputParameterSpec use, String location,
                 Position position) {
             checkMappedBesideSchema(use, location);
+            // Rejected children are never bound, but the schemas they name are resolved, as
+            // Polychro reads them
+            resolveListedSchemas(use.getItems(), location);
+            resolveListedSchemas(use.getValues(), location);
+            for (OutputParameterSpec property : use.getProperties()) {
+                resolveListedSchemas(property, location);
+            }
             String name = use.getSchema();
             if (position == Position.UNREAD) {
                 if (lookupSchema(name, location) != null) {
@@ -1001,6 +1009,25 @@ public final class DefinitionsExpander {
                 }
             }
             return schema;
+        }
+
+        /**
+         * Resolve the schemas an output names anywhere, where they are not expanded (a mock
+         * output, or the children rejected beside {@code schema:}): an unknown name is reported
+         * and a known one is marked used, as Polychro's references and unused checks read them.
+         */
+        private void resolveListedSchemas(OutputParameterSpec param, String location) {
+            if (param == null) {
+                return;
+            }
+            if (param.getSchema() != null && lookupSchema(param.getSchema(), location) != null) {
+                markUsed(param.getSchema());
+            }
+            resolveListedSchemas(param.getItems(), location);
+            resolveListedSchemas(param.getValues(), location);
+            for (OutputParameterSpec property : param.getProperties()) {
+                resolveListedSchemas(property, location);
+            }
         }
 
         /** Mark a schema used, with every schema it references, directly or not. */
