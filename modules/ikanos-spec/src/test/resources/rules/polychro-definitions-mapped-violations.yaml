@@ -196,6 +196,14 @@ capability:
               schema: tags
               description: "The tags."
               mapping: "$.tags"
+        ref-json-ref:
+          description: "A JSON Schema $ref in a ref tool's mapped output."
+          ref: cargo.get-load
+          outputParameters:
+            labels:
+              schema: tags
+              $ref: "#/$defs/tags"
+              mapping: "$.tags"
       resources:
         flagship:
           display: "Flagship"
