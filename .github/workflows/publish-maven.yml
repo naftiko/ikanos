@@ -29,6 +29,43 @@ jobs:
           check-latest: true
           distribution: 'temurin'
 
+      # GitHub Packages never overwrites a Maven release version: a second deploy of the
+      # same version answers 409 Conflict. To make a replay of the tag republish it, delete
+      # the version from every package of this repository first. A package whose only
+      # version it is cannot lose its last version, so the whole package goes instead.
+      # On a first run of the tag there is nothing to delete.
+      - name: Delete the release already on GitHub Packages
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          version=$(mvn --batch-mode --quiet help:evaluate -Dexpression=project.version -DforceStdout)
+          echo "Release version: ${version}"
+
+          gh api --paginate "/orgs/${OWNER}/packages?package_type=maven&per_page=100" \
+            --jq ".[] | select(.repository.full_name == \"${REPOSITORY}\") | \"\(.name) \(.version_count)\"" \
+            > packages.txt
+
+          while read -r package count; do
+            ids=$(gh api --paginate "/orgs/${OWNER}/packages/maven/${package}/versions?per_page=100" \
+              --jq ".[] | select(.name == \"${version}\") | .id")
+            [ -z "${ids}" ] && continue
+            if [ "${count}" -le 1 ]; then
+              echo "${package}: ${version} is its only version, deleting the package"
+              gh api --method DELETE "/orgs/${OWNER}/packages/maven/${package}" \
+                || { echo "::error::Could not delete package ${package}"; exit 1; }
+            else
+              for id in ${ids}; do
+                echo "${package}: deleting version ${version} (id ${id})"
+                gh api --method DELETE "/orgs/${OWNER}/packages/maven/${package}/versions/${id}" \
+                  || { echo "::error::Could not delete version ${version} of ${package}"; exit 1; }
+              done
+            fi
+          done < packages.txt
+          rm -f packages.txt
+
       - name: Publish to GitHub Packages (release)
         run: mvn --batch-mode deploy
         env:
