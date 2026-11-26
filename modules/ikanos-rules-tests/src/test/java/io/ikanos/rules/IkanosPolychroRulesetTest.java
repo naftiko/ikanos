@@ -1239,6 +1239,14 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
+    public void definitionsMappingsRuleShouldFireOnAJsonSchemaRefInARefToolOutput() {
+        String output = lintFixture("rules/polychro-definitions-mapped-violations.yaml").output();
+        assertTrue(output.lines().anyMatch(line -> line.contains("ref-json-ref")
+                && line.contains("'$ref' is not supported. Reference a schema of the definitions"
+                    + " by its bare name, with 'schema: name'.")), output);
+    }
+
+    @Test
     public void definitionsMappingsRuleShouldSpendOneBudgetAcrossTheBindingsOfANamespace() {
         // Each binding stays under the budget alone; together they exceed it, as in the engine
         String output = lintFixture("rules/polychro-definitions-mapped-budget.yaml").output();
