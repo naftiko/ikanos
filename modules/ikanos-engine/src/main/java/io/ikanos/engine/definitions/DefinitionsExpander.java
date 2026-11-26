@@ -859,6 +859,7 @@ public final class DefinitionsExpander {
             checkJsonSchemaRef(param, location);
             if (param.getSchema() != null) {
                 checkOutputBesideSchema(param, location);
+                resolveRejectedChildren(param, location);
                 OutputParameterSpec output = resolveOutputSchema(param.getSchema(), location);
                 if (output == null) {
                     return param;
@@ -900,6 +901,7 @@ public final class DefinitionsExpander {
             }
             checkJsonSchemaRef(items, location);
             checkOutputBesideSchema(items, location);
+            resolveRejectedChildren(items, location);
             String name = items.getSchema();
             if (!resolvable(name, location)) {
                 return items;
@@ -1029,6 +1031,19 @@ public final class DefinitionsExpander {
             resolveListedSchemas(param.getItems(), location);
             resolveListedSchemas(param.getValues(), location);
             for (OutputParameterSpec property : param.getProperties()) {
+                resolveListedSchemas(property, location);
+            }
+        }
+
+        /**
+         * Resolve the schemas named in the children an orchestrated output declares beside
+         * {@code schema:} ({@code items}, {@code values}, {@code properties}), which are rejected
+         * and never expanded, as Polychro reads them.
+         */
+        private void resolveRejectedChildren(OutputParameterSpec use, String location) {
+            resolveListedSchemas(use.getItems(), location);
+            resolveListedSchemas(use.getValues(), location);
+            for (OutputParameterSpec property : use.getProperties()) {
                 resolveListedSchemas(property, location);
             }
         }

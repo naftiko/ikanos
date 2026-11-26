@@ -1029,6 +1029,47 @@ class MappedOutputDefinitionsExpanderTest {
         assertEquals(List.of(), result.warnings());
     }
 
+    @Test
+    void expandAllShouldResolveTheSchemasOfChildrenRejectedBesideAnOrchestratedSchema()
+            throws Exception {
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    obj:
+                      type: object
+                      properties:
+                        id: { type: string }
+                    only: { type: string, enum: [a, b] }
+                """, """
+                get-codes:
+                  description: "Get codes."
+                  steps:
+                    fetch: { type: call, call: erp.get-codes }
+                  mappings:
+                    - target: o
+                      value: "$.fetch"
+                  outputParameters:
+                    o:
+                      schema: obj
+                      values: { schema: only }
+                    list:
+                      type: array
+                      items:
+                        schema: obj
+                        values: { schema: nope }
+                """);
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+
+        assertEquals(List.of("MCP adapter 'tools', tool 'get-codes', output 'o': 'schema: obj'"
+                + " takes no other key in an output, found [values].",
+                "MCP adapter 'tools', tool 'get-codes', output 'list', items: 'schema: obj' takes"
+                + " no other key in an output, found [values].",
+                "MCP adapter 'tools', tool 'get-codes', output 'list', items: unknown schema"
+                + " 'nope'. MCP adapter 'tools' declares obj, only."), result.errors());
+        assertEquals(List.of(), result.warnings());
+    }
+
     private static String outputs(IkanosSpec spec, String tool) throws Exception {
         McpServerToolSpec unit = ((McpServerSpec) spec.getCapability().getExposes().get(0))
                 .getTools().get(tool);
