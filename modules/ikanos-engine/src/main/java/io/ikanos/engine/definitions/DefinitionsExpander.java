@@ -738,12 +738,15 @@ public final class DefinitionsExpander {
         private OutputParameterSpec bindSchema(OutputParameterSpec use, String location,
                 Position position) {
             checkMappedBesideSchema(use, location);
-            // Rejected children are never bound, but the schemas they name are resolved, as
-            // Polychro reads them
+            // Rejected children are never bound, but the schemas and sets they name are
+            // resolved, as Polychro reads them
             resolveListedSchemas(use.getItems(), location);
             resolveListedSchemas(use.getValues(), location);
+            resolveListedMappingSets(use.getItems(), location);
+            resolveListedMappingSets(use.getValues(), location);
             for (OutputParameterSpec property : use.getProperties()) {
                 resolveListedSchemas(property, location);
+                resolveListedMappingSets(property, location);
             }
             String name = use.getSchema();
             Mappings mappings = mergeMappings(use, location);

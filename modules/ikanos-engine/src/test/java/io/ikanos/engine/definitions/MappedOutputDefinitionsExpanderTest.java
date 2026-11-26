@@ -1502,6 +1502,31 @@ class MappedOutputDefinitionsExpanderTest {
     }
 
     @Test
+    void expandAllShouldResolveTheMappingSetsOfChildrenRejectedBesideASchema() throws Exception {
+        IkanosSpec spec = mcp(SHIP_SETS, """
+                get-ship:
+                  description: "Get ship."
+                  call: erp.get-ship
+                  outputParameters:
+                    - schema: ship
+                      mappingSets: [ship-from-registry]
+                      properties:
+                        x: { type: string, mappingSets: [ship-from-crm, ship-from-ais] }
+                """);
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+
+        assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', output: 'schema: ship' takes"
+                + " only 'mappings', 'mappingSets' and 'mapping' in a mapped output, found"
+                + " [properties].",
+                "MCP adapter 'tools', tool 'get-ship', output: unknown mapping set 'ship-from-crm'."
+                + " MCP adapter 'tools' declares ship-from-registry, ship-from-ais."),
+                result.errors());
+        assertTrue(result.warnings().stream().noneMatch(w -> w.contains("'ship-from-ais'")),
+                result.warnings().toString());
+    }
+
+    @Test
     void expandAllShouldResolveTheSchemasOfChildrenRejectedBesideASchema() throws Exception {
         IkanosSpec spec = mcp("""
                 definitions:
