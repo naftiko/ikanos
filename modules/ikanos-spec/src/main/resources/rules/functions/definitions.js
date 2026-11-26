@@ -611,12 +611,14 @@ function declaresMappingSets(node) {
  * (#1133): its mapping sets by path, in order, a later set winning, then its
  * own `mappings`, which win last. `origins` gives the set each path comes
  * from; `unresolved` says a listed set is not declared (the references check
- * reports it), so what it would bind is unknown.
+ * reports it), so what it would bind is unknown; `setEntries` counts the
+ * entries of the listed sets, which each use is charged, as in the engine.
  */
 function mergedMappings(model, node) {
   const values = Object.create(null);
   const origins = Object.create(null);
   let unresolved = false;
+  let setEntries = 0;
   for (const name of setNames(node)) {
     if (typeof name !== "string" || !(name in model.mappingSets)) {
       unresolved = true;
@@ -624,6 +626,7 @@ function mergedMappings(model, node) {
     }
     // A declared set that is not a map holds no mapping, as in the engine
     const set = isObject(model.mappingSets[name]) ? model.mappingSets[name] : {};
+    setEntries += Object.keys(set).length;
     for (const key of Object.keys(set)) {
       values[key] = set[key];
       origins[key] = name;
@@ -633,7 +636,7 @@ function mergedMappings(model, node) {
     values[key] = node.mappings[key];
     delete origins[key];
   }
-  return { values, origins, unresolved };
+  return { values, origins, unresolved, setEntries };
 }
 
 /** Whether a property name can be addressed by a `mappings` path. */
@@ -649,7 +652,7 @@ const BESIDE_MAPPED_SCHEMA = ["schema", "name", "$ref", "mappings", "mappingSets
 
 /**
  * Upper bound on the declarations the mapped bindings of one namespace expand to together, each
- * charged the size of its schema as the engine charges it. The engine spends the same bound
+ * charged the size of its schema and the entries of its mapping sets as the engine charges it. The engine spends the same bound
  * across the namespace on everything it expands (inputs and orchestrated outputs too); this
  * check counts the mapped bindings only, so a namespace it accepts may still exceed the
  * engine's budget, never the reverse.
@@ -875,11 +878,13 @@ function checkBinding(model, node, path, position, results, budget) {
     });
     return;
   }
-  // Charged as the engine charges a binding: the size of the schema it expands. A schema in a
-  // cycle or on too long a chain of references is not charged, as the engine does not expand
-  // it: the binding walk stops on it, and the cycles check or the engine reports it
+  // Charged as the engine charges a binding: the size of the schema it expands and the
+  // entries of the sets it lists, before anything is bound or reported. A schema in a cycle or
+  // on too long a chain of references is not charged, as the engine does not expand it: the
+  // binding walk stops on it, and the cycles check or the engine reports it
+  const merged = mergedMappings(model, node);
   const size = schemaSize(model, name, budget);
-  budget.visited += size === null ? 0 : size;
+  budget.visited += (size === null ? 0 : size) + merged.setEntries;
   if (budget.visited > MAX_BINDING_NODES) {
     if (!budget.reported) {
       // Once per namespace, as the engine reports its budget
@@ -903,7 +908,6 @@ function checkBinding(model, node, path, position, results, budget) {
     });
     return;
   }
-  const merged = mergedMappings(model, node);
   const binding = bindingOf(model, node, merged.values, position === "items" && isObject(root)
     && root.type === "array");
   const empty = Object.keys(merged.values).length === 0;

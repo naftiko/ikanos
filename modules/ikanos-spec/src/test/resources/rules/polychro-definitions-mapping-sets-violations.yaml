@@ -1,4 +1,4 @@
-ikanos: "1.0.0-beta10"
+ikanos: "1.0.0-beta11"
 info:
   display: "Mapping set violations"
   description: "Mistakes in named mapping sets of mapped (call-mode) outputs (#1133)."
@@ -128,3 +128,30 @@ capability:
           outputParameters:
             - schema: ship
               mappingSets: [1]
+    - type: rest
+      port: 3001
+      namespace: fleet-rest
+      description: "Fleet API"
+      definitions:
+        schemas:
+          ship:
+            type: object
+            properties:
+              imo: { type: string }
+        mappingSets:
+          ship-from-registry:
+            imo: "$.imo_number"
+          rest-never-used:
+            imo: "$.imo"
+      resources:
+        ships:
+          path: "/ships"
+          description: "Registered vessels"
+          operations:
+            rest-unknown-set:
+              method: GET
+              description: "Lists a mapping set the REST adapter does not declare."
+              call: registry.list-ships
+              outputParameters:
+                - schema: ship
+                  mappingSets: [ship-from-registry, ship-from-rest-typo]

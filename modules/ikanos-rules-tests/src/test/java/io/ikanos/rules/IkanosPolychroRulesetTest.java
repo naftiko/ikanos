@@ -1386,6 +1386,35 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
+    public void definitionsReferenceRuleShouldFireOnAnUnknownMappingSetOfARestAdapter() {
+        String output = lintFixture(MAPPING_SETS).output();
+        assertTrue(output.lines().anyMatch(line -> line.contains("rest-unknown-set")
+            && line.contains("Unknown mapping set 'ship-from-rest-typo'. REST adapter"
+                + " 'fleet-rest' declares ship-from-registry, rest-never-used.")), output);
+    }
+
+    @Test
+    public void definitionsUnusedRuleShouldWarnOnAMappingSetNoRestOperationUses() {
+        String output = lintFixture(MAPPING_SETS).output();
+        assertTrue(output.contains("REST adapter 'fleet-rest' declares the mapping set"
+            + " 'rest-never-used', which no resource or operation uses."), output);
+        assertFalse(output.contains("'fleet-rest' declares the mapping set 'ship-from-registry'"),
+            output);
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldChargeTheEntriesOfAMappingSetToTheBudget() {
+        // The grids spend 99,996 declarations; the last binding's schema (3) fits, its schema
+        // and its set's two entries (5) do not, as in the engine
+        String output = lintFixture("rules/polychro-definitions-mapping-sets-budget.yaml")
+            .output();
+        List<String> lines = output.lines()
+            .filter(line -> line.contains("its definitions expand to more than 100000")).toList();
+        assertEquals(1, lines.size(), output);
+        assertTrue(lines.get(0).contains("ship-from-set"), output);
+    }
+
+    @Test
     public void definitionsRulesShouldNotFireForCompliantMappingSets() {
         LintResult result = lintFixtureAtSeverity(
             "rules/polychro-definitions-mapping-sets-compliant.yaml", "warn");

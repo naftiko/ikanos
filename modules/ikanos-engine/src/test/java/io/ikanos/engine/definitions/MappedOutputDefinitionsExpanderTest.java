@@ -1664,6 +1664,51 @@ class MappedOutputDefinitionsExpanderTest {
         assertEquals(List.of(), result.warnings());
     }
 
+    @Test
+    void expandAllShouldChargeTheEntriesOfAMappingSetOnEachUse() throws Exception {
+        // A set of 5,000 paths the schema mostly lacks, listed by 30 outputs: each use is charged
+        // its schema (3) and the set's entries (5,000), so the budget stops the expansion before
+        // the "has no path" errors multiply
+        StringBuilder set = new StringBuilder("imo: \"$.imo\"\n");
+        for (int i = 1; i < 5000; i++) {
+            set.append("p").append(i).append(": \"$.p").append(i).append("\"\n");
+        }
+        StringBuilder tools = new StringBuilder();
+        for (int i = 0; i < 30; i++) {
+            tools.append("""
+                    get-ship-%d:
+                      description: "Get a ship."
+                      call: registry.get-ship
+                      outputParameters:
+                        - schema: ship
+                          mappingSets: [wide]
+                          mappings:
+                            flag: "$.flag"
+                    """.formatted(i));
+        }
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    ship:
+                      type: object
+                      properties:
+                        imo: { type: string }
+                        flag: { type: string }
+                  mappingSets:
+                    wide:
+                %s""".formatted(set.toString().indent(6)), tools.toString());
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        long noPath = errors.stream().filter(error -> error.contains("has no path")).count();
+        assertEquals(DefinitionsExpander.MAX_EXPANDED_NODES / 5003, noPath);
+        assertEquals(1, errors.stream().filter(error -> error.equals("MCP adapter 'tools': its"
+                + " definitions expand to more than " + DefinitionsExpander.MAX_EXPANDED_NODES
+                + " parameter declarations. Expansion is bounded, so that a document cannot"
+                + " multiply itself without limit.")).count(), errors.toString().substring(0,
+                        Math.min(2000, errors.toString().length())));
+    }
+
     private static String outputs(IkanosSpec spec, String tool) throws Exception {
         McpServerToolSpec unit = ((McpServerSpec) spec.getCapability().getExposes().get(0))
                 .getTools().get(tool);

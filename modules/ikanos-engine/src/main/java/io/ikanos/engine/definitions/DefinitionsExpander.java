@@ -105,7 +105,8 @@ import io.ikanos.spec.util.StructureSpec;
  * definition's content is checked once, as declared, without expanding it. Expansion is
  * bounded by {@link #MAX_EXPANDED_NODES} declarations emitted per namespace (an inline
  * declaration counts one, a schema use or a set entry the size of the copy it emits, charged
- * before the copy is made: for an orchestrated output, the size of the output shape it gives,
+ * before the copy is made, a mapped schema use the entries of its mapping sets too, charged
+ * before they are checked: for an orchestrated output, the size of the output shape it gives,
  * without the branches an output does not declare), so a document cannot multiply itself
  * without limit.</p>
  */
@@ -759,7 +760,11 @@ public final class DefinitionsExpander {
                         + " are never read. Remove it, or bind the outer items instead.");
                 return use;
             }
-            if (!resolvable(name, location) || !withinBudget(size(name))) {
+            // Charged the schema it expands and the entries of the sets it lists, before
+            // anything is bound or reported: a set listed by many outputs is multiplied by
+            // each use
+            if (!resolvable(name, location)
+                    || !withinBudget(size(name) + mappings.setEntries())) {
                 return use;
             }
             InputParameterSpec root = target(schemas.get(name));
@@ -811,9 +816,11 @@ public final class DefinitionsExpander {
          *                   reference's own {@code mappings}
          * @param unresolved whether a listed mapping set does not resolve, so the paths it would
          *                   bind are unknown
+         * @param setEntries the number of entries of the listed mapping sets, each charged to the
+         *                   expansion budget on every use
          */
         record Mappings(Map<String, String> values, Map<String, String> origins,
-                boolean unresolved) {
+                boolean unresolved, long setEntries) {
         }
 
         /** Merge the mapping sets of a schema reference, in order, then its own mappings. */
@@ -821,12 +828,14 @@ public final class DefinitionsExpander {
             Map<String, String> values = new LinkedHashMap<>();
             Map<String, String> origins = new HashMap<>();
             boolean unresolved = false;
+            long setEntries = 0;
             for (String name : use.getMappingSets()) {
                 Map<String, String> set = resolveMappingSet(name, location);
                 if (set == null) {
                     unresolved = true;
                     continue;
                 }
+                setEntries += set.size();
                 for (Map.Entry<String, String> entry : set.entrySet()) {
                     values.put(entry.getKey(), entry.getValue());
                     origins.put(entry.getKey(), name);
@@ -836,7 +845,7 @@ public final class DefinitionsExpander {
                 values.put(entry.getKey(), entry.getValue());
                 origins.remove(entry.getKey());
             }
-            return new Mappings(values, origins, unresolved);
+            return new Mappings(values, origins, unresolved, setEntries);
         }
 
         /**
