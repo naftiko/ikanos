@@ -24,11 +24,14 @@ import java.net.ServerSocket;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import graphql.GraphQL;
 import graphql.GraphqlErrorBuilder;
 import graphql.execution.DataFetcherResult;
@@ -37,7 +40,12 @@ import graphql.schema.idl.RuntimeWiring;
 import graphql.schema.idl.SchemaGenerator;
 import graphql.schema.idl.SchemaParser;
 import org.restlet.Component;
+import org.restlet.Request;
+import org.restlet.Response;
+import org.restlet.Restlet;
+import org.restlet.data.MediaType;
 import org.restlet.data.Protocol;
+import org.restlet.representation.StringRepresentation;
 import org.restlet.ext.graphql.GraphqlServerAdapter;
 import tools.jackson.databind.JsonNode;
 import io.opentelemetry.api.OpenTelemetry;
@@ -120,8 +128,22 @@ class GraphqlConsumedAdapterTest {
         upstream = new Component();
         upstream.getServers().add(Protocol.HTTP, 0);
         upstream.getDefaultHost().attach("/graphql", server);
+        upstream.getDefaultHost().attach("/html", answering(
+                "<html><body>Please sign in</body></html>", MediaType.TEXT_HTML));
+        upstream.getDefaultHost().attach("/huge", answering("{\"data\": {\"issue\": {\"title\": \""
+                + "x".repeat(11 * 1024 * 1024) + "\"}}}", MediaType.APPLICATION_JSON));
         upstream.start();
         port = upstream.getServers().get(0).getActualPort();
+    }
+
+    /** An endpoint that answers 200 with the given body, whatever the request. */
+    private static Restlet answering(String body, MediaType type) {
+        return new Restlet() {
+            @Override
+            public void handle(Request request, Response response) {
+                response.setEntity(new StringRepresentation(body, type));
+            }
+        };
     }
 
     @AfterAll
@@ -406,6 +428,57 @@ class GraphqlConsumedAdapterTest {
             adapter.stop();
             TelemetryBootstrap.reset();
         }
+    }
+
+    private static GraphqlClientSpec specAt(String path) throws Exception {
+        GraphqlClientSpec spec = spec(GET_ISSUE, "");
+        spec.setEndpoint("http://localhost:" + port + path);
+        return spec;
+    }
+
+    @Test
+    void htmlAnswerWithStatus200ShouldFailWith502() throws Exception {
+        GraphqlConsumedAdapter adapter = started(specAt("/html"));
+        try {
+            ConsumedResult result = call(adapter, "get-issue", Map.of("id", "1"));
+
+            assertEquals(502, result.status(), "a 200 that is not a GraphQL result");
+            assertFalse(result.isSuccessful());
+            assertTrue(result.reason().contains("200"), result.reason());
+        } finally {
+            adapter.stop();
+        }
+    }
+
+    @Test
+    void responseOverTheSizeLimitShouldFailWith502() throws Exception {
+        GraphqlConsumedAdapter adapter = started(specAt("/huge"));
+        try {
+            ConsumedResult result = call(adapter, "get-issue", Map.of("id", "1"));
+
+            assertEquals(502, result.status(), "a response over 10 MiB");
+            assertFalse(result.isSuccessful());
+        } finally {
+            adapter.stop();
+        }
+    }
+
+    @ParameterizedTest(name = "{0} -> {1}")
+    @CsvSource(nullValues = "NONE", value = {
+            "UNAUTHENTICATED, 401",
+            "FORBIDDEN, 403",
+            "BAD_USER_INPUT, 400",
+            "GRAPHQL_VALIDATION_FAILED, 400",
+            "INTERNAL_SERVER_ERROR, 502",
+            "forbidden, 502",
+            "NONE, 502"})
+    void statusOfShouldMapTheCodeOfTheFirstError(String code, int status) {
+        GraphqlErrorBuilder<?> error = GraphqlErrorBuilder.newError().message("failed");
+        if (code != null) {
+            error.extensions(Map.of("code", code));
+        }
+
+        assertEquals(status, GraphqlConsumedAdapter.statusOf(List.of(error.build())));
     }
 
     @Test

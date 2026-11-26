@@ -5207,7 +5207,7 @@
     },
     "ConsumesGraphql": {
       "type": "object",
-      "description": "Inline GraphQL API adapter. Declares static GraphQL documents a capability may send, callable from steps exactly like a consumed HTTP operation (`call: namespace.operation`).\n\n**Execution model** \u2014 One GraphQL-over-HTTP `POST` per call, with the step's values as variables: caller input never enters a document. The result document is `data`. Requires the `ikanos-client-graphql` module at runtime.\n**See also** \u2014 `ConsumesGrpc`, `ConsumesSmithy`.",
+      "description": "Inline GraphQL API adapter. Declares static GraphQL documents a capability may send, callable from steps exactly like a consumed HTTP operation (`call: namespace.operation`).\n\n**Execution model** \u2014 One GraphQL-over-HTTP `POST` per call, with the step's values as variables: caller input never enters a document. The result document is `data`. A response is read up to 10 MiB: a larger one, or a response that is not a GraphQL result (an HTML page from a proxy, a JSON body with neither `data` nor `errors`), fails with status 502. Requires the `ikanos-client-graphql` module at runtime.\n**See also** \u2014 `ConsumesGrpc`, `ConsumesSmithy`.",
       "properties": {
         "namespace": {
           "$ref": "#/$defs/IdentifierKebab",
