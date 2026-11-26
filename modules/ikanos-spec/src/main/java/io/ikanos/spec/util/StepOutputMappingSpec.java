@@ -16,6 +16,7 @@ package io.ikanos.spec.util;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
@@ -33,7 +34,10 @@ public class StepOutputMappingSpec {
     private volatile String target;
     private volatile String value;
 
+    // As Polychro reads it (the JSON Schema wants a list of names): a single name reads as a
+    // one-name list, and no value as no list
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    @JsonFormat(with = JsonFormat.Feature.ACCEPT_SINGLE_VALUE_AS_ARRAY)
     private final List<String> mappingSets = new CopyOnWriteArrayList<>();
 
     public StepOutputMappingSpec() {}
@@ -70,7 +74,10 @@ public class StepOutputMappingSpec {
     public void setMappingSets(List<String> sets) {
         mappingSets.clear();
         if (sets != null) {
-            mappingSets.addAll(sets);
+            for (String set : sets) {
+                // A null item names a set by its text, as Polychro reads it: an unknown one
+                mappingSets.add(set != null ? set : "null");
+            }
         }
     }
 }

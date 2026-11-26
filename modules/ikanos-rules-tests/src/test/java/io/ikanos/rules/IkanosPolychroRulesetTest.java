@@ -1434,6 +1434,19 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
+    public void definitionsReferenceRuleShouldReadASingleMappingSetNameInAStepMapping() {
+        String output = lintFixture(MAPPING_SETS).output();
+        assertTrue(output.lines().anyMatch(line -> line.contains("step-one-set-name")
+            && line.contains("Unknown mapping set 'ship-from-nowhere'.")), output);
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnMappingSetsInAnMcpResourceStepMapping() {
+        assertTrue(lintFixture(MAPPING_SETS).output().contains("MCP adapter 'fleet', resource"
+            + " 'flagship': 'mappingSets' is not supported in an MCP resource's mappings."));
+    }
+
+    @Test
     public void definitionsRulesShouldNotFireForCompliantMappingSets() {
         LintResult result = lintFixtureAtSeverity(
             "rules/polychro-definitions-mapping-sets-compliant.yaml", "warn");

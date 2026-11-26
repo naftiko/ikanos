@@ -916,6 +916,11 @@ public final class DefinitionsExpander {
                         + " or bind its items in a call-mode output.");
                 return List.of();
             }
+            // The runtime reads "$.ships." as the whole step output: drop the dot, or the
+            // composed paths would get two (a recursive descent)
+            if (root.endsWith(".")) {
+                root = root.substring(0, root.length() - 1);
+            }
             List<StepOutputMappingSpec> entries = new ArrayList<>();
             List<String> missing = new ArrayList<>();
             OutputParameterSpec output = outputNamed(outputs, mapping.getTarget());
@@ -953,11 +958,15 @@ public final class DefinitionsExpander {
 
         /**
          * The part of a relative JSONPath that follows its root: nothing for {@code $} and
-         * {@code $.}, which {@code Converter.jsonPathFind} reads as the root itself.
+         * {@code $.}, which {@code Converter.jsonPathFind} reads as the root itself, and nothing
+         * for a value that is not a JSONPath, which its mapping set reports where declared.
          */
         static String relativeSuffix(String jsonPath) {
             String trimmed = jsonPath.trim();
-            return "$".equals(trimmed) || "$.".equals(trimmed) ? "" : trimmed.substring(1);
+            if (!trimmed.startsWith("$") || "$".equals(trimmed) || "$.".equals(trimmed)) {
+                return "";
+            }
+            return trimmed.substring(1);
         }
 
         /** Whether a target equals, contains or sits inside one of the explicit targets. */

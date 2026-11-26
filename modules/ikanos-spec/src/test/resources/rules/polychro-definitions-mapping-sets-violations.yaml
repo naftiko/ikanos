@@ -63,6 +63,17 @@ capability:
           crew-names:
             crew: "$.crew"
             crew[].fullName: "$.name"
+      resources:
+        flagship:
+          display: "Flagship"
+          description: "A resource whose step mappings list a mapping set."
+          uri: "data://flagship"
+          steps:
+            ships: { type: call, call: registry.list-ships }
+          mappings:
+            - target: flagship
+              value: "$.ships.flagship"
+              mappingSets: [ship-from-registry]
       tools:
         unknown-set:
           description: "Lists a mapping set the adapter does not declare."
@@ -161,6 +172,16 @@ capability:
               mappingSets: [crew-names]
           outputParameters:
             flagship: { type: object }
+        step-one-set-name:
+          description: "A step mapping that lists one unknown mapping set by name."
+          steps:
+            ships: { type: call, call: registry.list-ships }
+          mappings:
+            - target: flagship
+              value: "$.ships.flagship"
+              mappingSets: ship-from-nowhere
+          outputParameters:
+            flagship: { schema: ship }
     - type: rest
       port: 3001
       namespace: fleet-rest

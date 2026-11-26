@@ -271,11 +271,13 @@ function buildModel(owner) {
     }
     if (Array.isArray(unit.mappings)) {
       unit.mappings.forEach((mapping, index) => {
-        if (isObject(mapping) && Array.isArray(mapping.mappingSets)) {
-          mapping.mappingSets.forEach((name, setIndex) => {
+        if (isObject(mapping)) {
+          setNames(mapping).forEach((name, setIndex) => {
             refs.push({
               kind: "mappingSet", name,
-              path: unitPath.concat("mappings", index, "mappingSets", setIndex),
+              path: Array.isArray(mapping.mappingSets)
+                ? unitPath.concat("mappings", index, "mappingSets", setIndex)
+                : unitPath.concat("mappings", index, "mappingSets"),
             });
           });
         }
@@ -1216,6 +1218,17 @@ function checkMappings(model, results) {
           path: r.path.concat("outputParameters"),
         });
       }
+      // Nor do they reach a resource's step mappings, which the engine never expands
+      (Array.isArray(r.value.mappings) ? r.value.mappings : []).forEach((mapping, index) => {
+        if (isObject(mapping) && declaresMappingSets(mapping)) {
+          results.push({
+            message: model.owner.label + ", resource '" + r.key + "': 'mappingSets' is not"
+              + " supported in an MCP resource's mappings. Map each value with 'target' and"
+              + " 'value'.",
+            path: r.path.concat("mappings", index, "mappingSets"),
+          });
+        }
+      });
     }
   }
 }
