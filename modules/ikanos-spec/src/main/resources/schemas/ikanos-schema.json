@@ -659,7 +659,7 @@
     },
     "MappingSetNames": {
       "type": "array",
-      "description": "Names of mapping sets declared in the `definitions` of the same MCP adapter, REST adapter or aggregate, which bind the schema beside them in a mapped output (#1133), or whose paths a steps-mode `mappings` entry roots (#1150). Their mappings merge by path, in order: a later set wins, and the output's own `mappings` win last. Beside `schema:`, the merged mappings bind the schema exactly as `mappings` alone would; on a steps-mode `mappings` entry, the entry's `target` and `value` root their paths and explicit entries of the unit win.",
+      "description": "Names of mapping sets declared in the `definitions` of the same MCP adapter, REST adapter or aggregate, which bind the schema beside them in a mapped output (#1133), or whose paths a steps-mode `mappings` entry roots (#1150). Their mappings merge by path, in order: a later set wins, and the output's own `mappings` win last. Beside `schema:`, the merged mappings bind the schema exactly as `mappings` alone would; on a steps-mode `mappings` entry, the entry's `target` and `value` root their paths, and an explicit entry of the unit wins over an expanded one whose target is the same, an ancestor or a descendant of its own.",
       "items": {
         "$ref": "#/$defs/DefinitionName"
       },
@@ -4184,7 +4184,7 @@
     },
     "StepOutputMapping": {
       "type": "object",
-      "description": "Describes how to map the output of an operation step to the input of another step or to the output of the exposed operation. With `mappingSets`, the entry roots the paths of mapping sets of the `definitions` instead (#1150): it expands at load time to one entry per leaf path of the merged sets, whose `target` is this `target` joined to the path and whose `value` is this `value` followed by the relative JSONPaths bound along the path. An explicit entry of the unit for the same target wins. A path through array items (`[]`) is an error, since a steps-mode mapping sets each target whole, and when `target` names an output of the unit, every path must exist in it.\n\n**Example**:\n```yaml\nmappings:\n  - target: flagship\n    value: \"$.ships.flagship\"\n    mappingSets: [ship-from-registry]\n```",
+      "description": "Describes how to map the output of an operation step to the input of another step or to the output of the exposed operation. With `mappingSets`, the entry roots the paths of mapping sets of the `definitions` instead (#1150): it expands at load time to one entry per leaf path of the merged sets, whose `target` is this `target` joined to the path and whose `value` is this `value` followed by the relative JSONPaths bound along the path. An explicit entry of the unit (one without `mappingSets`) wins over an expanded entry whose target is the same, an ancestor or a descendant of its own: an explicit `flagship` drops every entry expanded under `flagship`, and an explicit `flagship.specs.tonnage` drops an expanded `flagship.specs`, since the runtime sets each target whole. A path through array items (`[]`) is an error, since a steps-mode mapping sets each target whole, and when `target` names an output of the unit, every path must exist in it.\n\n**Example**:\n```yaml\nmappings:\n  - target: flagship\n    value: \"$.ships.flagship\"\n    mappingSets: [ship-from-registry]\n```",
       "properties": {
         "target": {
           "type": "string",

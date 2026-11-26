@@ -872,6 +872,27 @@ function declarationSize(model, node, sizes) {
   return Math.min(total, MAX_BINDING_NODES + 1);
 }
 
+/**
+ * Charge declarations to the namespace's budget, as the engine's `withinBudget`:
+ * whether they fit; past the budget, the error is reported once per namespace.
+ */
+function charge(model, budget, declarations, path, results) {
+  budget.visited += declarations;
+  if (budget.visited <= MAX_BINDING_NODES) {
+    return true;
+  }
+  if (!budget.reported) {
+    budget.reported = true;
+    results.push({
+      message: model.owner.label + ": its definitions expand to more than "
+        + MAX_BINDING_NODES + " parameter declarations. Expansion is bounded, so that a"
+        + " document cannot multiply itself without limit.",
+      path,
+    });
+  }
+  return false;
+}
+
 function checkBinding(model, node, path, position, results, budget) {
   const name = node.schema;
   const prefix = "'schema: " + name + "' ";
@@ -902,18 +923,8 @@ function checkBinding(model, node, path, position, results, budget) {
   // binding walk stops on it, and the cycles check or the engine reports it
   const merged = mergedMappings(model, node);
   const size = schemaSize(model, name, budget);
-  budget.visited += (size === null ? 0 : size) + merged.setEntries;
-  if (budget.visited > MAX_BINDING_NODES) {
-    if (!budget.reported) {
-      // Once per namespace, as the engine reports its budget
-      budget.reported = true;
-      results.push({
-        message: model.owner.label + ": its definitions expand to more than "
-          + MAX_BINDING_NODES + " parameter declarations. Expansion is bounded, so that a"
-          + " document cannot multiply itself without limit.",
-        path: path.concat("schema"),
-      });
-    }
+  if (!charge(model, budget, (size === null ? 0 : size) + merged.setEntries,
+      path.concat("schema"), results)) {
     return;
   }
   const root = rootOf(model, name);
@@ -1100,7 +1111,7 @@ function hasOutputPath(model, declaration, segments) {
  * with its `target` and `value`, no path may go through array items, and when
  * the target names an output of the unit, every leaf path must exist in it.
  */
-function checkStepMappingSets(model, unit, results) {
+function checkStepMappingSets(model, unit, results, budget) {
   if (!Array.isArray(unit.unit.mappings)) {
     return;
   }
@@ -1123,6 +1134,10 @@ function checkStepMappingSets(model, unit, results) {
       });
       return;
     }
+    // Charged the entries of the sets it lists before they are checked, as in the engine
+    if (!charge(model, budget, merged.setEntries, path.concat("mappingSets"), results)) {
+      return;
+    }
     const paths = Object.keys(merged.values);
     const label = (key) => key + " (mapping set '" + merged.origins[key] + "')";
     const items = paths.filter((key) => key.includes("[]"));
@@ -1142,8 +1157,15 @@ function checkStepMappingSets(model, unit, results) {
     if (output === undefined) {
       return;
     }
+    // Only leaves are emitted: a path with a bound descendant is not
+    const ancestors = new Set();
+    for (const key of paths) {
+      for (let dot = key.indexOf("."); dot >= 0; dot = key.indexOf(".", dot + 1)) {
+        ancestors.add(key.slice(0, dot));
+      }
+    }
     const missing = paths
-      .filter((key) => !paths.some((other) => other.startsWith(key + ".")))
+      .filter((key) => !ancestors.has(key))
       .filter((key) => !hasOutputPath(model, output, key.split(".")));
     if (missing.length > 0) {
       results.push({
@@ -1194,7 +1216,7 @@ function checkMappings(model, results) {
       continue;
     }
     if (unit.orchestrated) {
-      checkStepMappingSets(model, unit, results);
+      checkStepMappingSets(model, unit, results, budget);
     }
     if (!unit.mapped) {
       continue;

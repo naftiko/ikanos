@@ -14,6 +14,7 @@
 package io.ikanos.engine.definitions;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 
@@ -606,6 +607,49 @@ class StepMappingSetsExpanderTest {
         assertEquals(List.of(), result.errors());
         assertEquals("[{\"target\":\"flagship.flag\",\"value\":\"$.ships.flagship.ais.flag\"}]",
                 mappings(spec, "get-fleet"));
+    }
+
+    @Test
+    void expandAllShouldChargeTheEntriesOfAMappingSetOnEachStepUse() throws Exception {
+        // A set of 5,000 paths the output lacks, listed by 30 steps-mode entries: each use is
+        // charged the set's entries before they are checked, so the budget stops the expansion
+        // before the "has no path" errors multiply
+        StringBuilder set = new StringBuilder();
+        for (int i = 0; i < 5000; i++) {
+            set.append("p").append(i).append(": \"$.p").append(i).append("\"\n");
+        }
+        StringBuilder tools = new StringBuilder();
+        for (int i = 0; i < 30; i++) {
+            tools.append("""
+                    get-fleet-%d:
+                      description: "Get the fleet."
+                      steps:
+                        ships: { type: call, call: registry.list-ships }
+                      mappings:
+                        - target: flagship
+                          value: "$.ships.flagship"
+                          mappingSets: [wide]
+                      outputParameters:
+                        flagship:
+                          type: object
+                          properties:
+                            imo: { type: string }
+                    """.formatted(i));
+        }
+        IkanosSpec spec = mcp("""
+                definitions:
+                  mappingSets:
+                    wide:
+                %s""".formatted(set.toString().indent(6)), tools.toString());
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        long noPath = errors.stream().filter(error -> error.contains("has no path")).count();
+        assertTrue(noPath <= DefinitionsExpander.MAX_EXPANDED_NODES / 5000, "" + noPath);
+        assertEquals(1, errors.stream().filter(error -> error.equals("MCP adapter 'tools': its"
+                + " definitions expand to more than " + DefinitionsExpander.MAX_EXPANDED_NODES
+                + " parameter declarations. Expansion is bounded, so that a document cannot"
+                + " multiply itself without limit.")).count(), "" + errors.size());
     }
 
     private static String mappings(IkanosSpec spec, String tool) throws Exception {

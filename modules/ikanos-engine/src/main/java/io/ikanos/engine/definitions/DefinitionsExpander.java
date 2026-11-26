@@ -88,7 +88,10 @@ import io.ikanos.spec.util.StructureSpec;
  *   <li>A steps-mode {@code mappings} entry may list {@code mappingSets} too (#1150): its
  *       {@code target} roots the sets' paths and its {@code value} their JSONPaths. It expands to
  *       one entry per leaf path of the merged sets, at its position, and an explicit entry of
- *       the unit for the same target wins over the expanded one.</li>
+ *       the unit wins over an expanded one whose target is the same, an ancestor or a
+ *       descendant of its own (an explicit {@code flagship} drops every entry expanded under
+ *       it, an explicit {@code flagship.specs.tonnage} drops an expanded
+ *       {@code flagship.specs}), as the runtime sets each target whole.</li>
  * </ul>
  *
  * <p>The result is the inline equivalent: once expanded, a unit holds no reference, so
@@ -884,12 +887,14 @@ public final class DefinitionsExpander {
             Map<String, String> values = new LinkedHashMap<>();
             Map<String, String> origins = new HashMap<>();
             boolean unresolved = false;
+            long setEntries = 0;
             for (String name : mapping.getMappingSets()) {
                 Map<String, String> set = resolveMappingSet(name, location);
                 if (set == null) {
                     unresolved = true;
                     continue;
                 }
+                setEntries += set.size();
                 for (Map.Entry<String, String> entry : set.entrySet()) {
                     values.put(entry.getKey(), entry.getValue());
                     origins.put(entry.getKey(), name);
@@ -902,6 +907,12 @@ public final class DefinitionsExpander {
                     errors.add(location + ": 'mappingSets' needs 'target' and a 'value' JSONPath"
                             + " ('$.<step>...'), the roots of the sets' paths.");
                 }
+                return List.of();
+            }
+            // Charged the entries of the sets it lists, as a mapped output is, before they are
+            // checked: a set listed by many entries is multiplied by each use. The entries
+            // emitted are at most as many
+            if (!withinBudget(setEntries)) {
                 return List.of();
             }
             List<String> items = new ArrayList<>();
@@ -924,9 +935,10 @@ public final class DefinitionsExpander {
             List<StepOutputMappingSpec> entries = new ArrayList<>();
             List<String> missing = new ArrayList<>();
             OutputParameterSpec output = outputNamed(outputs, mapping.getTarget());
+            Set<String> ancestors = ancestors(values.keySet());
             for (String path : values.keySet()) {
-                if (hasBoundDescendant(values.keySet(), path)) {
-                    continue;
+                if (ancestors.contains(path)) {
+                    continue; // only leaves are emitted
                 }
                 StringBuilder value = new StringBuilder(root);
                 String[] segments = path.split("\\.");
@@ -948,9 +960,6 @@ public final class DefinitionsExpander {
             if (!missing.isEmpty()) {
                 errors.add(location + ": output '" + output.getName() + "' has no path "
                         + missing + ".");
-                return List.of();
-            }
-            if (!withinBudget(entries.size())) {
                 return List.of();
             }
             return entries;
@@ -980,13 +989,15 @@ public final class DefinitionsExpander {
             return false;
         }
 
-        private static boolean hasBoundDescendant(Set<String> paths, String path) {
-            for (String other : paths) {
-                if (other.startsWith(path + ".")) {
-                    return true;
+        /** The proper ancestors of the given paths: those with a bound descendant. */
+        private static Set<String> ancestors(Set<String> paths) {
+            Set<String> ancestors = new HashSet<>();
+            for (String path : paths) {
+                for (int dot = path.indexOf('.'); dot >= 0; dot = path.indexOf('.', dot + 1)) {
+                    ancestors.add(path.substring(0, dot));
                 }
             }
-            return false;
+            return ancestors;
         }
 
         /** The output a steps-mode target names, by the target's first segment, or null. */

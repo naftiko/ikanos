@@ -1,0 +1,219 @@
+ikanos: "1.0.0-beta11"
+info:
+  display: "Step mapping sets budget"
+  description: "Mapping set entries charged to the expansion budget on each steps-mode use (#1150)."
+  tags:
+    - Test
+capability:
+  consumes:
+    - type: http
+      namespace: registry
+      description: "Ship registry API"
+      baseUri: "https://registry.acme.org"
+      resources:
+        ships:
+          path: "/ships"
+          description: "Ships"
+          operations:
+            get-grid:
+              method: GET
+            get-ship:
+              method: GET
+  exposes:
+    - type: mcp
+      port: 3000
+      namespace: grids
+      description: "Grid tools"
+      definitions:
+        schemas:
+          grid-0:
+            type: object
+            properties:
+              grid:
+                type: array
+                items:
+                  type: array
+                  items: { schema: level-1 }
+          grid-1:
+            type: object
+            properties:
+              grid:
+                type: array
+                items:
+                  type: array
+                  items: { schema: level-2 }
+          grid-6:
+            type: object
+            properties:
+              grid:
+                type: array
+                items:
+                  type: array
+                  items: { schema: level-7 }
+          grid-7:
+            type: object
+            properties:
+              grid:
+                type: array
+                items:
+                  type: array
+                  items: { schema: level-8 }
+          grid-9:
+            type: object
+            properties:
+              grid:
+                type: array
+                items:
+                  type: array
+                  items: { schema: level-10 }
+          grid-12:
+            type: object
+            properties:
+              grid:
+                type: array
+                items:
+                  type: array
+                  items: { schema: level-13 }
+          level-1:
+            type: object
+            properties:
+              a: { schema: level-2 }
+              b: { schema: level-2 }
+          level-2:
+            type: object
+            properties:
+              a: { schema: level-3 }
+              b: { schema: level-3 }
+          level-3:
+            type: object
+            properties:
+              a: { schema: level-4 }
+              b: { schema: level-4 }
+          level-4:
+            type: object
+            properties:
+              a: { schema: level-5 }
+              b: { schema: level-5 }
+          level-5:
+            type: object
+            properties:
+              a: { schema: level-6 }
+              b: { schema: level-6 }
+          level-6:
+            type: object
+            properties:
+              a: { schema: level-7 }
+              b: { schema: level-7 }
+          level-7:
+            type: object
+            properties:
+              a: { schema: level-8 }
+              b: { schema: level-8 }
+          level-8:
+            type: object
+            properties:
+              a: { schema: level-9 }
+              b: { schema: level-9 }
+          level-9:
+            type: object
+            properties:
+              a: { schema: level-10 }
+              b: { schema: level-10 }
+          level-10:
+            type: object
+            properties:
+              a: { schema: level-11 }
+              b: { schema: level-11 }
+          level-11:
+            type: object
+            properties:
+              a: { schema: level-12 }
+              b: { schema: level-12 }
+          level-12:
+            type: object
+            properties:
+              a: { schema: level-13 }
+              b: { schema: level-13 }
+          level-13:
+            type: object
+            properties:
+              a: { schema: level-14 }
+              b: { schema: level-14 }
+          level-14:
+            type: object
+            properties:
+              a: { schema: level-15 }
+              b: { schema: level-15 }
+          level-15:
+            type: object
+            properties:
+              a: { schema: level-16 }
+              b: { schema: level-16 }
+          level-16: { type: string }
+        mappingSets:
+          flagship-from-registry:
+            imo: "$.imo_number"
+            flag: "$.flag_state"
+            owner: "$.owner"
+            builder: "$.builder"
+            yard: "$.yard"
+      tools:
+        grid-0:
+          description: "Returns a grid of cells; spends part of the expansion budget."
+          call: registry.get-grid
+          outputParameters:
+            - schema: grid-0
+              mappings:
+                grid: "$.grid"
+        grid-1:
+          description: "Returns a grid of cells; spends part of the expansion budget."
+          call: registry.get-grid
+          outputParameters:
+            - schema: grid-1
+              mappings:
+                grid: "$.grid"
+        grid-6:
+          description: "Returns a grid of cells; spends part of the expansion budget."
+          call: registry.get-grid
+          outputParameters:
+            - schema: grid-6
+              mappings:
+                grid: "$.grid"
+        grid-7:
+          description: "Returns a grid of cells; spends part of the expansion budget."
+          call: registry.get-grid
+          outputParameters:
+            - schema: grid-7
+              mappings:
+                grid: "$.grid"
+        grid-9:
+          description: "Returns a grid of cells; spends part of the expansion budget."
+          call: registry.get-grid
+          outputParameters:
+            - schema: grid-9
+              mappings:
+                grid: "$.grid"
+        grid-12:
+          description: "Returns a grid of cells; spends part of the expansion budget."
+          call: registry.get-grid
+          outputParameters:
+            - schema: grid-12
+              mappings:
+                grid: "$.grid"
+        fleet-from-set:
+          description: "Returns the flagship of the fleet; its mapping set's entries cross the budget."
+          steps:
+            ships: { type: call, call: registry.get-ship }
+          mappings:
+            - target: flagship
+              value: "$.ships.flagship"
+              mappingSets: [flagship-from-registry]
+          outputParameters:
+            flagship:
+              type: object
+              properties:
+                imo: { type: string }
+                flag: { type: string }
+                owner: { type: string }
+                builder: { type: string }
+                yard: { type: string }

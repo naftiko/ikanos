@@ -1415,6 +1415,18 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
+    public void definitionsMappingsRuleShouldChargeTheEntriesOfAMappingSetInAStepMapping() {
+        // The grids spend 99,996 declarations; the steps-mode entry's set of five entries does
+        // not fit, as in the engine
+        String output = lintFixture("rules/polychro-definitions-step-mapping-sets-budget.yaml")
+            .output();
+        List<String> lines = output.lines()
+            .filter(line -> line.contains("its definitions expand to more than 100000")).toList();
+        assertEquals(1, lines.size(), output);
+        assertTrue(lines.get(0).contains("fleet-from-set"), output);
+    }
+
+    @Test
     public void definitionsReferenceRuleShouldFireOnAnUnknownMappingSetInAStepMapping() {
         String output = lintFixture(MAPPING_SETS).output();
         assertTrue(output.lines().anyMatch(line -> line.contains("step-unknown-set")
