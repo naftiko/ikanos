@@ -5147,7 +5147,7 @@
         },
         "readOnly": {
           "type": "boolean",
-          "description": "Whether the operation only reads. Derived from the contract when absent. A write may run again after a restart in a durable mode: make it idempotent. A read-only exposed tool, a REST operation with a safe method (`GET`, `HEAD`, `OPTIONS`, `TRACE`) or a flow with `semantics.safe: true` cannot reach a write: the capability fails to load. gRPC: read-only when the method sets `idempotency_level = NO_SIDE_EFFECTS`."
+          "description": "Whether the operation only reads. Derived from the contract when absent. A write may run again after a restart in a durable mode: make it idempotent. A read-only exposed tool, an MCP resource, a REST operation with a safe method (`GET`, `HEAD`, `OPTIONS`, `TRACE`) or a flow with `semantics.safe: true` cannot reach a write: the capability fails to load. gRPC: read-only when the method sets `idempotency_level = NO_SIDE_EFFECTS`."
         },
         "timeoutMs": {
           "type": "integer",
@@ -5267,7 +5267,7 @@
         },
         "readOnly": {
           "type": "boolean",
-          "description": "Whether the operation only reads. Derived from the contract when absent. A write may run again after a restart in a durable mode: make it idempotent. A read-only exposed tool, a REST operation with a safe method (`GET`, `HEAD`, `OPTIONS`, `TRACE`) or a flow with `semantics.safe: true` cannot reach a write: the capability fails to load. GraphQL: read-only when every document is a `query`."
+          "description": "Whether the operation only reads. Derived from the contract when absent. A write may run again after a restart in a durable mode: make it idempotent. A read-only exposed tool, an MCP resource, a REST operation with a safe method (`GET`, `HEAD`, `OPTIONS`, `TRACE`) or a flow with `semantics.safe: true` cannot reach a write: the capability fails to load. GraphQL: read-only when every document is a `query`."
         },
         "timeoutMs": {
           "type": "integer",
@@ -5521,7 +5521,7 @@
         },
         "readOnly": {
           "type": "boolean",
-          "description": "Whether the operation only reads. Derived from the contract when absent. A write may run again after a restart in a durable mode: make it idempotent. A read-only exposed tool, a REST operation with a safe method (`GET`, `HEAD`, `OPTIONS`, `TRACE`) or a flow with `semantics.safe: true` cannot reach a write: the capability fails to load. Smithy: read-only when the operation has `@readonly`."
+          "description": "Whether the operation only reads. Derived from the contract when absent. A write may run again after a restart in a durable mode: make it idempotent. A read-only exposed tool, an MCP resource, a REST operation with a safe method (`GET`, `HEAD`, `OPTIONS`, `TRACE`) or a flow with `semantics.safe: true` cannot reach a write: the capability fails to load. Smithy: read-only when the operation has `@readonly`."
         },
         "timeoutMs": {
           "type": "integer",
