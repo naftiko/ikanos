@@ -1,4 +1,4 @@
-ikanos: "1.0.0-beta10"
+ikanos: "1.0.0-beta11"
 info:
   display: "Mapped definitions"
   description: "Schemas bound by mappings in mapped (call-mode) outputs (#1036)."
@@ -40,7 +40,7 @@ capability:
               tags: { type: array, items: { type: string } }
       tools:
         get-ship:
-          description: "Get a ship."
+          description: "Returns the IMO number, tonnage and crew of one registered vessel."
           call: registry.get-ship
           outputParameters:
             - schema: ship
@@ -51,7 +51,7 @@ capability:
                 crew[].fullName: "$.name"
                 tags: "$.labels"
         list-ships:
-          description: "List ships."
+          description: "Lists every registered vessel with its IMO number, tonnage and crew."
           call: registry.list-ships
           outputParameters:
             - type: array
@@ -65,7 +65,7 @@ capability:
                   crew[].fullName: "$.name"
                   tags: "$.labels"
         get-ship-flow:
-          description: "Get a ship through the fleet flow."
+          description: "Returns one registered vessel through the fleet flow, for clients of the flow."
           ref: registry-flows.get-ship
     - type: rest
       port: 3001
@@ -119,7 +119,7 @@ capability:
               imo: { type: string }
       flows:
         get-ship:
-          description: "Get a ship."
+          description: "Returns the IMO number, tonnage and crew of one registered vessel."
           call: registry.get-ship
           outputParameters:
             - schema: ship
