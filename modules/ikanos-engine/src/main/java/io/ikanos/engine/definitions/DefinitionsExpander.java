@@ -869,6 +869,9 @@ public final class DefinitionsExpander {
             if (!withinBudget(1)) {
                 return param;
             }
+            // An orchestrated output declares no values: the schemas named there are only
+            // resolved, as Polychro reads them
+            resolveListedSchemas(param.getValues(), location + ", values");
             if (param.getItems() != null) {
                 OutputParameterSpec items = param.getItems();
                 param.setItems(items.getSchema() != null
