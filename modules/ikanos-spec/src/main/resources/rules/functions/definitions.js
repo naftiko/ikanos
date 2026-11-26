@@ -668,10 +668,13 @@ function rootOf(model, name) {
  * Number of parameter declarations a schema expands to, as the engine's
  * `size(name)` counts them (each declaration, its items, values and
  * properties, through references, capped just past the budget), once per
- * schema; or null for a schema the engine does not expand, as it is in a
- * cycle or a chain of references deeper than its depth bound. A reference to
- * such a schema counts one, as in the engine. The references are followed
- * iteratively, so a long chain of schemas cannot overflow the call stack.
+ * schema; or null for a schema in a cycle or on a chain of more than
+ * `MAX_BINDING_DEPTH` references, which the engine does not expand. A reference
+ * to such a schema counts one, as in the engine. The engine's depth bound also
+ * counts inline nesting, which this does not: a schema past it only through
+ * inline nesting is still sized (and charged), so on that invalid document the
+ * budget may be reported where the engine reports the depth. The references
+ * are followed iteratively, so a long chain cannot overflow the call stack.
  */
 function schemaSize(model, name, budget) {
   const { sizes, unsized } = budget;
@@ -751,9 +754,9 @@ function checkBinding(model, node, path, position, results, budget) {
     });
     return;
   }
-  // Charged as the engine charges a binding: the size of the schema it expands. A schema the
-  // engine does not expand (a cycle, past the depth bound) is not charged: the binding walk
-  // stops on it, and the cycles check or the engine reports it
+  // Charged as the engine charges a binding: the size of the schema it expands. A schema in a
+  // cycle or on too long a chain of references is not charged, as the engine does not expand
+  // it: the binding walk stops on it, and the cycles check or the engine reports it
   const size = schemaSize(model, name, budget);
   budget.visited += size === null ? 0 : size;
   if (budget.visited > MAX_BINDING_NODES) {
