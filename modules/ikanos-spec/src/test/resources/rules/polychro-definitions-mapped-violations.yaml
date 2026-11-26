@@ -1,4 +1,4 @@
-ikanos: "1.0.0-beta10"
+ikanos: "1.0.0-beta11"
 info:
   display: "Mapped definitions violations"
   description: "Mistakes binding schemas in mapped (call-mode) outputs (#1036)."
