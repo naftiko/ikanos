@@ -530,12 +530,26 @@ public class GraphqlConsumedAdapter extends ContractClientAdapter {
     private static final ExecutorService CALLS = Executors.newThreadPerTaskExecutor(
             Thread.ofVirtual().name("ikanos-graphql-call-", 0).factory());
 
+    /**
+     * A transport failure: 0 when no response came, the endpoint's status for a 4xx or 5xx, and
+     * 502 for a response below 400 that is not a usable GraphQL result (an HTML page from a proxy,
+     * a JSON body with neither {@code data} nor {@code errors}, a response over the size limit),
+     * which must not read as a success.
+     */
     static ContractResult transportFailure(Operation operation, GraphqlTransportException e) {
         Status status = e.getStatus();
-        int code = status == null || status.isConnectorError() ? 0 : status.getCode();
-        String reason = code == 0 ? "No GraphQL response was received"
-                : "The GraphQL endpoint answered " + code;
-        return ContractResult.failure(operation.view(), code, reason, e, null);
+        int answered = status == null || status.isConnectorError() ? 0 : status.getCode();
+        if (answered == 0) {
+            return ContractResult.failure(operation.view(), 0, "No GraphQL response was received",
+                    e, null);
+        }
+        if (answered < 400) {
+            return ContractResult.failure(operation.view(), 502, "The GraphQL endpoint answered "
+                    + answered + " without a usable GraphQL result: "
+                    + bounded(e.getMessage(), MAX_REASON), e, null);
+        }
+        return ContractResult.failure(operation.view(), answered,
+                "The GraphQL endpoint answered " + answered, e, null);
     }
 
     ContractResult toResult(Operation operation, ExecutionResult result) {

@@ -72,6 +72,12 @@
             <artifactId>ikanos-tool-search</artifactId>
             <version>${project.version}</version>
         </dependency>
+
+        <dependency>
+            <groupId>io.ikanos</groupId>
+            <artifactId>ikanos-client-graphql</artifactId>
+            <version>${project.version}</version>
+        </dependency>
     </dependencies>
 
     <build>
