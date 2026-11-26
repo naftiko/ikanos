@@ -194,7 +194,9 @@ function walkOutput(node, path, refs) {
   if (typeof node.schema === "string") {
     refs.push({ kind: "schema", name: node.schema, path: path.concat("schema"), output: true });
   }
-  if (Array.isArray(node.mappingSets)) {
+  if (typeof node.mappingSets === "string") {
+    refs.push({ kind: "mappingSet", name: node.mappingSets, path: path.concat("mappingSets") });
+  } else if (Array.isArray(node.mappingSets)) {
     node.mappingSets.forEach((name, index) => {
       refs.push({ kind: "mappingSet", name, path: path.concat("mappingSets", index) });
     });
@@ -432,6 +434,16 @@ function checkUnused(model, results) {
   for (const unit of model.units) {
     unit.refs.forEach(use);
   }
+  // Sets listed in an MCP resource output are rejected there, but used, as in the engine
+  if (model.owner.unitKind === "tool") {
+    for (const r of unitsAt(model.owner.node.resources, model.owner.path.concat("resources"))) {
+      const refs = [];
+      for (const p of entries(isObject(r.value) ? r.value.outputParameters : null)) {
+        walkOutput(p.value, r.path.concat("outputParameters", ...p.locator), refs);
+      }
+      refs.filter((ref) => ref.kind === "mappingSet").forEach(use);
+    }
+  }
   while (pending.length > 0) {
     use(pending.pop());
   }
@@ -568,9 +580,26 @@ function declaresMappings(node) {
   return isObject(node.mappings) && Object.keys(node.mappings).length > 0;
 }
 
+/**
+ * The mapping set names a declaration lists: a single name reads as a
+ * one-name list, as in the engine (the JSON Schema wants a list).
+ */
+function setNames(node) {
+  if (typeof node.mappingSets === "string") {
+    return [node.mappingSets];
+  }
+  return Array.isArray(node.mappingSets) ? node.mappingSets : [];
+}
+
+/** The path of a mapping set a declaration lists, for a finding. */
+function setPath(node, path, set) {
+  return Array.isArray(node.mappingSets)
+    ? path.concat("mappingSets", node.mappingSets.indexOf(set)) : path.concat("mappingSets");
+}
+
 /** Whether a declaration lists mapping sets. */
 function declaresMappingSets(node) {
-  return Array.isArray(node.mappingSets) && node.mappingSets.length > 0;
+  return setNames(node).length > 0;
 }
 
 /**
@@ -584,13 +613,13 @@ function mergedMappings(model, node) {
   const values = Object.create(null);
   const origins = Object.create(null);
   let unresolved = false;
-  for (const name of Array.isArray(node.mappingSets) ? node.mappingSets : []) {
-    const set = typeof name === "string" && name in model.mappingSets
-      ? model.mappingSets[name] : undefined;
-    if (!isObject(set)) {
+  for (const name of setNames(node)) {
+    if (typeof name !== "string" || !(name in model.mappingSets)) {
       unresolved = true;
       continue;
     }
+    // A declared set that is not a map holds no mapping, as in the engine
+    const set = isObject(model.mappingSets[name]) ? model.mappingSets[name] : {};
     for (const key of Object.keys(set)) {
       values[key] = set[key];
       origins[key] = name;
@@ -918,11 +947,15 @@ function checkBinding(model, node, path, position, results, budget) {
     });
   }
   if (binding.ineffective.length > 0) {
+    const fromSet = binding.ineffective.map((key) => merged.origins[key])
+      .find((set) => set !== undefined);
     results.push({
-      message: prefix + "binds " + binding.ineffective.join(", ") + ", which the runtime"
-        + " never reads: object items are read from each element, and the items of nested"
-        + " arrays are passed through as they are. Remove them.",
-      path: path.concat("mappings"),
+      message: prefix + "binds " + binding.ineffective.map((key) => key
+        + (merged.origins[key] === undefined ? "" : " (mapping set '" + merged.origins[key]
+          + "')")).join(", ") + ", which the runtime never reads: object items are read from"
+        + " each element, and the items of nested arrays are passed through as they are."
+        + " Remove them, or bind this schema with other mappings.",
+      path: fromSet === undefined ? path.concat("mappings") : setPath(node, path, fromSet),
     });
   }
   for (const key of Object.keys(merged.values)) {
@@ -932,8 +965,7 @@ function checkBinding(model, node, path, position, results, budget) {
         message: prefix + "has no path '" + key + "'"
           + (set === undefined ? "" : " (mapping set '" + set + "')") + ". Its paths are "
           + (binding.paths.length === 0 ? "none" : binding.paths.join(", ")) + ".",
-        path: set === undefined ? path.concat("mappings", key)
-          : path.concat("mappingSets", node.mappingSets.indexOf(set)),
+        path: set === undefined ? path.concat("mappings", key) : setPath(node, path, set),
       });
     } else if (set === undefined && (typeof node.mappings[key] !== "string"
         || !node.mappings[key].trim().startsWith("$"))) {
@@ -1018,7 +1050,15 @@ function checkMappings(model, results) {
   // A mapping set's values are checked once, where it is declared; its paths at each use
   for (const name of Object.keys(model.mappingSets)) {
     const set = model.mappingSets[name];
-    for (const key of Object.keys(isObject(set) ? set : {})) {
+    if (!isObject(set) || Object.keys(set).length === 0) {
+      results.push({
+        message: model.owner.label + ", mapping set '" + name + "' declares no mapping."
+          + " Declare it as a map of paths to JSONPaths.",
+        path: model.defsPath.concat("mappingSets", name),
+      });
+      continue;
+    }
+    for (const key of Object.keys(set)) {
       if (typeof set[key] !== "string" || !set[key].trim().startsWith("$")) {
         results.push({
           message: model.owner.label + ", mapping set '" + name + "' binds '" + key + "' to a"

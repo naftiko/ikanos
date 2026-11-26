@@ -59,6 +59,7 @@ public class DefinitionsSpec {
             new AtomicReference<>(Collections.synchronizedMap(new LinkedHashMap<>()));
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    @JsonDeserialize(using = MappingSetsDeserializer.class)
     private final AtomicReference<Map<String, Map<String, String>>> mappingSets =
             new AtomicReference<>(Collections.synchronizedMap(new LinkedHashMap<>()));
 

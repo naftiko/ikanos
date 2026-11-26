@@ -421,7 +421,7 @@ class MappedOutputDefinitionsExpanderTest {
         assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', output: 'schema: ship' binds"
                 + " [crew[]], which the runtime never reads: object items are read from each"
                 + " element, and the items of nested arrays are passed through as they are."
-                + " Remove them."), errors);
+                + " Remove them, or bind this schema with other mappings."), errors);
     }
 
     @Test
@@ -463,7 +463,7 @@ class MappedOutputDefinitionsExpanderTest {
         assertEquals(List.of("MCP adapter 'tools', tool 'bound', output: 'schema: grid' binds"
                 + " [rows[][].value], which the runtime never reads: object items are read from"
                 + " each element, and the items of nested arrays are passed through as they"
-                + " are. Remove them."), errors);
+                + " are. Remove them, or bind this schema with other mappings."), errors);
     }
 
     @Test
@@ -1266,6 +1266,136 @@ class MappedOutputDefinitionsExpanderTest {
 
         assertEquals(List.of(), result.errors());
         assertEquals(outputs(spec, "get-ship"), outputs(copy, "get-ship"));
+    }
+
+    @Test
+    void expandAllShouldReportAMappingSetValueLeftEmptyOnlyWhereTheSetIsDeclared()
+            throws Exception {
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    ship:
+                      type: object
+                      properties:
+                        imo: { type: string }
+                  mappingSets:
+                    ship-from-registry:
+                      imo:
+                """, """
+                get-ship:
+                  description: "Get ship."
+                  call: erp.get-ship
+                  outputParameters:
+                    - schema: ship
+                      mappingSets: [ship-from-registry]
+                """);
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        assertEquals(List.of("MCP adapter 'tools', mapping set 'ship-from-registry' binds [imo] to"
+                + " a value that is not a JSONPath (starting with '$'). A static 'value' is"
+                + " declared inline."), errors);
+    }
+
+    @Test
+    void expandAllShouldReportAMappingSetThatIsNotAMapOfPaths() throws Exception {
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    ship:
+                      type: object
+                      properties:
+                        imo: { type: string }
+                  mappingSets:
+                    empty:
+                    flat: "$.imo_number"
+                    nested:
+                      imo: { from: "$.imo_number" }
+                """, """
+                get-ship:
+                  description: "Get ship."
+                  call: erp.get-ship
+                  outputParameters:
+                    - schema: ship
+                      mappingSets: [nested]
+                """);
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+
+        assertEquals(List.of("MCP adapter 'tools', mapping set 'empty' declares no mapping."
+                + " Declare it as a map of paths to JSONPaths.",
+                "MCP adapter 'tools', mapping set 'flat' declares no mapping. Declare it as a map"
+                + " of paths to JSONPaths.",
+                "MCP adapter 'tools', mapping set 'nested' binds [imo] to a value that is not a"
+                + " JSONPath (starting with '$'). A static 'value' is declared inline."),
+                result.errors());
+    }
+
+    @Test
+    void expandAllShouldNotReportAMappingSetUnusedWhereItIsRejected() throws Exception {
+        IkanosSpec spec = mcp(SHIP_SETS, """
+                get-ship:
+                  description: "Get ship."
+                  outputParameters:
+                    ship:
+                      type: object
+                      mappingSets: [ship-from-registry]
+                      properties:
+                        imo: { type: string, value: "IMO 9321483" }
+                """);
+
+        List<String> warnings = DefinitionsExpander.expandAll(spec).warnings();
+
+        assertTrue(warnings.stream().noneMatch(w -> w.contains("'ship-from-registry'")),
+                warnings.toString());
+    }
+
+    @Test
+    void expandAllShouldReadASingleMappingSetNameAsAList() throws Exception {
+        IkanosSpec spec = mcp(SHIP_SETS, """
+                get-ship:
+                  description: "Get ship."
+                  call: erp.get-ship
+                  outputParameters:
+                    - schema: ship
+                      mappingSets: ship-from-registry
+                """);
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+
+        assertEquals(List.of(), result.errors());
+        assertEquals("{\"type\":\"object\",\"properties\":{\"imo\":{\"type\":\"string\","
+                + "\"mapping\":\"$.imo_number\"},\"flag\":{\"type\":\"string\",\"mapping\":"
+                + "\"$.flag_state\"}}}", outputs(spec, "get-ship"));
+    }
+
+    @Test
+    void expandAllShouldNameTheMappingSetOfABindingTheRuntimeNeverReads() throws Exception {
+        IkanosSpec spec = mcp(SHIP.replace("definitions:\n", """
+                definitions:
+                  mappingSets:
+                    ship-from-erp:
+                      imo: "$.imo_number"
+                      specs.tonnage: "$.gross_tonnage"
+                      crew: "$.crew"
+                      crew[]: "$.member"
+                      crew[].fullName: "$.name"
+                      tags: "$.labels"
+                """), """
+                get-ship:
+                  description: "Get ship."
+                  call: erp.get-ship
+                  outputParameters:
+                    - { schema: ship, mappingSets: [ship-from-erp] }
+                """);
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', output: 'schema: ship' binds"
+                + " [crew[] (mapping set 'ship-from-erp')], which the runtime never reads: object"
+                + " items are read from each element, and the items of nested arrays are passed"
+                + " through as they are. Remove them, or bind this schema with other mappings."),
+                errors);
     }
 
     @Test

@@ -481,6 +481,36 @@ class McpDefinitionsIntegrationTest {
     }
 
     @Test
+    void expandedToolsShouldBeTheInlineEquivalentWhenMappedOutputsUseMappingSets()
+            throws Exception {
+        // The expanded outputs carry the mappings, which decide structuredContent: the own
+        // `tonnage` mapping must win over the set's
+        String withSets = expandedOutputs(MAPPED_WITH_SETS);
+
+        assertEquals(expandedOutputs(MAPPED_INLINE), withSets);
+        assertTrue(withSets.contains("$.gross_tonnage") && !withSets.contains("\"$.tonnage\""),
+                withSets);
+    }
+
+    /** The outputs of each MCP tool once the capability is loaded, mappings included. */
+    private static String expandedOutputs(String yaml) throws Exception {
+        IkanosSpec spec = IkanosMappers.yaml().readValue(
+                YamlAliases.reject(yaml.getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                IkanosSpec.class);
+        new Capability(spec, null);
+        StringBuilder outputs = new StringBuilder();
+        for (Object server : spec.getCapability().getExposes()) {
+            if (server instanceof io.ikanos.spec.exposes.mcp.McpServerSpec mcp) {
+                for (var tool : mcp.getTools().values()) {
+                    outputs.append(tool.getName()).append(": ").append(IkanosMappers.json()
+                            .writeValueAsString(tool.getOutputParameters())).append('\n');
+                }
+            }
+        }
+        return outputs.toString();
+    }
+
+    @Test
     void capabilityShouldFailToLoadWhenAMappedOutputListsAnUnknownMappingSet() {
         String yaml = MAPPED_WITH_SETS.replaceFirst("ship-labels]", "ship-tags]");
 

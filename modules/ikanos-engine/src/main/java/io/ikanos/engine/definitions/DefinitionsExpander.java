@@ -76,8 +76,8 @@ import io.ikanos.spec.util.StructureSpec;
  *       with {@code mappings} (#1036): each key a path in the schema (property names joined by
  *       {@code .}, {@code []} for an array's items), each value the {@code mapping} that node
  *       carries inline. The use expands to the inline mapped output, with items of any type;
- *       beside {@code schema:} it takes only {@code mappings} and {@code mapping}, where the
- *       whole value is read. Every scalar, array and object without properties must be
+ *       beside {@code schema:} it takes only {@code mappings}, {@code mappingSets} and
+ *       {@code mapping}, where the whole value is read. Every scalar, array and object without properties must be
  *       bound, and a binding the runtime never reads (object items, below nested arrays)
  *       is rejected.</li>
  *   <li>Beside {@code schema:} in a mapped output, {@code mappingSets: [names]} lists mapping
@@ -421,6 +421,11 @@ public final class DefinitionsExpander {
          */
         private void checkMappingSets() {
             for (Map.Entry<String, Map<String, String>> set : mappingSets.entrySet()) {
+                if (set.getValue().isEmpty()) {
+                    errors.add(owner + ", mapping set '" + set.getKey() + "' declares no"
+                            + " mapping. Declare it as a map of paths to JSONPaths.");
+                    continue;
+                }
                 List<String> notPaths = new ArrayList<>();
                 for (Map.Entry<String, String> entry : set.getValue().entrySet()) {
                     addIf(notPaths, entry.getKey(),
@@ -568,8 +573,9 @@ public final class DefinitionsExpander {
 
         /**
          * Expand the schema references of the outputs of a unit. An orchestrated output takes
-         * {@code schema:} alone; a mapped (call-mode) output takes it with {@code mappings}, the
-         * mapping of each path of the schema (#1036). Mock outputs, static values, take none.
+         * {@code schema:} alone; a mapped (call-mode) output takes it with {@code mappings} and
+         * {@code mappingSets}, the mapping of each path of the schema (#1036, #1133). Mock
+         * outputs, static values, take none.
          *
          * @param mapped whether the outputs are mapped (call-mode) outputs
          */
@@ -583,6 +589,10 @@ public final class DefinitionsExpander {
                 String where = output.getName() != null
                         ? location + ", output '" + output.getName() + "'"
                         : location + ", output";
+                if (!mapped) {
+                    // Rejected there, but used: not also reported unused, as in Polychro
+                    markListedMappingSets(output);
+                }
                 if (orchestrated) {
                     checkNoMappings(output, where);
                     expanded.add(expandOutput(output, where));
@@ -609,6 +619,9 @@ public final class DefinitionsExpander {
          */
         void rejectResourceSchemas(String key, McpServerResourceSpec resource) {
             String name = resource.getName() != null ? resource.getName() : key;
+            for (OutputParameterSpec output : resource.getOutputParameters()) {
+                markListedMappingSets(output);
+            }
             for (OutputParameterSpec output : resource.getOutputParameters()) {
                 if (referencesSchema(output) || hasMappings(output)) {
                     errors.add(owner + ", resource '" + name + "': 'schema:', 'mappings' and"
@@ -716,7 +729,8 @@ public final class DefinitionsExpander {
 
         /**
          * Bind a schema reference of a mapped output: build the inline mapped output the schema
-         * gives, with each path's mapping from {@code mappings}, and report the paths left
+         * gives, with each path's mapping from its merged {@code mappingSets} and
+         * {@code mappings}, and report the paths left
          * unbound, the paths the schema does not have, the bindings the runtime never reads,
          * and the values that are not JSONPaths.
          */
@@ -821,6 +835,26 @@ public final class DefinitionsExpander {
             return new Mappings(values, origins, unresolved);
         }
 
+        /**
+         * Mark used the declared mapping sets an output lists anywhere, where they are rejected
+         * (a mock, MCP resource or orchestrated output), without resolving them.
+         */
+        private void markListedMappingSets(OutputParameterSpec param) {
+            if (param == null) {
+                return;
+            }
+            for (String name : param.getMappingSets()) {
+                if (mappingSets.containsKey(name)) {
+                    usedMappingSets.add(name);
+                }
+            }
+            markListedMappingSets(param.getItems());
+            markListedMappingSets(param.getValues());
+            for (OutputParameterSpec property : param.getProperties()) {
+                markListedMappingSets(property);
+            }
+        }
+
         /** Resolve, and mark used, each mapping set a reference lists. */
         private void resolveMappingSets(List<String> names, String location) {
             for (String name : names) {
@@ -899,13 +933,16 @@ public final class DefinitionsExpander {
                 output.setType("integer".equals(type) ? "number" : type);
                 boolean withProperties = isObjectWithProperties(schema);
                 if (!path.isEmpty()) {
+                    // A key bound to null (a mapping set value left empty) is still bound: its
+                    // set's own error is the one that says what is wrong
                     String mapping = mappings.get(path);
-                    if (mapping != null) {
+                    boolean bound = mappings.containsKey(path);
+                    if (bound) {
                         used.add(path);
                     }
                     if (unread) {
-                        addIf(ineffective, path, mapping != null);
-                    } else if (mapping != null && path.endsWith("[]") && withProperties) {
+                        addIf(ineffective, path, bound);
+                    } else if (bound && path.endsWith("[]") && withProperties) {
                         // Object items are read from each element, whatever their mapping
                         paths.add(path);
                         ineffective.add(path);
@@ -914,7 +951,7 @@ public final class DefinitionsExpander {
                         output.setMapping(mapping);
                         // Unbound, an object with properties reads its parent's root and
                         // items each element; anything else would always be null
-                        addIf(unbound, path, mapping == null && !withProperties
+                        addIf(unbound, path, !bound && !withProperties
                                 && !path.endsWith("[]"));
                     }
                 }
@@ -956,9 +993,15 @@ public final class DefinitionsExpander {
                             + " 'mappings' or 'mappingSets'.");
                 }
                 if (!ineffective.isEmpty()) {
-                    errors.add(prefix + "binds " + ineffective + ", which the runtime never"
-                            + " reads: object items are read from each element, and the items"
-                            + " of nested arrays are passed through as they are. Remove them.");
+                    List<String> named = new ArrayList<>();
+                    for (String path : ineffective) {
+                        String set = origins.get(path);
+                        named.add(set == null ? path : path + " (mapping set '" + set + "')");
+                    }
+                    errors.add(prefix + "binds " + named + ", which the runtime never reads:"
+                            + " object items are read from each element, and the items of nested"
+                            + " arrays are passed through as they are. Remove them, or bind this"
+                            + " schema with other mappings.");
                 }
                 List<String> unknown = new ArrayList<>();
                 List<String> notPaths = new ArrayList<>();

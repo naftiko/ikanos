@@ -111,8 +111,9 @@ public class OutputParameterDeserializer extends ValueDeserializer<OutputParamet
         }
 
         // The mapping sets that bind a schema reference in a mapped output (#1133). Read even
-        // without `schema`, so that the definitions expander can reject them there. A value that
-        // is not a list keeps its JSON form, which is not a bare name: the expander reports it.
+        // without `schema`, so that the definitions expander can reject them there. A single
+        // name reads as a one-name list, as Polychro reads it (the JSON Schema wants a list); any
+        // other value keeps its JSON form, which is not a bare name: the expander reports it.
         if (node.has("mappingSets")) {
             JsonNode sets = node.get("mappingSets");
             if (sets.isArray()) {
@@ -120,7 +121,7 @@ public class OutputParameterDeserializer extends ValueDeserializer<OutputParamet
                     spec.getMappingSets().add(set.isString() ? set.asString() : set.toString());
                 }
             } else {
-                spec.getMappingSets().add(sets.toString());
+                spec.getMappingSets().add(sets.isString() ? sets.asString() : sets.toString());
             }
         }
 

@@ -1293,7 +1293,8 @@ public class IkanosPolychroRulesetTest {
     public void definitionsReferenceRuleShouldFireOnAnUnknownMappingSet() {
         String output = lintFixture(MAPPING_SETS).output();
         assertTrue(output.contains("Unknown mapping set 'ship-from-crm'. MCP adapter 'fleet'"
-            + " declares ship-from-registry, ship-with-owner, ship-static, never-used."), output);
+            + " declares ship-from-registry, ship-with-owner, ship-static, never-used,"
+            + " empty-set."), output);
         assertFalse(output.lines().anyMatch(line -> line.contains("unknown-set")
             && line.contains("leaves paths unbound")), output);
     }
@@ -1341,6 +1342,12 @@ public class IkanosPolychroRulesetTest {
             output);
         assertFalse(output.contains("mapping set 'ship-from-registry', which no tool uses"),
             output);
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnAMappingSetThatDeclaresNoMapping() {
+        assertTrue(lintFixture(MAPPING_SETS).output().contains("MCP adapter 'fleet', mapping set"
+            + " 'empty-set' declares no mapping. Declare it as a map of paths to JSONPaths."));
     }
 
     @Test

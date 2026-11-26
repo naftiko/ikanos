@@ -1114,7 +1114,7 @@
         },
         "definitions": {
           "$ref": "#/$defs/Definitions",
-          "description": "Shared input parameter sets and schemas, visible to the flows of this aggregate only. Expanded at load time into the inline equivalent. MCP tools and REST operations reach them through `ref`."
+          "description": "Shared input parameter sets, schemas and mapping sets, visible to the flows of this aggregate only. Expanded at load time into the inline equivalent. MCP tools and REST operations reach them through `ref`."
         },
         "flows": {
           "type": "object",
@@ -1358,7 +1358,7 @@
         },
         "definitions": {
           "$ref": "#/$defs/RestDefinitions",
-          "description": "Shared input parameter sets and schemas, visible to the resources and operations of this adapter only. Expanded at load time into the inline equivalent."
+          "description": "Shared input parameter sets, schemas and mapping sets, visible to the resources and operations of this adapter only. Expanded at load time into the inline equivalent."
         },
         "resources": {
           "type": "object",
@@ -1457,7 +1457,7 @@
         },
         "definitions": {
           "$ref": "#/$defs/Definitions",
-          "description": "Shared input parameter sets and schemas, visible to the tools of this adapter only. Expanded at load time into the inline equivalent."
+          "description": "Shared input parameter sets, schemas and mapping sets, visible to the tools of this adapter only. Expanded at load time into the inline equivalent."
         },
         "hints": {
           "$ref": "#/$defs/McpToolHints",

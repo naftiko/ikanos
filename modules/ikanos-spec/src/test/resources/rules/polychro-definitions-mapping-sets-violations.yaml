@@ -44,6 +44,7 @@ capability:
             flag: "$.flag_state"
           never-used:
             imo: "$.imo"
+          empty-set:
       tools:
         unknown-set:
           description: "Lists a mapping set the adapter does not declare."
