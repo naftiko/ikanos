@@ -220,6 +220,34 @@ class ConsumedWriteExposureTest {
                 """))));
     }
 
+    private static String mcpResource(String target) {
+        return """
+                - type: mcp
+                  port: 0
+                  namespace: shop
+                  resources:
+                    order:
+                      name: order
+                      uri: shop://order
+                      description: The current order.
+                      %s
+                """.formatted(target);
+    }
+
+    @Test
+    void validateShouldRefuseAResourceThatReachesAWrite() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> validate(spec("", mcpResource("call: orders.cancel-order"))));
+
+        assertTrue(e.getMessage().contains("MCP resource 'order'")
+                && e.getMessage().contains("orders.cancel-order"), e.getMessage());
+    }
+
+    @Test
+    void validateShouldAcceptAResourceThatOnlyReads() {
+        assertDoesNotThrow(() -> validate(spec("", mcpResource("call: orders.get-order"))));
+    }
+
     private static String rest(String method, String target) {
         return """
                 - type: rest

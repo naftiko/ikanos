@@ -25,6 +25,7 @@ import io.ikanos.engine.aggregates.AggregateFlow;
 import io.ikanos.spec.CapabilitySpec;
 import io.ikanos.spec.exposes.ServerCallSpec;
 import io.ikanos.spec.exposes.ServerSpec;
+import io.ikanos.spec.exposes.mcp.McpServerResourceSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
 import io.ikanos.spec.exposes.mcp.McpToolHintsSpec;
@@ -37,8 +38,9 @@ import io.ikanos.spec.util.OperationStepSpec;
 /**
  * Which consumed write an exposed entry reaches: through its singleton {@code call:}, its steps,
  * the flow it references, and the flows those call, at any depth. A read-only entry must not
- * reach one: an MCP tool advertised as read-only, which a client calls without asking, a REST
- * operation with a safe method ({@code GET}, {@code HEAD}, {@code OPTIONS}, {@code TRACE}), or a
+ * reach one: an MCP tool advertised as read-only, which a client calls without asking, an MCP
+ * resource with a {@code call} or {@code steps}, which runs on every {@code resources/read}, a
+ * REST operation with a safe method ({@code GET}, {@code HEAD}, {@code OPTIONS}, {@code TRACE}), or a
  * flow whose {@code semantics} say {@code safe: true}.
  *
  * <p>Which operation writes is asked of the client adapter that owns the namespace
@@ -74,8 +76,8 @@ public final class ConsumedWriteExposure {
     }
 
     /**
-     * Refuses a read-only MCP tool, a REST operation with a safe method, or a flow with
-     * {@code semantics.safe: true} that reaches a consumed write.
+     * Refuses a read-only MCP tool, an MCP resource, a REST operation with a safe method, or a
+     * flow with {@code semantics.safe: true} that reaches a consumed write.
      *
      * @param spec the capability section
      * @param capability the capability
@@ -95,6 +97,7 @@ public final class ConsumedWriteExposure {
         for (ServerSpec server : spec.getExposes()) {
             if (server instanceof McpServerSpec mcp) {
                 validateTools(capability, mcp, isWrite);
+                validateResources(capability, mcp, isWrite);
             } else if (server instanceof RestServerSpec rest) {
                 validateOperations(capability, rest, isWrite);
             }
@@ -116,6 +119,20 @@ public final class ConsumedWriteExposure {
                         + " hints.readOnly: true, declared or inherited from the exposes"
                         + " block, but reaches the consumed operation '" + write
                         + "', which writes; declare hints.readOnly: false on the tool");
+            }
+        }
+    }
+
+    private static void validateResources(Capability capability, McpServerSpec mcp,
+            Predicate<String> isWrite) {
+        for (McpServerResourceSpec resource : mcp.getResources().values()) {
+            String write = writeReached(capability, null, resource.getCall(),
+                    resource.getSteps(), isWrite);
+            if (write != null) {
+                throw new IllegalArgumentException("MCP resource '" + resource.getName()
+                        + "' of namespace '" + mcp.getNamespace() + "' reaches the consumed"
+                        + " operation '" + write + "', which writes; reading a resource must not"
+                        + " change data, so expose the write as a tool instead");
             }
         }
     }
