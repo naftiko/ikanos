@@ -60,7 +60,7 @@ class McpToolNameSchemaValidationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  display: "Tool names"
+                  title: "Tool names"
                   description: "MCP tool name schema test"
                 capability:
                   consumes:

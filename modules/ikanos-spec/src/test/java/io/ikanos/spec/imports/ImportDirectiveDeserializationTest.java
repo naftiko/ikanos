@@ -176,7 +176,7 @@ class ImportDirectiveDeserializationTest {
     @DisplayName("aggregates: inline entry without 'from' deserializes into base AggregateSpec")
     void aggregatesInlineWithoutFromShouldDeserializeIntoAggregateSpec() throws Exception {
         String yaml = """
-            display: "Crew Resolver"
+            title: "Crew Resolver"
             namespace: "crew-resolver"
             flows: []
             """;
@@ -234,7 +234,7 @@ class ImportDirectiveDeserializationTest {
         String yaml = """
             ikanos: "%s"
             info:
-              display: "mixed"
+              title: "mixed"
               description: "Capability mixing inline and imported entries."
             capability:
               binds:
@@ -258,7 +258,7 @@ class ImportDirectiveDeserializationTest {
                 - from: "./shared/maritime.exposes.yml"
                   import: "maritime-rest"
               aggregates:
-                - display: "Crew Resolver"
+                - title: "Crew Resolver"
                   namespace: "crew-resolver"
                   flows: {}
                 - from: "./shared/maritime-aggregates.yml"
@@ -315,7 +315,7 @@ class ImportDirectiveDeserializationTest {
         String yaml = """
             ikanos: "%s"
             aggregates:
-              - display: "Crew Resolver"
+              - title: "Crew Resolver"
                 namespace: "crew-resolver"
                 flows:
                   lookup:

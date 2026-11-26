@@ -1,6 +1,6 @@
 ikanos: "1.0.0-beta11"
 info:
-  display: "register"
+  title: "register"
   description: "Business description of your capability"
 capability:
   exposes:
@@ -10,7 +10,7 @@ capability:
     resources:
       notion:
         path: "/notion/{{path}}"
-        display: "Notion API Pass-thru Proxy"
+        title: "Notion API Pass-thru Proxy"
         description: "A proxy to forward requests to the Notion API while the capability is being configured"
         forward:
           targetNamespace: "notion"

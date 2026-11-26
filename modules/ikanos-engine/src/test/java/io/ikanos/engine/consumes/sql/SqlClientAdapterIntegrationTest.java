@@ -89,7 +89,7 @@ class SqlClientAdapterIntegrationTest {
         return """
                 ikanos: "%s"
                 info:
-                  display: SQL client integration
+                  title: SQL client integration
                   description: Re-exposes a SQLite catalog over REST.
                 capability:
                   consumes:

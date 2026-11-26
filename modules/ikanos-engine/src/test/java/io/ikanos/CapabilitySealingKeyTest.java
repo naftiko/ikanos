@@ -136,7 +136,7 @@ class CapabilitySealingKeyTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  display: "%s"
+                  title: "%s"
                   description: "Spec digest test"
                 capability:
                   exposes:

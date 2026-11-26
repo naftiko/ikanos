@@ -47,8 +47,8 @@ public class ResourcesTemplatesListHandler extends McpCallHandler {
             ObjectNode node = MAPPER.createObjectNode();
             node.put("uriTemplate", spec.getUri());
             node.put("name", spec.getName());
-            if (spec.getDisplay() != null) {
-                node.put("title", spec.getDisplay());
+            if (spec.getTitle() != null) {
+                node.put("title", spec.getTitle());
             }
             if (spec.getDescription() != null) {
                 node.put("description", spec.getDescription());

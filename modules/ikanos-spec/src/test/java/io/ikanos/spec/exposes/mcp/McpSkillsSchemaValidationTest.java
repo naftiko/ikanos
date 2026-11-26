@@ -64,7 +64,7 @@ class McpSkillsSchemaValidationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  display: "Skills"
+                  title: "Skills"
                   description: "Skills schema test"
                 capability:
                   consumes:

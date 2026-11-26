@@ -79,7 +79,7 @@ class ImportSchemaValidationTest {
         String yaml = """
             ikanos: "%s"
             info:
-              display: "demo"
+              title: "demo"
               description: "demo"
             capability:
               consumes:
@@ -98,7 +98,7 @@ class ImportSchemaValidationTest {
         String yaml = """
             ikanos: "%s"
             info:
-              display: "demo"
+              title: "demo"
               description: "demo"
             capability:
               exposes:
@@ -116,7 +116,7 @@ class ImportSchemaValidationTest {
         String yaml = """
             ikanos: "%s"
             info:
-              display: "demo"
+              title: "demo"
               description: "demo"
             capability:
               consumes:
@@ -168,7 +168,7 @@ class ImportSchemaValidationTest {
         String yaml = """
             ikanos: "%s"
             aggregates:
-              - display: "Crew Resolver"
+              - title: "Crew Resolver"
                 namespace: "crew-resolver"
                 flows:
                   find-by-id:
@@ -187,7 +187,7 @@ class ImportSchemaValidationTest {
         String yaml = """
             ikanos: "%s"
             info:
-              display: "demo"
+              title: "demo"
               description: "demo"
             capability:
               consumes:
@@ -204,7 +204,7 @@ class ImportSchemaValidationTest {
         String yaml = """
             ikanos: "%s"
             info:
-              display: "demo"
+              title: "demo"
               description: "demo"
             capability:
               consumes:

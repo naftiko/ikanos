@@ -36,7 +36,7 @@ public class ParentResourceDeserializationTest {
                     operations:
                       list-users:
                         method: GET
-                        display: List Users
+                        title: List Users
                 """;
 
         ObjectMapper mapper = IkanosMappers.yaml();
@@ -71,13 +71,13 @@ public class ParentResourceDeserializationTest {
                     operations:
                       list-users:
                         method: GET
-                        display: List Users
+                        title: List Users
                       create-user:
                         method: POST
-                        display: Create User
+                        title: Create User
                       delete-user:
                         method: DELETE
-                        display: Delete User
+                        title: Delete User
                 """;
 
         ObjectMapper mapper = IkanosMappers.yaml();
@@ -106,13 +106,13 @@ public class ParentResourceDeserializationTest {
                     operations:
                       list-users:
                         method: GET
-                        display: List Users
+                        title: List Users
                   products:
                     path: /products
                     operations:
                       list-products:
                         method: GET
-                        display: List Products
+                        title: List Products
                 """;
 
         ObjectMapper mapper = IkanosMappers.yaml();

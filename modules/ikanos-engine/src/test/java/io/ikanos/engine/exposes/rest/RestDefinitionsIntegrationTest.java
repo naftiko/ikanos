@@ -73,7 +73,7 @@ class RestDefinitionsIntegrationTest {
     private static final String MAPPED_HEADER = """
             ikanos: "%s"
             info:
-              display: "Fleet"
+              title: "Fleet"
               description: "Mapped REST outputs"
             capability:
               consumes:

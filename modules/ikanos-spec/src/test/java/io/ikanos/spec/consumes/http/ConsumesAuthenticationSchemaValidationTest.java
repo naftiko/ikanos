@@ -222,7 +222,7 @@ class ConsumesAuthenticationSchemaValidationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  display: "Consumed authentication"
+                  title: "Consumed authentication"
                   description: "Consumed authentication types test"
                 capability:
                   consumes:

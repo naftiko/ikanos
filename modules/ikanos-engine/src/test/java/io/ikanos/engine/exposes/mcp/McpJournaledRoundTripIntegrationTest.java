@@ -107,7 +107,7 @@ public class McpJournaledRoundTripIntegrationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  display: "Departure booking"
+                  title: "Departure booking"
                   description: "An inline call that asks after a write"
                 capability:
                   consumes:

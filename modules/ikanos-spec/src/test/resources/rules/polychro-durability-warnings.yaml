@@ -1,13 +1,13 @@
 ikanos: 1.0.0-beta11
 info:
-  display: Durability warnings
+  title: Durability warnings
   description: >-
     Negative fixture for the durability warnings: a sealing key written into the
     capability, and REST operations that reach an elicit step inline, through a
     referenced flow, and through a flow that calls an asking flow
 capability:
   aggregates:
-  - display: departure flows
+  - title: departure flows
     namespace: departure
     flows:
       confirm-departure:

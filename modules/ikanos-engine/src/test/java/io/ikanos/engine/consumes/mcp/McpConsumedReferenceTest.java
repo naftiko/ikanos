@@ -40,7 +40,7 @@ class McpConsumedReferenceTest {
     private static final String CAPABILITY = """
             ikanos: "%s"
             info:
-              display: Demo
+              title: Demo
               description: demo
             capability:
               consumes:
@@ -64,7 +64,7 @@ class McpConsumedReferenceTest {
                         list-items:
                           method: GET
               aggregates:
-                - display: demo
+                - title: demo
                   namespace: demo
                   flows:
                     read:
@@ -98,7 +98,7 @@ class McpConsumedReferenceTest {
                       call: fs.search
                   resources:
                     file:
-                      display: File
+                      title: File
                       uri: demo://file
                       description: Reads through a step
                       steps:

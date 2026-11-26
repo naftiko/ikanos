@@ -317,7 +317,7 @@ class OutputParameterFormSchemaValidationTest {
                 capability:
                   aggregates:
                     - namespace: "things"
-                      display: "Things"
+                      title: "Things"
                       flows:
                         list:
                           description: "List things."

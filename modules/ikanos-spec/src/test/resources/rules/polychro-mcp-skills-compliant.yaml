@@ -2,7 +2,7 @@
 #   the skill names the tools it depends on and declares no allowed-tools.
 ikanos: "1.0.0-beta11"
 info:
-  display: "Agent Skills over MCP rules — compliant"
+  title: "Agent Skills over MCP rules — compliant"
   description: "Fixture that satisfies every Agent Skills over MCP Polychro rule."
 capability:
   consumes:

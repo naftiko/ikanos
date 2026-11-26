@@ -99,7 +99,7 @@ public class OasImportWriter {
             Map<String, InputParameterSpec> broaderPath) {
         ObjectNode node = NODES.objectNode();
         putIfPresent(node, "path", resource.getPath());
-        putIfPresent(node, "display", resource.getDisplay());
+        putIfPresent(node, "title", resource.getTitle());
         putIfPresent(node, "description", resource.getDescription());
         putTags(node, resource.getTags());
         putInputParameters(node, resource.getInputParameters(), true, broaderPath);
@@ -118,7 +118,7 @@ public class OasImportWriter {
             Map<String, InputParameterSpec> broaderPath) {
         ObjectNode node = NODES.objectNode();
         putIfPresent(node, "method", operation.getMethod());
-        putIfPresent(node, "display", operation.getDisplay());
+        putIfPresent(node, "title", operation.getTitle());
         putIfPresent(node, "description", operation.getDescription());
         putTags(node, operation.getTags());
         putInputParameters(node, operation.getInputParameters(), true, broaderPath);

@@ -1,6 +1,6 @@
 ikanos: "1.0.0-beta11"
 info:
-  display: "Definitions violations"
+  title: "Definitions violations"
   description: "Shared definitions (#910) that break every definitions rule."
   tags:
     - Test
@@ -18,7 +18,7 @@ capability:
             list-orders:
               method: GET
   aggregates:
-    - display: "Orders"
+    - title: "Orders"
       namespace: orders
       definitions:
         inputParameterSets:

@@ -315,7 +315,7 @@ class SharedListenerIntegrationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  display: "Shared Listener Test"
+                  title: "Shared Listener Test"
                 capability:
                 %s%s  exposes:
                 %s""".formatted(VersionHelper.getSchemaVersion(), binds.indent(2), AGGREGATE,

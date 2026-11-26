@@ -1,6 +1,6 @@
 ikanos: 1.0.0-beta11
 info:
-  display: Aggregate Hints Override Test
+  title: Aggregate Hints Override Test
   description: Test capability for semantics-to-hints derivation with override
   tags:
   - Test
@@ -9,7 +9,7 @@ info:
   modified: '2026-04-03'
 capability:
   aggregates:
-  - display: Data
+  - title: Data
     namespace: data
     flows:
       read-items:

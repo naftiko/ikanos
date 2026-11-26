@@ -6,7 +6,7 @@
 # as a comment, so {{note}} is not a placeholder.
 ikanos: "1.0.0-beta11"
 info:
-  display: "Consumed SQL MySQL comments"
+  title: "Consumed SQL MySQL comments"
   description: "Fixture with MySQL -- followed by a Unicode space and by a control character."
 capability:
   binds:

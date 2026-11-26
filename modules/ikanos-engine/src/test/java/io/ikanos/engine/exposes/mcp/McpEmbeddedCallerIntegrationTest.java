@@ -111,7 +111,7 @@ class McpEmbeddedCallerIntegrationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  display: "Embedded ref tool"
+                  title: "Embedded ref tool"
                   description: "Embedded caller integration test, ref tool"
                 capability:
                   aggregates:
@@ -163,7 +163,7 @@ class McpEmbeddedCallerIntegrationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  display: "Embedded caller"
+                  title: "Embedded caller"
                   description: "Embedded caller integration test"
                 capability:
                   exposes:

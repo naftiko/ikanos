@@ -1,6 +1,6 @@
 ikanos: "1.0.0-beta11"
 info:
-  display: "Mapped definitions budget"
+  title: "Mapped definitions budget"
   description: "Bindings that together exceed the expansion budget of their namespace (#1036)."
   tags:
     - Test

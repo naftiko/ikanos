@@ -183,7 +183,7 @@ public class ToolInputDefaultsIntegrationTest {
                 ikanos: "%s"
                 capability:
                   aggregates:
-                    - display: "Things"
+                    - title: "Things"
                       namespace: "things"
                       flows:
                         ask:

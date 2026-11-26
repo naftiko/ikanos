@@ -1,6 +1,6 @@
 ikanos: 1.0.0-beta11
 info:
-  display: XML Test Capability
+  title: XML Test Capability
   description: Test capability for XML parsing from API responses
   tags:
   - Test
@@ -16,7 +16,7 @@ capability:
     resources:
       users:
         path: /xml/users
-        display: XML Users Resource
+        title: XML Users Resource
         description: Test resource that parses XML responses
         operations:
           get-users:
@@ -48,9 +48,9 @@ capability:
     resources:
       users:
         path: api/users
-        display: Mock Users API
+        title: Mock Users API
         operations:
           get-users:
             method: GET
-            display: Get Users
+            title: Get Users
             outputRawFormat: xml

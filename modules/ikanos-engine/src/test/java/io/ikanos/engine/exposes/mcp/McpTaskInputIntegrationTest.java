@@ -117,7 +117,7 @@ public class McpTaskInputIntegrationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  display: "Departure clearance"
+                  title: "Departure clearance"
                   description: "A task that asks before it finishes"
                 capability:
                   consumes:

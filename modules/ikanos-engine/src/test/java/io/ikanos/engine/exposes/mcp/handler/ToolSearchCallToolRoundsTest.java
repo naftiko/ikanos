@@ -59,7 +59,7 @@ class ToolSearchCallToolRoundsTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  display: "Departure operations"
+                  title: "Departure operations"
                   description: "Tools that ask, run as tasks, or neither"
                 capability:
                   aggregates:

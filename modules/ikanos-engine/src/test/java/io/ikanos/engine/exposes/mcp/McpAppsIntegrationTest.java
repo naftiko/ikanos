@@ -165,7 +165,7 @@ class McpAppsIntegrationTest {
         return """
                 ikanos: "%s"
                 info:
-                  display: "MCP Apps"
+                  title: "MCP Apps"
                   description: "MCP Apps integration test"
                 capability:
                   exposes:
@@ -175,7 +175,7 @@ class McpAppsIntegrationTest {
                       namespace: "weather"
                       resources:
                         forecast-view:
-                          display: "Forecast view"
+                          title: "Forecast view"
                           description: "Interactive forecast chart."
                           uri: "ui://weather/forecast"
                           location: "%s"
@@ -208,7 +208,7 @@ class McpAppsIntegrationTest {
         return """
                 ikanos: "%s"
                 info:
-                  display: "Plain MCP"
+                  title: "Plain MCP"
                   description: "No MCP Apps"
                 capability:
                   exposes:

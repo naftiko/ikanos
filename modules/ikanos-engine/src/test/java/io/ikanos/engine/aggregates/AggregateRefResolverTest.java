@@ -51,7 +51,7 @@ public class AggregateRefResolverTest {
         CapabilitySpec cap = new CapabilitySpec();
         AggregateSpec agg = new AggregateSpec();
         agg.setNamespace("forecast");
-        agg.setDisplay("Forecast");
+        agg.setTitle("Forecast");
 
         AggregateFlowSpec fn = new AggregateFlowSpec();
         fn.setName("get-forecast");
@@ -79,7 +79,7 @@ public class AggregateRefResolverTest {
 
         AggregateSpec agg = new AggregateSpec();
         agg.setNamespace("data");
-        agg.setDisplay("Data");
+        agg.setTitle("Data");
         AggregateFlowSpec fn1 = new AggregateFlowSpec();
         fn1.setName("read");
         fn1.setDescription("Read1");
@@ -579,7 +579,7 @@ public class AggregateRefResolverTest {
 
         AggregateSpec agg = new AggregateSpec();
         agg.setNamespace("data");
-        agg.setDisplay("Data");
+        agg.setTitle("Data");
         AggregateFlowSpec fn = new AggregateFlowSpec();
         fn.setName("read");
         fn.setDescription("Read data");

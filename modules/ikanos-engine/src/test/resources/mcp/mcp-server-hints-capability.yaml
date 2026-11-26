@@ -1,6 +1,6 @@
 ikanos: 1.0.0-beta11
 info:
-  display: MCP Server Hints Test Capability
+  title: MCP Server Hints Test Capability
   description: Test capability for default tool hints declared on the MCP server
   tags:
   - Test
@@ -9,7 +9,7 @@ info:
   modified: '2026-11-09'
 capability:
   aggregates:
-  - display: Tasks
+  - title: Tasks
     namespace: tasks
     flows:
       delete-task:

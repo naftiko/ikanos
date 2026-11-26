@@ -11,7 +11,7 @@
 ikanos: "1.0.0-beta11"
 
 info:
-  display: "Issues — GraphQL client example"
+  title: "Issues — GraphQL client example"
   description: "Read and save issues of a GraphQL API, re-exposed as MCP tools."
 
 capability:

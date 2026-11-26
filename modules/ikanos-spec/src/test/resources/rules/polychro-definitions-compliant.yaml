@@ -1,6 +1,6 @@
 ikanos: "1.0.0-beta11"
 info:
-  display: "Definitions"
+  title: "Definitions"
   description: "Shared definitions (#910) used by every tool and flow."
   tags:
     - Test
@@ -18,7 +18,7 @@ capability:
             list-orders:
               method: GET
   aggregates:
-    - display: "Orders"
+    - title: "Orders"
       namespace: orders
       definitions:
         schemas:

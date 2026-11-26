@@ -2,7 +2,7 @@
 #   a skill declares allowed-tools.
 ikanos: "1.0.0-beta11"
 info:
-  display: "Agent Skills over MCP rules — violations"
+  title: "Agent Skills over MCP rules — violations"
   description: "Fixture that breaks every Agent Skills over MCP Polychro rule."
 capability:
   consumes:

@@ -33,7 +33,7 @@ class CapabilityBuilderTest {
                 .build();
 
         assertNotNull(capability);
-        assertEquals("Embedding Test", capability.getSpec().getInfo().getDisplay());
+        assertEquals("Embedding Test", capability.getSpec().getInfo().getTitle());
     }
 
     @Test

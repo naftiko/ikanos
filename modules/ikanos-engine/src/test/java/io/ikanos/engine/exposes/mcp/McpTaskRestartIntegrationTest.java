@@ -57,7 +57,7 @@ public class McpTaskRestartIntegrationTest {
         return """
                 ikanos: "%s"
                 info:
-                  display: "Departure clearance"
+                  title: "Departure clearance"
                   description: "%s"
                 capability:
                   aggregates:

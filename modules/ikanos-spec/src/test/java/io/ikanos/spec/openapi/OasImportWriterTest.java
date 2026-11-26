@@ -509,7 +509,7 @@ public class OasImportWriterTest {
     @Test
     void toDocumentShouldNotRepeatResourceAndOperationNames() {
         HttpClientOperationSpec operation = new HttpClientOperationSpec();
-        operation.setDisplay("List items");
+        operation.setTitle("List items");
         operation.setDescription("Returns every item.");
 
         JsonNode resource = writer.toDocument(adapterWithOperation(operation))
@@ -519,7 +519,7 @@ public class OasImportWriterTest {
         assertEquals("/items", resource.path("path").asString());
         JsonNode op = resource.path("operations").path("list-items");
         assertFalse(op.has("name"), "#871: the operation map key is the name");
-        assertEquals("List items", op.path("display").asString());
+        assertEquals("List items", op.path("title").asString());
         assertEquals("Returns every item.", op.path("description").asString());
     }
 

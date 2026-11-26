@@ -1,6 +1,6 @@
 ikanos: "1.0.0-beta11"
 aggregates:
-  - display: "Fleet"
+  - title: "Fleet"
     namespace: fleet
     definitions:
       inputParameterSets:

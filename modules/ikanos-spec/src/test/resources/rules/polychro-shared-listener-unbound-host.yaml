@@ -6,7 +6,7 @@
 ikanos: "1.0.0-beta11"
 
 info:
-  display: "Shared listener — unbound host"
+  title: "Shared listener — unbound host"
   description: "Negative fixture: hosts entry references an undeclared key."
 
 capability:

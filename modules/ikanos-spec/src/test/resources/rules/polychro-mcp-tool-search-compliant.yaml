@@ -3,7 +3,7 @@
 #   like a meta-tool.
 ikanos: "1.0.0-beta11"
 info:
-  display: "MCP tool search rules — compliant"
+  title: "MCP tool search rules — compliant"
   description: "Fixture that satisfies every MCP tool search Polychro rule."
 capability:
   consumes:

@@ -104,7 +104,7 @@ class McpToolSearchAuthorizationIntegrationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  display: "Tool search authorization"
+                  title: "Tool search authorization"
                   description: "call-tool under per-tool authorization"
                 capability:
                   exposes:

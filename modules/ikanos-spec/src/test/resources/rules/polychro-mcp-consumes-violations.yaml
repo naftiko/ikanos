@@ -4,7 +4,7 @@
 #   - ikanos-mcp-consumed-tool-hints (tool without hints)
 ikanos: "1.0.0-beta11"
 info:
-  display: "Consumed MCP rules — violations"
+  title: "Consumed MCP rules — violations"
   description: "Fixture that violates each consumed MCP Polychro rule."
 capability:
   consumes:

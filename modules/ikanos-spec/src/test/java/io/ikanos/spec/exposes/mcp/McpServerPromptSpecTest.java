@@ -33,7 +33,7 @@ public class McpServerPromptSpecTest {
         McpServerPromptSpec spec = new McpServerPromptSpec();
 
         assertNull(spec.getName());
-        assertNull(spec.getDisplay());
+        assertNull(spec.getTitle());
         assertNull(spec.getDescription());
         assertNotNull(spec.getArguments());
         assertTrue(spec.getArguments().isEmpty());
@@ -47,11 +47,11 @@ public class McpServerPromptSpecTest {
     public void settersShouldRoundTripValues() {
         McpServerPromptSpec spec = new McpServerPromptSpec();
         spec.setName("greet");
-        spec.setDisplay("Greet User");
+        spec.setTitle("Greet User");
         spec.setDescription("Greets the user by name");
 
         assertEquals("greet", spec.getName());
-        assertEquals("Greet User", spec.getDisplay());
+        assertEquals("Greet User", spec.getTitle());
         assertEquals("Greets the user by name", spec.getDescription());
     }
 

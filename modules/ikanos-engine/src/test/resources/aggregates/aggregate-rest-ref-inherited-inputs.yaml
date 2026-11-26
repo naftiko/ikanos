@@ -1,6 +1,6 @@
 ikanos: 1.0.0-beta11
 info:
-  display: REST ref inherits flow inputs
+  title: REST ref inherits flow inputs
   description: REST operations that use ref and declare no inputs accept their flow's inputs (#1039)
   tags:
   - Test
@@ -9,7 +9,7 @@ info:
   modified: '2026-11-13'
 capability:
   aggregates:
-  - display: Fleet
+  - title: Fleet
     namespace: fleet
     flows:
       get-ship:

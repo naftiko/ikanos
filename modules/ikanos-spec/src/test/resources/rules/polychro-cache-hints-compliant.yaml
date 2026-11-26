@@ -6,7 +6,7 @@
 # a single HTTP call.
 ikanos: "1.0.0-beta11"
 info:
-  display: "Cache hints compliant"
+  title: "Cache hints compliant"
   description: "Capability whose cache settings match what it declares."
 capability:
   consumes:
@@ -106,7 +106,7 @@ capability:
               value: "hi"
       resources:
         rates:
-          display: "Rates"
+          title: "Rates"
           uri: "data://rates"
           description: "Rates from one HTTP call."
           ttlFromUpstream: true

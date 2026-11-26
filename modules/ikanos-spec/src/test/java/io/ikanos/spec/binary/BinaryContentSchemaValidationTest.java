@@ -95,7 +95,7 @@ class BinaryContentSchemaValidationTest {
         String yaml = """
             ikanos: "%s"
             info:
-              display: "demo"
+              title: "demo"
               description: "demo"
             capability:
               consumes:
@@ -122,7 +122,7 @@ class BinaryContentSchemaValidationTest {
         String yaml = """
             ikanos: "%s"
             info:
-              display: "demo"
+              title: "demo"
               description: "demo"
             capability:
               consumes:
@@ -148,7 +148,7 @@ class BinaryContentSchemaValidationTest {
         String yaml = """
             ikanos: "%s"
             info:
-              display: "demo"
+              title: "demo"
               description: "demo"
             capability:
               consumes:
@@ -177,7 +177,7 @@ class BinaryContentSchemaValidationTest {
         String yaml = """
             ikanos: "%s"
             info:
-              display: "demo"
+              title: "demo"
               description: "demo"
             capability:
               consumes:
@@ -204,7 +204,7 @@ class BinaryContentSchemaValidationTest {
         String yaml = """
             ikanos: "%s"
             info:
-              display: "demo"
+              title: "demo"
               description: "demo"
             capability:
               consumes:
@@ -219,7 +219,7 @@ class BinaryContentSchemaValidationTest {
                           method: "GET"
                           outputRawFormat: "binary"
               aggregates:
-                - display: "Photos"
+                - title: "Photos"
                   namespace: "photos"
                   flows:
                     get-photo:
@@ -239,7 +239,7 @@ class BinaryContentSchemaValidationTest {
         String yaml = """
             ikanos: "%s"
             info:
-              display: "demo"
+              title: "demo"
               description: "demo"
             capability:
               consumes:
@@ -281,7 +281,7 @@ class BinaryContentSchemaValidationTest {
         String yaml = """
             ikanos: "%s"
             info:
-              display: "demo"
+              title: "demo"
               description: "demo"
             capability:
               consumes:
@@ -321,7 +321,7 @@ class BinaryContentSchemaValidationTest {
         String yaml = """
             ikanos: "%s"
             info:
-              display: "demo"
+              title: "demo"
               description: "demo"
             capability:
               consumes:
@@ -367,7 +367,7 @@ class BinaryContentSchemaValidationTest {
         String yaml = """
             ikanos: "%s"
             info:
-              display: "demo"
+              title: "demo"
               description: "demo"
             capability:
               consumes:
@@ -392,7 +392,7 @@ class BinaryContentSchemaValidationTest {
                       call: "photo-library.download-photo"
                   resources:
                     photo-bytes:
-                      display: "Photo bytes"
+                      title: "Photo bytes"
                       uri: "photos://library/{id}/bytes"
                       description: "Original-resolution bytes of a photo."
                       mimeType: "image/jpeg"

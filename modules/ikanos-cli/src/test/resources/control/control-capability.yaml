@@ -2,7 +2,7 @@
 ---
 ikanos: "1.0.0-beta11"
 info:
-  display: "CLI Control Port Test Capability"
+  title: "CLI Control Port Test Capability"
   description: "Test capability for CLI runtime startup"
   tags:
     - Test

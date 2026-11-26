@@ -107,7 +107,7 @@ class RestRequestWithoutContentLengthIntegrationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  display: "Request Without Content-Length Test"
+                  title: "Request Without Content-Length Test"
                 capability:
                   aggregates:
                     - namespace: "greeting"

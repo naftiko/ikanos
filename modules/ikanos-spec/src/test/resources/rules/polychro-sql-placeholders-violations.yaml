@@ -6,7 +6,7 @@
 #   - a JDBC ? marker on a MySQL URL
 ikanos: "1.0.0-beta11"
 info:
-  display: "Consumed SQL placeholders — violations"
+  title: "Consumed SQL placeholders — violations"
   description: "Fixture with a quoted placeholder and a Mustache section in SQL statements."
 capability:
   binds:

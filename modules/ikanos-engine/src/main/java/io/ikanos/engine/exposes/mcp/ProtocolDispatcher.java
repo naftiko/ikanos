@@ -132,14 +132,14 @@ public class ProtocolDispatcher {
     }
 
     /**
-     * Resolves the capability's display name, or {@code null} when absent. Used to tag the
+     * Resolves the capability's title, or {@code null} when absent. Used to tag the
      * SERVER span created by each transport (Streamable HTTP reads it from the Restlet
      * {@code Context} attributes instead; stdio has no such context, so it reads it here).
      */
     private static String resolveCapabilityName(McpServerAdapter adapter) {
         if (adapter.getCapability().getSpec().getInfo() != null
-                && adapter.getCapability().getSpec().getInfo().getDisplay() != null) {
-            return adapter.getCapability().getSpec().getInfo().getDisplay();
+                && adapter.getCapability().getSpec().getInfo().getTitle() != null) {
+            return adapter.getCapability().getSpec().getInfo().getTitle();
         }
         return null;
     }

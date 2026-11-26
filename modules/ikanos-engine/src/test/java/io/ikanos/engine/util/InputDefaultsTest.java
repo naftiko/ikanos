@@ -311,7 +311,7 @@ class InputDefaultsTest {
                 ikanos: "%s"
                 capability:
                   aggregates:
-                    - display: "CRM"
+                    - title: "CRM"
                       namespace: "crm-domain"
                       flows:
                         ask:

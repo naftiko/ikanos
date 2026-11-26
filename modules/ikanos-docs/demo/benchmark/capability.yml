@@ -3,7 +3,7 @@
 # same compose project, so the figures measure Ikanos, not the network or a slow API.
 ikanos: "1.0.0-beta9"
 info:
-  display: "Ikanos benchmark"
+  title: "Ikanos benchmark"
   description: "Proxies a ship registry and reshapes its answers, to measure Ikanos's CPU and memory under load."
 
 capability:

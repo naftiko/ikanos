@@ -3,7 +3,7 @@
 # fleet-ops is listed first and has nested directories, so the directory scenario can test it.
 ikanos: "1.0.0-beta11"
 info:
-  display: "SEP-2640 conformance"
+  title: "SEP-2640 conformance"
   description: "Fixture for the MCP Skills Extension conformance suite"
 capability:
   exposes:

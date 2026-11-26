@@ -124,7 +124,7 @@ public class RestInputRequestIntegrationTest {
         return """
                 ikanos: "%s"
                 info:
-                  display: "Departure clearance"
+                  title: "Departure clearance"
                   description: "REST input requests"
                 capability:
                   consumes:

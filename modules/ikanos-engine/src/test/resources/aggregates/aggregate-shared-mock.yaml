@@ -1,6 +1,6 @@
 ikanos: 1.0.0-beta11
 info:
-  display: Aggregate Shared Mock Test
+  title: Aggregate Shared Mock Test
   description: Shared aggregate mock function consumed by MCP and REST refs
   tags:
   - Test
@@ -9,7 +9,7 @@ info:
   modified: '2026-04-09'
 capability:
   aggregates:
-  - display: Greeting
+  - title: Greeting
     namespace: greeting
     flows:
       hello:

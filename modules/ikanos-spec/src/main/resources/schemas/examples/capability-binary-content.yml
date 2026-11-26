@@ -17,7 +17,7 @@
 ikanos: "1.0.0-beta11"
 
 info:
-  display: "Photo library (binary content example)"
+  title: "Photo library (binary content example)"
   description: >
     Fetch original-resolution photo bytes from an upstream library API and
     expose them through REST and MCP using a single binary consumed operation.
@@ -45,7 +45,7 @@ capability:
               maxBinarySize: "5MiB"
 
   aggregates:
-    - display: "Photos"
+    - title: "Photos"
       namespace: "photos"
       flows:
         get-photo:
@@ -125,12 +125,12 @@ capability:
       cacheScope: "public"
       tools:
         get-photo:
-          display: "Get photo"
+          title: "Get photo"
           description: "Download the original-resolution bytes of a photo by id."
           ref: "photos.get-photo"
       resources:
         photo-bytes:
-          display: "Photo bytes"
+          title: "Photo bytes"
           uri: "photos://library/{id}/bytes"
           description: "Original-resolution bytes of a photo."
           mimeType: "image/jpeg"

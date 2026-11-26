@@ -1,6 +1,6 @@
 ikanos: "1.0.0-beta11"
 info:
-  display: "Mapped definitions"
+  title: "Mapped definitions"
   description: "Schemas bound by mappings in mapped (call-mode) outputs (#1036)."
   tags:
     - Test
@@ -109,7 +109,7 @@ capability:
                     imo: "$.imo_number"
                     tonnage: "$.gross_tonnage"
   aggregates:
-    - display: "Fleet"
+    - title: "Fleet"
       namespace: registry-flows
       definitions:
         schemas:

@@ -4,7 +4,7 @@
 #   adapter "listed-ops": no toolSearch, a tool named call-tool and one named search_tools.
 ikanos: "1.0.0-beta11"
 info:
-  display: "MCP tool search rules — violations"
+  title: "MCP tool search rules — violations"
   description: "Fixture that breaks every MCP tool search Polychro rule."
 capability:
   consumes:

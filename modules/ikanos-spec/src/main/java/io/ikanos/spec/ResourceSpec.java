@@ -37,7 +37,7 @@ public class ResourceSpec {
 
     private volatile String name;
 
-    private volatile String display;
+    private volatile String title;
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private volatile String description;
@@ -54,10 +54,10 @@ public class ResourceSpec {
         this(null, null, null, null);
     }
 
-    public ResourceSpec(String path, String name, String display, String description) {
+    public ResourceSpec(String path, String name, String title, String description) {
         this.path = path;
         this.name = name;
-        this.display = display;
+        this.title = title;
         this.description = description;
     }
 
@@ -77,12 +77,12 @@ public class ResourceSpec {
         this.name = name;
     }
 
-    public String getDisplay() {
-        return display;
+    public String getTitle() {
+        return title;
     }
 
-    public void setDisplay(String display) {
-        this.display = display;
+    public void setTitle(String title) {
+        this.title = title;
     }
 
     public String getDescription() {

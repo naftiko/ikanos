@@ -14,6 +14,7 @@
 package io.ikanos.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -21,7 +22,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import io.ikanos.Cli;
+import io.ikanos.spec.IkanosSpec;
+import io.ikanos.spec.util.IkanosMappers;
+import io.ikanos.spec.util.YamlAliases;
 import org.junit.jupiter.api.Test;
 import picocli.CommandLine;
 
@@ -52,6 +57,16 @@ public class CreateCapabilityCommandIntegrationTest {
             int validateExitCode = new CommandLine(new Cli()).execute("validate", yaml.toString());
 
             assertEquals(0, validateExitCode, "The generated capability should pass validation");
+
+            // #1164: `display` was renamed to `title` with no alias, so a scaffold that still
+            // wrote `display` would fail on its first `ikanos serve`.
+            String content = Files.readString(yaml);
+            assertFalse(Pattern.compile("(?m)^\\s*display:").matcher(content).find(),
+                    "The generated capability should not use the removed `display` key");
+            IkanosSpec spec = IkanosMappers.lenientYaml().readValue(
+                    YamlAliases.reject(Files.readAllBytes(yaml)), IkanosSpec.class);
+            assertEquals(capabilityName, spec.getInfo().getTitle(),
+                    "The generated capability should load, with its name as the title");
         } finally {
             System.setIn(originalIn);
             Files.deleteIfExists(yaml);

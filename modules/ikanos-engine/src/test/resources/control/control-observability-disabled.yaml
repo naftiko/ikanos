@@ -1,6 +1,6 @@
 ikanos: "1.0.0-beta11"
 info:
-  display: "Control Port — Observability Disabled"
+  title: "Control Port — Observability Disabled"
   description: "Test fixture: observability.enabled=false should suppress /metrics and /traces"
   tags:
   - Test

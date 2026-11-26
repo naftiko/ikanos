@@ -2,7 +2,7 @@
 #   ui:// view with the mcp-app profile, no connectDomains, tool with outputParameters.
 ikanos: "1.0.0-beta11"
 info:
-  display: "MCP Apps rules — compliant"
+  title: "MCP Apps rules — compliant"
   description: "Fixture that satisfies every MCP Apps Polychro rule."
 capability:
   consumes:
@@ -22,7 +22,7 @@ capability:
       port: 3001
       resources:
         forecast-view:
-          display: Forecast view
+          title: Forecast view
           description: Interactive forecast chart.
           uri: ui://weather/forecast
           location: file:///opt/capabilities/weather/ui/forecast

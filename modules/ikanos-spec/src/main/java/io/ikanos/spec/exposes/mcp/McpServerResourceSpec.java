@@ -41,7 +41,7 @@ import io.ikanos.spec.util.StepOrder;
 public class McpServerResourceSpec {
 
     private final AtomicReference<String> name = new AtomicReference<>();
-    private final AtomicReference<String> display = new AtomicReference<>();
+    private final AtomicReference<String> title = new AtomicReference<>();
     private final AtomicReference<String> uri = new AtomicReference<>();
     private final AtomicReference<String> description = new AtomicReference<>();
     private final AtomicReference<String> mimeType = new AtomicReference<>();
@@ -66,8 +66,8 @@ public class McpServerResourceSpec {
     public void setName(String name) { this.name.set(name); }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public String getDisplay() { return display.get(); }
-    public void setDisplay(String display) { this.display.set(display); }
+    public String getTitle() { return title.get(); }
+    public void setTitle(String title) { this.title.set(title); }
 
     public String getUri() { return uri.get(); }
     public void setUri(String uri) { this.uri.set(uri); }

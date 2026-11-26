@@ -7,7 +7,7 @@
 ikanos: "1.0.0-beta11"
 
 info:
-  display: "Reverse tunnel — unbound identity reference"
+  title: "Reverse tunnel — unbound identity reference"
   description: "Negative fixture: identity uses a namespace not in binds."
 
 capability:

@@ -57,7 +57,7 @@ class ConsumesBaseUriSchemaValidationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  display: "Base URI"
+                  title: "Base URI"
                   description: "baseUri pattern test"
                 capability:
                   consumes:

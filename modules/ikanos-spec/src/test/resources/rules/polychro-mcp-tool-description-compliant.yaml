@@ -6,7 +6,7 @@
 #   Chinese with no punctuation to split them. The deferred adapter's tools are all described.
 ikanos: "1.0.0-beta11"
 info:
-  display: "MCP tool description rules — compliant"
+  title: "MCP tool description rules — compliant"
   description: "Fixture that satisfies every MCP tool description Polychro rule."
 capability:
   consumes:

@@ -14,7 +14,7 @@
 #       scopes give no caller-dependent warning
 ikanos: "1.0.0-beta11"
 info:
-  display: "Cache hint violations"
+  title: "Cache hint violations"
   description: "Capability whose cache settings contradict what it declares."
 capability:
   consumes:
@@ -138,19 +138,19 @@ capability:
               value: "hi"
       resources:
         orders:
-          display: "Orders"
+          title: "Orders"
           uri: "data://orders"
           description: "The caller's orders."
           cacheScope: "public"
           call: "shop.list-items"
         docs:
-          display: "Docs"
+          title: "Docs"
           uri: "docs://shop"
           description: "Static docs."
           location: "file:///srv/docs"
           ttlFromUpstream: true
         composed:
-          display: "Composed"
+          title: "Composed"
           uri: "data://composed"
           description: "Composed from steps."
           ttlFromUpstream: true
@@ -159,7 +159,7 @@ capability:
               type: "call"
               call: "shop.list-items"
         lookup:
-          display: "Lookup"
+          title: "Lookup"
           uri: "data://lookup"
           description: "Read through an MCP upstream."
           ttlFromUpstream: true
@@ -198,14 +198,14 @@ capability:
               value: "hi"
       resources:
         guide:
-          display: "Guide"
+          title: "Guide"
           uri: "docs://guide"
           description: "Static guide."
           cacheScope: "public"
           location: "file:///srv/guide"
           ttlFromUpstream: true
         summary:
-          display: "Summary"
+          title: "Summary"
           uri: "data://summary"
           description: "Composed from steps, scope inherited from the adapter."
           ttlFromUpstream: true

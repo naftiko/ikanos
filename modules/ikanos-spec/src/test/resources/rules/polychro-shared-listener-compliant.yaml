@@ -8,7 +8,7 @@
 ikanos: "1.0.0-beta11"
 
 info:
-  display: "Shared listener — compliant"
+  title: "Shared listener — compliant"
   description: "Positive fixture: adapters share one port with distinct mounts."
 
 capability:

@@ -194,14 +194,14 @@ class ProtocolDispatcherCoverageTest {
     void requirementForShouldFindANamelessRefToolByItsFlowName() throws Exception {
         String yaml = "ikanos: " + VersionHelper.getSchemaVersion() + "\n" + """
                 info:
-                  display: Nameless ref tool
+                  title: Nameless ref tool
                   description: A legacy list tool without a name
                   tags: [Test]
                   created: '2026-11-14'
                   modified: '2026-11-14'
                 capability:
                   aggregates:
-                  - display: Records
+                  - title: Records
                     namespace: records
                     flows:
                       update-record:
@@ -255,7 +255,7 @@ class ProtocolDispatcherCoverageTest {
     void requirementForShouldGiveATaskMethodTheAuthorizationOfTheTaskTool() throws Exception {
         String yaml = "ikanos: " + VersionHelper.getSchemaVersion() + "\n" + """
                 info:
-                  display: Task tool authorization
+                  title: Task tool authorization
                   description: A task of a protected tool
                   tags: [Test]
                   created: '2026-11-17'

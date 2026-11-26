@@ -65,8 +65,8 @@ public class StatusCommand implements Callable<Integer> {
                 }
             }
 
-            String display = root.path("capability").path("display").asString("unknown");
-            System.out.println(display + ": " + (allStarted ? "UP" : "DEGRADED"));
+            String title = root.path("capability").path("title").asString("unknown");
+            System.out.println(title + ": " + (allStarted ? "UP" : "DEGRADED"));
 
             // Engine
             JsonNode engine = root.path("engine");

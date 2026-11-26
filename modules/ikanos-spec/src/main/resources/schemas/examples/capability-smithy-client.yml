@@ -9,7 +9,7 @@
 ikanos: "1.0.0-beta11"
 
 info:
-  display: "Customers — Smithy client example"
+  title: "Customers — Smithy client example"
   description: "Read customer items from DynamoDB, re-exposed as an MCP tool."
 
 capability:

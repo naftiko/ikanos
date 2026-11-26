@@ -8,13 +8,13 @@
 ikanos: "1.0.0-beta11"
 
 info:
-  display: "Authorization — compliant"
+  title: "Authorization — compliant"
   description: "Positive fixture: authorization blocks on OAuth 2.1 adapters."
 
 capability:
   aggregates:
     - namespace: "records"
-      display: "Records"
+      title: "Records"
       flows:
         read-record:
           description: "Reads a record."

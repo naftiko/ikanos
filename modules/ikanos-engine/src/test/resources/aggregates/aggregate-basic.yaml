@@ -1,6 +1,6 @@
 ikanos: 1.0.0-beta11
 info:
-  display: Aggregate Basic Test
+  title: Aggregate Basic Test
   description: Test capability for aggregate function ref resolution
   tags:
   - Test
@@ -9,7 +9,7 @@ info:
   modified: '2026-04-03'
 capability:
   aggregates:
-  - display: Forecast
+  - title: Forecast
     namespace: forecast
     flows:
       get-forecast:

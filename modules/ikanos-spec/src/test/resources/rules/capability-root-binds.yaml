@@ -6,7 +6,7 @@
 ikanos: "1.0.0-beta11"
 
 info:
-  display: "Root binds next to capability"
+  title: "Root binds next to capability"
   description: "Negative fixture: bindings declared at the root of a capability document."
 
 binds:

@@ -1,6 +1,6 @@
 ikanos: 1.0.0-beta11
 info:
-  display: Durability compliant
+  title: Durability compliant
   description: Positive fixture for the durability rules, under the memory mode
 capability:
   binds:
@@ -25,7 +25,7 @@ capability:
           book-departure-slot:
             method: POST
   aggregates:
-  - display: departure flows
+  - title: departure flows
     namespace: departure
     flows:
       clear-for-departure:

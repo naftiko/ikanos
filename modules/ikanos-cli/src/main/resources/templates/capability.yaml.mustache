@@ -2,7 +2,7 @@
 ---
 ikanos: "{{version}}"
 info:
-  display: "{{capabilityName}}"
+  title: "{{capabilityName}}"
   description: "business-description-of-your-capability"
 capability:
   exposes:
@@ -15,7 +15,7 @@ capability:
     resources:
       resource-name:
         path: "/path-identifier-for-this-resource/{{path}}"
-        display: "name-of-your-capability-resource"
+        title: "name-of-your-capability-resource"
         description: "description-of-your-capability-resource"
         forward:
           targetNamespace: "consumer-namespace"

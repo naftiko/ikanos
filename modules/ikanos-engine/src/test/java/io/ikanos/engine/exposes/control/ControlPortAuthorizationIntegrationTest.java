@@ -88,7 +88,7 @@ class ControlPortAuthorizationIntegrationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  display: "Control Port Authorization Test"
+                  title: "Control Port Authorization Test"
                 capability:
                   exposes:
                     - type: "control"

@@ -44,7 +44,7 @@ class DefinitionsDeserializationTest {
             ikanos: "%s"
             capability:
               aggregates:
-                - display: "Orders"
+                - title: "Orders"
                   namespace: orders
                   definitions:
                     schemas:
@@ -136,7 +136,7 @@ class DefinitionsDeserializationTest {
         // An import deep-copies an aggregate through the serializers, before the definitions
         // pass: a `$ref` dropped there would no longer be rejected.
         AggregateSpec aggregate = yaml.readValue("""
-                display: "Ships"
+                title: "Ships"
                 namespace: ships
                 definitions:
                   schemas:
@@ -177,7 +177,7 @@ class DefinitionsDeserializationTest {
         // class does not model (`format`) or whose value it ignores (an `enum` that is not a
         // list), is kept as declared so that the expander rejects it, also after an import copy.
         AggregateSpec aggregate = yaml.readValue("""
-                display: "Ships"
+                title: "Ships"
                 namespace: ships
                 definitions:
                   schemas:

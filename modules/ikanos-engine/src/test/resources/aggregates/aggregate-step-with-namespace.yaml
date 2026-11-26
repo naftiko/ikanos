@@ -1,6 +1,6 @@
 ikanos: 1.0.0-beta11
 info:
-  display: Aggregate Step Namespace Test
+  title: Aggregate Step Namespace Test
   description: Test capability for namespace-qualified references in aggregate function
     steps
   tags:
@@ -10,7 +10,7 @@ info:
   modified: '2026-04-13'
 capability:
   aggregates:
-  - display: Shipyard
+  - title: Shipyard
     namespace: shipyard
     flows:
       get-voyage-manifest:

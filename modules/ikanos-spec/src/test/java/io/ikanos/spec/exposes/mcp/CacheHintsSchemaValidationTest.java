@@ -104,7 +104,7 @@ class CacheHintsSchemaValidationTest {
                             value: "hi"
                     resources:
                       guide:
-                        display: "Guide"
+                        title: "Guide"
                         uri: "docs://guide"
                         description: "Static guide"
                         location: "file:///tmp/docs"

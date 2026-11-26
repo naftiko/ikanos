@@ -48,7 +48,7 @@ class AggregateMappingsJsonPathTest {
             ikanos: "%s"
             capability:
               aggregates:
-                - display: Registry
+                - title: Registry
                   namespace: registry
                   flows:
                     first-record:

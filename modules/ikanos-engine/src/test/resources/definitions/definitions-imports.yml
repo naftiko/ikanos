@@ -1,6 +1,6 @@
 ikanos: "1.0.0-beta11"
 info:
-  display: "Fleet"
+  title: "Fleet"
   description: "Imported aggregate that carries its shared definitions (#910)"
 capability:
   consumes:

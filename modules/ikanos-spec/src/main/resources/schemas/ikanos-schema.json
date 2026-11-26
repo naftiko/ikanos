@@ -929,9 +929,9 @@
       "type": "object",
       "description": "Information about the capability",
       "properties": {
-        "display": {
+        "title": {
           "type": "string",
-          "description": "The display name of the capability"
+          "description": "The human-readable title of the capability"
         },
         "description": {
           "type": "string",
@@ -967,7 +967,7 @@
         }
       },
       "required": [
-        "display",
+        "title",
         "description"
       ],
       "additionalProperties": false
@@ -1106,9 +1106,9 @@
       "type": "object",
       "description": "A domain aggregate grouping reusable flows. Adapters reference these flows via ref.",
       "properties": {
-        "display": {
+        "title": {
           "type": "string",
-          "description": "Human-readable name for this aggregate (e.g. 'Forecast')."
+          "description": "Human-readable title for this aggregate (e.g. 'Forecast')."
         },
         "namespace": {
           "$ref": "#/$defs/IdentifierKebab",
@@ -1131,7 +1131,7 @@
         }
       },
       "required": [
-        "display",
+        "title",
         "flows"
       ],
       "additionalProperties": false
@@ -1771,9 +1771,9 @@
       "type": "object",
       "description": "An MCP tool definition. Each tool maps to one or more consumed operations. A tool that declares none of `call`, `steps`, `ref` or mock `outputParameters` calls the consumed operation (an HTTP operation or a consumed MCP tool) with the same name as the tool: exactly one consumed namespace must have one, or the capability fails to load.",
       "properties": {
-        "display": {
+        "title": {
           "type": "string",
-          "description": "Human-readable display name of the tool. Mapped to MCP 'title' in tools/list responses."
+          "description": "Human-readable title of the tool. Mapped to MCP 'title' in tools/list responses."
         },
         "tags": {
           "type": "array",
@@ -2369,9 +2369,9 @@
       "type": "object",
       "description": "An MCP resource definition. Exposes data that agents can read. Either dynamic (backed by consumed HTTP operations via call/steps) or static (served from local files via location).",
       "properties": {
-        "display": {
+        "title": {
           "type": "string",
-          "description": "Human-readable display name of the resource. Mapped to MCP 'title' in protocol responses."
+          "description": "Human-readable title of the resource. Mapped to MCP 'title' in protocol responses."
         },
         "uri": {
           "type": "string",
@@ -2449,7 +2449,7 @@
         }
       },
       "required": [
-        "display",
+        "title",
         "uri",
         "description"
       ],
@@ -2595,9 +2595,9 @@
       "type": "object",
       "description": "An MCP prompt template definition. Prompts are reusable templates with typed arguments that agents can discover and render.",
       "properties": {
-        "display": {
+        "title": {
           "type": "string",
-          "description": "Human-readable display name of the prompt. Mapped to MCP 'title' in protocol responses."
+          "description": "Human-readable title of the prompt. Mapped to MCP 'title' in protocol responses."
         },
         "description": {
           "type": "string",
@@ -2629,7 +2629,7 @@
         }
       },
       "required": [
-        "display",
+        "title",
         "description"
       ],
       "oneOf": [
@@ -2660,9 +2660,9 @@
       "type": "object",
       "description": "An argument for an MCP prompt template. Arguments are always strings per MCP spec.",
       "properties": {
-        "display": {
+        "title": {
           "type": "string",
-          "description": "The display name of the argument. Used for agent discovery."
+          "description": "The human-readable title of the argument. Used for agent discovery."
         },
         "description": {
           "type": "string",
@@ -2783,9 +2783,9 @@
       "type": "object",
       "description": "An exposed resource",
       "properties": {
-        "display": {
+        "title": {
           "type": "string",
-          "description": "Display name for the resource. It will likely be used in UIs."
+          "description": "Human-readable title for the resource. It will likely be used in UIs."
         },
         "tags": {
           "type": "array",
@@ -2856,9 +2856,9 @@
       "type": "object",
       "description": "An operation exposed on a resource.",
       "properties": {
-        "display": {
+        "title": {
           "type": "string",
-          "description": "Display name for the operation. Used in UIs."
+          "description": "Human-readable title for the operation. Used in UIs."
         },
         "tags": {
           "type": "array",
@@ -3233,9 +3233,9 @@
       "type": "object",
       "description": "A logical resource group on the upstream API. Combines a path segment with a set of HTTP operations and optional shared parameters.\n\n**When to use** \u2014 Each distinct REST resource (e.g. `/databases`, `/pages/{id}`) maps to one `ConsumedHttpResource`. Group operations that share the same base path and lifecycle.\n**Naming** \u2014 `name` is used as part of the call reference: `call: namespace.resource-name.operation-name`.\n**See also** \u2014 `ConsumedHttpOperation` (individual method + body), `ConsumedInputParameter` (path/query/header params).",
       "properties": {
-        "display": {
+        "title": {
           "type": "string",
-          "description": "Human-readable label for editors and documentation. Does not affect runtime behavior."
+          "description": "Human-readable title for editors and documentation. Does not affect runtime behavior."
         },
         "tags": {
           "type": "array",
@@ -3288,8 +3288,9 @@
       "type": "object",
       "description": "An operation on a consumed HTTP resource",
       "properties": {
-        "display": {
-          "type": "string"
+        "title": {
+          "type": "string",
+          "description": "Human-readable title for editors and documentation. Does not affect runtime behavior."
         },
         "tags": {
           "type": "array",
@@ -3440,11 +3441,11 @@
     },
     "ConsumedMcpTool": {
       "type": "object",
-      "description": "One consumed MCP tool. Fields mirror `McpTool` on the exposing side (`description`, `display`, `tags`, `inputParameters`, `hints`) plus consumed `outputParameters` evaluated against the selected response document.",
+      "description": "One consumed MCP tool. Fields mirror `McpTool` on the exposing side (`description`, `title`, `tags`, `inputParameters`, `hints`) plus consumed `outputParameters` evaluated against the selected response document.",
       "properties": {
-        "display": {
+        "title": {
           "type": "string",
-          "description": "Human-readable display name."
+          "description": "Human-readable title."
         },
         "tags": {
           "type": "array",
@@ -3622,9 +3623,9 @@
       "type": "object",
       "description": "One SQL procedure: either a `statement` or a `storedProcedure`. A `statement` is SQL written in the database's own dialect, sent to the driver verbatim; `{{name}}` placeholders become JDBC bind variables, never text, and it holds one statement only. It reads (`SELECT`, `WITH` or `VALUES`) unless it declares `readOnly: false`, which lets it write in one transaction per call: exactly one `INSERT`, `UPDATE`, `DELETE` or `MERGE`, as its main statement, optionally after a `WITH` whose parts only read. DDL, `TRUNCATE`, grants and maintenance are never accepted, nor a write inside a `WITH` or a subquery, nor an `UPDATE` or `DELETE` without a `WHERE` of its own. A `storedProcedure` is called by name, with inputs bound by `position` and `outParameters` registered as `OUT`; it must declare `readOnly`.",
       "properties": {
-        "display": {
+        "title": {
           "type": "string",
-          "description": "Human-readable display name."
+          "description": "Human-readable title."
         },
         "tags": {
           "type": "array",
@@ -5153,9 +5154,9 @@
       "type": "object",
       "description": "One unary method of a consumed gRPC service.",
       "properties": {
-        "display": {
+        "title": {
           "type": "string",
-          "description": "Human-readable display name."
+          "description": "Human-readable title."
         },
         "tags": {
           "type": "array",
@@ -5273,9 +5274,9 @@
       "type": "object",
       "description": "One consumed GraphQL operation: a `document`, or named `documents` and the `select` rule choosing one per call.",
       "properties": {
-        "display": {
+        "title": {
           "type": "string",
-          "description": "Human-readable display name."
+          "description": "Human-readable title."
         },
         "tags": {
           "type": "array",
@@ -5527,9 +5528,9 @@
       "type": "object",
       "description": "One operation of a consumed Smithy service.",
       "properties": {
-        "display": {
+        "title": {
           "type": "string",
-          "description": "Human-readable display name."
+          "description": "Human-readable title."
         },
         "tags": {
           "type": "array",

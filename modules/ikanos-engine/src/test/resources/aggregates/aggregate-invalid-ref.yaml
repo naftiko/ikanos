@@ -1,6 +1,6 @@
 ikanos: "1.0.0-beta11"
 info:
-  display: "Aggregate Invalid Ref Test"
+  title: "Aggregate Invalid Ref Test"
   description: "Test capability with an unknown aggregate ref"
   tags:
   - Test
@@ -10,7 +10,7 @@ info:
 
 capability:
   aggregates:
-  - display: "Data"
+  - title: "Data"
     namespace: "data"
     flows:
       "read-items":

@@ -182,7 +182,7 @@ class SourceFileLoaderDeepCopyTest {
                 ikanos: "%s"
                 aggregates:
                   - namespace: "fleet"
-                    display: "Fleet"
+                    title: "Fleet"
                     flows:
                       list-ships:
                         description: "List ships."

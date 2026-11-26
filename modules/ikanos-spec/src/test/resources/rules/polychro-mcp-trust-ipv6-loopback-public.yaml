@@ -5,7 +5,7 @@
 ikanos: "1.0.0-beta11"
 
 info:
-  display: "MCP trust — IPv6 loopback on a public address"
+  title: "MCP trust — IPv6 loopback on a public address"
   description: "Fixture for the MCP trust network rules (issue #483)."
 
 capability:

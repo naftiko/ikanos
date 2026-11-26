@@ -8,7 +8,7 @@
 #   and a MySQL URL reads # as a comment.
 ikanos: "1.0.0-beta11"
 info:
-  display: "Consumed SQL rules — compliant"
+  title: "Consumed SQL rules — compliant"
   description: "Fixture that satisfies every consumed SQL Polychro rule."
 capability:
   binds:

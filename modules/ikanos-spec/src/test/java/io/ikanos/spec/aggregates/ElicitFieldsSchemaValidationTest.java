@@ -59,11 +59,11 @@ class ElicitFieldsSchemaValidationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  display: "Elicit fields"
+                  title: "Elicit fields"
                   description: "elicit fields test"
                 capability:
                   aggregates:
-                  - display: departure flows
+                  - title: departure flows
                     namespace: departure
                     flows:
                       confirm-departure:

@@ -165,7 +165,7 @@ public class ShipyardDepartureScenarioIntegrationTest {
         return """
                 ikanos: "%s"
                 info:
-                  display: "Departure clearance"
+                  title: "Departure clearance"
                   description: "Shipyard departure clearance scenarios"
                 capability:
                   consumes:
