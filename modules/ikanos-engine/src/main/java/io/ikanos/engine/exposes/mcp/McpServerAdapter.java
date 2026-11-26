@@ -410,7 +410,8 @@ public class McpServerAdapter extends ServerAdapter {
      * else the adapter's, as {@code tools/call} over HTTP. The tool is found by the name
      * {@code handleToolCall} receives, which is not always its key in {@code tools}: a tool with a
      * {@code ref} and no {@code name} takes its flow's name. An unknown tool gets the adapter's
-     * requirement.
+     * requirement. {@link ProtocolDispatcher} finds a {@code tools/call}'s requirement through
+     * this method too, so the HTTP check and the embedded check always pick the same tool.
      *
      * @return the requirement, or {@code null} when nothing is required
      */
