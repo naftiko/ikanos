@@ -1263,6 +1263,13 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
+    public void definitionsReferenceRuleShouldFireOnAnUnknownSchemaUnderValues() {
+        String output = lintFixture("rules/polychro-definitions-mapped-violations.yaml").output();
+        assertTrue(output.lines().anyMatch(line -> line.contains("values-unknown")
+                && line.contains("Unknown schema 'nope-values'.")), output);
+    }
+
+    @Test
     public void definitionsMappingsRuleShouldFireOnAJsonSchemaRefInARefToolOutput() {
         String output = lintFixture("rules/polychro-definitions-mapped-violations.yaml").output();
         assertTrue(output.lines().anyMatch(line -> line.contains("ref-json-ref")

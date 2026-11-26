@@ -180,6 +180,7 @@ function walkOutput(node, path, refs) {
   } else {
     walkOutput(items, path.concat("items"), refs);
   }
+  walkOutput(node.values, path.concat("values"), refs);
   for (const p of entries(isObject(node.properties) ? node.properties : null)) {
     walkOutput(p.value, path.concat("properties", ...p.locator), refs);
   }
@@ -668,13 +669,15 @@ function rootOf(model, name) {
  * Number of parameter declarations a schema expands to, as the engine's
  * `size(name)` counts them (each declaration, its items, values and
  * properties, through references, capped just past the budget), once per
- * schema; or null for a schema in a cycle or on a chain of more than
- * `MAX_BINDING_DEPTH` references, which the engine does not expand. A reference
- * to such a schema counts one, as in the engine. The engine's depth bound also
- * counts inline nesting, which this does not: a schema past it only through
- * inline nesting is still sized (and charged), so on that invalid document the
- * budget may be reported where the engine reports the depth. The references
- * are followed iteratively, so a long chain cannot overflow the call stack.
+ * schema; or null for a schema in a cycle, or met on a chain of
+ * `MAX_BINDING_DEPTH` references or more while sizing: every schema of such a
+ * chain is left unsized, its near end included, and which schemas are met that
+ * way depends on the order schemas are sized. A reference to an unsized schema
+ * counts one, as in the engine. Only a document the engine rejects for depth
+ * has such a chain; the engine's depth bound also counts inline nesting, which
+ * this does not, so on such a document the budget may be reported where the
+ * engine reports the depth. The references are followed iteratively, so a long
+ * chain cannot overflow the call stack.
  */
 function schemaSize(model, name, budget) {
   const { sizes, unsized } = budget;
