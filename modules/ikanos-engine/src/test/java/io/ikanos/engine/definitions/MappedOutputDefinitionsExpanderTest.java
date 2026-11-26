@@ -999,6 +999,36 @@ class MappedOutputDefinitionsExpanderTest {
         assertEquals(List.of(), result.warnings());
     }
 
+    @Test
+    void expandAllShouldResolveTheSchemasUnderValuesOfAnOrchestratedOutput() throws Exception {
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    coded: { type: string, enum: [a, b] }
+                """, """
+                get-codes:
+                  description: "Get codes."
+                  steps:
+                    fetch: { type: call, call: erp.get-codes }
+                  mappings:
+                    - target: codes
+                      value: "$.fetch"
+                  outputParameters:
+                    codes:
+                      type: object
+                      values: { schema: coded }
+                    others:
+                      type: object
+                      values: { schema: nope }
+                """);
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+
+        assertEquals(List.of("MCP adapter 'tools', tool 'get-codes', output 'others', values:"
+                + " unknown schema 'nope'. MCP adapter 'tools' declares coded."), result.errors());
+        assertEquals(List.of(), result.warnings());
+    }
+
     private static String outputs(IkanosSpec spec, String tool) throws Exception {
         McpServerToolSpec unit = ((McpServerSpec) spec.getCapability().getExposes().get(0))
                 .getTools().get(tool);

@@ -198,7 +198,7 @@ capability:
               mapping: "$.tags"
         values-unknown:
           description: "Names an undeclared schema under values."
-          call: registry.list-ships
+          call: registry.get-ship
           outputParameters:
             - type: object
               mapping: "$.ships"
