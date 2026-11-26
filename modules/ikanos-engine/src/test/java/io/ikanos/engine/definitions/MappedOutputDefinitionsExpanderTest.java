@@ -727,6 +727,30 @@ class MappedOutputDefinitionsExpanderTest {
     }
 
     @Test
+    void expandAllShouldBindANamedOutputTheSameAfterAYamlRoundTrip() throws Exception {
+        // A named output writes its mapping as `value` unless it references a schema
+        IkanosSpec spec = mcp("""
+                definitions:
+                  schemas:
+                    imo: { type: string }
+                    tags: { type: array, items: { type: string } }
+                """, """
+                get-ship:
+                  ref: fleet.get-ship
+                  outputParameters:
+                    imo: { schema: imo, mapping: "$.imo_number" }
+                    tags: { schema: tags, mapping: "$.labels" }
+                """);
+        IkanosSpec copy = read(IkanosMappers.yaml().writeValueAsString(spec));
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(copy);
+        DefinitionsExpander.expandAll(spec);
+
+        assertEquals(List.of(), result.errors());
+        assertEquals(outputs(spec, "get-ship"), outputs(copy, "get-ship"));
+    }
+
+    @Test
     void expandAllShouldStillRejectMappingsWithoutASchemaAfterAYamlRoundTrip() throws Exception {
         IkanosSpec spec = mcp("", """
                 get-ship:
