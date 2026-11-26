@@ -672,9 +672,10 @@ function rootOf(model, name) {
  * schema; or null for a schema in a cycle, or met on a chain of
  * `MAX_BINDING_DEPTH` references or more while sizing: every schema of such a
  * chain is left unsized, its near end included, and which schemas are met that
- * way depends on the order schemas are sized. A reference to an unsized schema
- * counts one, as in the engine. Only a document the engine rejects for depth
- * has such a chain; the engine's depth bound also counts inline nesting, which
+ * way depends on the order schemas are sized (so is whether a cycle member
+ * reached only through a schema already unsized gets a size, and is charged).
+ * A reference to an unsized schema counts one, as in the engine. Only a
+ * document the engine rejects for depth or for a cycle has such a chain; the engine's depth bound also counts inline nesting, which
  * this does not, so on such a document the budget may be reported where the
  * engine reports the depth. The references are followed iteratively, so a long
  * chain cannot overflow the call stack.
