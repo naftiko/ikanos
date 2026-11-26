@@ -336,11 +336,33 @@ class ContractClientSchemaValidationTest {
         assertFalse(validate(yaml).isEmpty(), "documents need a select rule");
     }
 
-    @Test
-    void schemaShouldRefuseAnInputWithoutDescription() throws Exception {
-        String yaml = capability(SMITHY.replace("description: City id., ", ""));
+    @ParameterizedTest
+    @ValueSource(strings = {"grpc", "graphql", "smithy"})
+    void schemaShouldAcceptAnInputWithoutDescription(String type) throws Exception {
+        // A consumed input's description is never shown to a client: the exposed input that
+        // fills it carries one, so it is optional, as on HTTP and SQL inputs
+        String consumes = switch (type) {
+            case "grpc" -> GRPC.replace("description: Order id., ", "");
+            case "graphql" -> GRAPHQL.replace("description: Issue id. }", "}")
+                    .replace("description: Title., ", "");
+            default -> SMITHY.replace("description: City id., ", "");
+        };
+        String yaml = capability(consumes);
 
-        assertFalse(validate(yaml).isEmpty(), "typed inputs are described, as MCP tool inputs");
+        assertTrue(validate(yaml).isEmpty(), validate(yaml).toString());
+    }
+
+    @Test
+    void schemaShouldStillRefuseAnExposedToolInputWithoutDescription() throws Exception {
+        String yaml = capability(SMITHY).replace("""
+                          call: "weather.forecast"
+                """, """
+                          call: "weather.forecast"
+                          inputParameters:
+                            city: { type: string, required: true }
+                """);
+
+        assertFalse(validate(yaml).isEmpty(), "MCP clients see an exposed input's description");
     }
 
     @Test

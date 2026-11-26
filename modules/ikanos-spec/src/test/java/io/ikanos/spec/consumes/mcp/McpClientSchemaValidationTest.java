@@ -97,6 +97,36 @@ class McpClientSchemaValidationTest {
     }
 
     @Test
+    void consumedToolInputWithoutDescriptionShouldPassSchemaValidation() throws Exception {
+        // The exposed tool's input carries the description MCP clients see
+        String yaml = capability("off", "off").replace("""
+                          validateOutput: off
+                """, """
+                          validateOutput: off
+                          inputParameters:
+                            invoice-id: { type: string, required: true }
+                            lines:
+                              type: array
+                              items: { type: object, properties: { sku: { type: string } } }
+                """);
+
+        assertTrue(validate(yaml).isEmpty(), validate(yaml).toString());
+    }
+
+    @Test
+    void consumedToolInputShouldStillRefuseUnknownKeys() throws Exception {
+        String yaml = capability("off", "off").replace("""
+                          validateOutput: off
+                """, """
+                          validateOutput: off
+                          inputParameters:
+                            invoice-id: { type: string, wireName: id }
+                """);
+
+        assertFalse(validate(yaml).isEmpty(), "wireName is not a key of a consumed MCP tool input");
+    }
+
+    @Test
     void bareOffShouldPassSchemaAndReadAsOffAtRuntime() throws Exception {
         String yaml = capability("off", "off");
 
