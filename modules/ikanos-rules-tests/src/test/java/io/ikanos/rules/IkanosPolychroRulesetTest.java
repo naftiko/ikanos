@@ -1263,6 +1263,16 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
+    public void definitionsRulesShouldReadItemsAsTheEngineReadsThem() {
+        // A list reads as its first entry, a map of objects as named declarations
+        String output = lintFixture("rules/polychro-definitions-mapped-violations.yaml").output();
+        assertTrue(output.lines().anyMatch(line -> line.contains("ref-list-items")
+                && line.contains("Unknown schema 'nope-in-list'.")), output);
+        assertTrue(output.lines().anyMatch(line -> line.contains("ref-named-items")
+                && line.contains("'schema: record' in a mapped (call-mode) output needs")), output);
+    }
+
+    @Test
     public void definitionsReferenceRuleShouldFireOnAnUnknownSchemaUnderValues() {
         String output = lintFixture("rules/polychro-definitions-mapped-violations.yaml").output();
         assertTrue(output.lines().anyMatch(line -> line.contains("values-unknown")

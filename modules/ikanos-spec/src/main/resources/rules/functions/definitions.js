@@ -163,6 +163,27 @@ function walkInput(node, path, refs) {
   }
 }
 
+/**
+ * The items of an output as the engine's deserializer reads them
+ * (`OutputParameterDeserializer`): the first entry of a list, and a non-empty
+ * map whose entries are all objects, without a string `type`, as named
+ * declarations (the properties of an object); anything else as one
+ * declaration. Each comes with its path in the document.
+ */
+function itemsOf(node, path) {
+  const items = node.items;
+  if (Array.isArray(items)) {
+    return items.length > 0 ? [{ value: items[0], path: path.concat("items", 0) }] : [];
+  }
+  if (isObject(items) && Object.keys(items).length > 0 && typeof items.type !== "string"
+      && Object.values(items).every(isObject)) {
+    return entries(items).map((e) => ({
+      value: e.value, path: path.concat("items", ...e.locator), named: true,
+    }));
+  }
+  return [{ value: items, path: path.concat("items") }];
+}
+
 /** Collect the `schema:` references of an output declaration. */
 function walkOutput(node, path, refs) {
   if (!isObject(node)) {
@@ -171,14 +192,8 @@ function walkOutput(node, path, refs) {
   if (typeof node.schema === "string") {
     refs.push({ kind: "schema", name: node.schema, path: path.concat("schema"), output: true });
   }
-  const items = node.items;
-  if (isObject(items) && typeof items.type !== "string" && typeof items.schema !== "string") {
-    // Orchestrated items: a map of named property declarations.
-    for (const p of entries(items)) {
-      walkOutput(p.value, path.concat("items", ...p.locator), refs);
-    }
-  } else {
-    walkOutput(items, path.concat("items"), refs);
+  for (const item of itemsOf(node, path)) {
+    walkOutput(item.value, item.path, refs);
   }
   walkOutput(node.values, path.concat("values"), refs);
   for (const p of entries(isObject(node.properties) ? node.properties : null)) {
@@ -882,8 +897,11 @@ function walkMapped(model, node, path, position, results, budget) {
   const unread = position === "unread";
   // The items of an array that is itself items are passed through as they are
   const nested = position === "items" && node.type === "array";
-  walkMapped(model, node.items, path.concat("items"), unread || nested ? "unread" : "items",
-    results, budget);
+  for (const item of itemsOf(node, path)) {
+    // Named items are the properties of an object read from each element
+    walkMapped(model, item.value, item.path, unread || nested ? "unread"
+      : (item.named ? "property" : "items"), results, budget);
+  }
   walkMapped(model, node.values, path.concat("values"), unread ? "unread" : "items", results,
     budget);
   for (const p of entries(isObject(node.properties) ? node.properties : null)) {
@@ -900,7 +918,8 @@ function bindsDefinitions(node) {
   if (typeof node.schema === "string" || declaresMappings(node)) {
     return true;
   }
-  if (bindsDefinitions(node.items) || bindsDefinitions(node.values)) {
+  if (itemsOf(node, []).some((item) => bindsDefinitions(item.value))
+      || bindsDefinitions(node.values)) {
     return true;
   }
   return entries(isObject(node.properties) ? node.properties : null)
