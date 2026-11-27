@@ -157,7 +157,9 @@ public final class StepGuardValidator {
             if (StepOutcomes.ROOT.equals(step.getName())) {
                 errors.add(reserved("A step", where));
             }
-            if (step instanceof OperationStepSequenceSpec && depth == 0) {
+            // A track or a do that is a sequence is walked through its steps, never as a step
+            // of a list: a sequence met here is misplaced, and would never run.
+            if (step instanceof OperationStepSequenceSpec) {
                 errors.add("Step '" + step.getName() + "' in " + where + " is a sequence, which"
                         + " is only allowed as a track of a parallel step.");
             }
@@ -286,11 +288,15 @@ public final class StepGuardValidator {
         return false;
     }
 
-    /** Whether a {@code with} value reads {@code name}: {@code {{name...}}} or {@code name.x}. */
+    /**
+     * Whether a {@code with} value reads {@code name} through a template ({@code {{name}}},
+     * {@code {{name.field}}}, a section or an unescaped tag). A plain literal such as
+     * {@code billing.eu} reads nothing: only templates read the run's values.
+     */
     static boolean readsName(String value, String name) {
         java.util.regex.Pattern reference = java.util.regex.Pattern.compile(
-                "(\\{\\{[#^&{]?\\s*|^)" + java.util.regex.Pattern.quote(name) + "(\\.|\\s*\\}|$)");
-        return reference.matcher(value.strip()).find();
+                "\\{\\{[#^&{]?\\s*" + java.util.regex.Pattern.quote(name) + "(\\.|\\s*\\})");
+        return reference.matcher(value).find();
     }
 
     private static void addName(Set<String> names, String name) {

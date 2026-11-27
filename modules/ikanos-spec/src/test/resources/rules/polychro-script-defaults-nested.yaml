@@ -1,0 +1,41 @@
+ikanos: 1.0.0-beta11
+info:
+  display: Nested script step
+  description: Negative fixture for ikanos-script-defaults-required
+capability:
+  consumes:
+  - type: http
+    namespace: weather-api
+    description: Weather API
+    baseUri: https://weather.example.com
+    resources:
+      forecasts:
+        path: /forecast
+        operations:
+          get-forecast:
+            method: GET
+  aggregates:
+  - display: weather flows
+    namespace: weather
+    flows:
+      get-forecast:
+        description: A script track without location or language
+        semantics:
+          safe: true
+          idempotent: true
+        steps:
+        - name: gather
+          type: parallel
+          tracks:
+          - name: forecast
+            type: call
+            what: weather-api.get-forecast
+          - name: score
+            type: script
+            file: score.js
+        mappings:
+        - target: summary
+          value: $.forecast.summary
+        outputParameters:
+          summary:
+            type: string

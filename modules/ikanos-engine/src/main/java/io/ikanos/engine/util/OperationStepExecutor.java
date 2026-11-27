@@ -1163,6 +1163,14 @@ public class OperationStepExecutor {
         };
     }
 
+    /**
+     * Whether the failed steps of this thread keep the upstream error body: a step run on a
+     * thread of its own, such as a track of a {@code parallel} step, carries it over.
+     */
+    public static boolean keepsUpstreamErrorBodies() {
+        return Boolean.TRUE.equals(KEEP_UPSTREAM_ERROR_BODY.get());
+    }
+
     /** The scope returned by {@link #keepUpstreamErrorBodies()}. */
     @FunctionalInterface
     public interface UpstreamErrorBodies extends AutoCloseable {

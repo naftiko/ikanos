@@ -201,6 +201,38 @@ public class ParallelTracksTest {
     }
 
     @Test
+    void aReplayShouldRestoreAFinishedGroupWithoutRunningItsTracks() throws Exception {
+        ExecutionTree tree = tree(parallel("gather", call("a"), call("b")), call("after"));
+        Nodes first = new Nodes();
+        first.crashOn.add("after");
+        assertThrows(Crash.class, () -> DurableScope.with(runner, new ExecutionId("task-2"),
+                () -> Executions.runSteps(tree, new StepRun(null), first)));
+
+        Nodes second = new Nodes();
+        StepRun resumed = DurableScope.with(runner, new ExecutionId("task-2"),
+                () -> Executions.runSteps(tree, new StepRun(null), second));
+
+        assertEquals(List.of("after"), second.invoked, "the group is restored from the journal");
+        assertEquals("b", resumed.stepContext().getStepOutput("b").path("step").asString());
+        assertEquals("a", resumed.stepContext().getStepOutput("gather").path("a").path("step")
+                .asString());
+        assertEquals("success", StepOutcomes.get(resumed.runtimeParameters(), "a"));
+    }
+
+    @Test
+    void aSequenceTrackShouldBeSkippedWhenItsGuardDoesNotHold() {
+        OperationStepSequenceSpec guarded = sequence("b", call("b1"), call("b2"));
+        guarded.setOnlyIf("enabled");
+        Nodes nodes = new Nodes();
+
+        StepRun run = Executions.runSteps(tree(parallel("gather", call("a"), guarded)),
+                new StepRun(Map.of("enabled", false)), nodes);
+
+        assertEquals(List.of("a"), nodes.invoked);
+        assertEquals(null, run.stepContext().getStepOutput("b"));
+    }
+
+    @Test
     void aGroupShouldRecordASpanWithASpanPerTrack() {
         InMemorySpanExporter spans = InMemorySpanExporter.create();
         TelemetryBootstrap.init(OpenTelemetrySdk.builder()
