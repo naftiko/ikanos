@@ -1094,7 +1094,7 @@
         "authenticated": {
           "type": "boolean",
           "default": false,
-          "description": "Serve the card behind this server's `authentication`, with the same credentials as the MCP endpoint, for deployments where only known clients should learn the server exists. Default: `false`, a public card, as SEP-2127 intends, which registries and crawlers can read. No effect without `authentication`."
+          "description": "Serve the card only to the callers the MCP endpoint admits: behind this server's `authentication`, with the same credentials as the MCP endpoint, or, under `trust: forwarded` without `authentication`, behind the trusted peer check. For deployments where only known clients should learn the server exists. Default: `false`, a public card, as SEP-2127 intends, which registries and crawlers can read. No effect without `authentication` or `trust: forwarded`."
         }
       },
       "additionalProperties": false
