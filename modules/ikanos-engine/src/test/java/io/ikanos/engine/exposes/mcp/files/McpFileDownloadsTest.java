@@ -169,6 +169,31 @@ class McpFileDownloadsTest {
     }
 
     @Test
+    void passThroughShouldNormalizeTheExpiryToUtc() {
+        String mapped = "{\"downloadUrl\": \"https://s.example.com/f\", \"sizeBytes\": 7,"
+                + " \"expiresAt\": \"2026-11-26T12:00:00+02:00\"}";
+
+        McpSchema.CallToolResult result = McpFiles.withDownloads(true,
+                () -> downloads(true).passThrough(passThroughTool(), mapped));
+
+        assertEquals("2026-11-26T10:00:00Z",
+                McpFiles.downloadsOf(json(result)).get(0).path("expiresAt").asString());
+    }
+
+    @Test
+    void passThroughShouldLeaveOutAnExpiryThatIsNotATimestamp() {
+        String mapped = "{\"downloadUrl\": \"https://s.example.com/f\", \"sizeBytes\": 7,"
+                + " \"expiresAt\": \"3600\"}";
+
+        McpSchema.CallToolResult result = McpFiles.withDownloads(true,
+                () -> downloads(true).passThrough(passThroughTool(), mapped));
+
+        JsonNode target = McpFiles.downloadsOf(json(result)).get(0);
+        assertEquals("https://s.example.com/f", target.path("url").asString());
+        assertFalse(target.has("expiresAt"), target.toString());
+    }
+
+    @Test
     void passThroughShouldKeepTheOutputWhenTheRequestDidNotDeclareDownload() {
         String mapped = "{\"downloadUrl\": \"https://s.example.com/f\", \"sizeBytes\": 7}";
 

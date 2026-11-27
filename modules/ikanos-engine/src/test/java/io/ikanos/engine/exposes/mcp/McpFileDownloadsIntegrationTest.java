@@ -175,6 +175,23 @@ class McpFileDownloadsIntegrationTest {
     }
 
     @Test
+    void headShouldNotUseUpAHostedLink() throws Exception {
+        JsonNode target = callTool("get-photo", true).path("_meta")
+                .path("io.modelcontextprotocol/files").path("downloads").get(0);
+        URI link = URI.create(baseUrl).resolve(target.path("path").asString().substring(1));
+
+        HttpResponse<Void> head = http.send(HttpRequest.newBuilder(link)
+                .method("HEAD", HttpRequest.BodyPublishers.noBody())
+                .header("Authorization", "Bearer " + TOKEN).build(),
+                HttpResponse.BodyHandlers.discarding());
+        assertEquals(405, head.statusCode());
+
+        HttpResponse<byte[]> download = get(link, TOKEN);
+        assertEquals(200, download.statusCode());
+        assertArrayEquals(photo, download.body());
+    }
+
+    @Test
     void binaryToolShouldStayInlineWhenTheRequestDoesNotDeclareDownload() throws Exception {
         JsonNode result = callTool("get-photo", false);
 

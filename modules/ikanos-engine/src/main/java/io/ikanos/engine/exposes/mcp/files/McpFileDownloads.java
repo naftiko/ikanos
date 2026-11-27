@@ -20,6 +20,8 @@ import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
@@ -192,7 +194,7 @@ public final class McpFileDownloads {
         }
         String mimeType = text(output, download.getMimeType());
         String name = text(output, download.getName());
-        String expiresAt = text(output, download.getExpiresAt());
+        String expiresAt = timestamp(tool, text(output, download.getExpiresAt()));
 
         Map<String, Object> target = new LinkedHashMap<>();
         if (name != null) {
@@ -267,6 +269,26 @@ public final class McpFileDownloads {
         JsonNode value = output.get(property);
         return value != null && value.isString() && !value.asString().isBlank()
                 ? value.asString() : null;
+    }
+
+    /**
+     * An ISO 8601 timestamp normalized to UTC, as the draft types {@code expiresAt}, or
+     * {@code null} when {@code value} is absent or not a timestamp: {@code expiresAt} is optional
+     * and advisory, and a value a client cannot parse would make it reject the whole target.
+     */
+    static String timestamp(McpServerToolSpec tool, String value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return OffsetDateTime.parse(value).withOffsetSameInstant(ZoneOffset.UTC).toInstant()
+                    .toString();
+        } catch (DateTimeParseException e) {
+            Context.getCurrentLogger().log(Level.WARNING, "MCP tool '" + tool.getName()
+                    + "' gives an expiry that is not an ISO 8601 timestamp (" + value
+                    + "): leaving expiresAt out of its download target");
+            return null;
+        }
     }
 
     /**

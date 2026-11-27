@@ -1649,7 +1649,7 @@
         },
         "expiresAt": {
           "type": "string",
-          "description": "The output property that carries when the URL expires, as an ISO 8601 timestamp."
+          "description": "The output property that carries when the URL expires, as an ISO 8601 timestamp with an offset. It is sent in UTC; a value that is not such a timestamp is left out of the target."
         }
       },
       "required": [

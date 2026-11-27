@@ -31,6 +31,7 @@ import org.restlet.data.CacheDirective;
 import org.restlet.data.Disposition;
 import org.restlet.data.Header;
 import org.restlet.data.MediaType;
+import org.restlet.data.Method;
 import org.restlet.data.Status;
 import org.restlet.representation.ByteArrayRepresentation;
 import org.restlet.representation.Representation;
@@ -223,6 +224,13 @@ public class McpServerResource extends ServerResource {
         if (token == null) {
             setStatus(Status.CLIENT_ERROR_METHOD_NOT_ALLOWED);
             return new StringRepresentation("GET not supported", MediaType.TEXT_PLAIN);
+        }
+        // Restlet answers HEAD with this method: a HEAD must not use up the one download
+        if (!Method.GET.equals(getMethod())) {
+            setStatus(Status.CLIENT_ERROR_METHOD_NOT_ALLOWED);
+            getResponse().getAllowedMethods().add(Method.GET);
+            return new StringRepresentation("Only GET serves a download link",
+                    MediaType.TEXT_PLAIN);
         }
         return download(downloads, token, dispatcher.ownerOf(getRequest()));
     }
