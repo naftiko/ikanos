@@ -14,9 +14,11 @@
 package io.ikanos.engine.definitions;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
@@ -668,6 +670,23 @@ class StepMappingSetsExpanderTest {
                       namespace: tools
                 %s      tools:
                 %s""".formatted(IKANOS, definitions.indent(6), tools.indent(8)));
+    }
+
+    @Test
+    void overlapsShouldMatchAnExplicitTargetItsAncestorsAndItsDescendants() {
+        Set<String> explicit = Set.of("flagship.specs.tonnage", "fleet");
+        Set<String> ancestors = DefinitionsExpander.Namespace.ancestors(explicit);
+
+        // Equal, an ancestor of an explicit target, and inside one
+        assertTrue(DefinitionsExpander.Namespace.overlaps(explicit, ancestors,
+                "flagship.specs.tonnage"));
+        assertTrue(DefinitionsExpander.Namespace.overlaps(explicit, ancestors, "flagship.specs"));
+        assertTrue(DefinitionsExpander.Namespace.overlaps(explicit, ancestors, "fleet.size"));
+        // A sibling, or a name that only starts like an explicit target
+        assertFalse(DefinitionsExpander.Namespace.overlaps(explicit, ancestors,
+                "flagship.specs.beam"));
+        assertFalse(DefinitionsExpander.Namespace.overlaps(explicit, ancestors, "fleets"));
+        assertFalse(DefinitionsExpander.Namespace.overlaps(explicit, ancestors, "flag"));
     }
 
     private static IkanosSpec read(String yaml) throws Exception {

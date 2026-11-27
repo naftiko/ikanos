@@ -770,7 +770,7 @@ public final class DefinitionsExpander {
                 resolveListedMappingSets(property, location);
             }
             String name = use.getSchema();
-            ListedSets sets = listedSets(use, location);
+            ListedSets sets = listedSets(use.getMappingSets(), location);
             if (position == Position.UNREAD) {
                 if (lookupSchema(name, location) != null) {
                     markUsed(name);
@@ -861,6 +861,7 @@ public final class DefinitionsExpander {
                     explicit.add(mapping.getTarget());
                 }
             }
+            Set<String> explicitAncestors = ancestors(explicit);
             List<StepOutputMappingSpec> expanded = new ArrayList<>();
             boolean changed = false;
             for (StepOutputMappingSpec mapping : mappings) {
@@ -871,7 +872,7 @@ public final class DefinitionsExpander {
                 changed = true;
                 String where = location + ", mapping '" + mapping.getTarget() + "'";
                 for (StepOutputMappingSpec entry : expandStepMapping(mapping, where, outputs)) {
-                    if (!overlaps(explicit, entry.getTarget())) {
+                    if (!overlaps(explicit, explicitAncestors, entry.getTarget())) {
                         expanded.add(entry);
                     }
                 }
@@ -885,22 +886,8 @@ public final class DefinitionsExpander {
         /** The entries one steps-mode mapping entry with {@code mappingSets} expands to. */
         private List<StepOutputMappingSpec> expandStepMapping(StepOutputMappingSpec mapping,
                 String location, List<OutputParameterSpec> outputs) {
-            Map<String, String> values = new LinkedHashMap<>();
-            Map<String, String> origins = new HashMap<>();
-            boolean unresolved = false;
-            long setEntries = 0;
-            for (String name : mapping.getMappingSets()) {
-                Map<String, String> set = resolveMappingSet(name, location);
-                if (set == null) {
-                    unresolved = true;
-                    continue;
-                }
-                setEntries += set.size();
-                for (Map.Entry<String, String> entry : set.entrySet()) {
-                    values.put(entry.getKey(), entry.getValue());
-                    origins.put(entry.getKey(), name);
-                }
-            }
+            ListedSets sets = listedSets(mapping.getMappingSets(), location);
+            boolean unresolved = sets.unresolved();
             String root = mapping.getValue() != null ? mapping.getValue().trim() : null;
             if (unresolved || mapping.getTarget() == null || root == null
                     || !STEP_ROOT.matcher(root).lookingAt()) {
@@ -911,10 +898,19 @@ public final class DefinitionsExpander {
                 return List.of();
             }
             // Charged the entries of the sets it lists, as a mapped output is, before they are
-            // checked: a set listed by many entries is multiplied by each use. The entries
-            // emitted are at most as many
-            if (!withinBudget(setEntries)) {
+            // merged or checked: a set listed by many entries is multiplied by each use, so an
+            // entry past the budget costs only the names it lists. The entries emitted are at
+            // most as many
+            if (!withinBudget(sets.entries())) {
                 return List.of();
+            }
+            Map<String, String> values = new LinkedHashMap<>();
+            Map<String, String> origins = new HashMap<>();
+            for (Map.Entry<String, Map<String, String>> set : sets.sets()) {
+                for (Map.Entry<String, String> entry : set.getValue().entrySet()) {
+                    values.put(entry.getKey(), entry.getValue());
+                    origins.put(entry.getKey(), set.getKey());
+                }
             }
             List<String> items = new ArrayList<>();
             for (String path : values.keySet()) {
@@ -979,11 +975,24 @@ public final class DefinitionsExpander {
             return trimmed.substring(1);
         }
 
-        /** Whether a target equals, contains or sits inside one of the explicit targets. */
-        private static boolean overlaps(Set<String> explicit, String target) {
-            for (String other : explicit) {
-                if (other.equals(target) || other.startsWith(target + ".")
-                        || target.startsWith(other + ".")) {
+        /**
+         * Whether a target equals, contains or sits inside one of the explicit targets, at a cost
+         * proportional to the depth of the target, not to the number of explicit targets.
+         *
+         * @param explicit          the explicit targets of the unit
+         * @param explicitAncestors the proper ancestors of the explicit targets
+         * @param target            the target of an expanded entry
+         */
+        static boolean overlaps(Set<String> explicit, Set<String> explicitAncestors,
+                String target) {
+            // Equal to an explicit target, or one of its ancestors: an explicit target sits
+            // inside it
+            if (explicit.contains(target) || explicitAncestors.contains(target)) {
+                return true;
+            }
+            // Inside an explicit target: one of its own ancestors is explicit
+            for (int dot = target.indexOf('.'); dot >= 0; dot = target.indexOf('.', dot + 1)) {
+                if (explicit.contains(target.substring(0, dot))) {
                     return true;
                 }
             }
@@ -991,7 +1000,7 @@ public final class DefinitionsExpander {
         }
 
         /** The proper ancestors of the given paths: those with a bound descendant. */
-        private static Set<String> ancestors(Set<String> paths) {
+        static Set<String> ancestors(Set<String> paths) {
             Set<String> ancestors = new HashSet<>();
             for (String path : paths) {
                 for (int dot = path.indexOf('.'); dot >= 0; dot = path.indexOf('.', dot + 1)) {
@@ -1066,14 +1075,15 @@ public final class DefinitionsExpander {
         }
 
         /**
-         * Resolve the mapping sets a schema reference lists and count their entries, at a cost
+         * Resolve the mapping sets a schema reference or a steps-mode entry lists and count their
+         * entries, at a cost
          * proportional to the names listed, not to the size of the sets.
          */
-        ListedSets listedSets(OutputParameterSpec use, String location) {
+        ListedSets listedSets(List<String> names, String location) {
             List<Map.Entry<String, Map<String, String>>> sets = new ArrayList<>();
             boolean unresolved = false;
             long entries = 0;
-            for (String name : use.getMappingSets()) {
+            for (String name : names) {
                 Map<String, String> set = resolveMappingSet(name, location);
                 if (set == null) {
                     unresolved = true;

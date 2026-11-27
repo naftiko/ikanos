@@ -1139,8 +1139,8 @@ function checkStepMappingSets(model, unit, results, budget) {
       return;
     }
     const path = unit.path.concat("mappings", index);
-    const merged = mergedMappings(model, { mappingSets: mapping.mappingSets });
-    if (merged.unresolved) {
+    if (setNames(mapping).some((name) => typeof name !== "string"
+      || !(name in model.mappingSets))) {
       return; // reported by the references check
     }
     const root = typeof mapping.value === "string" ? mapping.value.trim() : "";
@@ -1153,11 +1153,13 @@ function checkStepMappingSets(model, unit, results, budget) {
       });
       return;
     }
-    // Charged the entries of the sets it lists before they are checked, as in the engine
+    // Charged the entries of the sets it lists before they are merged or checked, as in the
+    // engine, so an entry past the budget costs only the names it lists
     if (!charge(model, budget, listedSetEntries(model, mapping, budget), path.concat("mappingSets"),
         results)) {
       return;
     }
+    const merged = mergedMappings(model, { mappingSets: mapping.mappingSets });
     const paths = Object.keys(merged.values);
     const label = (key) => key + " (mapping set '" + merged.origins[key] + "')";
     const items = paths.filter((key) => key.includes("[]"));
