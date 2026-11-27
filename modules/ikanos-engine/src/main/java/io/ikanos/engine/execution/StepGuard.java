@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import dev.cel.common.CelErrorCode;
 import dev.cel.common.CelOptions;
@@ -74,6 +75,12 @@ public final class StepGuard {
      */
     private static final Pattern BARE_NAME =
             Pattern.compile("[A-Za-z0-9_][A-Za-z0-9_:-]*(\\.[A-Za-z0-9_][A-Za-z0-9_:-]*)*");
+    /** A dashed name inside has(), which CEL refuses before any subtraction is read. */
+    private static final Pattern HAS_DASHED_NAME =
+            Pattern.compile("has\\(\\s*([A-Za-z_][A-Za-z0-9_]*(?:-[A-Za-z_][A-Za-z0-9_]*)+)");
+    /** Where CEL refuses a subtraction: {@code <input>:1:27: found no matching overload ...}. */
+    private static final Pattern SUBTRACTION_ERROR =
+            Pattern.compile("(\\d+):(\\d+): found no matching overload for '_-_'");
     /** A number, which a bare name never is: {@code 1} or {@code 1.5} are CEL literals. */
     private static final Pattern NUMBER = Pattern.compile("[0-9]+(\\.[0-9]+)?");
     /** Words a bare name never is: CEL reads them as literals or reserves them. */
@@ -212,16 +219,58 @@ public final class StepGuard {
      * names.
      */
     static String dashHint(String expression, String error) {
-        if (error == null || !error.contains("'_-_'")) {
+        if (error == null) {
             return "";
         }
-        List<List<String>> subtractions = subtractedNames(expression);
+        if (error.contains("has() macro")) {
+            // has(get-ship.status) does not parse, so there is no subtraction to find
+            Matcher dashed = HAS_DASHED_NAME.matcher(expression);
+            return dashed.find() ? hint(List.of(dashed.group(1).split("-"))) : "";
+        }
+        Matcher at = SUBTRACTION_ERROR.matcher(error);
+        if (!at.find()) {
+            return "";
+        }
+        CelValidationResult parsed = PARSER.parse(expression);
+        if (parsed.hasError()) {
+            return "";
+        }
+        List<GuardIdentifiers.Subtraction> subtractions;
+        try {
+            subtractions = GuardIdentifiers.located(parsed.getAst());
+        } catch (CelValidationException e) {
+            return "";
+        }
         if (subtractions.isEmpty()) {
             return "";
         }
-        List<String> parts = subtractions.get(0);
+        // The subtraction CEL refused, at the line and column of its error
+        int offset = offsetOf(expression, Integer.parseInt(at.group(1)),
+                Integer.parseInt(at.group(2)));
+        for (GuardIdentifiers.Subtraction subtraction : subtractions) {
+            if (subtraction.offset() == offset) {
+                return hint(subtraction.parts());
+            }
+        }
+        return hint(subtractions.get(0).parts());
+    }
+
+    private static String hint(List<String> parts) {
         return "\n'-' is minus in CEL: if '" + String.join("-", parts) + "' is a name, write it '"
                 + String.join("_", parts) + "'";
+    }
+
+    /** The offset of a 1-based line and column, as CEL errors print them, in the expression. */
+    static int offsetOf(String expression, int line, int column) {
+        int offset = 0;
+        for (int current = 1; current < line; current++) {
+            int next = expression.indexOf(10, offset); // a line feed
+            if (next < 0) {
+                return -1;
+            }
+            offset = next + 1;
+        }
+        return offset + column - 1;
     }
 
     /**

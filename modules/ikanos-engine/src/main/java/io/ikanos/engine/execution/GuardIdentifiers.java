@@ -16,6 +16,7 @@ package io.ikanos.engine.execution;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import dev.cel.common.CelAbstractSyntaxTree;
 import dev.cel.common.ast.CelExpr;
@@ -48,12 +49,28 @@ final class GuardIdentifiers {
      * the names in order, the right one cut at its first dot.
      */
     static List<List<String>> subtractions(CelAbstractSyntaxTree ast) {
-        List<List<String>> found = new ArrayList<>();
-        subtractions(ast.getExpr(), found);
-        return found;
+        return located(ast).stream().map(Subtraction::parts).toList();
     }
 
-    private static void subtractions(CelExpr expr, List<List<String>> found) {
+    /** A subtraction of names, and the offset of its minus in the expression, or -1. */
+    record Subtraction(List<String> parts, int offset) {
+    }
+
+    /** The subtractions of {@link #subtractions}, each with where its minus is. */
+    static List<Subtraction> located(CelAbstractSyntaxTree ast) {
+        List<Found> found = new ArrayList<>();
+        subtractions(ast.getExpr(), found);
+        Map<Long, Integer> positions = ast.getSource().getPositionsMap();
+        return found.stream()
+                .map(f -> new Subtraction(f.parts(), positions.getOrDefault(f.id(), -1)))
+                .toList();
+    }
+
+    /** A subtraction of names and the id of its call, whose position the source records. */
+    private record Found(List<String> parts, long id) {
+    }
+
+    private static void subtractions(CelExpr expr, List<Found> found) {
         switch (expr.getKind()) {
             case CALL -> {
                 if (isSubtraction(expr)) {
@@ -62,7 +79,7 @@ final class GuardIdentifiers {
                     if (left != null && right != null) {
                         List<String> parts = new ArrayList<>(left);
                         parts.add(right);
-                        found.add(List.copyOf(parts));
+                        found.add(new Found(List.copyOf(parts), expr.id()));
                     }
                 }
                 expr.call().target().ifPresent(target -> subtractions(target, found));

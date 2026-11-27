@@ -235,6 +235,22 @@ public class StepGuardTest {
     }
 
     @Test
+    public void parseErrorShouldHintAtTheSubtractionCelRefused() {
+        String error = StepGuard.parseError("count - offset > 0 && !get-ship.active");
+
+        assertNotNull(error);
+        assertTrue(error.endsWith("if 'get-ship' is a name, write it 'get_ship'"), error);
+    }
+
+    @Test
+    public void parseErrorShouldHintAtADashedNameInHas() {
+        String error = StepGuard.parseError("has(get-ship.status)");
+
+        assertNotNull(error);
+        assertTrue(error.endsWith("if 'get-ship' is a name, write it 'get_ship'"), error);
+    }
+
+    @Test
     public void parseErrorShouldNotHintWhenTheErrorIsNotAboutASubtraction() {
         String error = StepGuard.parseError("a - b > 0 && sizee(x)");
 
