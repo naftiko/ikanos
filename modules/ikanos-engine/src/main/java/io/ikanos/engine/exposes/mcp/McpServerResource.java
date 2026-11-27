@@ -28,6 +28,7 @@ import io.ikanos.spec.exposes.AuthorizationSpec;
 import com.nimbusds.jwt.JWTClaimsSet;
 import io.ikanos.engine.exposes.OAuth2AuthenticationRestlet;
 import java.time.Duration;
+import org.restlet.Request;
 import org.restlet.data.Header;
 import org.restlet.data.MediaType;
 import org.restlet.data.ServerSentEvent;
@@ -156,17 +157,32 @@ public class McpServerResource extends ServerResource {
      * {@link #HEARTBEAT_INTERVAL} keeps an idle stream open and finds a client that left.
      */
     private Representation stream(ProtocolDispatcher dispatcher, McpSubscription subscription) {
+        try {
+            secure(dispatcher, subscription, getRequest());
+            ObjectMapper mapper = dispatcher.getMapper();
+            return new EventStreamRepresentation(sink -> subscription.run(message -> sink.send(
+                    ServerSentEvent.builder().data(mapper.writeValueAsString(message)).build())),
+                    HEARTBEAT_INTERVAL);
+        } catch (RuntimeException e) {
+            // The request fails before any stream exists: nothing will ever run it.
+            subscription.discard();
+            throw e;
+        }
+    }
+
+    /**
+     * Limits a subscription to what the request's token allows: the tasks whose tool's
+     * authorization it meets, as {@code tasks/get} requires, until the token expires.
+     */
+    static void secure(ProtocolDispatcher dispatcher, McpSubscription subscription,
+            Request request) {
         subscription.retain(taskId -> AccessControl.allows(
-                dispatcher.taskRequirement(taskId, getRequest()), getRequest()));
-        Object claims = getRequest().getAttributes()
+                dispatcher.taskRequirement(taskId, request), request));
+        Object claims = request.getAttributes()
                 .get(OAuth2AuthenticationRestlet.VALIDATED_CLAIMS_ATTRIBUTE);
         if (claims instanceof JWTClaimsSet validated && validated.getExpirationTime() != null) {
             subscription.expireAt(validated.getExpirationTime().toInstant());
         }
-        ObjectMapper mapper = dispatcher.getMapper();
-        return new EventStreamRepresentation(sink -> subscription.run(message -> sink.send(
-                ServerSentEvent.builder().data(mapper.writeValueAsString(message)).build())),
-                HEARTBEAT_INTERVAL);
     }
 
     /** Half the listener's idle timeout, so an open stream is never idle long enough to close. */

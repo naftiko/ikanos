@@ -75,6 +75,9 @@ public class McpServerAdapter extends ServerAdapter {
      */
     static final java.time.Duration DRAIN_TIMEOUT = java.time.Duration.ofSeconds(30);
 
+    /** Most subscriptions one caller keeps open on this adapter at once. */
+    static final int MAX_SUBSCRIPTIONS_PER_OWNER = 32;
+
     /** Longest wait, on stop, for the open subscriptions to answer their request. */
     static final Duration SUBSCRIPTIONS_CLOSE_TIMEOUT = Duration.ofSeconds(2);
 
@@ -278,11 +281,21 @@ public class McpServerAdapter extends ServerAdapter {
      * @param owner the caller, as {@code tasks/get} takes it
      */
     public McpSubscription subscribe(JsonNode id, String owner, List<String> taskIds) {
-        McpSubscription subscription = new McpSubscription(id, owner, taskIds, taskService,
-                Clock.systemUTC());
-        subscriptions.add(subscription);
-        subscription.whenEnded(() -> subscriptions.remove(subscription));
-        return subscription;
+        synchronized (subscriptions) {
+            // An open stream holds none of maxRequestsInProgress: this bounds what one caller
+            // keeps open (a listener, a connection, a thread each).
+            long open = subscriptions.stream()
+                    .filter(subscription -> subscription.owner().equals(owner)).count();
+            if (open >= MAX_SUBSCRIPTIONS_PER_OWNER) {
+                throw new IllegalStateException("Too many open subscriptions for this caller ("
+                        + MAX_SUBSCRIPTIONS_PER_OWNER + "): end one before opening another");
+            }
+            McpSubscription subscription = new McpSubscription(id, owner, taskIds, taskService,
+                    Clock.systemUTC());
+            subscriptions.add(subscription);
+            subscription.whenEnded(() -> subscriptions.remove(subscription));
+            return subscription;
+        }
     }
 
     /** The number of open subscriptions, for the tests. */

@@ -14,6 +14,7 @@
 package io.ikanos.engine.exposes.mcp.handler;
 
 import static io.ikanos.engine.exposes.mcp.model.JsonRpcError.INVALID_PARAMS;
+import static io.ikanos.engine.exposes.mcp.model.JsonRpcError.INVALID_REQUEST;
 import static io.ikanos.engine.util.JsonRpcResponseBuilder.buildJsonRpcError;
 import java.util.ArrayList;
 import java.util.List;
@@ -38,7 +39,8 @@ import io.ikanos.engine.exposes.mcp.processor.DispatchPreProcessor;
  * out of the acknowledgement, as the spec asks for a type the server does not support.
  *
  * <p>Asking for task notifications without declaring the tasks extension in the request's client
- * capabilities gets {@code -32021}. Registered only when the adapter serves tasks.</p>
+ * capabilities gets {@code -32021}, and opening more subscriptions than one caller may keep open
+ * at once gets {@code -32600}. Registered only when the adapter serves tasks.</p>
  */
 public class SubscriptionsListenHandler extends McpCallHandler {
 
@@ -76,8 +78,14 @@ public class SubscriptionsListenHandler extends McpCallHandler {
                 return missingCapability(idNode, "Missing required client capability", required);
             }
         }
-        return new HandlerStreamResult(
-                adapter.subscribe(idNode, McpCallContext.principal(), taskIds));
+        try {
+            return new HandlerStreamResult(
+                    adapter.subscribe(idNode, McpCallContext.principal(), taskIds));
+        } catch (IllegalStateException e) {
+            return new HandlerFailureResult(INVALID_REQUEST,
+                    buildJsonRpcError(idNode, INVALID_REQUEST.getCode(),
+                            "Invalid Request: " + e.getMessage()));
+        }
     }
 
     private HandlerResult invalid(JsonNode idNode, String message) {

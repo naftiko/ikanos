@@ -131,6 +131,11 @@ public final class McpSubscription {
         return id;
     }
 
+    /** The caller this subscription reads tasks for. */
+    String owner() {
+        return owner;
+    }
+
     /** The tasks this subscription agrees to, before {@link #run}. */
     synchronized Set<String> agreed() {
         return Set.copyOf(watched);
@@ -147,6 +152,11 @@ public final class McpSubscription {
     /** Ends the subscription gracefully at {@code instant}, such as when the caller's token expires. */
     public void expireAt(Instant instant) {
         this.expiresAt = instant;
+    }
+
+    /** When the subscription ends on its own, or {@code null} for never. */
+    Instant expiresAt() {
+        return expiresAt;
     }
 
     /** Ends the subscription gracefully: {@link #run} answers the request, then returns. */
