@@ -482,6 +482,9 @@ public class ToolHandler {
             }
 
             return buildToolResult(toolSpec, result.lastResult);
+        } catch (FileInputs.InvalidFileException e) {
+            // A file the flow refused: an error result, as when the tool checks it itself
+            return textResult(e.getMessage(), true);
         } catch (IllegalArgumentException | InputRequiredException e) {
             throw e;
         } catch (OperationStepExecutor.StepFailedException e) {

@@ -124,7 +124,7 @@ public class McpServerAdapter extends ServerAdapter {
         this.toolHandler = new ToolHandler(capability, serverSpec.getTools(),
                 serverSpec.getNamespace(), serverSpec.getMaxBinarySize(), fileDownloads,
                 maxInlineBytes);
-        this.fileTools = fileTools(serverSpec, toolHandler);
+        this.fileTools = fileTools(capability, serverSpec, toolHandler);
 
         // Build MCP Tool definitions from the spec
         this.tools = new ArrayList<>();
@@ -186,14 +186,20 @@ public class McpServerAdapter extends ServerAdapter {
     }
 
     /**
-     * The tools that take a file. A file input needs the files extension, so a tool that takes
-     * one on an adapter without {@code files} fails the load: no client could send it a file.
+     * The tools that take a file: through their own inputs, or through the flow of their
+     * {@code ref}, even when they declare inputs of their own, since the flow checks its file
+     * inputs whatever the tool declares. A file input needs the files extension, so a tool that
+     * takes one on an adapter without {@code files} fails the load: no client could send it a
+     * file.
      */
-    static Set<String> fileTools(McpServerSpec serverSpec, ToolHandler toolHandler) {
+    static Set<String> fileTools(Capability capability, McpServerSpec serverSpec,
+            ToolHandler toolHandler) {
         Set<String> names = new HashSet<>();
         for (McpServerToolSpec tool : serverSpec.getTools().values()) {
-            if (tool != null && tool.getName() != null && FileInputs.takesFiles(
-                    toolHandler.getInputParameters(tool.getName()))) {
+            if (tool != null && tool.getName() != null && (FileInputs.takesFiles(
+                    toolHandler.getInputParameters(tool.getName()))
+                    || (tool.getRef() != null && FileInputs.takesFiles(
+                            capability.lookupFlow(tool.getRef()).getInputParameters())))) {
                 if (serverSpec.getFiles() == null) {
                     throw new IllegalArgumentException("MCP tool '" + tool.getName()
                             + "' takes a file (type: file), which needs 'files' on its exposes"

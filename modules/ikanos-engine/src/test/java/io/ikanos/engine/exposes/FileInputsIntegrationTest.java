@@ -72,6 +72,7 @@ class FileInputsIntegrationTest {
     private HttpClient http;
     private String mcpUrl;
     private String restUrl;
+    private String ownInputsUrl;
     private int nextId = 1;
 
     private record Received(String path, MediaType type, byte[] body) {
@@ -156,6 +157,16 @@ class FileInputsIntegrationTest {
                       store-raw:
                         description: Store the raw bytes of a report.
                         ref: documents.store-raw
+                      import-report-own-inputs:
+                        description: Import a report, with inputs declared on the tool.
+                        ref: documents.import-report
+                        inputParameters:
+                          report:
+                            type: object
+                            description: The report, redeclared as an object.
+                          label:
+                            type: string
+                            description: A label for the report.
                       ping:
                         description: Check that the server answers.
                         outputParameters:
@@ -173,6 +184,17 @@ class FileInputsIntegrationTest {
                           import:
                             method: POST
                             ref: documents.import-report
+                      own-reports:
+                        path: /own-reports
+                        operations:
+                          import:
+                            method: POST
+                            ref: documents.import-report
+                            inputParameters:
+                              report:
+                                in: body
+                                type: object
+                                description: The report, redeclared as an object.
                 """.formatted(VersionHelper.getSchemaVersion(), upstreamPort, mcpPort, restPort),
                 IkanosSpec.class);
         capability = new Capability(spec);
@@ -180,6 +202,7 @@ class FileInputsIntegrationTest {
         http = HttpClient.newHttpClient();
         mcpUrl = "http://127.0.0.1:" + mcpPort + "/";
         restUrl = "http://127.0.0.1:" + restPort + "/reports";
+        ownInputsUrl = "http://127.0.0.1:" + restPort + "/own-reports";
     }
 
     @AfterEach
@@ -213,7 +236,8 @@ class FileInputsIntegrationTest {
             throws Exception {
         JsonNode tools = rpc("tools/list", null, JSON.createObjectNode(), true).path("tools");
 
-        assertEquals(List.of("import-report", "store-raw", "ping"), names(tools));
+        assertEquals(List.of("import-report", "store-raw", "import-report-own-inputs", "ping"),
+                names(tools));
         JsonNode report = tools.get(0).path("inputSchema").path("properties").path("report");
         assertEquals("object", report.path("type").asString());
         assertEquals(JSON.readTree("{\"accept\":[\"application/pdf\",\".csv\"],\"maxSize\":1024}"),
@@ -303,6 +327,31 @@ class FileInputsIntegrationTest {
         assertTrue(received.isEmpty(), "The tool must not run");
     }
 
+    @Test
+    void toolThatRedeclaresTheFlowFileInputShouldStillHaveTheFileChecked() throws Exception {
+        ObjectNode arguments = JSON.createObjectNode();
+        arguments.set("report", fileArgument("file-1", "logo.png", "image/png", PDF));
+
+        JsonNode result = callTool("import-report-own-inputs", arguments);
+
+        assertTrue(result.path("isError").asBoolean(), result.toString());
+        assertTrue(result.path("content").get(0).path("text").asString()
+                .contains("does not accept"), result.toString());
+        assertTrue(received.isEmpty(), "The flow must not run");
+    }
+
+    @Test
+    void toolThatRedeclaresTheFlowFileInputShouldStillSendAnAcceptedFile() throws Exception {
+        ObjectNode arguments = JSON.createObjectNode();
+        arguments.set("report", fileArgument("file-1", "q3.pdf", "application/pdf", PDF));
+        arguments.put("label", "Q3");
+
+        JsonNode result = callTool("import-report-own-inputs", arguments);
+
+        assertFalse(result.path("isError").asBoolean(), result.toString());
+        assertMultipartUpload(single());
+    }
+
     // ── REST ─────────────────────────────────────────────────────────────────────────────────
 
     @Test
@@ -325,6 +374,22 @@ class FileInputsIntegrationTest {
     void multipartUploadLargerThanMaxSizeShouldBeRefused() throws Exception {
         HttpResponse<String> response = postMultipart("big.pdf", "application/pdf",
                 new byte[2048]);
+
+        assertEquals(400, response.statusCode(), response.body());
+        assertTrue(received.isEmpty(), "The flow must not run");
+    }
+
+    @Test
+    void operationThatRedeclaresTheFlowFileInputShouldStillHaveTheFileChecked()
+            throws Exception {
+        ObjectNode body = JSON.createObjectNode();
+        body.set("report", fileArgument("file-1", "big.pdf", "application/pdf",
+                new byte[2048]));
+
+        HttpResponse<String> response = http.send(HttpRequest.newBuilder(URI.create(ownInputsUrl))
+                .POST(HttpRequest.BodyPublishers.ofString(JSON.writeValueAsString(body)))
+                .header("Content-Type", "application/json").build(),
+                HttpResponse.BodyHandlers.ofString());
 
         assertEquals(400, response.statusCode(), response.body());
         assertTrue(received.isEmpty(), "The flow must not run");

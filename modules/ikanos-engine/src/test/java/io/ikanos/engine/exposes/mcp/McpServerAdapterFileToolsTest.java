@@ -80,6 +80,45 @@ class McpServerAdapterFileToolsTest {
     }
 
     @Test
+    void takesFilesShouldBeTrueForARefToolThatRedeclaresTheFlowFileInput() throws Exception {
+        IkanosSpec spec = IkanosMappers.lenientYaml().readValue("""
+                ikanos: "%s"
+                capability:
+                  aggregates:
+                  - namespace: documents
+                    flows:
+                      import-report:
+                        description: Import a report.
+                        inputParameters:
+                          report:
+                            type: file
+                            description: The report.
+                        outputParameters:
+                          status:
+                            type: string
+                            value: imported
+                  exposes:
+                  - type: mcp
+                    port: 0
+                    namespace: documents-mcp
+                    files: {}
+                    tools:
+                      import-report:
+                        description: Import a report.
+                        ref: documents.import-report
+                        inputParameters:
+                          report:
+                            type: object
+                            description: The report, redeclared.
+                """.formatted(VersionHelper.getSchemaVersion()), IkanosSpec.class);
+        McpServerAdapter adapter =
+                (McpServerAdapter) new Capability(spec).getServerAdapters().getFirst();
+
+        assertTrue(adapter.takesFiles("import-report"),
+                "the flow checks its file input whatever the tool declares");
+    }
+
+    @Test
     void maxInlineBytesShouldDefaultToOneMebibyte() throws Exception {
         McpServerAdapter adapter =
                 (McpServerAdapter) capability("files: {}").getServerAdapters().getFirst();
