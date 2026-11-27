@@ -16,6 +16,11 @@ package io.ikanos.engine.exposes.mcp;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -23,8 +28,12 @@ import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.restlet.Context;
 import org.restlet.Request;
+import org.restlet.Response;
+import org.restlet.data.MediaType;
 import org.restlet.data.Method;
+import org.restlet.representation.Representation;
 import com.nimbusds.jwt.JWTClaimsSet;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -58,6 +67,27 @@ class McpSubscriptionSecurityTest {
                   display: Subscription security
                   description: Tasks of tools with and without their own authorization
                 capability:
+                  aggregates:
+                  - namespace: records
+                    flows:
+                      read-record:
+                        description: Read a record.
+                        semantics:
+                          interaction:
+                            mode: task
+                        outputParameters:
+                          status:
+                            type: string
+                            value: read
+                      update-record:
+                        description: Update a record.
+                        semantics:
+                          interaction:
+                            mode: task
+                        outputParameters:
+                          status:
+                            type: string
+                            value: updated
                   exposes:
                   - type: mcp
                     address: localhost
@@ -73,16 +103,12 @@ class McpSubscriptionSecurityTest {
                     tools:
                       read-record:
                         description: Read a record.
-                        outputParameters:
-                        - type: string
-                          value: ok
+                        ref: records.read-record
                       update-record:
                         description: Update a record.
+                        ref: records.update-record
                         authorization:
                           scopes: [records.write]
-                        outputParameters:
-                        - type: string
-                          value: ok
                   - type: control
                     address: localhost
                     port: 0
@@ -171,9 +197,80 @@ class McpSubscriptionSecurityTest {
         assertEquals(0, adapter.subscriptionCount());
     }
 
+    @Test
+    void callersTheServerCannotTellApartShouldShareALargerLimit() {
+        String anonymous = AgentIdentityResolver.anonymousOwner(NAMESPACE);
+        List<McpSubscription> open = new ArrayList<>();
+        for (int i = 0; i < McpServerAdapter.MAX_ANONYMOUS_SUBSCRIPTIONS; i++) {
+            open.add(adapter.subscribe(IntNode.valueOf(i), anonymous, List.of()));
+        }
+
+        IllegalStateException refused = assertThrows(IllegalStateException.class,
+                () -> adapter.subscribe(IntNode.valueOf(-1), anonymous, List.of()));
+        assertTrue(refused.getMessage().contains("callers it does not identify"),
+                "The message does not blame one caller: " + refused.getMessage());
+        open.forEach(McpSubscription::discard);
+    }
+
+    @Test
+    void aSubscriptionWhoseStreamNeverStartedShouldBeGivenUpAfterTheTimeout() {
+        adapter.subscribe(IntNode.valueOf(1), "alice", List.of());
+
+        adapter.giveUpUnstarted(Instant.now());
+        assertEquals(1, adapter.subscriptionCount(), "Still within the timeout");
+
+        adapter.giveUpUnstarted(Instant.now()
+                .plus(McpServerAdapter.SUBSCRIPTION_START_TIMEOUT).plusSeconds(1));
+        assertEquals(0, adapter.subscriptionCount(),
+                "Its client left before the stream was written: the slot is free again");
+    }
+
+    @Test
+    void handlePostShouldStreamOnlyTheTasksTheTokenMayRead() throws Exception {
+        Request alice = request("alice", "records.read", null);
+        String owner = ownerOf(alice);
+        String readTask = task("read-record", owner);
+        String updateTask = task("update-record", owner);
+        awaitEnd(readTask, owner);
+        awaitEnd(updateTask, owner);
+        alice.setEntity(JSON.writeValueAsString(JSON.readTree("{\"jsonrpc\":\"2.0\",\"id\":5,"
+                + "\"method\":\"subscriptions/listen\",\"params\":{\"notifications\":"
+                + "{\"taskIds\":[\"" + readTask + "\",\"" + updateTask + "\"]},\"_meta\":{"
+                + "\"io.modelcontextprotocol/protocolVersion\":\""
+                + ProtocolDispatcher.MCP_PROTOCOL_VERSION + "\","
+                + "\"io.modelcontextprotocol/clientCapabilities\":{\"extensions\":{"
+                + "\"io.modelcontextprotocol/tasks\":{}}}}}}")), MediaType.APPLICATION_JSON);
+        alice.getHeaders().add("MCP-Protocol-Version", ProtocolDispatcher.MCP_PROTOCOL_VERSION);
+        alice.getHeaders().add("Mcp-Method", "subscriptions/listen");
+        Context context = new Context();
+        context.getAttributes().put("dispatcher", dispatcher);
+        McpServerResource resource = new McpServerResource();
+        resource.init(context, alice, new Response(alice));
+
+        Representation stream = resource.handlePost(alice.getEntity());
+        ByteArrayOutputStream body = new ByteArrayOutputStream();
+        stream.write(body);
+
+        JsonNode ack = JSON.readTree(body.toString(StandardCharsets.UTF_8).lines()
+                .filter(line -> line.startsWith("data:")).findFirst().orElseThrow()
+                .substring(5).trim());
+        assertEquals(List.of(readTask), List.of(ack.path("params").path("notifications")
+                .path("taskIds").path(0).asString()));
+        assertEquals(1, ack.path("params").path("notifications").path("taskIds").size(),
+                "update-record needs records.write: its task is left out of the stream");
+    }
+
+    private void awaitEnd(String taskId, String owner) throws InterruptedException {
+        long deadline = System.nanoTime() + 10_000_000_000L;
+        while (System.nanoTime() < deadline && "working".equals(adapter.getTaskService()
+                .get(taskId, owner).orElseThrow().path("status").asString())) {
+            Thread.sleep(20);
+        }
+    }
+
     /**
      * A subscriptions/listen handled as alice, who already holds the maximum. The handler is
-     * called directly: this fixture's tools run inline, so the server registers no task methods.
+     * called directly, with the request's caller, as dispatch would.
      */
     private JsonNode listen(String label) throws Exception {
         JsonNode request = JSON.readTree("{\"jsonrpc\":\"2.0\",\"id\":\"" + label + "\","

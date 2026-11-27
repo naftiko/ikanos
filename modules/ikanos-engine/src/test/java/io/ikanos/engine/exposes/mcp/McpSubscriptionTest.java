@@ -285,6 +285,38 @@ class McpSubscriptionTest {
     }
 
     @Test
+    void aSubscriptionGivenUpBeforeItsStreamStartedShouldSendNothing() throws Exception {
+        String taskId = create(OWNER, blocked());
+        McpSubscription subscription = subscribe(List.of(taskId));
+
+        assertTrue(subscription.giveUpIfNotStartedBy(Instant.now().plusSeconds(1)));
+        subscription.run(sent::add);
+
+        assertNull(sent.poll(200, TimeUnit.MILLISECONDS), "A stream that starts late is empty");
+        assertEquals(0, tasks.listenerCount(), "It stopped hearing of changes");
+    }
+
+    @Test
+    void aRunningSubscriptionShouldNotBeGivenUp() throws Exception {
+        String taskId = create(OWNER, blocked());
+        McpSubscription subscription = subscribe(List.of(taskId));
+        start(subscription);
+        next(); // the acknowledgement
+        next(); // working
+
+        assertFalse(subscription.giveUpIfNotStartedBy(Instant.now().plusSeconds(3600)));
+        subscription.close();
+        assertTrue(next().has("result"));
+    }
+
+    @Test
+    void aSubscriptionCreatedAfterTheCutoffShouldNotBeGivenUp() {
+        McpSubscription subscription = subscribe(List.of());
+
+        assertFalse(subscription.giveUpIfNotStartedBy(Instant.now().minusSeconds(60)));
+    }
+
+    @Test
     void aSinkThatFailsShouldEndTheSubscription() throws Exception {
         String taskId = create(OWNER, blocked());
         McpSubscription subscription = subscribe(List.of(taskId));

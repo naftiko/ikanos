@@ -44,6 +44,7 @@ import java.util.function.BiFunction;
 import java.util.logging.Level;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import io.ikanos.engine.execution.Durability;
 import io.ikanos.engine.exposes.CallerClaims;
 import io.ikanos.engine.exposes.mcp.handler.ToolsCallHandler;
@@ -77,6 +78,15 @@ public class McpServerAdapter extends ServerAdapter {
 
     /** Most subscriptions one caller keeps open on this adapter at once. */
     static final int MAX_SUBSCRIPTIONS_PER_OWNER = 32;
+
+    /** Most subscriptions the callers this adapter cannot tell apart keep open, together. */
+    static final int MAX_ANONYMOUS_SUBSCRIPTIONS = 256;
+
+    /**
+     * How long a subscription may wait for its stream to start before it is given up: the
+     * listener's idle timeout, past which its connection is gone anyway.
+     */
+    static final Duration SUBSCRIPTION_START_TIMEOUT = Duration.ofSeconds(30);
 
     /** Longest wait, on stop, for the open subscriptions to answer their request. */
     static final Duration SUBSCRIPTIONS_CLOSE_TIMEOUT = Duration.ofSeconds(2);
@@ -282,19 +292,40 @@ public class McpServerAdapter extends ServerAdapter {
      */
     public McpSubscription subscribe(JsonNode id, String owner, List<String> taskIds) {
         synchronized (subscriptions) {
+            giveUpUnstarted(Instant.now());
             // An open stream holds none of maxRequestsInProgress: this bounds what one caller
-            // keeps open (a listener, a connection, a thread each).
+            // keeps open (a listener, a connection, a thread each). Callers the adapter cannot
+            // tell apart (no authentication, bearer, apikey) share one owner, so they share a
+            // larger limit, adapter-wide.
+            boolean anonymous = AgentIdentityResolver
+                    .anonymousOwner(getMcpServerSpec().getNamespace()).equals(owner);
+            int limit = anonymous ? MAX_ANONYMOUS_SUBSCRIPTIONS : MAX_SUBSCRIPTIONS_PER_OWNER;
             long open = subscriptions.stream()
                     .filter(subscription -> subscription.owner().equals(owner)).count();
-            if (open >= MAX_SUBSCRIPTIONS_PER_OWNER) {
-                throw new IllegalStateException("Too many open subscriptions for this caller ("
-                        + MAX_SUBSCRIPTIONS_PER_OWNER + "): end one before opening another");
+            if (open >= limit) {
+                throw new IllegalStateException(anonymous
+                        ? "Too many open subscriptions on this server for callers it does not "
+                                + "identify (" + limit + "): end one before opening another"
+                        : "Too many open subscriptions for this caller (" + limit
+                                + "): end one before opening another");
             }
             McpSubscription subscription = new McpSubscription(id, owner, taskIds, taskService,
                     Clock.systemUTC());
             subscriptions.add(subscription);
             subscription.whenEnded(() -> subscriptions.remove(subscription));
             return subscription;
+        }
+    }
+
+    /**
+     * Gives up the subscriptions whose stream has not started {@link #SUBSCRIPTION_START_TIMEOUT}
+     * before {@code now}: their client left before the stream was written, so nothing will run
+     * them, and they would hold a slot of their caller's limit until the adapter stops.
+     */
+    void giveUpUnstarted(Instant now) {
+        Instant cutoff = now.minus(SUBSCRIPTION_START_TIMEOUT);
+        for (McpSubscription subscription : List.copyOf(subscriptions)) {
+            subscription.giveUpIfNotStartedBy(cutoff);
         }
     }
 

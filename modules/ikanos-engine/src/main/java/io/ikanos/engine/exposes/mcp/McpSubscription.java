@@ -86,6 +86,8 @@ public final class McpSubscription {
     private final LinkedBlockingQueue<String> changes = new LinkedBlockingQueue<>();
     private final AtomicBoolean closed = new AtomicBoolean();
     private final AtomicBoolean cancelled = new AtomicBoolean();
+    private final AtomicBoolean started = new AtomicBoolean();
+    private final Instant createdAt;
     private volatile Instant expiresAt;
     private Runnable unlisten = () -> {
     };
@@ -106,6 +108,7 @@ public final class McpSubscription {
         this.owner = owner;
         this.tasks = tasks;
         this.clock = clock;
+        this.createdAt = clock.instant();
         for (String taskId : taskIds) {
             if (watched.size() == MAX_TASKS) {
                 break;
@@ -178,6 +181,10 @@ public final class McpSubscription {
      * @throws IOException when the stream is gone
      */
     public void run(Sink sink) throws IOException {
+        if (!started.compareAndSet(false, true)) {
+            // Already running, or given up because it never started (giveUpIfNotStartedBy).
+            return;
+        }
         try {
             Map<String, String> sent = new HashMap<>();
             sink.send(acknowledgement());
@@ -235,6 +242,22 @@ public final class McpSubscription {
     public void discard() {
         unlisten.run();
         onEnd.run();
+    }
+
+    /**
+     * Gives up this subscription when {@link #run} has not started by {@code cutoff}, such as
+     * when its client left before the stream was written: it never will, and would otherwise
+     * stay registered until the adapter stops. A {@link #run} that starts after it returns at
+     * once, sending nothing.
+     *
+     * @return whether it was given up
+     */
+    boolean giveUpIfNotStartedBy(Instant cutoff) {
+        if (createdAt.isBefore(cutoff) && started.compareAndSet(false, true)) {
+            discard();
+            return true;
+        }
+        return false;
     }
 
     /**
