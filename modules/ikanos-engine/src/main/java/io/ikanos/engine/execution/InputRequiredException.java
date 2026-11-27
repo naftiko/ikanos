@@ -77,10 +77,11 @@ public class InputRequiredException extends RuntimeException {
     /**
      * What a URL mode question sends its caller to.
      *
-     * @param url the page, rendered when the question was asked
-     * @param elicitationId the question's id, the same on every retry, which the URL may carry
+     * @param url the page, rendered when the question was asked, which may carry the
+     *        question's id ({@code {{elicitation.id}}}); the request sends no other id, since the
+     *        {@code 2026-07-28} {@code ElicitRequestURLParams} defines none
      */
-    public record UrlRequest(String url, String elicitationId) {
+    public record UrlRequest(String url) {
     }
 
     private final transient List<Question> questions;

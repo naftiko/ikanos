@@ -49,7 +49,6 @@ public final class InputRequests {
                 // means consent; the step's check decides on the retry.
                 requestParams.put("mode", "url");
                 requestParams.put("url", question.url().url());
-                requestParams.put("elicitationId", question.url().elicitationId());
                 requestParams.put("message", question.message() != null ? question.message()
                         : question.step().getName());
                 continue;

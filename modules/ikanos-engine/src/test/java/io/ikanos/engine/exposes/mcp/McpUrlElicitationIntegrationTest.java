@@ -174,9 +174,11 @@ class McpUrlElicitationIntegrationTest {
         JsonNode params = first.path("inputRequests").path(KEY).path("params");
         assertEquals("input_required", first.path("resultType").asString(), first.toString());
         assertEquals("url", params.path("mode").asString(), params.toString());
-        assertEquals("https://billing.example.com/setup?ref="
-                + params.path("elicitationId").asString(), params.path("url").asString());
+        assertTrue(params.path("url").asString()
+                .matches("https://billing\\.example\\.com/setup\\?ref=[A-Za-z0-9_-]{32}"),
+                params.toString());
         assertFalse(params.has("requestedSchema"), params.toString());
+        assertFalse(params.has("elicitationId"), params.toString());
     }
 
     @ParameterizedTest
@@ -228,8 +230,8 @@ class McpUrlElicitationIntegrationTest {
 
         urlCall(adapter, accept(first, KEY));
 
-        String id = first.path("inputRequests").path(KEY).path("params").path("elicitationId")
-                .asString();
+        String url = first.path("inputRequests").path(KEY).path("params").path("url").asString();
+        String id = url.substring(url.indexOf("ref=") + "ref=".length());
         List<Map<String, Object>> checks = FakeClientAdapter.CALLS.stream()
                 .filter(params -> params.containsKey("ref")).toList();
         assertEquals(id, checks.get(checks.size() - 1).get("ref"), checks.toString());
