@@ -1241,7 +1241,7 @@
     },
     "FlowUploadPresign": {
       "type": "object",
-      "description": "**Experimental.** The consumed operation that returns a presigned upload URL for one file. Its `with` values are resolved against the call's arguments, where the file argument has `id`, `name`, `mimeType`, `size` and `uploadId`. Its JSON response carries the URL (an absolute `https` URL, or `http` on a loopback host), the headers the client sends with its `PUT`, and when the URL expires, where the JsonPath expressions below say.",
+      "description": "**Experimental.** The consumed operation that returns a presigned upload URL for one file. Its `with` values are resolved against the call's arguments, where the file argument has `id`, `name`, `mimeType`, `size`, `uploadId` and `uploadExpiresIn`: the seconds left until the `requestState` expires, less 30 seconds for clock skew, which the target must not outlive (map it to the presigner's expiry parameter, such as `{{scan.uploadExpiresIn}}`). Its JSON response carries the URL (an absolute `https` URL, or `http` on a loopback host), the headers the client sends with its `PUT`, and when the URL expires, where the JsonPath expressions below say.",
       "properties": {
         "call": {
           "type": "string",
@@ -1262,7 +1262,7 @@
         },
         "expiresAt": {
           "type": "string",
-          "description": "JsonPath of when the URL expires, an ISO 8601 timestamp with an offset. It is sent in UTC, and never later than the expiry of the `requestState`."
+          "description": "JsonPath of when the URL expires, an ISO 8601 timestamp with an offset, sent in UTC. A URL that expires after the `requestState` is refused (the call gets an error result), since a presigned URL cannot be revoked. Without it, the target advertises the `requestState` expiry, and the operator is responsible for presigning within that lifetime, for example with `uploadExpiresIn`."
         }
       },
       "required": [
@@ -1272,7 +1272,7 @@
     },
     "FlowUploadVerify": {
       "type": "object",
-      "description": "**Experimental.** The consumed operation that confirms the bytes of one file arrived, such as a `HEAD` on the stored object, resolved like `presign`. A successful answer must report the size the client declared and, when the input declares `accept`, an accepted media type; otherwise the call is answered with an error result and the flow does not run.",
+      "description": "**Experimental.** The consumed operation that confirms the bytes of one file arrived, such as a `HEAD` on the stored object, resolved like `presign`. A successful answer must report the size the client declared and, when the input declares `accept`, an accepted media type; otherwise the call is answered with an error result and the flow does not run. Ikanos never reads the bytes of a file sent out of band, so it does not sniff them: with the `Content-Type` default, the type checked is the label the client sent with its `PUT` (usually pinned by a signed header), not one derived from the content. The draft asks servers to inspect the bytes when a tool restricts its type: point `mimeType` at a status API whose type the storage derived from the bytes to meet that rule.",
       "properties": {
         "call": {
           "type": "string",
@@ -1288,7 +1288,7 @@
         },
         "mimeType": {
           "type": "string",
-          "description": "JsonPath of the stored media type in the JSON response. Default: the `Content-Type` header."
+          "description": "JsonPath of the stored media type in the JSON response. Default: the `Content-Type` header, which is the client's own label for the bytes."
         }
       },
       "required": [

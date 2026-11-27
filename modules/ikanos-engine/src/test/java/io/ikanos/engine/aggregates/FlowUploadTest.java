@@ -24,6 +24,9 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import io.ikanos.engine.consumes.ConsumedOperationView;
+import io.ikanos.engine.consumes.ConsumedResult;
+import io.ikanos.engine.consumes.Outcome;
 import io.ikanos.engine.util.FileInputs;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.aggregates.AggregateFlowSpec;
@@ -38,6 +41,7 @@ import tools.jackson.databind.ObjectMapper;
 class FlowUploadTest {
 
     private static final ObjectMapper JSON = IkanosMappers.json();
+    private static final Instant FAR = Instant.parse("2100-01-01T00:00:00Z");
 
     private static UploadPresignSpec presign() {
         UploadPresignSpec presign = new UploadPresignSpec();
@@ -66,7 +70,7 @@ class FlowUploadTest {
                 {"uploadUrl": "https://bucket.example.org/o/1?sig=x",
                  "headers": {"Content-Type": "application/pdf"},
                  "expiresAt": "2026-11-27T11:00:00+01:00"}
-                """), presign(), "scan");
+                """), presign(), "scan", FAR);
 
         assertEquals("https://bucket.example.org/o/1?sig=x", target.url());
         assertEquals(Map.of("Content-Type", "application/pdf"), target.headers());
@@ -79,7 +83,7 @@ class FlowUploadTest {
         presign.setCall("storage.create-upload-url");
 
         FlowUpload.Target target = FlowUpload.targetOf(
-                answer("{\"url\": \"https://bucket.example.org/o/1\"}"), presign, "scan");
+                answer("{\"url\": \"https://bucket.example.org/o/1\"}"), presign, "scan", FAR);
 
         assertEquals("https://bucket.example.org/o/1", target.url());
         assertTrue(target.headers().isEmpty());
@@ -89,13 +93,13 @@ class FlowUploadTest {
     @Test
     void targetOfShouldRefuseAPlainHttpUrlOnAnotherHost() {
         assertThrows(FileInputs.InvalidFileException.class, () -> FlowUpload.targetOf(
-                answer("{\"uploadUrl\": \"http://bucket.example.org/o/1\"}"), presign(), "scan"));
+                answer("{\"uploadUrl\": \"http://bucket.example.org/o/1\"}"), presign(), "scan", FAR));
     }
 
     @Test
     void targetOfShouldRefuseAMissingUrl() {
         assertThrows(FileInputs.InvalidFileException.class,
-                () -> FlowUpload.targetOf(answer("{}"), presign(), "scan"));
+                () -> FlowUpload.targetOf(answer("{}"), presign(), "scan", FAR));
     }
 
     @Test
@@ -103,16 +107,144 @@ class FlowUploadTest {
         assertThrows(FileInputs.InvalidFileException.class, () -> FlowUpload.targetOf(answer("""
                 {"uploadUrl": "https://bucket.example.org/o/1",
                  "headers": {"Authorization": "Bearer secret"}}
-                """), presign(), "scan"));
+                """), presign(), "scan", FAR));
     }
 
     @Test
     void targetOfShouldLeaveOutAnExpiryThatIsNotATimestamp() throws Exception {
         FlowUpload.Target target = FlowUpload.targetOf(answer("""
                 {"uploadUrl": "https://bucket.example.org/o/1", "expiresAt": "soon"}
-                """), presign(), "scan");
+                """), presign(), "scan", FAR);
 
         assertNull(target.expiresAt());
+    }
+
+    @Test
+    void targetOfShouldRefuseAUrlThatExpiresAfterTheRequestState() {
+        assertThrows(FileInputs.InvalidFileException.class, () -> FlowUpload.targetOf(answer("""
+                {"uploadUrl": "https://bucket.example.org/o/1",
+                 "expiresAt": "2026-11-27T10:10:01Z"}
+                """), presign(), "scan", Instant.parse("2026-11-27T10:10:00Z")));
+    }
+
+    @Test
+    void targetOfShouldAcceptAUrlThatExpiresWithTheRequestState() throws Exception {
+        FlowUpload.Target target = FlowUpload.targetOf(answer("""
+                {"uploadUrl": "https://bucket.example.org/o/1",
+                 "expiresAt": "2026-11-27T10:10:00Z"}
+                """), presign(), "scan", Instant.parse("2026-11-27T10:10:00Z"));
+
+        assertEquals(Instant.parse("2026-11-27T10:10:00Z"), target.expiresAt());
+    }
+
+    @Test
+    void checkAnswerShouldReadSizeAndTypeFromTheJsonAnswer() {
+        assertDoesNotThrow(() -> FlowUpload.checkAnswer(
+                answer(200, "{\"size\": 42, \"contentType\": \"application/pdf\"}", Map.of()),
+                jsonVerify("$.size", "$.contentType"), fileInput("application/pdf"), 42));
+    }
+
+    @Test
+    void checkAnswerShouldRefuseAnotherSizeInTheJsonAnswer() {
+        assertThrows(FileInputs.InvalidFileException.class, () -> FlowUpload.checkAnswer(
+                answer(200, "{\"size\": 41, \"contentType\": \"application/pdf\"}", Map.of()),
+                jsonVerify("$.size", "$.contentType"), fileInput("application/pdf"), 42));
+    }
+
+    @Test
+    void checkAnswerShouldRefuseAJsonAnswerWithoutTheSize() {
+        assertThrows(FileInputs.InvalidFileException.class, () -> FlowUpload.checkAnswer(
+                answer(200, "{\"contentType\": \"application/pdf\"}", Map.of()),
+                jsonVerify("$.size", "$.contentType"), fileInput("application/pdf"), 42));
+    }
+
+    @Test
+    void checkAnswerShouldReadTheTypeFromItsHeaderWhenOnlySizeIsMapped() {
+        assertDoesNotThrow(() -> FlowUpload.checkAnswer(
+                answer(200, "{\"size\": 42}", Map.of("Content-Type", "application/pdf")),
+                jsonVerify("$.size", null), fileInput("application/pdf"), 42));
+        assertThrows(FileInputs.InvalidFileException.class, () -> FlowUpload.checkAnswer(
+                answer(200, "{\"size\": 42}", Map.of("Content-Type", "text/html")),
+                jsonVerify("$.size", null), fileInput("application/pdf"), 42));
+    }
+
+    @Test
+    void checkAnswerShouldReadTheSizeFromItsHeaderWhenOnlyTypeIsMapped() {
+        assertDoesNotThrow(() -> FlowUpload.checkAnswer(
+                answer(200, "{\"contentType\": \"application/pdf\"}",
+                        Map.of("Content-Length", "42")),
+                jsonVerify(null, "$.contentType"), fileInput("application/pdf"), 42));
+    }
+
+    @Test
+    void checkAnswerShouldRefuseAnUnsuccessfulAnswer() {
+        assertThrows(FileInputs.InvalidFileException.class, () -> FlowUpload.checkAnswer(
+                answer(404, "", Map.of()), jsonVerify(null, null), fileInput(), 42));
+    }
+
+    private static UploadVerifySpec jsonVerify(String size, String mimeType) {
+        UploadVerifySpec verify = new UploadVerifySpec();
+        verify.setCall("storage.stat-object");
+        verify.setSize(size);
+        verify.setMimeType(mimeType);
+        return verify;
+    }
+
+    /** A verify answer: its status, JSON body and headers. */
+    private static ConsumedResult answer(int status, String body, Map<String, String> headers) {
+        return new ConsumedResult() {
+            @Override
+            public Outcome outcome() {
+                return Outcome.fromHttpStatus(status);
+            }
+
+            @Override
+            public int status() {
+                return status;
+            }
+
+            @Override
+            public String reason() {
+                return null;
+            }
+
+            @Override
+            public boolean hasBody() {
+                return !body.isEmpty();
+            }
+
+            @Override
+            public String mediaType() {
+                return "application/json";
+            }
+
+            @Override
+            public String text() {
+                return body;
+            }
+
+            @Override
+            public JsonNode document() {
+                return body.isEmpty() ? null : JSON.readTree(body);
+            }
+
+            @Override
+            public byte[] bytes(long maxBytes) {
+                return body.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            }
+
+            @Override
+            public ConsumedOperationView operation() {
+                return ConsumedOperationView.NONE;
+            }
+
+            @Override
+            public String header(String name) {
+                return headers.entrySet().stream()
+                        .filter(header -> header.getKey().equalsIgnoreCase(name))
+                        .map(Map.Entry::getValue).findFirst().orElse(null);
+            }
+        };
     }
 
     @Test

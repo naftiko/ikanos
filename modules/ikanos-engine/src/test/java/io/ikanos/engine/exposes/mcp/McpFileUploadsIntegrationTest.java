@@ -64,6 +64,7 @@ class McpFileUploadsIntegrationTest {
 
     private final Map<String, Stored> objects = new ConcurrentHashMap<>();
     private final List<String> imported = new ArrayList<>();
+    private final List<Long> presignedFor = new java.util.concurrent.CopyOnWriteArrayList<>();
     private Capability capability;
     private HttpServer upstream;
     private HttpClient http;
@@ -100,6 +101,7 @@ class McpFileUploadsIntegrationTest {
                             with:
                               key: "{{scan.uploadId}}"
                               contentType: "{{scan.mimeType}}"
+                              expiresIn: "{{scan.uploadExpiresIn}}"
                             url: "$.uploadUrl"
                             headers: "$.headers"
                             expiresAt: "$.expiresAt"
@@ -125,8 +127,31 @@ class McpFileUploadsIntegrationTest {
                             with:
                               key: "{{scan.uploadId}}"
                               contentType: "{{scan.mimeType}}"
+                              expiresIn: "{{scan.uploadExpiresIn}}"
                             url: "$.uploadUrl"
                             headers: "$.headers"
+                          verify:
+                            call: storage.head-object
+                            with:
+                              key: "{{scan.uploadId}}"
+                        call: records.import
+                        with:
+                          key: "{{scan.uploadId}}"
+                      late-scan:
+                        description: Import a scan, presigned without asking for an expiry.
+                        inputParameters:
+                          scan:
+                            type: file
+                            required: true
+                            description: The scan to import.
+                        upload:
+                          presign:
+                            call: storage.create-upload-url
+                            with:
+                              key: "{{scan.uploadId}}"
+                              contentType: "{{scan.mimeType}}"
+                            url: "$.uploadUrl"
+                            expiresAt: "$.expiresAt"
                           verify:
                             call: storage.head-object
                             with:
@@ -146,6 +171,8 @@ class McpFileUploadsIntegrationTest {
                             method: POST
                             inputParameters:
                               contentType:
+                                in: query
+                              expiresIn:
                                 in: query
                       objects:
                         path: /objects/{{key}}
@@ -179,6 +206,9 @@ class McpFileUploadsIntegrationTest {
                       refresh-scan:
                         description: Store a scan again.
                         ref: documents.refresh-scan
+                      late-scan:
+                        description: Import a scan through a presigner that ignores the expiry.
+                        ref: documents.late-scan
                 """.formatted(VersionHelper.getSchemaVersion(), upstreamPort, upstreamPort,
                 mcpPort), IkanosSpec.class);
         capability = new Capability(spec);
@@ -218,6 +248,24 @@ class McpFileUploadsIntegrationTest {
         assertFalse(target.path("expiresAt").asString().isEmpty(), target.toString());
         assertFalse(result.path("requestState").asString().isEmpty());
         assertTrue(imported.isEmpty(), "The flow must not run before the upload");
+    }
+
+    @Test
+    void presignShouldAskForAUrlThatExpiresWithTheRequestState() throws Exception {
+        callTool("import-scan", scanArguments(), null, true);
+
+        assertEquals(1, presignedFor.size());
+        long seconds = presignedFor.get(0);
+        assertTrue(seconds > 500 && seconds <= 600, "Asked for " + seconds + " seconds");
+    }
+
+    @Test
+    void presignedUrlThatOutlivesTheRequestStateShouldBeRefused() throws Exception {
+        JsonNode result = callTool("late-scan", scanArguments(), null, true).path("result");
+
+        assertTrue(result.path("isError").asBoolean(), result.toString());
+        assertTrue(result.path("content").get(0).path("text").asString()
+                .contains("expires in time"), result.toString());
     }
 
     @Test
@@ -407,7 +455,14 @@ class McpFileUploadsIntegrationTest {
             ObjectNode answer = JSON.createObjectNode();
             answer.put("uploadUrl", "http://127.0.0.1:" + port + "/objects/" + key);
             answer.putObject("headers").put("Content-Type", type);
-            answer.put("expiresAt", "2099-01-01T00:00:00Z");
+            // Presigned for the lifetime asked for, or for a year when none is
+            String expiresIn = query(exchange.getRequestURI(), "expiresIn");
+            if (expiresIn != null) {
+                presignedFor.add(Long.parseLong(expiresIn));
+            }
+            answer.put("expiresAt", java.time.Instant.now().plusSeconds(
+                    expiresIn != null ? Long.parseLong(expiresIn) : 365L * 24 * 3600)
+                    .toString());
             respond(exchange, 200, answer.toString().getBytes(StandardCharsets.UTF_8));
         });
         server.createContext("/objects/", exchange -> {

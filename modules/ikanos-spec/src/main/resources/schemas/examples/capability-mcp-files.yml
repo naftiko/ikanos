@@ -96,6 +96,8 @@ capability:
                   in: "query"
                 size:
                   in: "query"
+                expiresIn:
+                  in: "query"
         objects:
           description: "Stored objects."
           path: "/objects/{{key}}"
@@ -157,6 +159,7 @@ capability:
                 key: "scans/{{scan.uploadId}}"
                 contentType: "{{scan.mimeType}}"
                 size: "{{scan.size}}"
+                expiresIn: "{{scan.uploadExpiresIn}}"
               url: "$.uploadUrl"
               headers: "$.headers"
               expiresAt: "$.expiresAt"

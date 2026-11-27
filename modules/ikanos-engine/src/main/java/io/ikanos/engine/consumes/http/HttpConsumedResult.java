@@ -151,17 +151,6 @@ public class HttpConsumedResult implements ConsumedResult, RestletBackedResult {
     }
 
     /**
-     * Freshness from the upstream's {@code Cache-Control}, {@code Expires}, {@code Date} and
-     * {@code Age} headers, read raw so that {@link Freshness#parse} sees exactly what the upstream
-     * sent (an invalid {@code Expires} such as {@code 0} included). A non-2xx answer gets a TTL of
-     * 0, whatever its headers say, so that a transient error is never reused; its {@code private}
-     * still narrows the scope. As RFC 9111 4.2.3 computes the current age, {@code Age} is corrected
-     * by the time from sending the request to getting the response (the HTTP client may download
-     * the whole body in that time), and the freshness is then aged by the time spent since (the
-     * resident time, such as reading a body the client streams), so a caller that asks after
-     * reading the body gets only what is left.
-     */
-    /**
      * {@inheritDoc}
      *
      * <p>{@code Content-Length} and {@code Content-Type} fall back to the size and media type of
@@ -189,6 +178,17 @@ public class HttpConsumedResult implements ConsumedResult, RestletBackedResult {
         return null;
     }
 
+    /**
+     * Freshness from the upstream's {@code Cache-Control}, {@code Expires}, {@code Date} and
+     * {@code Age} headers, read raw so that {@link Freshness#parse} sees exactly what the upstream
+     * sent (an invalid {@code Expires} such as {@code 0} included). A non-2xx answer gets a TTL of
+     * 0, whatever its headers say, so that a transient error is never reused; its {@code private}
+     * still narrows the scope. As RFC 9111 4.2.3 computes the current age, {@code Age} is corrected
+     * by the time from sending the request to getting the response (the HTTP client may download
+     * the whole body in that time), and the freshness is then aged by the time spent since (the
+     * resident time, such as reading a body the client streams), so a caller that asks after
+     * reading the body gets only what is left.
+     */
     @Override
     public Freshness freshness() {
         if (response == null) {

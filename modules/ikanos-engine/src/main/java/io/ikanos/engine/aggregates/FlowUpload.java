@@ -75,6 +75,18 @@ public final class FlowUpload {
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final Duration TRANSFER_TIMEOUT = Duration.ofMinutes(2);
 
+    /** Taken off {@link #UPLOAD_EXPIRES_IN}, for clock skew and the time the presign takes. */
+    static final Duration EXPIRY_MARGIN = Duration.ofSeconds(30);
+
+    /** How long the target of a file that arrived inline may stay valid: Ikanos sends it now. */
+    static final Duration STAGE_TTL = Duration.ofMinutes(10);
+
+    /**
+     * Member of the file a presign call sees: the seconds left until its target must expire,
+     * for an upstream that takes the URL's lifetime in seconds.
+     */
+    public static final String UPLOAD_EXPIRES_IN = "uploadExpiresIn";
+
     private final FlowUploadSpec spec;
     private final OperationStepExecutor stepExecutor;
     private final String namespace;
@@ -124,19 +136,29 @@ public final class FlowUpload {
      * @param arguments the call's arguments
      * @param input the name of the file input
      * @param file the file as the presign call sees it: its metadata and {@code uploadId}
-     * @throws FileInputs.InvalidFileException when the upstream gives no usable target; the
-     *         call is then answered with an error result, the detail logged
+     * @param notAfter the latest the target may stay valid: the expiry of the
+     *        {@code requestState} it is issued under. The presign call sees the seconds left
+     *        until then, less {@link #EXPIRY_MARGIN}, as {@code {{<input>.uploadExpiresIn}}}, to
+     *        ask for a URL that expires in time
+     * @throws FileInputs.InvalidFileException when the upstream gives no usable target, or one
+     *         that expires after {@code notAfter}; the call is then answered with an error
+     *         result, the detail logged
      */
-    public Target presign(Map<String, Object> arguments, String input, Map<String, Object> file)
-            throws Exception {
-        ConsumedResult result = run(spec.getPresign(), arguments, input, file, "presign");
+    public Target presign(Map<String, Object> arguments, String input, Map<String, Object> file,
+            Instant notAfter) throws Exception {
+        Map<String, Object> presigned = new LinkedHashMap<>(file);
+        // Less a margin, so an upstream whose clock or answer runs a little late still presigns
+        // a URL that expires before the state
+        presigned.put(UPLOAD_EXPIRES_IN, Math.max(0,
+                Duration.between(Instant.now(), notAfter).minus(EXPIRY_MARGIN).getSeconds()));
+        ConsumedResult result = run(spec.getPresign(), arguments, input, presigned, "presign");
         try {
             if (result == null || !result.isSuccessful()) {
                 Context.getCurrentLogger().warning("Upload presign of flow '" + flowRef
                         + "' failed with status " + (result != null ? result.status() : 0));
                 throw refused(input, "could not be given an upload target");
             }
-            return targetOf(result.document(), spec.getPresign(), input);
+            return targetOf(result.document(), spec.getPresign(), input, notAfter);
         } finally {
             if (result != null) {
                 result.release();
@@ -155,24 +177,36 @@ public final class FlowUpload {
         ConsumedResult result = run(spec.getVerify(), arguments, input.getName(), file,
                 "verify");
         try {
-            if (result == null || !result.isSuccessful()) {
-                throw refused(input.getName(), "has not arrived in storage");
-            }
-            UploadVerifySpec verify = spec.getVerify();
-            JsonNode document = verify.getSize() != null || verify.getMimeType() != null
-                    ? result.document() : null;
-            String reportedSize = verify.getSize() != null
-                    ? text(Converter.jsonPathExtract(document, verify.getSize()))
-                    : result.header("Content-Length");
-            String reportedType = verify.getMimeType() != null
-                    ? text(Converter.jsonPathExtract(document, verify.getMimeType()))
-                    : result.header("Content-Type");
-            checkVerified(input, size, reportedSize, reportedType);
+            checkAnswer(result, spec.getVerify(), input, size);
         } finally {
             if (result != null) {
                 result.release();
             }
         }
+    }
+
+    /**
+     * Checks the answer of a verify call: successful, and reporting the declared size and an
+     * accepted type, read through the {@code size} and {@code mimeType} JsonPath expressions of
+     * its JSON body, or, for one left out, the {@code Content-Length} or {@code Content-Type}
+     * header.
+     *
+     * @throws FileInputs.InvalidFileException when the file is not confirmed
+     */
+    static void checkAnswer(ConsumedResult result, UploadVerifySpec verify,
+            InputParameterSpec input, long size) throws java.io.IOException {
+        if (result == null || !result.isSuccessful()) {
+            throw refused(input.getName(), "has not arrived in storage");
+        }
+        JsonNode document = verify.getSize() != null || verify.getMimeType() != null
+                ? result.document() : null;
+        String reportedSize = verify.getSize() != null
+                ? text(Converter.jsonPathExtract(document, verify.getSize()))
+                : result.header("Content-Length");
+        String reportedType = verify.getMimeType() != null
+                ? text(Converter.jsonPathExtract(document, verify.getMimeType()))
+                : result.header("Content-Type");
+        checkVerified(input, size, reportedSize, reportedType);
     }
 
     /**
@@ -190,7 +224,8 @@ public final class FlowUpload {
         stored.put(FileInputs.UPLOAD_ID, uploadId);
         byte[] bytes = data instanceof String text ? Base64.getDecoder().decode(text)
                 : new byte[0];
-        Target target = presign(arguments, input.getName(), stored);
+        Target target = presign(arguments, input.getName(), stored,
+                Instant.now().plus(STAGE_TTL));
         transfer(input.getName(), target, bytes);
         verify(arguments, input, stored, bytes.length);
         return stored;
@@ -255,7 +290,8 @@ public final class FlowUpload {
      *
      * @throws FileInputs.InvalidFileException when it has no usable URL or headers
      */
-    static Target targetOf(JsonNode document, UploadPresignSpec presign, String input) {
+    static Target targetOf(JsonNode document, UploadPresignSpec presign, String input,
+            Instant notAfter) {
         String url = text(Converter.jsonPathExtract(document, presign.urlOrDefault()));
         if (url == null || !isUploadUrl(url)) {
             Context.getCurrentLogger().warning("Upload presign answer has no absolute https URL"
@@ -292,6 +328,14 @@ public final class FlowUpload {
                             "Upload presign answer has an expiresAt that is not a timestamp", e);
                 }
             }
+        }
+        if (expiresAt != null && expiresAt.isAfter(notAfter)) {
+            // The draft: a target must not stay valid after the requestState it was issued
+            // under expires, and a presigned URL cannot be revoked
+            Context.getCurrentLogger().warning("Upload presign answer expires after the "
+                    + "requestState; ask for a shorter expiry, such as {{<input>."
+                    + UPLOAD_EXPIRES_IN + "}} seconds");
+            throw refused(input, "could not be given an upload target that expires in time");
         }
         return new Target(url, Map.copyOf(headers), expiresAt);
     }

@@ -148,11 +148,11 @@ public final class McpFileUploads {
             String uploadId = FlowUpload.newUploadId();
             FlowUpload.Target target = flow.getUpload().presign(callArguments, file.input(),
                     FileInputs.argument(file.id(), file.name(), file.mimeType(), file.size(),
-                            null, null, uploadId));
-            // Advisory, and never later than the state the retry needs
-            Instant expiresAt = target.expiresAt() == null
-                    || target.expiresAt().isAfter(stateExpiresAt) ? stateExpiresAt
-                            : target.expiresAt().truncatedTo(ChronoUnit.SECONDS);
+                            null, null, uploadId), stateExpiresAt);
+            // A target that expires after the state is refused by presign; without an expiry
+            // from the upstream, the state's is advertised
+            Instant expiresAt = target.expiresAt() == null ? stateExpiresAt
+                    : target.expiresAt().truncatedTo(ChronoUnit.SECONDS);
             targets.add(McpFiles.uploadTarget(MAPPER, file.id(), target.url(), target.headers(),
                     expiresAt));
             files.addObject().put("p", file.input()).put("i", file.id()).put("s", file.size())
