@@ -16,6 +16,7 @@ package io.ikanos.engine.exposes.mcp;
 import io.ikanos.Capability;
 import io.ikanos.engine.aggregates.AggregateFlow;
 import io.ikanos.engine.exposes.AccessControl;
+import io.ikanos.spec.exposes.AuthorizationSpec;
 import io.ikanos.engine.exposes.ServerAdapter;
 import io.ikanos.engine.exposes.mcp.search.ToolSearchCatalog;
 import io.ikanos.engine.exposes.mcp.search.ToolSearchProviders;
@@ -33,12 +34,16 @@ import io.ikanos.spec.exposes.mcp.McpToolHintsSpec;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.restlet.Context;
 import org.restlet.Restlet;
+import org.restlet.Request;
+import org.restlet.Response;
+import org.restlet.routing.Filter;
 import org.restlet.routing.Router;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -204,8 +209,10 @@ public class McpServerAdapter extends ServerAdapter {
                 ? limitSideRequestsInProgress(CARD_REQUESTS_IN_PROGRESS, "server-card",
                         cardRestlet) : null;
         if (cardRestricted && serverSpec.getAuthentication() != null) {
-            endpoint = new ServerCardRoute(context, serverSpec.getPath(), limitedCard, false,
-                    endpoint);
+            // Behind authentication, the card also takes the adapter's authorization, as every
+            // MCP request does in McpServerResource, so a token the endpoint refuses gets a 403
+            endpoint = new ServerCardRoute(context, serverSpec.getPath(),
+                    authorizeCard(context, serverSpec, limitedCard), false, endpoint);
         }
 
         Restlet chain = buildServerChain(endpoint);
@@ -225,6 +232,27 @@ public class McpServerAdapter extends ServerAdapter {
 
         String address = serverSpec.getAddress() != null ? serverSpec.getAddress() : "localhost";
         initServer(address, serverSpec.getPort(), chain);
+    }
+
+    /**
+     * Wraps an authenticated card in the adapter-level {@code authorization} check, with the
+     * same insufficient_scope challenge the MCP endpoint answers (the OAuth2 restlet in front
+     * turns the denial into it).
+     */
+    static Restlet authorizeCard(Context context, McpServerSpec serverSpec, Restlet card) {
+        AuthorizationSpec requirement = AccessControl.effective(serverSpec, null);
+        if (requirement == null) {
+            return card;
+        }
+        Set<String> stillRequired =
+                AccessControl.requiredScopes(AccessControl.declaredIn(serverSpec));
+        return new Filter(context, card) {
+            @Override
+            protected int beforeHandle(Request request, Response response) {
+                return AccessControl.enforce(requirement, stillRequired, request, response)
+                        ? CONTINUE : STOP;
+            }
+        };
     }
 
     /**

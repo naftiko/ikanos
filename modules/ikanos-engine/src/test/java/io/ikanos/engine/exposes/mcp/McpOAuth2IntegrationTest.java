@@ -962,6 +962,61 @@ class McpOAuth2IntegrationTest {
      * {@code order-status} tool (calling the stub) requires {@code tools:execute} and the
      * {@code editor} or {@code admin} role instead (#999).
      */
+    @Test
+    void authenticatedCardShouldTakeTheAdapterAuthorization() throws Exception {
+        int port = findFreePort();
+        String resourceUri = "http://127.0.0.1:" + port + "/mcp";
+        McpServerAdapter adapter = startAdapter("""
+                ikanos: "%s"
+                info:
+                  display: "OAuth2 MCP Test"
+                  description: "Authenticated server card with authorization"
+                  version: "1.0.0"
+                  publisher: "io.example"
+                capability:
+                  exposes:
+                    - type: "mcp"
+                      address: "127.0.0.1"
+                      port: %d
+                      namespace: "oauth2-test-mcp"
+                      description: "OAuth2 protected MCP server with a card"
+                      authentication:
+                        type: "oauth2"
+                        authorizationServerUri: "http://127.0.0.1:%d"
+                        resource: "%s"
+                        scopes: ["tools:read", "tools:execute"]
+                      authorization:
+                        scopes: ["tools:read"]
+                      card:
+                        authenticated: true
+                      tools:
+                        hello:
+                          description: "Say hello"
+                          outputParameters:
+                            - type: "string"
+                              value: "hi"
+                """.formatted(VersionHelper.getSchemaVersion(), port, mockAsPort, resourceUri));
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            URI card = URI.create("http://127.0.0.1:" + port + "/mcp/server-card");
+
+            HttpResponse<String> denied = client.send(HttpRequest.newBuilder(card)
+                    .header("Authorization", "Bearer " + tokenWithClaims(adapter,
+                            new JWTClaimsSet.Builder().claim("scope", "tools:execute")))
+                    .build(), HttpResponse.BodyHandlers.ofString());
+            assertEquals(403, denied.statusCode(), "the MCP endpoint refuses this token");
+            String wwwAuth = denied.headers().firstValue("WWW-Authenticate").orElse("");
+            assertTrue(wwwAuth.contains("error=\"insufficient_scope\""), wwwAuth);
+
+            HttpResponse<String> allowed = client.send(HttpRequest.newBuilder(card)
+                    .header("Authorization", "Bearer " + tokenWithClaims(adapter,
+                            new JWTClaimsSet.Builder().claim("scope", "tools:read")))
+                    .build(), HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, allowed.statusCode(), allowed.body());
+        } finally {
+            adapter.stop();
+        }
+    }
+
     private McpServerAdapter startOAuth2ServerWithAuthorization(RecordingUpstream upstream)
             throws Exception {
         int port = findFreePort();
