@@ -80,6 +80,17 @@ final class StepsMigrator {
             }
             int keyIndent = key.group(1).length() + (key.group(2) != null ? 2 : 0);
             int first = nextContent(lines, i);
+            if (first >= 0 && indent(lines.get(first)) == keyIndent
+                    && lines.get(first).startsWith("- ", keyIndent)) {
+                // A list written at the key's own indent, as PyYAML writes one.
+                int end = listEnd(lines, first, keyIndent);
+                List<String> rewritten = renameCalls(lines.subList(i, end), keyIndent);
+                if (rewritten != null) {
+                    out.addAll(rewritten);
+                    i = end;
+                }
+                continue;
+            }
             if (first < 0 || indent(lines.get(first)) <= keyIndent) {
                 continue;
             }
@@ -134,7 +145,7 @@ final class StepsMigrator {
                 object.set("steps", list);
                 changed = true;
             }
-            if (object.get("steps") instanceof ArrayNode list) {
+            if (object.get("steps") instanceof ArrayNode list && isStepList(list)) {
                 for (JsonNode step : list) {
                     changed |= renameCall(step);
                 }
@@ -166,7 +177,7 @@ final class StepsMigrator {
         if (node instanceof ObjectNode object) {
             JsonNode steps = object.get("steps");
             if ((steps instanceof ObjectNode map && isStepMap(map))
-                    || (steps instanceof ArrayNode list && hasCall(list))) {
+                    || (steps instanceof ArrayNode list && isStepList(list) && hasCall(list))) {
                 paths.add(path + ".steps");
             }
             for (Map.Entry<String, JsonNode> entry : object.properties()) {
@@ -186,6 +197,22 @@ final class StepsMigrator {
             }
         }
         return false;
+    }
+
+    /**
+     * Whether a list is a list of steps: each item an object that declares a {@code type}. A
+     * {@code steps} list elsewhere, such as in a request body's data, is left alone.
+     */
+    private static boolean isStepList(ArrayNode list) {
+        if (list.isEmpty()) {
+            return false;
+        }
+        for (JsonNode item : list) {
+            if (!item.isObject() || !item.has("type")) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static boolean isStepMap(ObjectNode map) {
@@ -291,8 +318,15 @@ final class StepsMigrator {
         return out;
     }
 
-    /** Renames {@code call:} to {@code what:} in a block that is already a list of steps. */
+    /**
+     * Renames {@code call:} to {@code what:} in a block that is already a list of steps, or
+     * returns {@code null} when an item declares no {@code type} (the block is then not a step
+     * list, such as a {@code steps} list in a request body's data).
+     */
     private static List<String> renameCalls(List<String> block, int childIndent) {
+        if (!isTypedList(block, childIndent)) {
+            return null;
+        }
         List<String> out = new ArrayList<>(block.size());
         for (String line : block) {
             String renamed = line;
@@ -311,6 +345,34 @@ final class StepsMigrator {
         return out;
     }
 
+    /** Whether each item of a YAML list block declares a {@code type}. */
+    private static boolean isTypedList(List<String> block, int childIndent) {
+        int items = 0;
+        int typed = 0;
+        boolean current = false;
+        for (String line : block) {
+            if (isBlankOrComment(line)) {
+                continue;
+            }
+            int indent = indent(line);
+            if (indent == childIndent && line.startsWith("- ", indent)) {
+                if (items > 0 && current) {
+                    typed++;
+                }
+                items++;
+                String first = line.substring(indent + 2).strip();
+                current = first.startsWith("type:")
+                        || (first.startsWith("{") && INLINE_TYPE.matcher(first).find());
+            } else if (indent == childIndent + 2 && TYPE_KEY.matcher(line).find()) {
+                current = true;
+            }
+        }
+        if (items > 0 && current) {
+            typed++;
+        }
+        return items > 0 && typed == items;
+    }
+
     private static String renameInlineCall(String line) {
         int brace = line.indexOf('{');
         if (brace < 0) {
@@ -327,6 +389,25 @@ final class StepsMigrator {
             String line = lines.get(end);
             if (!isBlankOrComment(line)) {
                 if (indent(line) < childIndent) {
+                    break;
+                }
+                last = end;
+            }
+            end++;
+        }
+        return last + 1;
+    }
+
+    /** The end of a list whose items sit at {@code indent}, the indent of its key. */
+    private static int listEnd(List<String> lines, int from, int indent) {
+        int end = from;
+        int last = from;
+        while (end < lines.size()) {
+            String line = lines.get(end);
+            if (!isBlankOrComment(line)) {
+                int lineIndent = indent(line);
+                if (lineIndent < indent
+                        || (lineIndent == indent && !line.startsWith("- ", indent))) {
                     break;
                 }
                 last = end;

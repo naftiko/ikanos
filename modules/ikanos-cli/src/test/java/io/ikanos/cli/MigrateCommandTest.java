@@ -102,6 +102,19 @@ public class MigrateCommandTest {
     }
 
     @Test
+    public void callShouldReportAFlowStyleStepMapItCannotRewriteAndExitWithTwo()
+            throws Exception {
+        Path file = Files.writeString(tempDir.resolve("a.yml"),
+                "steps: {fetch: {type: call, call: api.list-items}}\n");
+
+        int exitCode = run(file.toString());
+
+        assertEquals(2, exitCode);
+        assertTrue(err.toString().contains("Cannot migrate " + file + " fully"), err.toString());
+        assertTrue(err.toString().contains("$.steps"), err.toString());
+    }
+
+    @Test
     public void callShouldExitWithTwoWhenAPathDoesNotExist() {
         int exitCode = run(tempDir.resolve("missing.yml").toString());
 

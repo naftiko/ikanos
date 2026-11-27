@@ -44,8 +44,8 @@ public final class ExecutionTree {
     }
 
     /**
-     * Compiles the steps of a {@code steps:} list, keyed by name. A step whose name has a handler in {@code registry} becomes a
-     * {@link StepNode.Kind#HANDLER} node.
+     * Compiles the steps of a {@code steps:} list, keyed by name. A step whose name has a handler
+     * in {@code registry} becomes a {@link StepNode.Kind#HANDLER} node.
      *
      * @param steps the steps, in the order they run; may be {@code null} or empty
      * @param registry the embedder's step handlers; may be {@code null}

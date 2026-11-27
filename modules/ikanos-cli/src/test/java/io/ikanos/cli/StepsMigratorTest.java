@@ -200,6 +200,60 @@ public class StepsMigratorTest {
     }
 
     @Test
+    public void migrateYamlShouldLeaveAStepsListWhoseItemsDeclareNoType() {
+        String body = """
+                body:
+                  type: json
+                  data:
+                    steps:
+                      - call: kept
+                        order: 1
+                """;
+
+        assertEquals(body, StepsMigrator.migrateYaml(body));
+    }
+
+    @Test
+    public void migrateYamlShouldRenameCallInAListWrittenAtTheIndentOfItsKey() {
+        String before = """
+                steps:
+                - name: first
+                  type: call
+                  call: a.b
+                mappings:
+                - target: x
+                """;
+        String after = """
+                steps:
+                - name: first
+                  type: call
+                  what: a.b
+                mappings:
+                - target: x
+                """;
+
+        assertEquals(after, StepsMigrator.migrateYaml(before));
+    }
+
+    @Test
+    public void migrateJsonShouldLeaveAStepsListWhoseItemsDeclareNoType() {
+        String body = "{\"data\": {\"steps\": [{\"call\": \"kept\"}]}}";
+
+        assertEquals(body, StepsMigrator.migrateJson(body));
+    }
+
+    @Test
+    public void findEarlierFormsShouldIgnoreAStepsListWhoseItemsDeclareNoType() {
+        JsonNode body = IkanosMappers.yaml().readTree("""
+                data:
+                  steps:
+                    - call: kept
+                """);
+
+        assertTrue(StepsMigrator.findEarlierForms(body).isEmpty());
+    }
+
+    @Test
     public void migrateYamlShouldKeepTheUnitCallOfAToolWithoutSteps() {
         String tool = """
                 tools:

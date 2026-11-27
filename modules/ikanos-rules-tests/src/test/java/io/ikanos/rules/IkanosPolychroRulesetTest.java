@@ -198,7 +198,7 @@ public class IkanosPolychroRulesetTest {
 
     @Test
     public void stepsUniqueNamesRuleShouldNotFireWhenStepNamesAreDistinct() {
-        LintResult result = lintFixture("rules/polychro-flow-calls-compliant.yaml");
+        LintResult result = lintFixture("rules/polychro-steps-distinct-names.yaml");
 
         assertFalse(result.output().contains("ikanos-steps-unique-names"),
             "Expected no ikanos-steps-unique-names finding.\n" + result.output());

@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.Callable;
 import java.util.stream.Stream;
+import io.ikanos.spec.util.IkanosMappers;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -80,6 +81,15 @@ public class MigrateCommand implements Callable<Integer> {
             try {
                 String text = Files.readString(file, StandardCharsets.UTF_8);
                 String migrated = migrate(file, text);
+                // A form the text rewrite does not handle (a flow-style 'steps: {...}', a step
+                // written as a '{...}' map over several lines) is reported, not passed over.
+                List<String> left = remaining(file, migrated);
+                if (!left.isEmpty()) {
+                    err.println("Cannot migrate " + file + " fully: rewrite "
+                            + String.join(", ", left) + " by hand ('steps' as a list of named"
+                            + " steps, 'what' instead of 'call').");
+                    failed++;
+                }
                 if (!migrated.equals(text)) {
                     changed++;
                     if (dryRun) {
@@ -108,6 +118,14 @@ public class MigrateCommand implements Callable<Integer> {
         return file.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json")
                 ? StepsMigrator.migrateJson(text)
                 : StepsMigrator.migrateYaml(text);
+    }
+
+    /** The {@code steps} still in the earlier form once {@code migrated} is read back. */
+    static List<String> remaining(Path file, String migrated) {
+        boolean json = file.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json");
+        return StepsMigrator.findEarlierForms(json
+                ? IkanosMappers.json().readTree(migrated)
+                : IkanosMappers.yaml().readTree(migrated));
     }
 
     private static List<Path> documents(Path path) throws IOException {

@@ -1,0 +1,38 @@
+ikanos: 1.0.0-beta11
+info:
+  display: Distinct step names
+  description: Positive fixture for ikanos-steps-unique-names
+capability:
+  consumes:
+  - type: http
+    namespace: weather-api
+    description: Weather API
+    baseUri: https://weather.example.com
+    resources:
+      forecasts:
+        path: /forecast
+        operations:
+          get-forecast:
+            method: GET
+  aggregates:
+  - display: weather flows
+    namespace: weather
+    flows:
+      get-forecast:
+        description: Two call steps with distinct names
+        semantics:
+          safe: true
+          idempotent: true
+        steps:
+        - name: forecast
+          type: call
+          what: weather-api.get-forecast
+        - name: forecast-again
+          type: call
+          what: weather-api.get-forecast
+        mappings:
+        - target: summary
+          value: $.forecast.summary
+        outputParameters:
+          summary:
+            type: string

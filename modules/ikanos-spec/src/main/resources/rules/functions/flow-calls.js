@@ -1,8 +1,8 @@
 /**
  * Polychro rule function: flow-calls
  *
- * Checks calls between aggregate flows (`call: namespace.flow-name`, from a
- * `call` step or a flow-level `call:`). Select the check with
+ * Checks calls between aggregate flows (`namespace.flow-name`, from a `call`
+ * step's `what:` or a flow-level `call:`). Select the check with
  * `functionOptions.check`:
  *
  *   - "targets":   a call names an aggregate namespace but no flow of that name;
