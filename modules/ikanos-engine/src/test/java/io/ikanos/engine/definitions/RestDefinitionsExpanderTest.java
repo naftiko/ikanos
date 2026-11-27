@@ -311,7 +311,7 @@ class RestDefinitionsExpanderTest {
     }
 
     @Test
-    void expandAllShouldRejectASchemaInAMappedRestOutput() throws Exception {
+    void expandAllShouldRequireMappingsBesideASchemaInAMappedRestOutput() throws Exception {
         IkanosSpec spec = rest("""
                 definitions:
                   schemas:
@@ -334,7 +334,8 @@ class RestDefinitionsExpanderTest {
 
         assertTrue(result.errors().stream().anyMatch(error -> error.startsWith(
                 "REST adapter 'api', resource 'ship', operation 'get-ship', output")
-                && error.contains("only allowed in orchestrated (steps) outputs")),
+                && error.contains("'schema: ship' in a mapped (call-mode) output needs"
+                        + " 'mappings'")),
                 result.errors().toString());
     }
 
@@ -438,6 +439,132 @@ class RestDefinitionsExpanderTest {
         assertTrue(result.errors().isEmpty(), result.errors().toString());
         assertEquals(List.of("REST adapter 'api' declares the input parameter set 'paging',"
                 + " which no resource or operation uses."), result.warnings());
+    }
+
+    @Test
+    void expandAllShouldBindASchemaInAMappedRestOutput() throws Exception {
+        IkanosSpec spec = rest("""
+                definitions:
+                  schemas:
+                    ship:
+                      type: object
+                      properties:
+                        imo: { type: string }
+                        tonnage: { type: integer }
+                """, """
+                ships:
+                  path: "/ships"
+                  operations:
+                    list-ships:
+                      method: GET
+                      call: registry.list-ships
+                      outputParameters:
+                        - type: array
+                          mapping: "$.ships"
+                          items:
+                            schema: ship
+                            mappings:
+                              imo: "$.imo_number"
+                              tonnage: "$.gross_tonnage"
+                """);
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+
+        assertEquals(List.of(), result.errors());
+        assertEquals("[{\"type\":\"array\",\"mapping\":\"$.ships\",\"items\":[{\"type\":\"object\","
+                + "\"properties\":{\"imo\":{\"type\":\"string\",\"mapping\":\"$.imo_number\"},"
+                + "\"tonnage\":{\"type\":\"number\",\"mapping\":\"$.gross_tonnage\"}}}]}]",
+                IkanosMappers.json().writeValueAsString(
+                        operation(spec, "ships", "list-ships").getOutputParameters()));
+    }
+
+    @Test
+    void expandAllShouldBindASchemaInTheOutputOfARefRestOperation() throws Exception {
+        // A ref operation's own outputs map its flow's result, as a call's would
+        IkanosSpec spec = rest("""
+                definitions:
+                  schemas:
+                    ship:
+                      type: object
+                      properties:
+                        imo: { type: string }
+                """, """
+                ship:
+                  path: "/ship"
+                  operations:
+                    get-ship:
+                      method: GET
+                      ref: fleet.get-ship
+                      outputParameters:
+                        - schema: ship
+                          mappings:
+                            imo: "$.imo_number"
+                """);
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+
+        assertEquals(List.of(), result.errors());
+        assertEquals("[{\"type\":\"object\",\"properties\":{\"imo\":{\"type\":\"string\","
+                + "\"mapping\":\"$.imo_number\"}}}]", IkanosMappers.json().writeValueAsString(
+                        operation(spec, "ship", "get-ship").getOutputParameters()));
+    }
+
+    @Test
+    void expandAllShouldBindMapFormOutputsOfARefRestOperation() throws Exception {
+        // Mapped whatever their form, as definitions.js decides it too
+        IkanosSpec spec = rest("""
+                definitions:
+                  schemas:
+                    ship:
+                      type: object
+                      properties:
+                        imo: { type: string }
+                """, """
+                ship:
+                  path: "/ship"
+                  operations:
+                    get-ship:
+                      method: GET
+                      ref: fleet.get-ship
+                      outputParameters:
+                        ship:
+                          schema: ship
+                """);
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        assertEquals(List.of("REST adapter 'api', resource 'ship', operation 'get-ship', output"
+                + " 'ship': 'schema: ship' in a mapped (call-mode) output needs 'mappings', the"
+                + " mapping of each path of the schema."), errors);
+    }
+
+    @Test
+    void expandAllShouldRejectASchemaInAMockRestOutput() throws Exception {
+        IkanosSpec spec = rest("""
+                definitions:
+                  schemas:
+                    ship:
+                      type: object
+                      properties:
+                        imo: { type: string }
+                """, """
+                ship:
+                  path: "/ship"
+                  operations:
+                    get-ship:
+                      method: GET
+                      outputParameters:
+                        - name: ship
+                          schema: ship
+                          mappings:
+                            imo: "$.imo_number"
+                """);
+
+        List<String> errors = DefinitionsExpander.expandAll(spec).errors();
+
+        assertEquals(List.of("REST adapter 'api', resource 'ship', operation 'get-ship', output"
+                + " 'ship': 'schema:' and 'mappings' are not allowed in a mock output, which"
+                + " returns static values. Declare the output inline."), errors);
     }
 
     private static IkanosSpec rest(String definitions, String resources) throws Exception {

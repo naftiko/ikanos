@@ -1,0 +1,127 @@
+ikanos: "1.0.0-beta11"
+info:
+  display: "Mapped definitions"
+  description: "Schemas bound by mappings in mapped (call-mode) outputs (#1036)."
+  tags:
+    - Test
+capability:
+  consumes:
+    - type: http
+      namespace: registry
+      description: "Ship registry API"
+      baseUri: "https://registry.acme.org"
+      resources:
+        ships:
+          path: "/ships"
+          description: "Ships"
+          operations:
+            list-ships:
+              method: GET
+            get-ship:
+              method: GET
+  exposes:
+    - type: mcp
+      port: 3000
+      namespace: fleet
+      description: "Fleet tools"
+      definitions:
+        schemas:
+          ship:
+            type: object
+            properties:
+              imo: { type: string }
+              tonnage: { type: number }
+              crew:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    fullName: { type: string }
+              tags: { type: array, items: { type: string } }
+      tools:
+        get-ship:
+          description: "Returns the IMO number, tonnage and crew of one registered vessel."
+          call: registry.get-ship
+          outputParameters:
+            - schema: ship
+              mappings:
+                imo: "$.imo_number"
+                tonnage: "$.gross_tonnage"
+                crew: "$.crew"
+                crew[].fullName: "$.name"
+                tags: "$.labels"
+        list-ships:
+          description: "Lists every registered vessel with its IMO number, tonnage and crew."
+          call: registry.list-ships
+          outputParameters:
+            - type: array
+              mapping: "$.ships"
+              items:
+                schema: ship
+                mappings:
+                  imo: "$.imo_number"
+                  tonnage: "$.gross_tonnage"
+                  crew: "$.crew"
+                  crew[].fullName: "$.name"
+                  tags: "$.labels"
+        get-ship-flow:
+          description: "Returns one registered vessel through the fleet flow, for clients of the flow."
+          ref: registry-flows.get-ship
+    - type: rest
+      port: 3001
+      namespace: fleet-rest
+      description: "Fleet API"
+      definitions:
+        schemas:
+          ship:
+            type: object
+            properties:
+              imo: { type: string }
+              tonnage: { type: number }
+      resources:
+        ships:
+          path: "/ships"
+          description: "Ships"
+          operations:
+            list-ships:
+              method: GET
+              description: "List ships."
+              call: registry.list-ships
+              outputParameters:
+                - type: array
+                  mapping: "$.ships"
+                  items:
+                    schema: ship
+                    mappings:
+                      imo: "$.imo_number"
+                      tonnage: "$.gross_tonnage"
+        ship:
+          path: "/flagship"
+          description: "One ship"
+          operations:
+            get-ship:
+              method: GET
+              description: "Get a ship through the fleet flow."
+              ref: registry-flows.get-ship
+              outputParameters:
+                - schema: ship
+                  mappings:
+                    imo: "$.imo_number"
+                    tonnage: "$.gross_tonnage"
+  aggregates:
+    - display: "Fleet"
+      namespace: registry-flows
+      definitions:
+        schemas:
+          ship:
+            type: object
+            properties:
+              imo: { type: string }
+      flows:
+        get-ship:
+          description: "Returns the IMO number, tonnage and crew of one registered vessel."
+          call: registry.get-ship
+          outputParameters:
+            - schema: ship
+              mappings:
+                imo: "$.imo_number"

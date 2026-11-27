@@ -28,12 +28,21 @@
             "$ref": "#/$defs/ConsumesSql"
           },
           {
+            "$ref": "#/$defs/ConsumesGrpc"
+          },
+          {
+            "$ref": "#/$defs/ConsumesGraphql"
+          },
+          {
+            "$ref": "#/$defs/ConsumesSmithy"
+          },
+          {
             "$ref": "#/$defs/ImportEntry"
           }
         ]
       },
       "minItems": 1,
-      "description": "Root section of a standalone consumes file. Each entry is an inline `ConsumesHttp` (`type: http`), an inline `ConsumesMcp` (`type: mcp`), an inline `ConsumesSql` (`type: sql`), or an `ImportEntry` (with a `from` URI). Not allowed in a capability document: use `capability.consumes`."
+      "description": "Root section of a standalone consumes file. Each entry is an inline `ConsumesHttp` (`type: http`), an inline `ConsumesMcp` (`type: mcp`), an inline `ConsumesSql` (`type: sql`), `ConsumesGrpc` (`type: grpc`), `ConsumesGraphql` (`type: graphql`), `ConsumesSmithy` (`type: smithy`), or an `ImportEntry` (with a `from` URI). Not allowed in a capability document: use `capability.consumes`."
     },
     "exposes": {
       "type": "array",
@@ -620,8 +629,40 @@
         },
         {
           "$ref": "#/$defs/MappedOutputParameterArray"
+        },
+        {
+          "$ref": "#/$defs/MappedOutputParameterSchemaRef"
         }
       ]
+    },
+    "MappedOutputParameterSchemaRef": {
+      "type": "object",
+      "description": "Mapped output shaped by a schema of the `definitions` of the same MCP adapter, REST adapter or aggregate, and bound by `mappings`: each key is a path in the schema (property names joined by `.`, `[]` for an array's items), each value the JSONPath `mapping` that node carries inline, relative exactly as inline. `mappings` may be left out only when the schema has nothing to bind (a scalar, an array whose items are not objects with properties, or an object without properties, bound by `mapping` alone). Every scalar, array and object without properties of the schema must be bound; an object with properties or array items may stay unbound. A binding the runtime never reads fails the load: the items of an array when they are objects with properties, anything below the items of nested arrays, and a `mapping` beside `schema:` on an output object or object items. It expands at load time to the inline mapped output, so `tools/list` and the REST contract are unchanged. Allowed as a call-mode output, its `items` and its `properties`.\n\n**Example**:\n```yaml\noutputParameters:\n  - type: array\n    mapping: \"$.ships\"\n    items:\n      schema: ship\n      mappings:\n        imo: \"$.imo_number\"\n        specs.tonnage: \"$.gross_tonnage\"\n        crew: \"$.crew\"\n        crew[].fullName: \"$.name\"\n```",
+      "properties": {
+        "schema": {
+          "$ref": "#/$defs/DefinitionName"
+        },
+        "mapping": {
+          "type": "string",
+          "description": "JsonPath expression selecting where the whole value is read, as an inline `mapping` on this output."
+        },
+        "mappings": {
+          "type": "object",
+          "description": "The mapping of each path of the schema: property names joined by `.`, with `[]` to step into an array's items (`crew[].fullName`), or `[]` alone for the items of an array schema.",
+          "propertyNames": {
+            "pattern": "^(?:\\[\\](?:\\[\\])*|[^.\\[\\]]+(?:\\[\\])*)(?:\\.[^.\\[\\]]+(?:\\[\\])*)*$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^\\s*\\$"
+          },
+          "minProperties": 1
+        }
+      },
+      "required": [
+        "schema"
+      ],
+      "additionalProperties": false
     },
     "OrchestratedOutputParameterBase": {
       "type": "object",
@@ -1002,7 +1043,7 @@
         },
         "consumes": {
           "type": "array",
-          "description": "Consumed client adapters. Inline `ConsumesHttp`, `ConsumesMcp` or `ConsumesSql` entries, or `ImportEntry` references to a shared consumes file.",
+          "description": "Consumed client adapters. Inline `ConsumesHttp`, `ConsumesMcp`, `ConsumesSql`, `ConsumesGrpc`, `ConsumesGraphql` or `ConsumesSmithy` entries, or `ImportEntry` references to a shared consumes file.",
           "items": {
             "oneOf": [
               {
@@ -1013,6 +1054,15 @@
               },
               {
                 "$ref": "#/$defs/ConsumesSql"
+              },
+              {
+                "$ref": "#/$defs/ConsumesGrpc"
+              },
+              {
+                "$ref": "#/$defs/ConsumesGraphql"
+              },
+              {
+                "$ref": "#/$defs/ConsumesSmithy"
               },
               {
                 "$ref": "#/$defs/ImportEntry"
@@ -2059,7 +2109,7 @@
       ],
       "additionalProperties": false
     },
-    "McpToolInputParameter": {
+    "McpToolInputParameterBase": {
       "type": "object",
       "description": "Declares an input parameter for an MCP tool. These become properties in the tool's JSON Schema input definition. Either declared inline (`type`, `description`, ...) or shaped by a schema of the adapter's or aggregate's `definitions` (`schema`, `description`, and optionally `required` and `default`).",
       "properties": {
@@ -2141,8 +2191,12 @@
             ]
           }
         }
-      },
-      "additionalProperties": false
+      }
+    },
+    "McpToolInputParameter": {
+      "description": "Declares an input parameter for an MCP tool. These become properties in the tool's JSON Schema input definition. Either declared inline (`type`, `description`, ...) or shaped by a schema of the adapter's or aggregate's `definitions` (`schema`, `description`, and optionally `required` and `default`).",
+      "$ref": "#/$defs/McpToolInputParameterBase",
+      "unevaluatedProperties": false
     },
     "McpToolInputSchema": {
       "type": "object",
@@ -2299,7 +2353,7 @@
     },
     "Definitions": {
       "type": "object",
-      "description": "Shared definitions of an MCP adapter or an aggregate, visible to its own tools or flows only.\n\n**When to use** \u2014 Several tools (or flows) repeat the same inputs, or the same input or output shape. Declare them once here and reuse them by name: `inputParameterSets: [name]` on a tool or flow, `schema: name` on an input (and in its `items` and `properties`), inside another schema, or in an orchestrated (steps-mode) output.\n**Expansion** \u2014 Definitions are expanded at load time, after imports and before `ref` resolution. `tools/list` advertises the same `inputSchema` and `outputSchema` as the inline equivalent: no reference is ever sent to MCP clients. An imported adapter or aggregate carries its definitions.\n**Reuse across adapters** \u2014 A tool cannot use an aggregate's definitions: reuse across MCP and REST goes through an aggregate flow and `ref`.\n\n**Example**:\n```yaml\ndefinitions:\n  inputParameterSets:\n    odata-list:\n      filter: { type: string, required: false, description: \"OData V2 $filter expression.\" }\n      top:    { type: integer, required: false, description: \"Maximum rows to return.\" }\n  schemas:\n    date-range:\n      type: object\n      properties:\n        from: { type: string, format: date }\n        to:   { type: string, format: date }\n      required: [from]\n```",
+      "description": "Shared definitions of an MCP adapter or an aggregate, visible to its own tools or flows only.\n\n**When to use** \u2014 Several tools (or flows) repeat the same inputs, or the same input or output shape. Declare them once here and reuse them by name: `inputParameterSets: [name]` on a tool or flow, `schema: name` on an input (and in its `items` and `properties`), inside another schema, in an orchestrated (steps-mode) output, or with `mappings` in a mapped (call-mode) output.\n**Expansion** \u2014 Definitions are expanded at load time, after imports and before `ref` resolution. `tools/list` advertises the same `inputSchema` and `outputSchema` as the inline equivalent: no reference is ever sent to MCP clients. An imported adapter or aggregate carries its definitions.\n**Reuse across adapters** \u2014 A tool cannot use an aggregate's definitions: reuse across MCP and REST goes through an aggregate flow and `ref`.\n\n**Example**:\n```yaml\ndefinitions:\n  inputParameterSets:\n    odata-list:\n      filter: { type: string, required: false, description: \"OData V2 $filter expression.\" }\n      top:    { type: integer, required: false, description: \"Maximum rows to return.\" }\n  schemas:\n    date-range:\n      type: object\n      properties:\n        from: { type: string, format: date }\n        to:   { type: string, format: date }\n      required: [from]\n```",
       "properties": {
         "inputParameterSets": {
           "type": "object",
@@ -2328,7 +2382,7 @@
             "$ref": "#/$defs/McpToolInputSchema"
           },
           "minProperties": 1,
-          "description": "Named schemas, keyed by schema name, each declared like a nested tool input schema (`required` is the list of required properties). Used with `schema: name`; a schema may use another, but schemas must not reference each other in a cycle. Composition (`allOf`) is not supported: a reference stands for the whole schema.\n\n**In an orchestrated output** \u2014 A schema gives only what an orchestrated output declares: its `type` (`integer` becomes `number`), its `properties`, and its `items` when they are objects with properties. The same holds for `items: { schema: name }`: a schema that is not an object with properties gives no `items`. Input-only keywords (`description`, `enum`, `format`, `minimum`, `maximum`, `required`, `additionalProperties`) do not apply there."
+          "description": "Named schemas, keyed by schema name, each declared like a nested tool input schema (`required` is the list of required properties). Used with `schema: name`; a schema may use another, but schemas must not reference each other in a cycle. Composition (`allOf`) is not supported: a reference stands for the whole schema.\n\n**In an orchestrated output** \u2014 A schema gives only what an orchestrated output declares: its `type` (`integer` becomes `number`), its `properties`, and its `items` when they are objects with properties. The same holds for `items: { schema: name }`: a schema that is not an object with properties gives no `items`. Input-only keywords (`description`, `enum`, `format`, `minimum`, `maximum`, `required`, `additionalProperties`) do not apply there.\n\n**In a mapped output** \u2014 `schema: name` with `mappings` gives a mapped (call-mode) output the schema's `type` (`integer` becomes `number`), `properties` and `items` of any type, each node with the `mapping` its path is bound to. Input-only keywords do not apply there either."
         }
       },
       "minProperties": 1,
@@ -2336,7 +2390,7 @@
     },
     "RestDefinitions": {
       "type": "object",
-      "description": "Shared definitions of a REST adapter, visible to its own resources and operations only.\n\n**When to use** \u2014 Several resources or operations repeat the same inputs (a path key, paging or filter query parameters), or several orchestrated outputs repeat the same shape. Declare them once here and reuse them by name: `inputParameterSets: [name]` on a resource (its operations inherit the inputs) or an operation, and `schema: name` in an orchestrated (steps-mode) output, its `items` or `properties`, or inside another schema. REST inputs are flat, so `schema:` is not allowed on them.\n**Expansion** \u2014 Definitions are expanded at load time, after imports and before `ref` resolution. The served contract and `ikanos export openapi` are the inline equivalent: no reference is ever sent to clients. An imported adapter carries its definitions.\n**Reuse across adapters** \u2014 Definitions are local: an MCP adapter, a REST adapter and an aggregate never share one. Reuse across MCP and REST goes through an aggregate flow and `ref`.\n\n**Example**:\n```yaml\ndefinitions:\n  inputParameterSets:\n    ship-key:\n      imo: { in: path, type: string, description: \"IMO number of the ship.\" }\n    paging:\n      limit:  { in: query, type: integer, description: \"Maximum items to return.\" }\n      offset: { in: query, type: integer, description: \"Items to skip.\" }\n  schemas:\n    crew-member:\n      type: object\n      properties:\n        fullName: { type: string }\n        role: { type: string }\n```",
+      "description": "Shared definitions of a REST adapter, visible to its own resources and operations only.\n\n**When to use** \u2014 Several resources or operations repeat the same inputs (a path key, paging or filter query parameters), or several outputs repeat the same shape. Declare them once here and reuse them by name: `inputParameterSets: [name]` on a resource (its operations inherit the inputs) or an operation, and `schema: name` in an orchestrated (steps-mode) output or, with `mappings`, a mapped (call-mode) output, in their `items` or `properties`, or inside another schema. REST inputs are flat, so `schema:` is not allowed on them.\n**Expansion** \u2014 Definitions are expanded at load time, after imports and before `ref` resolution. The served contract and `ikanos export openapi` are the inline equivalent: no reference is ever sent to clients. An imported adapter carries its definitions.\n**Reuse across adapters** \u2014 Definitions are local: an MCP adapter, a REST adapter and an aggregate never share one. Reuse across MCP and REST goes through an aggregate flow and `ref`.\n\n**Example**:\n```yaml\ndefinitions:\n  inputParameterSets:\n    ship-key:\n      imo: { in: path, type: string, description: \"IMO number of the ship.\" }\n    paging:\n      limit:  { in: query, type: integer, description: \"Maximum items to return.\" }\n      offset: { in: query, type: integer, description: \"Items to skip.\" }\n  schemas:\n    crew-member:\n      type: object\n      properties:\n        fullName: { type: string }\n        role: { type: string }\n```",
       "properties": {
         "inputParameterSets": {
           "type": "object",
@@ -2365,7 +2419,7 @@
             "$ref": "#/$defs/McpToolInputSchema"
           },
           "minProperties": 1,
-          "description": "Named schemas, keyed by schema name, each declared like a nested MCP tool input schema. Used with `schema: name` in an orchestrated (steps-mode) output of an operation, in its `items` or `properties`, or inside another schema; schemas must not reference each other in a cycle. A schema gives only what an orchestrated output declares: its `type` (`integer` becomes `number`), its `properties`, and its `items` when they are objects with properties."
+          "description": "Named schemas, keyed by schema name, each declared like a nested MCP tool input schema. Used with `schema: name` in an orchestrated (steps-mode) output of an operation, or with `mappings` in a mapped (call-mode) one, in their `items` or `properties`, or inside another schema; schemas must not reference each other in a cycle. A schema gives only what an orchestrated output declares: its `type` (`integer` becomes `number`), its `properties`, and its `items` when they are objects with properties.\n\n**In a mapped output** \u2014 `schema: name` with `mappings` gives a mapped (call-mode) output the schema's `type` (`integer` becomes `number`), `properties` and `items` of any type, each node with the `mapping` its path is bound to. Input-only keywords do not apply there either."
         }
       },
       "minProperties": 1,
@@ -2478,7 +2532,14 @@
             "outputParameters": {
               "type": "array",
               "items": {
-                "$ref": "#/$defs/MappedOutputParameter"
+                "$ref": "#/$defs/MappedOutputParameter",
+                "description": "Definitions do not reach MCP resources: an output here takes no `schema:` and no `mappings`. This schema rejects them at the top level; the engine and the Polychro rules reject them at any depth.",
+                "not": {
+                  "anyOf": [
+                    { "required": ["schema"] },
+                    { "required": ["mappings"] }
+                  ]
+                }
               }
             }
           },
@@ -3196,7 +3257,7 @@
       "additionalProperties": false
     },
     "TunnelConfig": {
-      "description": "Tunnel transport configuration for a `ConsumesHttp`. Use `type: ziti` to dial through an OpenZiti overlay. Additional types (e.g. `frp`, `cloudflared`) may be added in future versions; the `type` discriminator keeps existing capabilities forward-compatible.\n\n**See also** \u2014 `TunnelZiti` for the OpenZiti shape. The capability `binds` block is the recommended source for tunnel identities \u2014 never inline the identity JSON directly.",
+      "description": "Tunnel transport configuration for a `ConsumesHttp`, `ConsumesGrpc`, `ConsumesGraphql` or `ConsumesSmithy`. Use `type: ziti` to dial through an OpenZiti overlay. Additional types (e.g. `frp`, `cloudflared`) may be added in future versions; the `type` discriminator keeps existing capabilities forward-compatible.\n\n**See also** \u2014 `TunnelZiti` for the OpenZiti shape. The capability `binds` block is the recommended source for tunnel identities \u2014 never inline the identity JSON directly.",
       "oneOf": [
         {
           "$ref": "#/$defs/TunnelZiti"
@@ -4448,7 +4509,7 @@
       ]
     },
     "ConsumedAuthentication": {
-      "description": "Credential sent on every request to a consumed API (on `ConsumesHttp` and `ConsumesMcp`): `basic`, `apikey`, `bearer`, `digest` or `awsSigV4` (AWS Signature Version 4, which only applies to outgoing requests), the types the engine can send. `oauth2` is for exposed adapters only.",
+      "description": "Credential sent on every request to a consumed API (on `ConsumesHttp`, `ConsumesMcp`, `ConsumesGrpc`, `ConsumesGraphql` and `ConsumesSmithy`): `basic`, `apikey`, `bearer`, `digest` or `awsSigV4` (AWS Signature Version 4, which only applies to outgoing requests), the types the engine can send. `oauth2` is for exposed adapters only.",
       "oneOf": [
         {
           "$ref": "#/$defs/AuthBasic"
@@ -5015,6 +5076,576 @@
         "endpoint"
       ],
       "unevaluatedProperties": false
+    },
+    "ConsumedTypedInputParameter": {
+      "description": "Typed input of a contract-described consumed operation (`grpc`, `graphql`, `smithy`): the fields of an MCP tool input, declared inline at every level, plus `wireName`. Values come from the calling step's `with`; an absent optional input is left out of the request, after `default` applies.",
+      "$ref": "#/$defs/McpToolInputParameterBase",
+      "not": {
+        "required": [
+          "schema"
+        ]
+      },
+      "properties": {
+        "items": {
+          "$ref": "#/$defs/McpToolInputSchemaInline"
+        },
+        "properties": {
+          "additionalProperties": {
+            "$ref": "#/$defs/McpToolInputSchemaInline"
+          }
+        },
+        "wireName": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_-]*(\\.[A-Za-z0-9_][A-Za-z0-9_-]*)*$",
+          "description": "Where the value goes in the request when it differs from the key: a field name, or a dotted path into the request. Each segment after the first is a field, a key of a map with string keys, or a member of a union (a protobuf oneof, a GraphQL @oneOf input, a Smithy union): `input.title` fills the `title` field of the `$input` variable, `Key.id.S` the `S` member of the `id` entry of the `Key` map. Inputs may not set different members of one union. Checked against the contract when the capability loads."
+        }
+      },
+      "unevaluatedProperties": false
+    },
+    "ConsumedHeaderParameter": {
+      "description": "Static header (gRPC metadata) sent on every call of a contract-described consumed adapter: a `ConsumedInputParameter` with `in: header` and a `value`, which may take a placeholder from `binds`.",
+      "$ref": "#/$defs/ConsumedInputParameter",
+      "properties": {
+        "in": {
+          "const": "header"
+        }
+      },
+      "required": [
+        "in",
+        "value"
+      ]
+    },
+    "ConsumesGrpc": {
+      "type": "object",
+      "description": "Inline gRPC service adapter. Declares the unary methods of one service a capability may call, callable from steps exactly like a consumed HTTP operation (`call: namespace.procedure`).\n\n**Execution model** \u2014 Binary protobuf over HTTP/2, with the request and response messages taken from a local protobuf descriptor set. The response message becomes a JSON document in the proto3 JSON mapping, which `outputParameters` read with JsonPath. Requires the `ikanos-client-grpc` module at runtime.\n**See also** \u2014 `ConsumesGraphql`, `ConsumesSmithy`.",
+      "properties": {
+        "namespace": {
+          "$ref": "#/$defs/IdentifierKebab",
+          "description": "Unique adapter identifier (kebab-case). Used as the call target."
+        },
+        "type": {
+          "type": "string",
+          "const": "grpc"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of this upstream service."
+        },
+        "endpoint": {
+          "type": "string",
+          "pattern": "^(https?://[^/]+/?|\\{\\{[A-Za-z0-9_.-]+\\}\\})$",
+          "description": "Authority of the upstream, `http://host:port` (HTTP/2 without TLS). `https://` is reserved: TLS is not supported yet. Placeholders are resolved once at load time from `binds`."
+        },
+        "descriptorSet": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Local binary protobuf `FileDescriptorSet` with its imports (`protoc --include_imports --descriptor_set_out`, or `buf build -o`): a relative path, or a relative `file:` URI (`file:///./contracts/x`), inside the directory of the capability file; an absolute path, a `..` that leaves that directory and a symbolic link pointing outside it are refused. Read once at load time, never fetched."
+        },
+        "service": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*$",
+          "description": "Fully qualified service name, `io.example.orders.v1.OrderService`."
+        },
+        "authentication": {
+          "$ref": "#/$defs/ConsumedAuthentication",
+          "not": {
+            "anyOf": [
+              {
+                "properties": {
+                  "type": {
+                    "enum": [
+                      "digest",
+                      "awsSigV4"
+                    ]
+                  }
+                },
+                "required": [
+                  "type"
+                ]
+              },
+              {
+                "properties": {
+                  "type": {
+                    "const": "apikey"
+                  },
+                  "placement": {
+                    "const": "query"
+                  }
+                },
+                "required": [
+                  "type",
+                  "placement"
+                ]
+              }
+            ]
+          },
+          "description": "Credential sent as gRPC metadata on every call: `basic`, `bearer`, or `apikey` in a header. Refused over a plaintext endpoint unless it is a loopback address or a `tunnel` is set."
+        },
+        "tunnel": {
+          "$ref": "#/$defs/TunnelConfig",
+          "description": "Optional reverse-tunnel transport for an upstream behind a firewall."
+        },
+        "inputParameters": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-zA-Z0-9-_]+$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/ConsumedHeaderParameter"
+          },
+          "description": "Static headers sent on every call, keyed by header name."
+        },
+        "procedures": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-zA-Z0-9-]+$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/ConsumedGrpcProcedure"
+          },
+          "minProperties": 1,
+          "description": "Callable unary methods, keyed by call name (kebab-case)."
+        }
+      },
+      "required": [
+        "namespace",
+        "type",
+        "endpoint",
+        "descriptorSet",
+        "service",
+        "procedures"
+      ],
+      "additionalProperties": false
+    },
+    "ConsumedGrpcProcedure": {
+      "type": "object",
+      "description": "One unary method of a consumed gRPC service.",
+      "properties": {
+        "display": {
+          "type": "string",
+          "description": "Human-readable display name."
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "description": {
+          "type": "string",
+          "description": "Local description of the operation, for authors and agents. Never copied from the contract."
+        },
+        "inputParameters": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-zA-Z0-9-_]+$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/ConsumedTypedInputParameter"
+          },
+          "description": "Typed inputs, keyed by name, written into the request by `wireName`."
+        },
+        "outputParameters": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ConsumedOutputParameter"
+          },
+          "description": "Values extracted with JsonPath from the result document."
+        },
+        "readOnly": {
+          "type": "boolean",
+          "description": "Whether the operation only reads. Derived from the contract when absent. A write may run again after a restart in a durable mode: make it idempotent. A read-only exposed tool, an MCP resource, a REST operation with a safe method (`GET`, `HEAD`, `OPTIONS`, `TRACE`) or a flow with `semantics.safe: true` cannot reach a write: the capability fails to load. gRPC: read-only when the method sets `idempotency_level = NO_SIDE_EFFECTS`."
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Call timeout in milliseconds. Default 30000. A timeout fails with 504."
+        },
+        "rpc": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+          "description": "Method name in the adapter's `service`, `GetOrder`. Must be unary."
+        }
+      },
+      "required": [
+        "description",
+        "rpc"
+      ],
+      "additionalProperties": false
+    },
+    "ConsumesGraphql": {
+      "type": "object",
+      "description": "Inline GraphQL API adapter. Declares static GraphQL documents a capability may send, callable from steps exactly like a consumed HTTP operation (`call: namespace.operation`).\n\n**Execution model** \u2014 One GraphQL-over-HTTP `POST` per call, with the step's values as variables: caller input never enters a document. The result document is `data`. A response is read up to 10 MiB: a larger one, or a response that is not a GraphQL result (an HTML page from a proxy, a JSON body with neither `data` nor `errors`), fails with status 502. Requires the `ikanos-client-graphql` module at runtime.\n**See also** \u2014 `ConsumesGrpc`, `ConsumesSmithy`.",
+      "properties": {
+        "namespace": {
+          "$ref": "#/$defs/IdentifierKebab",
+          "description": "Unique adapter identifier (kebab-case). Used as the call target."
+        },
+        "type": {
+          "type": "string",
+          "const": "graphql"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of this upstream API."
+        },
+        "endpoint": {
+          "type": "string",
+          "pattern": "^(https?://[^/]+(/.*)?|\\{\\{[A-Za-z0-9_.-]+\\}\\})$",
+          "description": "GraphQL endpoint URL, used as is, `https://api.example.com/graphql`. Placeholders are resolved once at load time from `binds`."
+        },
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Local GraphQL SDL file: a relative path, or a relative `file:` URI (`file:///./contracts/x`), inside the directory of the capability file; an absolute path, a `..` that leaves that directory and a symbolic link pointing outside it are refused. With it, every document is validated when the capability loads."
+        },
+        "authentication": {
+          "$ref": "#/$defs/ConsumedAuthentication",
+          "description": "Credential sent on every request."
+        },
+        "tunnel": {
+          "$ref": "#/$defs/TunnelConfig",
+          "description": "Optional reverse-tunnel transport for an upstream behind a firewall."
+        },
+        "inputParameters": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-zA-Z0-9-_]+$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/ConsumedHeaderParameter"
+          },
+          "description": "Static headers sent on every call, keyed by header name."
+        },
+        "operations": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-zA-Z0-9-]+$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/ConsumedGraphqlOperation"
+          },
+          "minProperties": 1,
+          "description": "Callable operations, keyed by call name (kebab-case)."
+        }
+      },
+      "required": [
+        "namespace",
+        "type",
+        "endpoint",
+        "operations"
+      ],
+      "additionalProperties": false
+    },
+    "ConsumedGraphqlOperation": {
+      "type": "object",
+      "description": "One consumed GraphQL operation: a `document`, or named `documents` and the `select` rule choosing one per call.",
+      "properties": {
+        "display": {
+          "type": "string",
+          "description": "Human-readable display name."
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "description": {
+          "type": "string",
+          "description": "Local description of the operation, for authors and agents. Never copied from the contract."
+        },
+        "inputParameters": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-zA-Z0-9-_]+$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/ConsumedTypedInputParameter"
+          },
+          "description": "Typed inputs, keyed by name, written into the request by `wireName`."
+        },
+        "outputParameters": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ConsumedOutputParameter"
+          },
+          "description": "Values extracted with JsonPath from the result document."
+        },
+        "readOnly": {
+          "type": "boolean",
+          "description": "Whether the operation only reads. Derived from the contract when absent. A write may run again after a restart in a durable mode: make it idempotent. A read-only exposed tool, an MCP resource, a REST operation with a safe method (`GET`, `HEAD`, `OPTIONS`, `TRACE`) or a flow with `semantics.safe: true` cannot reach a write: the capability fails to load. GraphQL: read-only when every document is a `query`."
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Call timeout in milliseconds. Default 30000. A timeout fails with 504."
+        },
+        "document": {
+          "type": "string",
+          "minLength": 1,
+          "description": "One GraphQL document, a `query` or a `mutation`. Static: values reach it only as variables."
+        },
+        "documents": {
+          "type": "object",
+          "minProperties": 2,
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Named documents, one of which `select` chooses per call."
+        },
+        "select": {
+          "$ref": "#/$defs/GraphqlSelect"
+        },
+        "operationName": {
+          "type": "string",
+          "description": "Operation to run when a document defines several."
+        },
+        "partialData": {
+          "type": "string",
+          "enum": [
+            "fail",
+            "allow"
+          ],
+          "default": "fail",
+          "description": "What to do with a response that has `errors` and some `data`: `fail` the step, or `allow` the data."
+        }
+      },
+      "required": [
+        "description"
+      ],
+      "oneOf": [
+        {
+          "required": [
+            "document"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "documents"
+                ]
+              },
+              {
+                "required": [
+                  "select"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "documents",
+            "select"
+          ],
+          "not": {
+            "required": [
+              "document"
+            ]
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "GraphqlSelect": {
+      "type": "object",
+      "description": "Chooses a document per call: `then` when the input named by `when` is present and not null, `else` otherwise.",
+      "properties": {
+        "when": {
+          "type": "string",
+          "description": "Name of the input tested."
+        },
+        "then": {
+          "type": "string",
+          "description": "Document used when the input is present."
+        },
+        "else": {
+          "type": "string",
+          "description": "Document used otherwise."
+        }
+      },
+      "required": [
+        "when",
+        "then",
+        "else"
+      ],
+      "additionalProperties": false
+    },
+    "ConsumesSmithy": {
+      "type": "object",
+      "description": "Inline Smithy service adapter. Declares the operations of one Smithy service a capability may call, callable from steps exactly like a consumed HTTP operation (`call: namespace.operation`).\n\n**Execution model** \u2014 smithy-java's dynamic client loads a local Smithy model and calls the service in its own protocol (restJson1, awsJson1.0/1.1, restXml, awsQuery, rpcv2Cbor). The output structure becomes the result document. Requires the `ikanos-client-smithy` module at runtime.\n**See also** \u2014 `ConsumesGrpc`, `ConsumesGraphql`.",
+      "properties": {
+        "namespace": {
+          "$ref": "#/$defs/IdentifierKebab",
+          "description": "Unique adapter identifier (kebab-case). Used as the call target."
+        },
+        "type": {
+          "type": "string",
+          "const": "smithy"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of this upstream service."
+        },
+        "baseUri": {
+          "type": "string",
+          "pattern": "^(https?://[^/]+(/[^{]*)?|\\{\\{[A-Za-z0-9_.-]+\\}\\})$",
+          "description": "Endpoint of the service, under which the protocol builds paths. Overrides any endpoint rule set of the model. Placeholders are resolved once at load time from `binds`."
+        },
+        "model": {
+          "description": "Local Smithy model: an IDL (`.smithy`) or JSON AST (`.json`) file, or a list of them, each a relative path, or a relative `file:` URI (`file:///./contracts/x`), inside the directory of the capability file; an absolute path, a `..` that leaves that directory and a symbolic link pointing outside it are refused.",
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          ]
+        },
+        "service": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*#[A-Za-z_][A-Za-z0-9_]*$",
+          "description": "Service shape ID, `example.weather#Weather`."
+        },
+        "protocol": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*#[A-Za-z_][A-Za-z0-9_]*$",
+          "description": "Protocol trait shape ID, `aws.protocols#restJson1`. Required when the service declares several."
+        },
+        "authentication": {
+          "$ref": "#/$defs/ConsumedAuthentication",
+          "not": {
+            "anyOf": [
+              {
+                "properties": {
+                  "type": {
+                    "enum": [
+                      "digest"
+                    ]
+                  }
+                },
+                "required": [
+                  "type"
+                ]
+              },
+              {
+                "properties": {
+                  "type": {
+                    "const": "apikey"
+                  },
+                  "placement": {
+                    "const": "query"
+                  }
+                },
+                "required": [
+                  "type",
+                  "placement"
+                ]
+              }
+            ]
+          },
+          "description": "Credential sent on every request: `basic`, `bearer`, `apikey` in a header, or `awsSigV4`."
+        },
+        "tunnel": {
+          "$ref": "#/$defs/TunnelConfig",
+          "description": "Optional reverse-tunnel transport for an upstream behind a firewall."
+        },
+        "inputParameters": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-zA-Z0-9-_]+$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/ConsumedHeaderParameter"
+          },
+          "description": "Static headers sent on every call, keyed by header name."
+        },
+        "operations": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-zA-Z0-9-]+$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/ConsumedSmithyOperation"
+          },
+          "minProperties": 1,
+          "description": "Callable operations, keyed by call name (kebab-case)."
+        }
+      },
+      "required": [
+        "namespace",
+        "type",
+        "baseUri",
+        "model",
+        "service",
+        "operations"
+      ],
+      "additionalProperties": false
+    },
+    "ConsumedSmithyOperation": {
+      "type": "object",
+      "description": "One operation of a consumed Smithy service.",
+      "properties": {
+        "display": {
+          "type": "string",
+          "description": "Human-readable display name."
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "description": {
+          "type": "string",
+          "description": "Local description of the operation, for authors and agents. Never copied from the contract."
+        },
+        "inputParameters": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-zA-Z0-9-_]+$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/ConsumedTypedInputParameter"
+          },
+          "description": "Typed inputs, keyed by name, written into the request by `wireName`."
+        },
+        "outputParameters": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ConsumedOutputParameter"
+          },
+          "description": "Values extracted with JsonPath from the result document."
+        },
+        "readOnly": {
+          "type": "boolean",
+          "description": "Whether the operation only reads. Derived from the contract when absent. A write may run again after a restart in a durable mode: make it idempotent. A read-only exposed tool, an MCP resource, a REST operation with a safe method (`GET`, `HEAD`, `OPTIONS`, `TRACE`) or a flow with `semantics.safe: true` cannot reach a write: the capability fails to load. Smithy: read-only when the operation has `@readonly`."
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Call timeout in milliseconds. Default 30000. A timeout fails with 504."
+        },
+        "operation": {
+          "type": "string",
+          "pattern": "^([A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*#)?[A-Za-z_][A-Za-z0-9_]*$",
+          "description": "Operation shape name in the service, `GetCurrentForecast`, or a full shape ID."
+        }
+      },
+      "required": [
+        "description",
+        "operation"
+      ],
+      "additionalProperties": false
     }
   }
 }

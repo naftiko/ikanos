@@ -27,6 +27,7 @@ import io.ikanos.engine.util.Resolver;
 import io.ikanos.engine.util.Secrets;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.consumes.ClientSpec;
+import io.ikanos.spec.consumes.ContractClientSpec;
 import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
 import io.ikanos.spec.consumes.http.AuthenticationSpec;
 import io.ikanos.spec.consumes.http.AwsSigV4AuthenticationSpec;
@@ -334,7 +335,9 @@ public final class ConsumedAuthentication {
         for (ClientSpec client : clients) {
             AuthenticationSpec authentication = client instanceof HttpClientSpec http
                     ? http.getAuthentication()
-                    : client instanceof McpClientSpec mcp ? mcp.getAuthentication() : null;
+                    : client instanceof McpClientSpec mcp ? mcp.getAuthentication()
+                    : client instanceof ContractClientSpec contract
+                            ? contract.getAuthentication() : null;
             if (authentication == null) {
                 continue;
             }

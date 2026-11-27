@@ -15,6 +15,7 @@ package io.ikanos.rules;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -1007,6 +1008,30 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
+    public void flowCallSemanticsRuleShouldFireWhenAToolsHintsPromiseMoreThanTheFlowsItsStepsCall() {
+        // #828: a call step may reach a flow, but the tool's resolved readOnly / idempotent
+        // hints must hold for that flow, as for a flow calling another flow.
+        LintResult result = lintFixture("rules/polychro-tool-hints-flow-steps.yaml");
+        // Exactly these: quote's flow is safe, pay claims nothing, pay-destructive resolves
+        // readOnly to false, and the resource and the REST operation have no hints.
+        assertEquals(List.of(
+                "$.capability.exposes[0].tools.pay-idempotent.hints.idempotent",
+                "$.capability.exposes[0].tools.pay-read-only.hints.readOnly",
+                "$.capability.exposes[1].tools.pay-by-default"),
+            result.output().lines()
+                .filter(line -> line.contains("ikanos-flow-call-semantics-conservative"))
+                .map(line -> line.substring(0, line.indexOf("  "))).sorted().toList(),
+            result.output());
+    }
+
+    @Test
+    public void exposesCallNotFlowRuleShouldLetACallStepReachAFlow() {
+        // #828: only the unit's own call: is refused; an MCP resource has no ref.
+        LintResult result = lintFixture("rules/polychro-tool-hints-flow-steps.yaml");
+        assertEquals(0, findings(result, "ikanos-exposes-call-not-flow"), result.output());
+    }
+
+    @Test
     public void flowCallSemanticsRuleShouldFireWhenSafeFlowCallsUnsafeOperation() {
         assertRuleFires("rules/polychro-flow-calls-violations.yaml",
             "ikanos-flow-call-semantics-conservative");
@@ -1083,6 +1108,199 @@ public class IkanosPolychroRulesetTest {
     public void definitionsRulesShouldNotFireForCompliantDefinitions() {
         LintResult result = lintFixtureAtSeverity("rules/polychro-definitions-compliant.yaml",
             "warn");
+        assertEquals(0, result.exitCode(), result.output());
+        assertFalse(result.output().contains("ikanos-definitions-"), result.output());
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // Schemas in mapped outputs (#1036)
+    // ────────────────────────────────────────────────────────────────
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnAnUnboundScalarOrArray() {
+        LintResult result = lintFixture("rules/polychro-definitions-mapped-violations.yaml");
+        String output = result.output();
+        assertTrue(result.exitCode() != 0, output);
+        assertTrue(output.contains("'schema: ship' leaves paths unbound: crew, crew[].fullName."),
+            output);
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnAPathTheSchemaDoesNotHave() {
+        assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
+            .contains("'schema: ship' has no path 'flag'. Its paths are imo, crew, crew[],"
+                + " crew[].fullName."));
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnAValueThatIsNotAJsonPath() {
+        assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
+            .contains("'schema: ship' binds 'imo' to a value that is not a JSONPath"));
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnASchemaWithoutMappings() {
+        assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
+            .contains("'schema: ship' in a mapped (call-mode) output needs 'mappings'"));
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnMappingsWithoutASchema() {
+        assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
+            .contains("'mappings' binds a schema, so it needs 'schema:' beside it."));
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnAPropertyAPathCannotAddress() {
+        assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
+            .contains("'schema: odd' has properties that a path cannot address, as their name"
+                + " contains '.', '[' or ']': call.sign."));
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnAnArraySchemaReadFromNowhere() {
+        assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
+            .contains("'schema: tags' leaves paths unbound: (the output itself: set 'mapping'"
+                + " beside 'schema:')."));
+    }
+
+    @Test
+    public void definitionsOutputKeywordsRuleShouldNoteKeywordsAMappedOutputDoesNotCarry() {
+        assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
+            .contains("Schema 'ship' is used in a mapped output, which does not carry its"
+                + " keywords format."));
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldStopAtASchemaThatReferencesItself() {
+        // Two self-references per level: an unbounded walk would never end
+        LintResult result = assertTimeoutPreemptively(java.time.Duration.ofSeconds(60),
+            () -> lintFixture("rules/polychro-definitions-mapped-violations.yaml"));
+        String output = result.output();
+        assertTrue(output.contains("ikanos-definitions-schema-no-cycle"), output);
+        assertFalse(output.contains("'schema: tree' leaves paths unbound"), output);
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnAnUnboundObjectWithoutProperties() {
+        assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
+            .contains("'schema: record' leaves paths unbound: metadata."));
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnABindingTheRuntimeNeverReads() {
+        assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
+            .contains("'schema: ship' binds crew[], which the runtime never reads"));
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnAMappingBesideASchemaOnAnOutputObject() {
+        assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
+            .contains("'mapping' beside 'schema: record' has no effect: an output object is"
+                + " read from the response root."));
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnAnOutputObjectWithoutProperties() {
+        assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
+            .contains("'schema: meta' is an object without properties, which as an output"
+                + " always returns an empty object."));
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnASchemaBelowInlineNestedArrays() {
+        assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
+            .contains("'schema: record' sits in the items of a nested array, which the runtime"
+                + " passes through as they are"));
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnABindingBelowNestedArraysInASchema() {
+        assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
+            .contains("'schema: grid' binds rows[][].value, which the runtime never reads"));
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnASchemaInAnMcpResourceOutput() {
+        assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
+            .contains("MCP adapter 'fleet', resource 'flagship': 'schema:' and 'mappings' are"
+                + " not supported in an MCP resource output."));
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldRejectSchemasInMocksWithoutBindingThem() {
+        // Mocks return static values: a schema there is rejected, never bound
+        String output = lintFixture("rules/polychro-definitions-mapped-violations.yaml").output();
+        assertTrue(output.lines().anyMatch(line -> line.contains("get-cargo")
+                && line.contains("'schema:' and 'mappings' are not allowed in a mock output")),
+            output);
+        assertFalse(output.contains("'schema: load'"), output);
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldBindMapFormOutputsOfARefTool() {
+        // A ref tool's own outputs map its flow's result, whatever their form
+        String output = lintFixture("rules/polychro-definitions-mapped-violations.yaml").output();
+        assertTrue(output.lines().anyMatch(line -> line.contains("ref-map-form")
+                && line.contains("'schema: record' in a mapped (call-mode) output needs"
+                    + " 'mappings'")), output);
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldBindMapFormOutputsOfARefRestOperation() {
+        // A ref operation's own outputs map its flow's result, whatever their form
+        assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
+            .contains("'schema: cargo' in a mapped (call-mode) output needs 'mappings'"));
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnAKeyBesideASchemaInARefToolOutput() {
+        // The JSON Schema leaves a ref tool's outputs open: the rule checks the keys itself
+        String output = lintFixture("rules/polychro-definitions-mapped-violations.yaml").output();
+        assertTrue(output.lines().anyMatch(line -> line.contains("ref-extra-key")
+                && line.contains("'schema: tags' takes only 'mappings' and 'mapping' in a mapped"
+                    + " output, found [description].")), output);
+    }
+
+    @Test
+    public void definitionsRulesShouldReadItemsAsTheEngineReadsThem() {
+        // A list reads as its first entry, a map of objects as named declarations
+        String output = lintFixture("rules/polychro-definitions-mapped-violations.yaml").output();
+        assertTrue(output.lines().anyMatch(line -> line.contains("ref-list-items")
+                && line.contains("Unknown schema 'nope-in-list'.")), output);
+        assertTrue(output.lines().anyMatch(line -> line.contains("ref-named-items")
+                && line.contains("'schema: record' in a mapped (call-mode) output needs")), output);
+    }
+
+    @Test
+    public void definitionsReferenceRuleShouldFireOnAnUnknownSchemaUnderValues() {
+        String output = lintFixture("rules/polychro-definitions-mapped-violations.yaml").output();
+        assertTrue(output.lines().anyMatch(line -> line.contains("values-unknown")
+                && line.contains("Unknown schema 'nope-values'.")), output);
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnAJsonSchemaRefInARefToolOutput() {
+        String output = lintFixture("rules/polychro-definitions-mapped-violations.yaml").output();
+        assertTrue(output.lines().anyMatch(line -> line.contains("ref-json-ref")
+                && line.contains("'$ref' is not supported. Reference a schema of the definitions"
+                    + " by its bare name, with 'schema: name'.")), output);
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldSpendOneBudgetAcrossTheBindingsOfANamespace() {
+        // Each binding stays under the budget alone; together they exceed it, as in the engine
+        String output = lintFixture("rules/polychro-definitions-mapped-budget.yaml").output();
+        List<String> lines = output.lines()
+            .filter(line -> line.contains("its definitions expand to more than 100000")).toList();
+        assertEquals(1, lines.size(), output);
+        assertTrue(lines.get(0).contains("second-grid"), output);
+    }
+
+    @Test
+    public void definitionsRulesShouldNotFireForCompliantMappedOutputs() {
+        LintResult result = lintFixtureAtSeverity(
+            "rules/polychro-definitions-mapped-compliant.yaml", "warn");
         assertEquals(0, result.exitCode(), result.output());
         assertFalse(result.output().contains("ikanos-definitions-"), result.output());
     }
