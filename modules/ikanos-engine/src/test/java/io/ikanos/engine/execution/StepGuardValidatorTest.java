@@ -390,6 +390,25 @@ public class StepGuardValidatorTest {
     }
 
     @Test
+    void findWarningsShouldReportADashedNameReadAsASubtractionInAChoiceIf() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow("""
+                - name: get-issue
+                  type: call
+                  what: github.get-issue
+                - name: route
+                  type: choice
+                  if: "get-issue.label == 'bug'"
+                  then:
+                    type: call
+                    what: notion.create-incident-page
+                """));
+
+        assertEquals(1, warnings.size(), warnings.toString());
+        assertTrue(warnings.get(0).startsWith("The if of step 'route'")
+                && warnings.get(0).contains("write 'get_issue'"), warnings.get(0));
+    }
+
+    @Test
     void findErrorsShouldReportAChoiceWithoutAThen() {
         List<String> errors = StepGuardValidator.findErrors(flow("""
                 - name: route

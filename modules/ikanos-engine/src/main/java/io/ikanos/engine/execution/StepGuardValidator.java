@@ -335,7 +335,12 @@ public final class StepGuardValidator {
                         + "', which is not one: use "
                         + String.join(", ", StepOutcomes.VOCABULARY) + ".");
             }
+            Set<String> explained = warnDashedNames(label, choice.getIf(), visible,
+                    findings.warnings());
             for (String name : StepGuard.referencedNames(choice.getIf())) {
+                if (explained.contains(name)) {
+                    continue;
+                }
                 if (readsSibling(name, siblings)) {
                     findings.errors().add(label + " reads track '" + name + "', which runs at"
                             + " the same time: a track sees only the steps before its parallel"
