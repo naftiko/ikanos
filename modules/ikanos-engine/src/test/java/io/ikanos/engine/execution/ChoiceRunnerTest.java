@@ -34,6 +34,7 @@ import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.spec.util.OperationStepCallSpec;
 import io.ikanos.spec.util.OperationStepChoiceSpec;
+import io.ikanos.spec.util.OperationStepEndSpec;
 import io.ikanos.spec.util.OperationStepSequenceSpec;
 import io.ikanos.spec.util.OperationStepSpec;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
@@ -225,5 +226,46 @@ public class ChoiceRunnerTest {
         } finally {
             TelemetryBootstrap.reset();
         }
+    }
+
+    /** The memo's Page sync: end early when nothing changed, else write. */
+    private static ExecutionTree endWhenUnchanged() {
+        return tree(choice("unchanged", new OperationStepEndSpec("stop"), null), call("after"));
+    }
+
+    @Test
+    void anEndReachedInAPathShouldEndTheFlow() {
+        Nodes nodes = new Nodes();
+
+        Executions.runSteps(endWhenUnchanged(), new StepRun(Map.of("unchanged", true)), nodes);
+
+        assertTrue(nodes.invoked.isEmpty(), "the step after the choice does not run");
+    }
+
+    @Test
+    void aPathWithoutAnEndShouldLetTheFlowGoOn() {
+        Nodes nodes = new Nodes();
+
+        Executions.runSteps(endWhenUnchanged(), new StepRun(Map.of("unchanged", false)), nodes);
+
+        assertEquals(List.of("after"), nodes.invoked);
+    }
+
+    @Test
+    void aResumedRunShouldStillEndAfterAPathThatReachedAnEnd() throws Exception {
+        ExecutionTree tree = tree(choice("unchanged", new OperationStepEndSpec("stop"), null),
+                call("after"), call("last"));
+        Nodes first = new Nodes();
+        first.crashOn.add("after");
+        // The first run ends at the choice, so "after" never runs and nothing crashes
+        DurableScope.with(runner, new ExecutionId("task-end"),
+                () -> Executions.runSteps(tree, new StepRun(Map.of("unchanged", true)), first));
+
+        Nodes second = new Nodes();
+        DurableScope.with(runner, new ExecutionId("task-end"),
+                () -> Executions.runSteps(tree, new StepRun(Map.of("unchanged", true)), second));
+
+        assertTrue(first.invoked.isEmpty() && second.invoked.isEmpty(),
+                first.invoked + " " + second.invoked);
     }
 }

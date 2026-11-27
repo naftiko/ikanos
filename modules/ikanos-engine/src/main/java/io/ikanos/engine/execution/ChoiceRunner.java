@@ -44,6 +44,8 @@ public final class ChoiceRunner {
     static final String PATH = "path";
     static final String OUTPUT = "output";
     static final String OUTCOME = "outcome";
+    /** Present and true when the path reached an {@code end}, which ends the flow too. */
+    static final String ENDED = "ended";
 
     private ChoiceRunner() {
     }
@@ -60,7 +62,7 @@ public final class ChoiceRunner {
             run.setLastResult(null);
         }
         boolean holds = StepGuard.holdsAs("The if of step '" + step.getName() + "'",
-                step.getIf(), StepGuard.parametersOf(run));
+                step.getIf(), StepGuard.parametersOf(run), nodeRunner.guardEvaluationLimit());
         OperationStepSpec path = holds ? step.getThen() : step.getElse();
         String taken = path == null ? "none" : holds ? "then" : "else";
         ObjectNode journaled = IkanosMappers.json().createObjectNode().put(PATH, taken);
@@ -75,7 +77,7 @@ public final class ChoiceRunner {
             run.stepContext().getAllStepOutputs().forEach(pathRun.stepContext()::storeStepOutput);
             if (path instanceof OperationStepSequenceSpec sequence
                     && !StepGuard.holds(path.getName(), sequence.getOnlyIf(),
-                            StepGuard.parametersOf(pathRun))) {
+                            StepGuard.parametersOf(pathRun), nodeRunner.guardEvaluationLimit())) {
                 TelemetryBootstrap.get().recordStepSkipped(stepIndex, path.getName());
                 return journaled;
             }
@@ -105,6 +107,9 @@ public final class ChoiceRunner {
             if (outcome != null) {
                 journaled.put(OUTCOME, outcome);
             }
+            if (pathRun.isEnded()) {
+                journaled.put(ENDED, true);
+            }
         } catch (RuntimeException e) {
             TelemetryBootstrap.recordError(span, e);
             throw e;
@@ -126,6 +131,10 @@ public final class ChoiceRunner {
         if (journaled.hasNonNull(OUTCOME)) {
             StepOutcomes.put(run.runtimeParameters(), stepName,
                     journaled.get(OUTCOME).asString());
+        }
+        if (journaled.path(ENDED).asBoolean(false)) {
+            // The path reached an end: the flow ends after this step, on a replay too
+            run.markEnded();
         }
     }
 

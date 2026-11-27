@@ -48,6 +48,10 @@ public final class StepInterpreter implements Interpreter {
     @Override
     public List<Command> next(ExecutionView view) {
         for (StepNode node : tree.nodes()) {
+            if (run.isEnded()) {
+                // A choice whose path reached an end: the flow ends there too
+                return List.of(new Command.Complete(null));
+            }
             if (run.isSkipped(node.path())) {
                 continue;
             }
@@ -77,6 +81,7 @@ public final class StepInterpreter implements Interpreter {
                 // An early end: the run completes as a success, and the output is built from
                 // what the steps before it gathered.
                 run.markEvaluated(node.path());
+                run.markEnded();
                 return List.of(new Command.Complete(null));
             }
             if (node.kind() == StepNode.Kind.ELICIT) {

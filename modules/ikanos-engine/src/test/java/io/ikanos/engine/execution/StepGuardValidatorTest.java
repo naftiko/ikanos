@@ -989,4 +989,89 @@ public class StepGuardValidatorTest {
         assertTrue(warnings.stream().anyMatch(w -> w.contains("more than 3 levels")),
                 warnings.toString());
     }
+
+    @Test
+    void findErrorsShouldAcceptAnEndInAChoicePath() {
+        List<String> errors = StepGuardValidator.findErrors(flow("""
+                - name: route
+                  type: choice
+                  if: "order.status == 'paid'"
+                  then:
+                    type: end
+                - name: remind
+                  type: call
+                  what: shop.remind
+                """));
+
+        assertTrue(errors.isEmpty(), errors.toString());
+    }
+
+    @Test
+    void findErrorsShouldReportAnEndInAChoicePathInsideADo() {
+        List<String> errors = StepGuardValidator.findErrors(flow("""
+                - name: lines
+                  type: forEach
+                  items: order.lines
+                  as: line
+                  do:
+                    type: choice
+                    if: "line.qty == 0"
+                    then:
+                      type: end
+                """));
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).contains("ends the flow from inside a do"), errors.get(0));
+    }
+
+    /** The memo's "choice inside an iteration inside a parallel group", single-step paths. */
+    private static final String CHOICE_IN_FOREACH_IN_PARALLEL = """
+            - name: group
+              type: parallel
+              tracks:
+                - name: lines
+                  type: forEach
+                  items: order.lines
+                  as: line
+                  limit: 10
+                  do:
+                    type: choice
+                    if: "line.qty > 0"
+                    then:
+                      type: call
+                      what: shop.reserve
+                    else:
+                      type: call
+                      what: shop.skip
+                - name: other
+                  type: call
+                  what: shop.other
+            """;
+
+    @Test
+    void findWarningsShouldAcceptAChoiceInAForEachInAParallelStep() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow(CHOICE_IN_FOREACH_IN_PARALLEL));
+
+        assertTrue(warnings.stream().noneMatch(w -> w.contains("levels deep")),
+                warnings.toString());
+    }
+
+    @Test
+    void findWarningsShouldReportAChoicePathPastThreeLevels() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow(
+                CHOICE_IN_FOREACH_IN_PARALLEL.replace(
+                        "        then:\n          type: call\n"
+                                + "          what: shop.reserve\n",
+                        "        then:\n          type: sequence\n"
+                                + "          steps:\n"
+                                + "            - name: inner\n"
+                                + "              type: choice\n"
+                                + "              if: \"line.urgent\"\n"
+                                + "              then:\n"
+                                + "                type: call\n"
+                                + "                what: shop.rush\n")));
+
+        assertTrue(warnings.stream().anyMatch(w -> w.contains("more than 3 levels")),
+                warnings.toString());
+    }
 }
