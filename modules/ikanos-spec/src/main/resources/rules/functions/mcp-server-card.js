@@ -9,9 +9,12 @@
  * functionOptions.check selects one rule:
  *   - name:          the card name must come from `card.name` or `info.publisher`,
  *                    and be reverse-DNS with exactly one slash, 3 to 200 characters
- *   - version:       `card.version` or `info.version` must be set, and not be a range
+ *   - version:       `card.version` or `info.version` must be set, 255 characters at
+ *                    most, and not be a range
  *   - description:   `card.description` or the entry's `description` must be set,
  *                    100 characters at most (the engine never truncates it)
+ *   - title:         `card.title` or `info.display`, when set, must not be blank and be
+ *                    100 characters at most (the schema does not limit `info.display`)
  *   - url:           a wildcard `address` without `card.url` advertises the machine's
  *                    host name, which clients elsewhere may not resolve
  *   - authenticated: `card.authenticated: true` has no effect without `authentication`
@@ -67,6 +70,9 @@ function scan(exposes, basePath, info, check, results) {
         const version = card.version !== undefined ? card.version : info.version;
         if (typeof version !== "string" || version.trim() === "") {
           report(ns + " has no card version: set info.version, or card.version.", at("card"));
+        } else if (version.length > 255) {
+          report(ns + " card version is " + version.length + " characters long, over the 255"
+            + " a server card allows.", at("card"));
         } else if (VERSION_RANGE.test(version)) {
           report(ns + " card version '" + version + "' is a range; use one exact version.",
             at("card"));
@@ -81,6 +87,20 @@ function scan(exposes, basePath, info, check, results) {
         } else if (description.trim().length > 100) {
           report(ns + " description is " + description.trim().length + " characters long, over"
             + " the 100 a server card allows; set a shorter card.description.", at("card"));
+        }
+        return;
+      }
+      case "title": {
+        const title = card.title !== undefined ? card.title : info.display;
+        if (title === undefined || title === null) {
+          return;
+        }
+        if (typeof title !== "string" || title.trim() === "" || title.length > 100) {
+          const length = typeof title === "string" ? title.length : 0;
+          report(ns + " card title must be 1 to 100 characters"
+            + (card.title === undefined
+              ? "; info.display is " + length + " characters long, so set a shorter card.title."
+              : "."), at("card"));
         }
         return;
       }

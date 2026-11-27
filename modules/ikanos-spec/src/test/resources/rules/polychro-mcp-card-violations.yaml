@@ -1,12 +1,13 @@
 # Polychro fixture — every ikanos-mcp-card-* rule MUST FIRE (issue #1165).
 #
 # The card has no name source (no info.publisher, no card.name), a version range,
-# a description over 100 characters, a wildcard address without card.url,
+# a description over 100 characters, an info.display over 100 characters (the title),
+# a wildcard address without card.url,
 # authenticated: true without authentication, and a repository off the known forges.
 ikanos: "1.0.0-beta11"
 
 info:
-  display: "Server card violations"
+  display: "Server card violations, with a display name that runs well past the one hundred characters a card title allows"
   description: "Fixture for the MCP server card rules (issue #1165)."
   version: "^1.4.0"
   repositoryUrl: "https://git.example.com/shipyard"

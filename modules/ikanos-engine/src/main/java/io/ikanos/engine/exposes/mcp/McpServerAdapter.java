@@ -200,7 +200,8 @@ public class McpServerAdapter extends ServerAdapter {
                 && serverSpec.getCard().requiresAuthentication()
                 && serverSpec.getAuthentication() != null;
         Restlet limitedCard = cardRestlet != null
-                ? limitSideRequestsInProgress(CARD_REQUESTS_IN_PROGRESS, cardRestlet) : null;
+                ? limitSideRequestsInProgress(CARD_REQUESTS_IN_PROGRESS, "server-card",
+                        cardRestlet) : null;
         if (cardBehindAuth) {
             endpoint = new ServerCardRoute(context, serverSpec.getPath(), limitedCard, false,
                     endpoint);

@@ -266,6 +266,38 @@ class RequestsInProgressIntegrationTest {
         assertEquals(3, mcp.getServerAdapters().get(0).getRequestsInProgressLimit());
     }
 
+    @Test
+    void sideLimitShouldCarryItsOwnAdapterTypeInMetrics() throws Exception {
+        Capability mcp = capabilityFromYaml("""
+                ikanos: "%s"
+                info:
+                  version: "1.0.0"
+                  publisher: "io.example"
+                capability:
+                  exposes:
+                    - type: mcp
+                      address: "localhost"
+                      port: %d
+                      namespace: demo
+                      description: "Demo"
+                      card: {}
+                      tools:
+                        hello:
+                          description: "Say hello"
+                          outputParameters:
+                            - type: string
+                              value: "hi"
+                  consumes: []
+                """.formatted(IKANOS, freePort()));
+
+        Restlet side = mcp.getServerAdapters().get(0)
+                .limitSideRequestsInProgress(1, "server-card", new Restlet() {});
+
+        RequestsInProgressFilter filter = assertInstanceOf(RequestsInProgressFilter.class, side);
+        assertEquals("mcp/server-card", filter.getAdapterType(),
+                "card requests must not count as load on the MCP endpoint");
+    }
+
     private HttpRequest keyed(int port, String key) {
         return HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/slow"))
                 .header("X-Api-Key", key).timeout(Duration.ofSeconds(15)).build();

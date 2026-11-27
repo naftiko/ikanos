@@ -723,7 +723,7 @@ public class IkanosPolychroRulesetTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"ikanos-mcp-card-name", "ikanos-mcp-card-version",
-        "ikanos-mcp-card-description", "ikanos-mcp-card-url", "ikanos-mcp-card-authenticated",
+        "ikanos-mcp-card-description", "ikanos-mcp-card-title", "ikanos-mcp-card-url", "ikanos-mcp-card-authenticated",
         "ikanos-mcp-card-repository"})
     public void mcpCardRuleShouldFireOnItsViolation(String ruleId) {
         LintResult result =
@@ -736,6 +736,26 @@ public class IkanosPolychroRulesetTest {
     public void mcpCardNameRuleShouldReportAtTheCard() {
         assertReportsAt("rules/polychro-mcp-card-violations.yaml", "ikanos-mcp-card-name",
             "$.capability.exposes[0].card");
+    }
+
+    @Test
+    public void mcpCardVersionRuleShouldFireOnAVersionOver255Characters() throws Exception {
+        String version = "1.0.0-" + "a".repeat(250);
+        String fixture = Files.readString(
+            projectRoot.resolve("src/test/resources/rules/polychro-mcp-card-valid.yaml"),
+            StandardCharsets.UTF_8)
+            .replace("version: \"1.4.0\"", "version: \"" + version + "\"");
+        Path tmpFile = Files.createTempFile("ikanos-mcp-card-version-", ".yml");
+        try {
+            Files.writeString(tmpFile, fixture, StandardCharsets.UTF_8);
+
+            LintResult result = lint(tmpFile.toAbsolutePath().toString(), "info");
+
+            assertTrue(result.output().contains("ikanos-mcp-card-version"),
+                "Expected a version over 255 characters to be flagged.\n" + result.output());
+        } finally {
+            Files.deleteIfExists(tmpFile);
+        }
     }
 
     // ────────────────────────────────────────────────────────────────

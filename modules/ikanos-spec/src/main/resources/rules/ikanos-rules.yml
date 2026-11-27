@@ -434,7 +434,8 @@ rules:
     description: >
       A server card publishes one exact version, from `card.version` or
       `info.version`, also returned as `serverInfo.version`. The engine refuses to
-      load a card with no version, or with a range such as `^1.2.3`.
+      load a card with no version, one over 255 characters, or a range such as
+      `^1.2.3`.
     severity: error
     recommended: true
     given: "$"
@@ -442,6 +443,20 @@ rules:
       function: mcp-server-card
       functionOptions:
         check: version
+
+  ikanos-mcp-card-title:
+    message: "{{error}}"
+    description: >
+      A server card title is 1 to 100 characters. The engine takes `info.display`
+      unless the card sets `title`, and refuses to load a blank or longer one; the
+      schema does not limit `info.display`, so set a shorter `card.title`.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: mcp-server-card
+      functionOptions:
+        check: title
 
   ikanos-mcp-card-description:
     message: "{{error}}"

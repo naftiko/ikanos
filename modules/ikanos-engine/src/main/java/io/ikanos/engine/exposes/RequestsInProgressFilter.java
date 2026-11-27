@@ -58,6 +58,11 @@ class RequestsInProgressFilter extends Filter {
         return limit;
     }
 
+    /** The adapter type its metrics carry. */
+    String getAdapterType() {
+        return adapterType;
+    }
+
     @Override
     protected int doHandle(Request request, Response response) {
         // Taking and giving back the slot in one place: nothing between them can leak it
