@@ -36,6 +36,8 @@ import org.restlet.Context;
 import org.restlet.data.MediaType;
 import org.restlet.service.MetadataService;
 import io.ikanos.engine.util.BinarySize;
+import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
+import io.ikanos.spec.consumes.http.AuthenticationSpec;
 import io.ikanos.spec.exposes.mcp.McpFileDownloadsSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
@@ -121,8 +123,39 @@ public final class McpFileDownloads {
             throw new IllegalArgumentException("files.downloads.ttl of MCP namespace '"
                     + spec.getNamespace() + "' must be positive: " + downloads.ttlOrDefault());
         }
-        return new McpFileDownloads(threshold, ttl, !spec.isStdio(), new MemoryDownloadStore(),
-                clock);
+        boolean hosted = !spec.isStdio() && resendsCredential(spec.getAuthentication());
+        if (!spec.isStdio() && !hosted) {
+            Context.getCurrentLogger().log(Level.WARNING, "MCP namespace '"
+                    + spec.getNamespace() + "' declares files, but a client cannot send its "
+                    + spec.getAuthentication().getType() + " credential to a download link:"
+                    + " binary results stay inline; presigned URLs still become downloads");
+        }
+        return new McpFileDownloads(threshold, ttl, hosted, MemoryDownloadStore.shared(), clock);
+    }
+
+    /**
+     * Whether a client that follows the draft can authenticate a hosted download link. With
+     * {@code credentials: include} it resends only the {@code Authorization} header of its MCP
+     * requests, and keeps the query string of the MCP address: so no authentication,
+     * {@code bearer}, {@code basic}, {@code oauth2} and an {@code apikey} in the query work, while
+     * an {@code apikey} in another header, {@code digest} (bound to one request) and
+     * {@code awsSigV4} (a signature per request) do not.
+     */
+    static boolean resendsCredential(AuthenticationSpec authentication) {
+        if (authentication == null) {
+            return true;
+        }
+        return switch (authentication.getType()) {
+            case "bearer", "basic", "oauth2" -> true;
+            case "apikey" -> authentication instanceof ApiKeyAuthenticationSpec apiKey
+                    && apiKey.isQueryPlacement();
+            default -> false;
+        };
+    }
+
+    /** @return whether binary results can become hosted download targets on this adapter */
+    public boolean hostsDownloads() {
+        return hosted;
     }
 
     /** @return the size above which a binary result becomes a download target */
@@ -132,8 +165,9 @@ public final class McpFileDownloads {
 
     /**
      * A binary tool result as a hosted download target, or {@code null} to return it inline: the
-     * request did not declare {@code download}, the transport is stdio, the result is not larger
-     * than {@code inlineThreshold}, or the store is full.
+     * request did not declare {@code download}, the transport is stdio, the adapter's
+     * authentication cannot be resent to a link ({@link #resendsCredential}), the result is not
+     * larger than {@code inlineThreshold}, or the store has no room for it.
      *
      * @param principal the caller of the tool, the only one the link serves
      */
