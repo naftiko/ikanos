@@ -4102,7 +4102,7 @@
       ]
     },
     "OperationStepParallel": {
-      "description": "Runs its tracks at the same time and continues once every track has finished. Each track sees the outputs of the steps before this one, never another track's; the steps after it read each track's output under the track's name. If one track fails, this step fails.",
+      "description": "Runs its tracks at the same time and continues once every track has finished. Each track sees the outputs of the steps before this one, never another track's; the steps after it read each track's output under the track's name, and the output of this step is `{track: output}`, which a tool or operation whose last step this is answers when it has no mappings. If one track fails, this step fails, but the other tracks are neither cancelled nor stopped: they run to their end, so their writes still happen, and the error reaches the caller only once the slowest track has finished. A track may not ask the caller (`elicit`) nor end the flow (`end`), and its name must differ from the steps and the other tracks of its list.",
       "allOf": [
         {
           "$ref": "#/$defs/OperationStepBase"
@@ -4156,7 +4156,7 @@
       "unevaluatedProperties": false
     },
     "OperationStepEnd": {
-      "description": "Ends the flow early, as a success: the steps after it do not run, and the output is built from what the steps before it gathered. Usually guarded with `onlyIf`.",
+      "description": "Ends the flow early, as a success: the steps after it do not run, and the output is built from what the steps before it gathered. Usually guarded with `onlyIf`. Not allowed inside a parallel track, where it would end only the track.",
       "allOf": [
         {
           "$ref": "#/$defs/OperationStepBase"

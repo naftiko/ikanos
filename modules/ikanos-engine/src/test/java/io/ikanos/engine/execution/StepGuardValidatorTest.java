@@ -123,7 +123,8 @@ public class StepGuardValidatorTest {
 
         assertEquals(2, errors.size(), errors.toString());
         assertTrue(errors.get(0).contains("reads track 'merged'"), errors.get(0));
-        assertTrue(errors.get(1).contains("in its 'with'"), errors.get(1));
+        assertTrue(errors.get(1).startsWith("Step 'blockers'")
+                && errors.get(1).contains("reads track 'merged'"), errors.get(1));
     }
 
     @Test
@@ -267,34 +268,42 @@ public class StepGuardValidatorTest {
         assertTrue(warnings.isEmpty(), warnings.toString());
     }
 
+    /** {@code depth} parallel steps, each holding the next in a sequence track. */
+    private static String nestedParallels(int depth) {
+        String inner = """
+                - name: deep
+                  type: call
+                  what: x.y
+                """;
+        for (int level = depth; level >= 1; level--) {
+            inner = """
+                    - name: p%d
+                      type: parallel
+                      tracks:
+                        - name: t%d
+                          type: sequence
+                          steps:
+                    %s    - name: side%d
+                          type: call
+                          what: x.z
+                    """.formatted(level, level, inner.indent(8), level);
+        }
+        return inner;
+    }
+
+    @Test
+    void findWarningsShouldAcceptThreeNestedParallelSteps() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow(nestedParallels(3)));
+
+        assertTrue(warnings.isEmpty(), warnings.toString());
+    }
+
     @Test
     void findWarningsShouldReportNestingDeeperThanThreeLevels() {
-        List<String> warnings = StepGuardValidator.findWarnings(flow("""
-                - name: one
-                  type: parallel
-                  tracks:
-                    - name: a
-                      type: sequence
-                      steps:
-                        - name: two
-                          type: parallel
-                          tracks:
-                            - name: b
-                              type: sequence
-                              steps:
-                                - name: deep
-                                  type: call
-                                  what: x.y
-                            - name: c
-                              type: call
-                              what: x.z
-                    - name: d
-                      type: call
-                      what: x.w
-                """));
+        List<String> warnings = StepGuardValidator.findWarnings(flow(nestedParallels(4)));
 
-        assertEquals(1, warnings.size(), warnings.toString());
-        assertTrue(warnings.get(0).contains("more than 3 levels"), warnings.get(0));
+        assertTrue(warnings.stream().anyMatch(w -> w.contains("more than 3 levels")),
+                warnings.toString());
     }
 
     @Test
@@ -515,5 +524,91 @@ public class StepGuardValidatorTest {
                 """));
 
         assertTrue(warnings.isEmpty(), warnings.toString());
+    }
+
+    @Test
+    void findErrorsShouldReportAnEndInsideATrack() {
+        List<String> errors = StepGuardValidator.findErrors(flow("""
+                - name: group
+                  type: parallel
+                  tracks:
+                    - name: stop
+                      type: end
+                - name: other
+                  type: parallel
+                  tracks:
+                    - name: billing
+                      type: sequence
+                      steps:
+                        - name: invoices
+                          type: call
+                          what: crm.get-invoices
+                        - name: done
+                          type: end
+                """));
+
+        assertEquals(2, errors.size(), errors.toString());
+        assertTrue(errors.stream().allMatch(e -> e.contains("ends the flow from inside a"
+                + " parallel track")), errors.toString());
+    }
+
+    @Test
+    void findErrorsShouldReportATrackReadingAnotherThroughItsOutcomeOrAValue() {
+        List<String> errors = StepGuardValidator.findErrors(flow("""
+                - name: group
+                  type: parallel
+                  tracks:
+                    - name: profile
+                      type: call
+                      what: crm.get-profile
+                    - name: by-outcome
+                      type: call
+                      what: crm.a
+                      onlyIf: "outcome.profile == 'success'"
+                    - name: by-name
+                      type: call
+                      what: crm.b
+                      with:
+                        who: customers.profile
+                    - name: nested
+                      type: call
+                      what: crm.c
+                      with:
+                        body:
+                          id: "{{profile.id}}"
+                    - name: lookup
+                      type: lookup
+                      index: profile
+                      match: id
+                      lookupValue: "$.profile.id"
+                      outputParameters:
+                        - name
+                """));
+
+        assertEquals(4, errors.size(), errors.toString());
+        assertTrue(errors.stream().allMatch(e -> e.contains("track 'profile'")),
+                errors.toString());
+    }
+
+    @Test
+    void findErrorsShouldReportTwoGroupsWithATrackOfTheSameName() {
+        List<String> errors = StepGuardValidator.findErrors(flow("""
+                - name: first
+                  type: parallel
+                  tracks:
+                    - name: profile
+                      type: call
+                      what: crm.get-profile
+                - name: second
+                  type: parallel
+                  tracks:
+                    - name: profile
+                      type: call
+                      what: crm.get-other-profile
+                """));
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).contains("has the name of a track of parallel step 'first'"),
+                errors.get(0));
     }
 }

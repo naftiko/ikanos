@@ -130,7 +130,7 @@ public final class StepGuardValidator {
                 findings.errors().add(reserved("An input or a 'with' key", container.where()));
             }
             visit(container.steps(), new HashSet<>(container.names()), container.where(), 0,
-                    Set.of(), findings);
+                    Set.of(), false, findings);
         }
         return findings;
     }
@@ -141,12 +141,16 @@ public final class StepGuardValidator {
      * @param visible what its first step can read: inputs, {@code with} values, earlier steps
      * @param depth how many tracks and sequences hold this list
      * @param siblings in a track, the names of the other tracks of its group; empty otherwise
+     * @param inTrack whether the list is, or is inside, a track of a parallel step
      */
     private static void visit(Map<String, OperationStepSpec> steps, Set<String> visible,
-            String where, int depth, Set<String> siblings, Findings findings) {
+            String where, int depth, Set<String> siblings, boolean inTrack, Findings findings) {
         List<String> errors = findings.errors();
         List<String> warnings = findings.warnings();
         String endedBy = null;
+        // The tracks of the parallel steps of this list, by name: each must be unique, as the
+        // steps after the groups read every track under its name
+        Map<String, String> trackOwners = new java.util.HashMap<>();
         for (OperationStepSpec step : List.copyOf(steps.values())) {
             if (endedBy != null) {
                 warnings.add("Step '" + step.getName() + "' in " + where + " never runs: step '"
@@ -163,13 +167,28 @@ public final class StepGuardValidator {
                 errors.add("Step '" + step.getName() + "' in " + where + " is a sequence, which"
                         + " is only allowed as a track of a parallel step.");
             }
-            if (step instanceof OperationStepElicitSpec && !siblings.isEmpty()) {
+            if (step instanceof OperationStepEndSpec && inTrack) {
+                errors.add("Step '" + step.getName() + "' in " + where + " ends the flow from"
+                        + " inside a parallel track, where it would end only its track. End the"
+                        + " flow after the parallel step.");
+            }
+            if (step instanceof OperationStepElicitSpec && inTrack) {
                 errors.add("Step '" + step.getName() + "' in " + where + " asks the caller from"
                         + " inside a parallel track, where questions are not supported. Ask"
                         + " before the parallel step.");
             }
             checkGuards(step, visible, where, siblings, findings);
+            checkSiblingReads(step, where, siblings, findings);
             if (step instanceof OperationStepParallelSpec parallel) {
+                for (String track : parallel.getTracks().keySet()) {
+                    String owner = trackOwners.putIfAbsent(track, parallel.getName());
+                    if (owner != null) {
+                        errors.add("Track '" + track + "' of " + where + ", parallel step '"
+                                + parallel.getName() + "' has the name of a track of parallel"
+                                + " step '" + owner + "': the steps after them read each track"
+                                + " under its name. Rename one.");
+                    }
+                }
                 visitTracks(parallel, steps.keySet(), visible, where, depth, findings);
             }
             if (step instanceof OperationStepEndSpec && step.getOnlyIf() == null) {
@@ -193,21 +212,22 @@ public final class StepGuardValidator {
             Set<String> others = new HashSet<>(tracks.keySet());
             others.remove(name);
             Set<String> trackVisible = new HashSet<>(visible);
-            int trackDepth = depth + (track.getValue() instanceof OperationStepSequenceSpec ? 2 : 1);
+            // One level per parallel step: a sequence track is the track's body, not a level
+            int trackDepth = depth + 1;
             if (trackDepth > MAX_NESTING) {
                 findings.warnings().add("Track '" + name + "' of " + inner + " is nested more"
-                        + " than " + MAX_NESTING + " levels deep (parallel steps and sequences),"
-                        + " which makes the flow hard to read and to trace.");
+                        + " than " + MAX_NESTING + " levels deep (parallel steps), which makes"
+                        + " the flow hard to read and to trace.");
             }
             if (track.getValue() instanceof OperationStepSequenceSpec sequence) {
                 // The sequence's own guard, evaluated before its steps run
                 checkGuards(sequence, trackVisible, inner, others, findings);
                 visit(sequence.getSteps(), trackVisible, inner + ", track '" + name + "'",
-                        depth + 2, others, findings);
+                        trackDepth, others, true, findings);
             } else {
                 Map<String, OperationStepSpec> one = new java.util.LinkedHashMap<>();
                 one.put(name, track.getValue());
-                visit(one, trackVisible, inner, depth + 1, others, findings);
+                visit(one, trackVisible, inner, trackDepth, others, true, findings);
             }
         }
         // The steps after the group read each track under its name.
@@ -267,18 +287,59 @@ public final class StepGuardValidator {
                 }
             }
         }
-        if (step instanceof OperationStepCallSpec call && call.getWith() != null) {
-            for (Object value : call.getWith().values()) {
-                for (String sibling : siblings) {
-                    if (value instanceof String text && readsName(text, sibling)) {
-                        findings.errors().add("Step '" + step.getName() + "' in " + where
-                                + " reads track '" + sibling + "' in its 'with', which runs at"
-                                + " the same time: a track sees only the steps before its"
-                                + " parallel step.");
-                    }
-                }
+    }
+
+    /**
+     * Refuses a step of a track that reads another track of its group: in its {@code with}
+     * (a call's or a script's, nested values included), or a lookup's {@code index} or
+     * {@code lookupValue}, by template ({@code {{profile.id}}}), by qualified name
+     * ({@code orders.profile}) or by JSONPath ({@code $.profile.id}).
+     */
+    private static void checkSiblingReads(OperationStepSpec step, String where,
+            Set<String> siblings, Findings findings) {
+        if (siblings.isEmpty()) {
+            return;
+        }
+        List<String> values = new ArrayList<>();
+        if (step instanceof OperationStepCallSpec call) {
+            collectStrings(call.getWith(), values);
+        } else if (step instanceof io.ikanos.spec.scripting.OperationStepScriptSpec script) {
+            collectStrings(script.getWith(), values);
+        } else if (step instanceof io.ikanos.spec.util.OperationStepLookupSpec lookup) {
+            collectStrings(lookup.getIndex(), values);
+            collectStrings(lookup.getLookupValue(), values);
+        }
+        for (String sibling : siblings) {
+            if (values.stream().anyMatch(value -> readsValue(value, sibling))) {
+                findings.errors().add("Step '" + step.getName() + "' in " + where
+                        + " reads track '" + sibling + "', which runs at the same time: a track"
+                        + " sees only the steps before its parallel step.");
             }
         }
+    }
+
+    private static void collectStrings(Object value, List<String> strings) {
+        if (value instanceof String text) {
+            strings.add(text);
+        } else if (value instanceof Map<?, ?> map) {
+            map.values().forEach(item -> collectStrings(item, strings));
+        } else if (value instanceof Collection<?> items) {
+            items.forEach(item -> collectStrings(item, strings));
+        }
+    }
+
+    /**
+     * Whether a value reads {@code name}: as a template, as a qualified name
+     * ({@code namespace.name}, {@code namespace.name.field}), as a JSONPath ({@code $.name}) or
+     * as the whole value (a lookup's {@code index}).
+     */
+    static boolean readsValue(String value, String name) {
+        String quoted = Pattern.quote(name);
+        return readsName(value, name) || value.strip().equals(name)
+                || Pattern.compile("^\\s*[A-Za-z0-9_-]+\\." + quoted + "(\\.|\\[|\\s*$)")
+                        .matcher(value).find()
+                || Pattern.compile("^\\s*\\$\\." + quoted + "(\\.|\\[|\\s*$)").matcher(value)
+                        .find();
     }
 
     private static boolean readsSibling(String name, Set<String> siblings) {

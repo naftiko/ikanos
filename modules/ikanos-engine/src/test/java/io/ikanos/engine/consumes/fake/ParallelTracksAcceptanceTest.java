@@ -147,4 +147,58 @@ class ParallelTracksAcceptanceTest {
 
         assertTrue(Boolean.TRUE.equals(result.isError()), String.valueOf(result));
     }
+
+    /**
+     * An MCP tool whose last step is a parallel step and that has no mappings answers the
+     * group's output, {@code {track: output}}, rather than failing with no response.
+     */
+    @Test
+    void aToolEndingOnAParallelStepWithoutMappingsShouldAnswerTheGroupOutput() throws Exception {
+        String yaml = """
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - type: fake
+                      namespace: crm
+                      operations:
+                        get-profile:
+                          outputParameters: []
+                        list-tickets:
+                          outputParameters: []
+                      responses:
+                        get-profile: '{"name":"Ada"}'
+                        list-tickets: '[{"id":"t-1"}]'
+                  exposes:
+                    - type: mcp
+                      address: localhost
+                      port: 0
+                      namespace: customers-mcp
+                      description: Customer tools
+                      tools:
+                        overview:
+                          description: Everything about a customer
+                          steps:
+                            - name: customer
+                              type: parallel
+                              tracks:
+                                - name: profile
+                                  type: call
+                                  what: crm.get-profile
+                                - name: tickets
+                                  type: call
+                                  what: crm.list-tickets
+                """.formatted(IKANOS);
+        Capability capability = new Capability(
+                IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class));
+        McpServerAdapter mcp = (McpServerAdapter) capability.getServerAdapters().get(0);
+
+        McpSchema.CallToolResult result =
+                mcp.getToolHandler().handleToolCall("overview", Map.of());
+
+        assertFalse(Boolean.TRUE.equals(result.isError()), String.valueOf(result));
+        JsonNode payload = IkanosMappers.json().readTree(
+                ((McpSchema.TextContent) result.content().get(0)).text());
+        assertEquals("Ada", payload.path("profile").path("name").asString(), payload.toString());
+        assertEquals(1, payload.path("tickets").size(), payload.toString());
+    }
 }
