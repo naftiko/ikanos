@@ -390,6 +390,21 @@ public class StepGuardValidatorTest {
     }
 
     @Test
+    void findErrorsShouldReportAChoiceWithoutAThen() {
+        List<String> errors = StepGuardValidator.findErrors(flow("""
+                - name: route
+                  type: choice
+                  if: issue
+                  else:
+                    type: call
+                    what: github.ask-details
+                """));
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).contains("without a 'then' path"), errors.get(0));
+    }
+
+    @Test
     void findWarningsShouldSayThenNeverRunsWhenAChoiceWithoutElseReadsNothing() {
         List<String> warnings = StepGuardValidator.findWarnings(flow("""
                 - name: route
