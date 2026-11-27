@@ -13,12 +13,15 @@
  */
 package io.ikanos.durable.store.jdbc;
 
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import io.ikanos.durable.ExecutionId;
@@ -28,7 +31,12 @@ import io.ikanos.durable.store.WorkQueue;
 /**
  * Work queue in the {@code work_queue} and {@code leases} tables. Fencing tokens come from the
  * {@code fencing_tokens} sequence, so they keep growing across restarts. Time is the store's:
- * the clock given when the store opened.
+ * the clock given when the store opened, so replicas sharing a PostgreSQL store must keep their
+ * clocks in step, within a small fraction of a lease.
+ *
+ * <p>On PostgreSQL, a lease is written by one atomic statement that takes it only when no lease
+ * is held or the one held has expired, and a claim skips the queued executions another replica is
+ * claiming ({@code SKIP LOCKED}): replicas racing for an execution get at most one lease.</p>
  */
 final class JdbcWorkQueue implements WorkQueue {
 
@@ -43,8 +51,8 @@ final class JdbcWorkQueue implements WorkQueue {
     @Override
     public void enqueue(ExecutionId executionId, Instant dueAt) {
         database.call(c -> {
-            try (PreparedStatement s = c.prepareStatement("MERGE INTO work_queue "
-                    + "(execution_id, due_at) KEY (execution_id) VALUES (?, ?)")) {
+            try (PreparedStatement s = c.prepareStatement(database.dialect().upsert(
+                    "work_queue", List.of("execution_id"), "execution_id", "due_at"))) {
                 s.setString(1, executionId.value());
                 JdbcDatabase.setInstant(s, 2, dueAt);
                 s.executeUpdate();
@@ -55,13 +63,15 @@ final class JdbcWorkQueue implements WorkQueue {
 
     @Override
     public Optional<Lease> claim(String owner, Duration leaseFor) {
+        JdbcDialect dialect = database.dialect();
         return database.call(c -> {
             Instant now = clock.instant();
             String next;
             try (PreparedStatement s = c.prepareStatement("SELECT q.execution_id "
                     + "FROM work_queue q WHERE q.due_at <= ? AND NOT EXISTS (SELECT 1 FROM leases "
                     + "l WHERE l.execution_id = q.execution_id AND l.expires_at > ?) "
-                    + "ORDER BY q.due_at, q.execution_id LIMIT 1")) {
+                    + "ORDER BY q.due_at, q.execution_id LIMIT 1"
+                    + (dialect.isShared() ? " FOR UPDATE OF q SKIP LOCKED" : ""))) {
                 JdbcDatabase.setInstant(s, 1, now);
                 JdbcDatabase.setInstant(s, 2, now);
                 try (ResultSet rs = s.executeQuery()) {
@@ -71,28 +81,68 @@ final class JdbcWorkQueue implements WorkQueue {
                     next = rs.getString(1);
                 }
             }
-            long token;
-            try (Statement s = c.createStatement();
-                    ResultSet rs = s.executeQuery("SELECT NEXT VALUE FOR fencing_tokens")) {
-                rs.next();
-                token = rs.getLong(1);
+            Optional<Lease> lease = take(c, new ExecutionId(next), owner, now, leaseFor);
+            if (lease.isPresent()) {
+                try (PreparedStatement s = c.prepareStatement(
+                        "DELETE FROM work_queue WHERE execution_id = ?")) {
+                    s.setString(1, next);
+                    s.executeUpdate();
+                }
             }
-            try (PreparedStatement s = c.prepareStatement(
-                    "DELETE FROM work_queue WHERE execution_id = ?")) {
-                s.setString(1, next);
-                s.executeUpdate();
-            }
-            Lease lease = new Lease(new ExecutionId(next), owner, token, now.plus(leaseFor));
-            try (PreparedStatement s = c.prepareStatement("MERGE INTO leases (execution_id, "
-                    + "owner, fencing_token, expires_at) KEY (execution_id) VALUES (?, ?, ?, ?)")) {
-                s.setString(1, next);
-                s.setString(2, owner);
-                s.setLong(3, token);
-                JdbcDatabase.setInstant(s, 4, lease.expiresAt());
-                s.executeUpdate();
-            }
-            return Optional.of(lease);
+            return lease;
         });
+    }
+
+    @Override
+    public Optional<Lease> acquire(ExecutionId executionId, String owner, Duration leaseFor) {
+        return database.call(c -> take(c, executionId, owner, clock.instant(), leaseFor));
+    }
+
+    /**
+     * Writes a new lease on {@code executionId}, unless one is held strictly after {@code now}.
+     */
+    private Optional<Lease> take(Connection c, ExecutionId executionId, String owner,
+            Instant now, Duration leaseFor) throws SQLException {
+        JdbcDialect dialect = database.dialect();
+        if (!dialect.isShared()) {
+            try (PreparedStatement s = c.prepareStatement(
+                    "SELECT 1 FROM leases WHERE execution_id = ? AND expires_at > ?")) {
+                s.setString(1, executionId.value());
+                JdbcDatabase.setInstant(s, 2, now);
+                try (ResultSet rs = s.executeQuery()) {
+                    if (rs.next()) {
+                        return Optional.empty();
+                    }
+                }
+            }
+        }
+        long token;
+        try (Statement s = c.createStatement(); ResultSet rs = s.executeQuery(
+                "SELECT " + dialect.nextValue("fencing_tokens"))) {
+            rs.next();
+            token = rs.getLong(1);
+        }
+        Lease lease = new Lease(executionId, owner, token, now.plus(leaseFor));
+        String write = dialect.isShared()
+                ? "INSERT INTO leases (execution_id, owner, fencing_token, expires_at) "
+                        + "VALUES (?, ?, ?, ?) ON CONFLICT (execution_id) DO UPDATE SET "
+                        + "owner = EXCLUDED.owner, fencing_token = EXCLUDED.fencing_token, "
+                        + "expires_at = EXCLUDED.expires_at WHERE leases.expires_at <= ?"
+                : dialect.upsert("leases", List.of("execution_id"), "execution_id", "owner",
+                        "fencing_token", "expires_at");
+        try (PreparedStatement s = c.prepareStatement(write)) {
+            s.setString(1, executionId.value());
+            s.setString(2, owner);
+            s.setLong(3, token);
+            JdbcDatabase.setInstant(s, 4, lease.expiresAt());
+            if (dialect.isShared()) {
+                JdbcDatabase.setInstant(s, 5, now);
+            }
+            if (s.executeUpdate() == 0) {
+                return Optional.empty();
+            }
+        }
+        return Optional.of(lease);
     }
 
     @Override

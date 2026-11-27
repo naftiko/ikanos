@@ -1,1 +1,2 @@
 io.ikanos.durable.store.jdbc.H2StoreProvider
+io.ikanos.durable.store.jdbc.PostgresStoreProvider

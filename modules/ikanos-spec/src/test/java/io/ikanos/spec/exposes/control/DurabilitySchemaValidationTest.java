@@ -37,9 +37,10 @@ import tools.jackson.dataformat.yaml.YAMLMapper;
 
 /**
  * Validates the control port's {@code durability} block and a flow's {@code interaction} against
- * what this release serves: the modes {@code none}, {@code memory} and {@code local}, a store of
- * {@code type} and {@code path}, a {@code retention} that {@code java.time.Duration} parses, and
- * no {@code mayElicit} flag.
+ * what this release serves: the modes {@code none}, {@code memory}, {@code local} and
+ * {@code distributed}, each with its own store type, a store of {@code type} and {@code path}, or
+ * of {@code url}, {@code user} and {@code password} for {@code distributed}, a {@code retention}
+ * that {@code java.time.Duration} parses, and no {@code mayElicit} flag.
  */
 class DurabilitySchemaValidationTest {
 
@@ -107,7 +108,10 @@ class DurabilitySchemaValidationTest {
             "{ mode: memory, retention: PT0.5S }",
             "{ mode: local, store: { type: h2, path: ./data/durable } }",
             "{ mode: local, store: { path: ./data/durable } }",
-            "{ mode: memory, store: { type: memory } }"})
+            "{ mode: memory, store: { type: memory } }",
+            "{ mode: distributed, store: { url: jdbc-url }, sealingKey: key }",
+            "{ mode: distributed, store: { type: postgres, url: jdbc-url, user: u, password: p },"
+                    + " retention: P7D, sealingKey: key }"})
     void schemaShouldAcceptDurability(String durability) throws Exception {
         List<Error> errors = validateDurability(durability);
         assertTrue(errors.isEmpty(), "Expected no errors for " + durability + ", got: " + errors);
@@ -116,6 +120,10 @@ class DurabilitySchemaValidationTest {
     @ParameterizedTest
     @ValueSource(strings = {
             "{ mode: distributed }",
+            "{ mode: distributed, store: { type: postgres } }",
+            "{ mode: distributed, store: { url: jdbc-url } }",
+            "{ mode: distributed, store: { type: h2, url: jdbc-url } }",
+            "{ mode: memory, store: { type: h2 } }",
             "{ mode: local, store: { type: jdbc, url: jdbc-url } }",
             "{ mode: local, store: { type: jdbc, path: ./data/durable } }",
             "{ mode: local, store: { type: postgres, path: ./data/durable } }",

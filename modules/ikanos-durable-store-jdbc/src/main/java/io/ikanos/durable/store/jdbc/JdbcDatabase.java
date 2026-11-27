@@ -26,39 +26,64 @@ import java.sql.Statement;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.locks.ReentrantLock;
 
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
+
 import io.ikanos.durable.store.ConcurrentAppendException;
 
 /**
- * One embedded H2 database holding every store of a capability.
+ * One database holding every store of a capability: an embedded H2 file for the {@code local}
+ * mode, or a PostgreSQL database that several replicas share for the {@code distributed} mode.
  *
- * <p>A single connection serves all stores, guarded by a lock: each operation runs in its own
- * transaction, committed before it returns. The database is opened with {@code WRITE_DELAY=0},
- * so a commit has reached the file when it returns, with H2's file lock, so a second process
- * cannot open the same file, and without H2's shutdown hook ({@code DB_CLOSE_ON_EXIT=FALSE}), so
- * the file stays open until its owner closes it after draining. Opening applies the forward-only schema migrations shipped in this
- * module, and refuses a database written by a newer schema or another minor version of H2.</p>
+ * <p>Each operation runs in its own transaction, committed before it returns.</p>
+ *
+ * <p><b>H2.</b> A single connection serves all stores, guarded by a lock. The database is opened
+ * with {@code WRITE_DELAY=0}, so a commit has reached the file when it returns, with H2's file
+ * lock, so a second process cannot open the same file, and without H2's shutdown hook
+ * ({@code DB_CLOSE_ON_EXIT=FALSE}), so the file stays open until its owner closes it after
+ * draining. Opening refuses a database written by another minor version of H2.</p>
+ *
+ * <p><b>PostgreSQL.</b> A connection pool serves the stores, one connection per transaction and
+ * no lock: the stores' statements are written so that concurrent replicas never break their
+ * contracts ({@link JdbcDialect}). Replicas opening the same database at once migrate it one at a
+ * time, under an advisory lock.</p>
+ *
+ * <p>Opening applies the forward-only schema migrations shipped in this module, and refuses a
+ * database written by a newer schema.</p>
  */
 final class JdbcDatabase implements AutoCloseable {
 
     /** The schema version this module writes; one script {@code V<n>__*.sql} per version. */
     static final int SCHEMA_VERSION = 1;
 
-    private static final String[] MIGRATIONS = {"V1__stores.sql"};
+    /** The default size of the PostgreSQL connection pool. */
+    static final int DEFAULT_POOL_SIZE = 10;
+
     private static final String SCHEMA_KEY = "schema_version";
     private static final String H2_KEY = "h2_version";
+    /** Key of the advisory lock that serialises the migrations of a PostgreSQL database. */
+    private static final long MIGRATION_LOCK = 0x696b616e6f73L;
 
+    private final JdbcDialect dialect;
+    private final String description;
     private final Path path;
     private final Connection connection;
+    private final HikariDataSource pool;
     private final ReentrantLock lock = new ReentrantLock();
-    private boolean closed;
+    private volatile boolean closed;
 
-    private JdbcDatabase(Path path, Connection connection) {
+    private JdbcDatabase(JdbcDialect dialect, String description, Path path, Connection connection,
+            HikariDataSource pool) {
+        this.dialect = dialect;
+        this.description = description;
         this.path = path;
         this.connection = connection;
+        this.pool = pool;
     }
 
     /**
@@ -89,7 +114,54 @@ final class JdbcDatabase implements AutoCloseable {
             throw new IllegalStateException("Cannot open the H2 store at " + absolute + ": "
                     + e.getMessage(), e);
         }
-        JdbcDatabase database = new JdbcDatabase(absolute, connection);
+        return migrated(new JdbcDatabase(JdbcDialect.H2, "H2 store at " + absolute, absolute,
+                connection, null));
+    }
+
+    /**
+     * Opens the PostgreSQL database at {@code url}, creating the stores' tables if needed.
+     *
+     * @param url a {@code jdbc:postgresql:} URL
+     * @param user the user, or {@code null} when the URL or the server names none
+     * @param password the password, or {@code null}
+     * @param poolSize the most connections the pool opens
+     * @throws IllegalArgumentException when {@code url} is not a PostgreSQL JDBC URL
+     * @throws IllegalStateException when the database cannot be reached or holds a newer schema
+     */
+    static JdbcDatabase openPostgres(String url, String user, String password, int poolSize) {
+        if (url == null || !url.startsWith("jdbc:postgresql:")) {
+            throw new IllegalArgumentException("The postgres store needs a jdbc:postgresql: URL "
+                    + "(durability.store.url)");
+        }
+        // Named without its query, which may carry credentials.
+        String description = "PostgreSQL store at " + withoutQuery(url);
+        HikariConfig config = new HikariConfig();
+        config.setDriverClassName("org.postgresql.Driver");
+        config.setJdbcUrl(url);
+        if (user != null && !user.isBlank()) {
+            config.setUsername(user);
+        }
+        if (password != null && !password.isEmpty()) {
+            config.setPassword(password);
+        }
+        config.setMaximumPoolSize(poolSize);
+        config.setMinimumIdle(1);
+        config.setAutoCommit(false);
+        config.setPoolName("ikanos-durable");
+        config.setConnectionTimeout(10_000);
+        // Fails here, not on the first task, when the database cannot be reached.
+        config.setInitializationFailTimeout(10_000);
+        HikariDataSource pool;
+        try {
+            pool = new HikariDataSource(config);
+        } catch (RuntimeException e) {
+            throw new IllegalStateException("Cannot open the " + description + ": "
+                    + rootMessage(e), e);
+        }
+        return migrated(new JdbcDatabase(JdbcDialect.POSTGRES, description, null, null, pool));
+    }
+
+    private static JdbcDatabase migrated(JdbcDatabase database) {
         try {
             database.migrate();
         } catch (RuntimeException e) {
@@ -99,9 +171,27 @@ final class JdbcDatabase implements AutoCloseable {
         return database;
     }
 
-    /** The database file, without H2's extension. */
+    static String withoutQuery(String url) {
+        int query = url.indexOf('?');
+        return query < 0 ? url : url.substring(0, query);
+    }
+
+    private static String rootMessage(Throwable e) {
+        Throwable root = e;
+        while (root.getCause() != null && root.getCause() != root) {
+            root = root.getCause();
+        }
+        return root.getMessage() != null ? root.getMessage() : e.getMessage();
+    }
+
+    /** The database file of an H2 store, without H2's extension; {@code null} for PostgreSQL. */
     Path path() {
         return path;
+    }
+
+    /** The SQL dialect of the database. */
+    JdbcDialect dialect() {
+        return dialect;
     }
 
     /** Work done in one transaction. */
@@ -116,24 +206,38 @@ final class JdbcDatabase implements AutoCloseable {
      * {@link SQLException} becomes an {@link IllegalStateException} naming the store.
      */
     <T> T transact(Work<T> work) throws ConcurrentAppendException {
+        if (pool != null) {
+            if (closed) {
+                throw new IllegalStateException("The " + description + " is closed");
+            }
+            try (Connection pooled = pool.getConnection()) {
+                return inTransaction(pooled, work);
+            } catch (SQLException e) {
+                throw failure(e);
+            }
+        }
         lock.lock();
         try {
             if (closed) {
-                throw new IllegalStateException("The H2 store at " + path + " is closed");
+                throw new IllegalStateException("The " + description + " is closed");
             }
-            try {
-                T result = work.run(connection);
-                connection.commit();
-                return result;
-            } catch (SQLException e) {
-                rollback();
-                throw failure(e);
-            } catch (ConcurrentAppendException | RuntimeException e) {
-                rollback();
-                throw e;
-            }
+            return inTransaction(connection, work);
         } finally {
             lock.unlock();
+        }
+    }
+
+    private <T> T inTransaction(Connection c, Work<T> work) throws ConcurrentAppendException {
+        try {
+            T result = work.run(c);
+            c.commit();
+            return result;
+        } catch (SQLException e) {
+            rollback(c);
+            throw failure(e);
+        } catch (ConcurrentAppendException | RuntimeException e) {
+            rollback(c);
+            throw e;
         }
     }
 
@@ -161,6 +265,11 @@ final class JdbcDatabase implements AutoCloseable {
 
     @Override
     public void close() {
+        if (pool != null) {
+            closed = true;
+            pool.close();
+            return;
+        }
         lock.lock();
         try {
             if (closed) {
@@ -175,45 +284,58 @@ final class JdbcDatabase implements AutoCloseable {
         }
     }
 
-    private void rollback() {
+    private static void rollback(Connection c) {
         try {
-            connection.rollback();
+            c.rollback();
         } catch (SQLException e) {
             // The original failure is the one to report.
         }
     }
 
     private IllegalStateException failure(SQLException e) {
-        return new IllegalStateException("H2 store at " + path + ": " + e.getMessage(), e);
+        return new IllegalStateException(description + ": " + e.getMessage(), e);
     }
 
     // Migrations
 
     private void migrate() {
         call(c -> {
+            if (dialect == JdbcDialect.POSTGRES) {
+                // Held until this transaction ends: replicas starting together migrate in turn.
+                try (PreparedStatement s = c.prepareStatement("SELECT pg_advisory_xact_lock(?)")) {
+                    s.setLong(1, MIGRATION_LOCK);
+                    s.execute();
+                }
+            }
             try (Statement s = c.createStatement()) {
                 s.execute("CREATE TABLE IF NOT EXISTS store_meta (name VARCHAR(64) PRIMARY KEY, "
                         + "val VARCHAR(255) NOT NULL)");
             }
-            String running = h2Version(c);
             int current = meta(c, SCHEMA_KEY).map(Integer::parseInt).orElse(0);
             if (current > SCHEMA_VERSION) {
-                throw new IllegalStateException("The H2 store at " + path + " has schema version "
+                throw new IllegalStateException("The " + description + " has schema version "
                         + current + ", newer than this Ikanos supports (" + SCHEMA_VERSION
                         + "): use the Ikanos version that wrote it");
             }
-            Optional<String> recorded = meta(c, H2_KEY);
-            if (recorded.isPresent() && !minor(recorded.get()).equals(minor(running))) {
-                throw new IllegalStateException("The H2 store at " + path + " was written by H2 "
-                        + recorded.get() + ", and this Ikanos runs H2 " + running
-                        + ": another minor version may not read the file. Use the Ikanos "
-                        + "version that wrote it, or export and re-create the store");
+            String running = null;
+            if (dialect == JdbcDialect.H2) {
+                running = h2Version(c);
+                Optional<String> recorded = meta(c, H2_KEY);
+                if (recorded.isPresent() && !minor(recorded.get()).equals(minor(running))) {
+                    throw new IllegalStateException("The " + description + " was written by H2 "
+                            + recorded.get() + ", and this Ikanos runs H2 " + running
+                            + ": another minor version may not read the file. Use the Ikanos "
+                            + "version that wrote it, or export and re-create the store");
+                }
             }
+            List<String> migrations = dialect.migrations();
             for (int version = current + 1; version <= SCHEMA_VERSION; version++) {
-                runScript(c, MIGRATIONS[version - 1]);
+                runScript(c, migrations.get(version - 1));
             }
             putMeta(c, SCHEMA_KEY, Integer.toString(SCHEMA_VERSION));
-            putMeta(c, H2_KEY, running);
+            if (running != null) {
+                putMeta(c, H2_KEY, running);
+            }
             return null;
         });
     }
@@ -269,9 +391,9 @@ final class JdbcDatabase implements AutoCloseable {
         }
     }
 
-    private static void putMeta(Connection c, String name, String value) throws SQLException {
+    private void putMeta(Connection c, String name, String value) throws SQLException {
         try (PreparedStatement s = c.prepareStatement(
-                "MERGE INTO store_meta (name, val) KEY (name) VALUES (?, ?)")) {
+                dialect.upsert("store_meta", List.of("name"), "name", "val"))) {
             s.setString(1, name);
             s.setString(2, value);
             s.executeUpdate();

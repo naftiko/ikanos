@@ -15,6 +15,7 @@ package io.ikanos.durable.core;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -22,7 +23,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Predicate;
 import io.ikanos.durable.ActionExecutor;
@@ -41,7 +47,9 @@ import io.ikanos.durable.store.ConcurrentAppendException;
 import io.ikanos.durable.store.ExecutionRecord;
 import io.ikanos.durable.store.ExecutionStatus;
 import io.ikanos.durable.store.JournalEntry;
+import io.ikanos.durable.store.Lease;
 import io.ikanos.durable.store.PayloadCodec;
+import io.ikanos.durable.store.StoreFeature;
 import io.ikanos.durable.store.Stores;
 
 /**
@@ -56,8 +64,14 @@ import io.ikanos.durable.store.Stores;
  *   <li>An {@link Command.AwaitUpdate} without an update suspends the run and marks the execution
  *       {@code SUSPENDED}; delivering the update and running again resumes it.</li>
  *   <li>A completed or failed execution returns its recorded result without running anything.</li>
- *   <li>Runs of one execution are serialised in this process. Leases and fencing across
- *       processes come with the shared stores.</li>
+ *   <li>Runs of one execution are serialised in this process.</li>
+ *   <li>On a store several replicas share ({@link StoreFeature#SHARED}), a replica writes an
+ *       execution only under its lease, renewed while the run goes on and released when it ends.
+ *       A replica that finds the lease held by another gets an {@link ExecutionBusyException};
+ *       once the holder's lease expires, as when its process died, another replica takes the
+ *       execution over with a greater fencing token, and the journal refuses the stale holder's
+ *       appends. An update delivered while a run held the lease is read when it ends: its sender
+ *       could not run the execution, so the holder runs it again.</li>
  * </ul>
  *
  * <p>Durable timers and retries across attempts come with the next increment; a timer is
@@ -68,18 +82,68 @@ public final class JournaledRunner implements Runner {
     /** Fencing token used while a single process owns every execution. */
     static final long SINGLE_OWNER = 0L;
 
+    /** How long a lease on a shared store lasts unless renewed; renewed every third of it. */
+    public static final Duration DEFAULT_LEASE = Duration.ofSeconds(30);
+
     private final Stores stores;
     private final PayloadCodec codec;
     private final Clock clock;
     private final String specDigest;
+    private final String owner;
+    private final Duration leaseFor;
+    private final boolean shared;
+    /** Ownership of no execution: the token of a single process, with no lease to renew. */
+    private final Owned notOwned = new Owned((Lease) null);
+    /** Renews the leases of the runs in progress; started with the first lease. */
+    private volatile ScheduledExecutorService renewals;
     /** The lock of each execution a thread runs or waits on; removed once none does. */
     private final Map<ExecutionId, ExecutionLock> locks = new ConcurrentHashMap<>();
+    /** The leases this runner holds, by execution: its nested executions run under them. */
+    private final Map<ExecutionId, Owned> held = new ConcurrentHashMap<>();
 
     public JournaledRunner(Stores stores, PayloadCodec codec, Clock clock, String specDigest) {
+        this(stores, codec, clock, specDigest, "runner-" + UUID.randomUUID(), DEFAULT_LEASE);
+    }
+
+    /**
+     * @param owner the name this runner's leases carry, distinct for each replica
+     * @param leaseFor how long a lease lasts unless renewed, on a shared store
+     */
+    public JournaledRunner(Stores stores, PayloadCodec codec, Clock clock, String specDigest,
+            String owner, Duration leaseFor) {
         this.stores = Objects.requireNonNull(stores, "stores");
         this.codec = Objects.requireNonNull(codec, "codec");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.specDigest = Objects.requireNonNull(specDigest, "specDigest");
+        this.owner = Objects.requireNonNull(owner, "owner");
+        this.leaseFor = Objects.requireNonNull(leaseFor, "leaseFor");
+        if (leaseFor.isNegative() || leaseFor.isZero()) {
+            throw new IllegalArgumentException("A lease must last some time: " + leaseFor);
+        }
+        this.shared = stores.journal().features().contains(StoreFeature.SHARED);
+    }
+
+    /** Whether several replicas share this runner's store, so its writes need a lease. */
+    public boolean isShared() {
+        return shared;
+    }
+
+    /** The name this runner's leases carry. */
+    public String owner() {
+        return owner;
+    }
+
+    /** How long a lease lasts unless renewed. */
+    public Duration leaseFor() {
+        return leaseFor;
+    }
+
+    /** Stops renewing leases; the runs still in progress lose theirs once they expire. */
+    public void close() {
+        ScheduledExecutorService running = renewals;
+        if (running != null) {
+            running.shutdownNow();
+        }
     }
 
     /**
@@ -99,16 +163,18 @@ public final class JournaledRunner implements Runner {
     public boolean start(ExecutionRequest request, String entry, Map<String, String> labels) {
         ExecutionId id = request.executionId();
         ExecutionLock lock = lock(id);
-        try {
+        // Leased before it is indexed: a replica that finds it running before its input is
+        // journaled cannot take it for one whose creation never finished.
+        try (Owned owned = own(id)) {
             if (!stores.index().create(new ExecutionRecord(id, specDigest, entry,
                     ExecutionStatus.RUNNING, clock.instant(), request.deadline(), labels))) {
                 return false;
             }
-            stores.journal().append(id, 0, SINGLE_OWNER, List.of(new JournalEntry(1,
+            stores.journal().append(id, 0, owned.token(), List.of(new JournalEntry(1,
                     JournalEntry.Kind.EXECUTION_STARTED, null, encodeValue(request.input()))));
             return true;
         } catch (ConcurrentAppendException e) {
-            throw new IllegalStateException("Another owner appended to the journal of " + id, e);
+            throw conflict(id, e);
         } finally {
             unlock(id, lock);
         }
@@ -162,6 +228,23 @@ public final class JournaledRunner implements Runner {
         return stores.index().listLabelled(status, key, value, createdBefore, limit);
     }
 
+    /**
+     * Up to {@code limit} executions with {@code status} and a label {@code key} that no replica
+     * runs: on a shared store, those whose lease has expired or was released, oldest first.
+     */
+    public List<ExecutionRecord> listUnowned(ExecutionStatus status, String key, int limit) {
+        return stores.index().listUnleased(status, key, clock.instant(), limit);
+    }
+
+    /**
+     * Like {@link #listUnowned}, keeping the executions with updates waiting in the inbox,
+     * filtered by the store before the limit where it can see its inbox.
+     */
+    public List<ExecutionRecord> listUnownedWithUpdates(ExecutionStatus status, String key,
+            int limit) {
+        return stores.index().listUnleasedWithUpdates(status, key, clock.instant(), limit);
+    }
+
     /** Up to {@code limit} executions with {@code status}, oldest first. */
     public List<ExecutionRecord> list(ExecutionStatus status, int limit) {
         return stores.index().list(status, limit);
@@ -178,15 +261,14 @@ public final class JournaledRunner implements Runner {
      */
     public void fail(ExecutionId executionId, Failure failure) {
         ExecutionLock lock = lock(executionId);
-        try {
+        try (Owned owned = own(executionId)) {
             Optional<ExecutionStatus> status = status(executionId);
             if (status.isEmpty() || status.get().isTerminal()) {
                 return;
             }
-            new Run(ExecutionRequest.of(executionId, null)).fail(failure);
+            new Run(ExecutionRequest.of(executionId, null), owned).fail(failure);
         } catch (ConcurrentAppendException e) {
-            throw new IllegalStateException(
-                    "Another owner appended to the journal of " + executionId, e);
+            throw conflict(executionId, e);
         } finally {
             unlock(executionId, lock);
         }
@@ -199,24 +281,29 @@ public final class JournaledRunner implements Runner {
      * resumed and asked again.
      *
      * @param expected a status that has not ended, such as {@code SUSPENDED}
-     * @return whether the execution was failed
+     * @return whether the execution was failed; {@code false} too when another replica runs it
      */
     public boolean failIf(ExecutionId executionId, ExecutionStatus expected,
             Predicate<ExecutionView> condition, Failure failure) {
         ExecutionLock lock = lock(executionId);
-        try {
+        try (Owned owned = own(executionId)) {
             if (status(executionId).orElse(null) != expected) {
                 return false;
             }
-            Run run = new Run(ExecutionRequest.of(executionId, null));
+            Run run = new Run(ExecutionRequest.of(executionId, null), owned);
             if (!condition.test(run)) {
                 return false;
             }
             run.fail(failure);
             return true;
+        } catch (ExecutionBusyException e) {
+            // Running elsewhere, so no longer in the state the decision was made on.
+            return false;
         } catch (ConcurrentAppendException e) {
-            throw new IllegalStateException(
-                    "Another owner appended to the journal of " + executionId, e);
+            if (shared) {
+                return false;
+            }
+            throw conflict(executionId, e);
         } finally {
             unlock(executionId, lock);
         }
@@ -249,7 +336,12 @@ public final class JournaledRunner implements Runner {
      * running anything, for an execution whose result is already recorded.
      */
     public ExecutionView view(ExecutionId executionId) {
-        return new Run(ExecutionRequest.of(executionId, null));
+        return new Run(ExecutionRequest.of(executionId, null), notOwned);
+    }
+
+    /** Whether updates were delivered to an execution that has not journaled them yet. */
+    public boolean hasPendingUpdates(ExecutionId executionId) {
+        return !stores.inbox().pending(executionId).isEmpty();
     }
 
     /** Delivers an update for {@code path}; returns {@code false} if one was already delivered. */
@@ -284,31 +376,167 @@ public final class JournaledRunner implements Runner {
         ExecutionId id = request.executionId();
         ExecutionLock lock = lock(id);
         try {
-            create(request, null);
-            ExecutionStatus status = status(id).orElse(ExecutionStatus.RUNNING);
-            if (status == ExecutionStatus.CANCELLED) {
-                return new ExecutionResult.Failed(
-                        new Failure("cancelled", "The execution was cancelled"));
+            while (true) {
+                ExecutionResult result;
+                try (Owned owned = own(id)) {
+                    result = runOwned(request, interpreter, executor, owned);
+                }
+                // Released first, then checked: an update delivered by a replica that found the
+                // lease held is either seen here or run by that replica, never left unread.
+                if (!shared || !(result instanceof ExecutionResult.Suspended)
+                        || stores.inbox().pending(id).isEmpty()) {
+                    return result;
+                }
             }
-            Optional<ExecutionResult> recorded = result(id);
-            if (recorded.isPresent()) {
-                // A crash between the journal's last entry and the index update leaves the index
-                // behind the journal: the journal is the truth, so the index catches up here.
-                stores.index().updateStatus(id, recorded.get() instanceof ExecutionResult.Completed
-                        ? ExecutionStatus.COMPLETED : ExecutionStatus.FAILED);
-                return recorded.get();
-            }
-            Run run = new Run(request);
-            run.receiveUpdates();
-            // Conditional, as cancel is: a cancel that landed since the read is not undone; the
-            // loop then sees it and ends the run as cancelled.
-            stores.index().compareAndSetStatus(id, status, ExecutionStatus.RUNNING);
-            return run.loop(interpreter, executor);
         } catch (ConcurrentAppendException e) {
-            throw new IllegalStateException(
-                    "Another owner appended to the journal of " + id, e);
+            throw conflict(id, e);
         } finally {
             unlock(id, lock);
+        }
+    }
+
+    private ExecutionResult runOwned(ExecutionRequest request, Interpreter interpreter,
+            ActionExecutor executor, Owned owned) throws ConcurrentAppendException {
+        ExecutionId id = request.executionId();
+        create(request, null);
+        ExecutionStatus status = status(id).orElse(ExecutionStatus.RUNNING);
+        if (status == ExecutionStatus.CANCELLED) {
+            return new ExecutionResult.Failed(
+                    new Failure("cancelled", "The execution was cancelled"));
+        }
+        Optional<ExecutionResult> recorded = result(id);
+        if (recorded.isPresent()) {
+            // A crash between the journal's last entry and the index update leaves the index
+            // behind the journal: the journal is the truth, so the index catches up here.
+            stores.index().updateStatus(id, recorded.get() instanceof ExecutionResult.Completed
+                    ? ExecutionStatus.COMPLETED : ExecutionStatus.FAILED);
+            return recorded.get();
+        }
+        Run run = new Run(request, owned);
+        run.receiveUpdates();
+        // Conditional, as cancel is: a cancel that landed since the read is not undone; the
+        // loop then sees it and ends the run as cancelled.
+        stores.index().compareAndSetStatus(id, status, ExecutionStatus.RUNNING);
+        return run.loop(interpreter, executor);
+    }
+
+    /**
+     * A write refused by the journal. On a shared store, another replica wrote first: it owns
+     * the execution now. Otherwise, a second writer in one process, which is a bug.
+     */
+    private IllegalStateException conflict(ExecutionId id, ConcurrentAppendException e) {
+        return shared ? new ExecutionBusyException(id, e)
+                : new IllegalStateException("Another owner appended to the journal of " + id, e);
+    }
+
+    /**
+     * Takes the right to write {@code id}: its lease on a shared store, nothing otherwise. A
+     * nested execution ({@code <execution>/...}, such as a task's steps or a flow one of them
+     * calls) runs under the lease this runner holds on an enclosing one, and takes none of its
+     * own: so a replica that takes a task over owns its nested executions with it, whatever
+     * leases the replica that stopped left on them.
+     */
+    private Owned own(ExecutionId id) {
+        if (!shared) {
+            return notOwned;
+        }
+        for (Map.Entry<ExecutionId, Owned> enclosing : held.entrySet()) {
+            if (id.value().startsWith(enclosing.getKey().value() + "/")) {
+                return new Owned(enclosing.getValue());
+            }
+        }
+        Lease lease = stores.queue().acquire(id, owner, leaseFor)
+                .orElseThrow(() -> new ExecutionBusyException(id, null));
+        Owned owned = new Owned(lease);
+        held.put(id, owned);
+        return owned;
+    }
+
+    private ScheduledExecutorService renewals() {
+        ScheduledExecutorService running = renewals;
+        if (running == null) {
+            synchronized (this) {
+                running = renewals;
+                if (running == null) {
+                    running = Executors.newSingleThreadScheduledExecutor(task -> {
+                        Thread thread = new Thread(task, "ikanos-lease-renewals");
+                        thread.setDaemon(true);
+                        return thread;
+                    });
+                    renewals = running;
+                }
+            }
+        }
+        return running;
+    }
+
+    /**
+     * The right to write an execution's journal: its lease on a shared store, renewed every
+     * third of its length until closed; nothing on a store of one process.
+     */
+    private final class Owned implements AutoCloseable {
+
+        private final Lease lease;
+        /** The enclosing execution's ownership this one borrows, or {@code null}. */
+        private final Owned enclosing;
+        private volatile boolean lost;
+        private volatile ScheduledFuture<?> renewal;
+
+        /** Ownership borrowed from an enclosing execution: its token, renewed and released by it. */
+        Owned(Owned enclosing) {
+            this.lease = null;
+            this.enclosing = enclosing;
+        }
+
+        Owned(Lease lease) {
+            this.lease = lease;
+            this.enclosing = null;
+            if (lease != null) {
+                long period = Math.max(1, leaseFor.toMillis() / 3);
+                renewal = renewals().scheduleAtFixedRate(this::renew, period, period,
+                        TimeUnit.MILLISECONDS);
+            }
+        }
+
+        long token() {
+            if (enclosing != null) {
+                return enclosing.token();
+            }
+            return lease == null ? SINGLE_OWNER : lease.fencingToken();
+        }
+
+        /** Whether the lease expired before it was renewed: another replica may own it now. */
+        boolean lost() {
+            return enclosing != null ? enclosing.lost() : lost;
+        }
+
+        void renew() {
+            try {
+                if (!stores.queue().renew(lease, leaseFor)) {
+                    lost = true;
+                    renewal.cancel(false);
+                }
+            } catch (RuntimeException e) {
+                // The store is unreachable for now: the next renewal tries again, and the run
+                // stops at its next append if the lease expires meanwhile.
+            }
+        }
+
+        @Override
+        public void close() {
+            if (lease == null) {
+                return;
+            }
+            held.remove(lease.executionId(), this);
+            ScheduledFuture<?> scheduled = renewal;
+            if (scheduled != null) {
+                scheduled.cancel(false);
+            }
+            try {
+                stores.queue().release(lease);
+            } catch (RuntimeException e) {
+                // Unreleased, the lease expires on its own.
+            }
         }
     }
 
@@ -347,13 +575,15 @@ public final class JournaledRunner implements Runner {
     private final class Run implements ExecutionView {
 
         private final ExecutionRequest request;
+        private final Owned owned;
         private final Map<NodePath, ActionOutcome> outcomes = new HashMap<>();
         private final Map<NodePath, Object> decisions = new HashMap<>();
         private final Map<NodePath, Object> updates = new HashMap<>();
         private long sequence;
 
-        Run(ExecutionRequest request) {
+        Run(ExecutionRequest request, Owned owned) {
             this.request = request;
+            this.owned = owned;
             for (JournalEntry entry : stores.journal().read(request.executionId())) {
                 sequence = entry.sequence();
                 switch (entry.kind()) {
@@ -499,8 +729,12 @@ public final class JournaledRunner implements Runner {
 
         void append(JournalEntry.Kind kind, NodePath path, byte[] payload)
                 throws ConcurrentAppendException {
+            if (owned.lost()) {
+                throw new ConcurrentAppendException("The lease on " + request.executionId()
+                        + " expired before it was renewed");
+            }
             JournalEntry entry = new JournalEntry(sequence + 1, kind, path, payload);
-            stores.journal().append(request.executionId(), sequence, SINGLE_OWNER,
+            stores.journal().append(request.executionId(), sequence, owned.token(),
                     List.of(entry));
             sequence++;
         }

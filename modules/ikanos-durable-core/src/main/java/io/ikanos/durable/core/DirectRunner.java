@@ -203,6 +203,10 @@ public final class DirectRunner implements Runner {
             return new ActionOutcome.Failed(
                     new Failure(Failure.INTERRUPTED, "The run was interrupted"));
         } catch (ExecutionException e) {
+            // An Error ends the run without an outcome, as it does when the action runs inline.
+            if (e.getCause() instanceof Error error) {
+                throw error;
+            }
             return new ActionOutcome.Failed(new Failure(Failure.UNEXPECTED, describe(e.getCause())));
         }
     }

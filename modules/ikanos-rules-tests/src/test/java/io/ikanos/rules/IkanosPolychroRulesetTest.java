@@ -1407,6 +1407,27 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
+    public void durabilityRulesShouldNotFireOnTheDistributedModeWithBoundSettings() {
+        LintResult result = lintFixture("rules/polychro-durability-distributed.yaml");
+        assertTrue(result.exitCode() == 0 && !result.output().contains("ikanos-distributed-")
+                && !result.output().contains("ikanos-store-password-")
+                && !result.output().contains("ikanos-sealing-key-"),
+            "Expected the distributed mode to lint clean.\n" + result.output());
+    }
+
+    @Test
+    public void distributedRuleShouldFireWithoutASealingKey() {
+        assertRuleFires("rules/polychro-durability-distributed-violations.yaml",
+            "ikanos-distributed-requires-sealing-key");
+    }
+
+    @Test
+    public void storePasswordRuleShouldWarnOnAPasswordWrittenIntoTheCapability() {
+        assertWarnsOn("rules/polychro-durability-distributed-violations.yaml",
+            "ikanos-store-password-must-bind", "written into the capability");
+    }
+
+    @Test
     public void restOperationsThatAskShouldNoLongerBeWarnedAbout() {
         // REST serves input requests (202, then answers POSTed to the Location).
         String output = lintFixture("rules/polychro-durability-warnings.yaml").output();

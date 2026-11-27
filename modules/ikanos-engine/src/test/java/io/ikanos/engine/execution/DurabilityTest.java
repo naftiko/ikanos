@@ -105,8 +105,75 @@ public class DurabilityTest {
     void fromSpecShouldRejectAnUnknownMode() {
         assertThrows(IllegalArgumentException.class,
                 () -> Durability.fromSpec(new DurabilitySpec("forever")));
-        assertThrows(IllegalArgumentException.class,
+    }
+
+    private static DurabilitySpec distributed(String type, String url) {
+        DurabilitySpec spec = new DurabilitySpec("distributed");
+        DurabilityStoreSpec store = new DurabilityStoreSpec(type);
+        store.setUrl(url);
+        spec.setStore(store);
+        // A test key of 128 zero bits, made here rather than written as a key-like literal.
+        spec.setSealingKey(java.util.Base64.getEncoder().encodeToString(new byte[16]));
+        return spec;
+    }
+
+    @Test
+    void fromSpecShouldRequireASealingKeyForTheDistributedMode() {
+        DurabilitySpec spec = distributed("postgres", "jdbc:postgresql://db/ikanos");
+        spec.setSealingKey(" ");
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> Durability.fromSpec(spec));
+
+        assertTrue(e.getMessage().contains("durability.sealingKey"), e.getMessage());
+    }
+
+    @Test
+    void fromSpecShouldRequireAUrlForTheDistributedMode() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> Durability.fromSpec(new DurabilitySpec("distributed")));
+
+        assertTrue(e.getMessage().contains("durability.store.url"), e.getMessage());
+    }
+
+    @Test
+    void fromSpecShouldRefuseAStoreOfOneProcessForTheDistributedMode() {
+        for (String type : new String[] {"h2", "memory"}) {
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                    () -> Durability.fromSpec(distributed(type, "jdbc:postgresql://db/ikanos")));
+            assertTrue(e.getMessage().contains("several replicas share"), e.getMessage());
+        }
+    }
+
+    @Test
+    void fromSpecShouldNameTheStoreSettingThatDoesNotResolve() {
+        DurabilitySpec spec = distributed(null, "{{DURABLE_DB_URL}}");
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> Durability.fromSpec(spec, "sha256:tree", java.util.Map.of()));
+
+        assertTrue(e.getMessage().contains("durability.store.url does not resolve"),
+                e.getMessage());
+    }
+
+    @Test
+    void settingShouldResolveABindingAndKeepALiteral() {
+        java.util.Map<String, Object> bindings =
+                java.util.Map.of("DURABLE_DB_PASSWORD", "from-binds");
+
+        assertEquals("from-binds",
+                Durability.setting("{{DURABLE_DB_PASSWORD}}", "password", bindings));
+        assertEquals("ikanos", Durability.setting("ikanos", "user", bindings));
+        assertNull(Durability.setting(" ", "user", bindings));
+    }
+
+    @Test
+    void fromSpecShouldFailTheLoadWhenTheSharedDatabaseIsUnreachable() {
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> Durability.fromSpec(distributed("postgres",
+                        "jdbc:postgresql://127.0.0.1:1/ikanos")));
+
+        assertTrue(e.getMessage().contains("PostgreSQL store"), e.getMessage());
     }
 
     @Test

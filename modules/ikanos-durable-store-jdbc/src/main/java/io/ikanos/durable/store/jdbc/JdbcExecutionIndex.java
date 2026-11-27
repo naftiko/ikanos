@@ -43,19 +43,26 @@ final class JdbcExecutionIndex implements ExecutionIndex {
 
     @Override
     public boolean create(ExecutionRecord record) {
+        JdbcDialect dialect = database.dialect();
         return database.call(c -> {
-            if (exists(c, record.executionId())) {
+            // Shared: one atomic insert, so two replicas creating the same ID get one true.
+            if (!dialect.isShared() && exists(c, record.executionId())) {
                 return false;
             }
-            try (PreparedStatement s = c.prepareStatement(
-                    "INSERT INTO executions (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?)")) {
+            String insert = dialect.isShared()
+                    ? dialect.insertIfAbsent("executions", List.of("execution_id"),
+                            COLUMNS.split(", "))
+                    : "INSERT INTO executions (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?)";
+            try (PreparedStatement s = c.prepareStatement(insert)) {
                 s.setString(1, record.executionId().value());
                 s.setString(2, record.specDigest());
                 s.setString(3, record.entry());
                 s.setString(4, record.status().name());
                 JdbcDatabase.setInstant(s, 5, record.createdAt());
                 JdbcDatabase.setInstant(s, 6, record.deadline());
-                s.executeUpdate();
+                if (s.executeUpdate() == 0) {
+                    return false;
+                }
             }
             try (PreparedStatement s = c.prepareStatement("INSERT INTO execution_labels "
                     + "(execution_id, label_key, label_value) VALUES (?, ?, ?)")) {
@@ -160,6 +167,37 @@ final class JdbcExecutionIndex implements ExecutionIndex {
                 JdbcDatabase.setInstant(s, i++, createdBefore);
             }
             s.setInt(i, limit);
+        }));
+    }
+
+    @Override
+    public List<ExecutionRecord> listUnleased(ExecutionStatus status, String key, Instant now,
+            int limit) {
+        return unleased(status, key, now, limit, false);
+    }
+
+    @Override
+    public List<ExecutionRecord> listUnleasedWithUpdates(ExecutionStatus status, String key,
+            Instant now, int limit) {
+        return unleased(status, key, now, limit, true);
+    }
+
+    private List<ExecutionRecord> unleased(ExecutionStatus status, String key, Instant now,
+            int limit, boolean withUpdates) {
+        // The leases and the inbox live in the same database: filtered in the query, so the
+        // executions left out, however many, never take the place of one kept.
+        String sql = "SELECT " + COLUMNS + " FROM executions e WHERE status = ? AND EXISTS "
+                + "(SELECT 1 FROM execution_labels l WHERE l.execution_id = e.execution_id "
+                + "AND l.label_key = ?) AND NOT EXISTS (SELECT 1 FROM leases s "
+                + "WHERE s.execution_id = e.execution_id AND s.expires_at > ?)"
+                + (withUpdates ? " AND EXISTS (SELECT 1 FROM inbox i WHERE i.execution_id = "
+                        + "e.execution_id AND i.acknowledged = FALSE)" : "")
+                + " ORDER BY created_at, execution_id LIMIT ?";
+        return database.call(c -> select(c, sql, s -> {
+            s.setString(1, status.name());
+            s.setString(2, key);
+            JdbcDatabase.setInstant(s, 3, now);
+            s.setInt(4, limit);
         }));
     }
 

@@ -30,6 +30,9 @@ public class DurabilitySpec {
     /** Journal in an embedded H2 file, surviving a restart. */
     public static final String MODE_LOCAL = "local";
 
+    /** Journal in a database several replicas share, surviving a restart of any of them. */
+    public static final String MODE_DISTRIBUTED = "distributed";
+
     private String mode;
     private DurabilityStoreSpec store;
     private String retention;

@@ -23,8 +23,41 @@ public class DurabilityStoreSpec {
 
     private String type;
     private String path;
+    private String url;
+    private String user;
+    private String password;
 
     public DurabilityStoreSpec() {}
+
+    /**
+     * The JDBC URL of a shared store, such as the PostgreSQL database of {@code distributed},
+     * usually a {@code {{...}}} reference to a {@code binds} variable.
+     */
+    public String getUrl() {
+        return url;
+    }
+
+    public void setUrl(String url) {
+        this.url = url;
+    }
+
+    /** The database user of a shared store, usually a {@code binds} reference. */
+    public String getUser() {
+        return user;
+    }
+
+    public void setUser(String user) {
+        this.user = user;
+    }
+
+    /** The database password of a shared store: a {@code binds} reference, never a literal. */
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
+    }
 
     public DurabilityStoreSpec(String type) {
         this.type = type;

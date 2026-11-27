@@ -105,6 +105,87 @@ public class DurableScopeTest {
                 () -> Executions.runSteps(tree, new StepRun(null), nodes));
     }
 
+    /** Memory stores whose journal declares that several replicas share them. */
+    private static Stores sharedStores() {
+        Stores memory = MemoryStoreProvider.openStores(Clock.systemUTC());
+        io.ikanos.durable.store.JournalStore journal = memory.journal();
+        io.ikanos.durable.store.JournalStore shared = new io.ikanos.durable.store.JournalStore() {
+            @Override
+            public Set<io.ikanos.durable.store.StoreFeature> features() {
+                Set<io.ikanos.durable.store.StoreFeature> features =
+                        new HashSet<>(journal.features());
+                features.add(io.ikanos.durable.store.StoreFeature.SHARED);
+                return features;
+            }
+
+            @Override
+            public void append(ExecutionId id, long expected, long token,
+                    List<io.ikanos.durable.store.JournalEntry> entries)
+                    throws io.ikanos.durable.store.ConcurrentAppendException {
+                journal.append(id, expected, token, entries);
+            }
+
+            @Override
+            public List<io.ikanos.durable.store.JournalEntry> read(ExecutionId id) {
+                return journal.read(id);
+            }
+
+            @Override
+            public void truncate(ExecutionId id) {
+                journal.truncate(id);
+            }
+        };
+        return new Stores(shared, memory.index(), memory.queue(), memory.inbox(), memory.blobs());
+    }
+
+    @Test
+    void stepsShouldEndWithoutAFailureWhenAnotherReplicaOwnsTheirRun() {
+        // Another replica took the task over while this one stalled: it owns the steps' run.
+        Stores stores = sharedStores();
+        JournaledRunner replica = new JournaledRunner(stores, new JsonPayloadCodec(),
+                Clock.systemUTC(), "test");
+        ExecutionId steps = new ExecutionId(ROOT.value() + "/steps");
+        stores.queue().acquire(steps, "another-replica", java.time.Duration.ofSeconds(30))
+                .orElseThrow();
+        CountingRunner nodes = new CountingRunner();
+
+        try {
+            assertThrows(DurableScope.Superseded.class, () -> DurableScope.with(replica, ROOT,
+                    () -> Executions.runSteps(tree("book-slot"), new StepRun(null), nodes)));
+        } finally {
+            replica.close();
+        }
+
+        assertTrue(nodes.invoked.isEmpty());
+        assertTrue(stores.journal().read(steps).isEmpty(),
+                "Nothing is recorded that would fail the task the other replica carries on");
+    }
+
+    @Test
+    void aJournaledRunShouldEndWithoutAFailureWhenAnotherReplicaOwnsIt() {
+        // The run of an MCP call that waits on an upstream task, taken over the same way.
+        Stores stores = sharedStores();
+        JournaledRunner replica = new JournaledRunner(stores, new JsonPayloadCodec(),
+                Clock.systemUTC(), "test");
+        ExecutionId nested = new ExecutionId(ROOT.value() + "/steps");
+        stores.queue().acquire(nested, "another-replica", java.time.Duration.ofSeconds(30))
+                .orElseThrow();
+        List<String> invoked = new ArrayList<>();
+
+        try {
+            assertThrows(DurableScope.Superseded.class, () -> DurableScope.with(replica, ROOT,
+                    () -> DurableScope.runJournaled(view -> List.of(
+                            new io.ikanos.durable.Command.ScheduleAction(
+                                    new NodePath("poll"), "poll", null)),
+                            request -> invoked.add("poll"))));
+        } finally {
+            replica.close();
+        }
+
+        assertTrue(invoked.isEmpty());
+        assertTrue(stores.journal().read(nested).isEmpty());
+    }
+
     @Test
     void stepsShouldRunDirectlyOutsideAScope() {
         CountingRunner nodes = new CountingRunner();

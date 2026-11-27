@@ -55,6 +55,28 @@ public interface ExecutionIndex {
     List<ExecutionRecord> listLabelled(ExecutionStatus status, String key, String value,
             Instant createdBefore, int limit);
 
+    /**
+     * Lists up to {@code limit} executions with {@code status} and a label {@code key}, oldest
+     * first, leaving out before the limit those whose lease, in the store sharing this index,
+     * has not expired at {@code now}: the executions no replica runs. A store whose executions
+     * are never leased lists them all.
+     */
+    default List<ExecutionRecord> listUnleased(ExecutionStatus status, String key, Instant now,
+            int limit) {
+        return listLabelled(status, key, null, null, limit);
+    }
+
+    /**
+     * Like {@link #listUnleased}, keeping only the executions with updates delivered to the
+     * store's inbox and not yet acknowledged, filtered before the limit: the waiting executions
+     * an update can move on. A store that cannot see its inbox from the index lists them by
+     * lease only, and the caller checks the inbox.
+     */
+    default List<ExecutionRecord> listUnleasedWithUpdates(ExecutionStatus status, String key,
+            Instant now, int limit) {
+        return listUnleased(status, key, now, limit);
+    }
+
     /** Finds the executions labelled {@code key} = {@code value}, oldest first. */
     List<ExecutionRecord> findByLabel(String key, String value);
 

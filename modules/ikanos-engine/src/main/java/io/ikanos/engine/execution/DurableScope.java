@@ -63,6 +63,20 @@ public final class DurableScope {
         }
     }
 
+    /**
+     * Thrown when a nested run finds that another replica owns its execution now, as when that
+     * replica took the task over while this one stalled: an {@link Error}, like {@link Stopped},
+     * so no action failure is journaled on the enclosing executions, which the other replica
+     * carries on.
+     */
+    public static final class Superseded extends Error {
+        private static final long serialVersionUID = 1L;
+
+        public Superseded(RuntimeException cause) {
+            super("Another replica runs this execution now", cause, false, false);
+        }
+    }
+
     private final JournaledRunner runner;
     private final ExecutionId root;
     private final ExecutionId next;
@@ -136,11 +150,25 @@ public final class DurableScope {
             return java.util.Optional.empty();
         }
         ExecutionId id = scope.nextExecutionId();
-        return java.util.Optional.of(scope.runner().run(
+        return java.util.Optional.of(scope.runNested(
                 io.ikanos.durable.ExecutionRequest.of(id, null), interpreter, request -> {
                     scope.checkNotStopping();
                     return executor.execute(request);
                 }));
+    }
+
+    /**
+     * Runs a nested execution of this scope on its runner. One that another replica owns now,
+     * as when it took the task over while this one stalled, ends with {@link Superseded}:
+     * recorded as the calling action's failure, it would fail the task that replica carries on.
+     */
+    io.ikanos.durable.ExecutionResult runNested(io.ikanos.durable.ExecutionRequest request,
+            io.ikanos.durable.Interpreter interpreter, io.ikanos.durable.ActionExecutor executor) {
+        try {
+            return runner.run(request, interpreter, executor);
+        } catch (io.ikanos.durable.core.ExecutionBusyException e) {
+            throw new Superseded(e);
+        }
     }
 
     /** Whether the action in progress runs inside a journaled run. */

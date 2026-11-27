@@ -214,6 +214,12 @@
             <artifactId>mockito-core</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- A real PostgreSQL server for the distributed durability tests, without Docker -->
+        <dependency>
+            <groupId>io.zonky.test</groupId>
+            <artifactId>embedded-postgres</artifactId>
+            <scope>test</scope>
+        </dependency>
         <!-- In-process databases for the SQL client adapter tests -->
         <dependency>
             <groupId>org.hsqldb</groupId>

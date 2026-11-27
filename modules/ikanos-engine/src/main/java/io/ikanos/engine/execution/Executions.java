@@ -90,7 +90,7 @@ public final class Executions {
             } else {
                 // A task: each step is journaled, and one recorded by an earlier run is restored.
                 ExecutionId id = scope.nextExecutionId();
-                result = scope.runner().run(
+                result = scope.runNested(
                         new ExecutionRequest(id, null, ExecutionInputs.current(), null),
                         interpreter, request -> {
                             // Shutting down: stop before this action, leaving it to the next

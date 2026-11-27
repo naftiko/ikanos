@@ -43,8 +43,12 @@ final class JdbcJournalStore implements JournalStore {
 
     @Override
     public Set<StoreFeature> features() {
-        return EnumSet.of(StoreFeature.TRANSACTIONAL, StoreFeature.CONDITIONAL_WRITES,
-                StoreFeature.DURABLE);
+        EnumSet<StoreFeature> features = EnumSet.of(StoreFeature.TRANSACTIONAL,
+                StoreFeature.CONDITIONAL_WRITES, StoreFeature.DURABLE);
+        if (database.dialect().isShared()) {
+            features.add(StoreFeature.SHARED);
+        }
+        return features;
     }
 
     @Override
@@ -79,9 +83,9 @@ final class JdbcJournalStore implements JournalStore {
                 }
             }
             insert(c, executionId, entries);
-            try (PreparedStatement s = c.prepareStatement("MERGE INTO journal_heads "
-                    + "(execution_id, last_sequence, fencing_token) KEY (execution_id) "
-                    + "VALUES (?, ?, ?)")) {
+            try (PreparedStatement s = c.prepareStatement(database.dialect().upsert(
+                    "journal_heads", List.of("execution_id"), "execution_id", "last_sequence",
+                    "fencing_token"))) {
                 s.setString(1, executionId.value());
                 s.setLong(2, expectedSequence + entries.size());
                 s.setLong(3, fencingToken);

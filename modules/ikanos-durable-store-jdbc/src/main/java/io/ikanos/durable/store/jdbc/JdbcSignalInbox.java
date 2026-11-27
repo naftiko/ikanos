@@ -36,26 +36,30 @@ final class JdbcSignalInbox implements SignalInbox {
 
     @Override
     public boolean deliver(ExecutionId executionId, NodePath path, byte[] payload) {
+        JdbcDialect dialect = database.dialect();
         return database.call(c -> {
-            try (PreparedStatement s = c.prepareStatement(
-                    "SELECT 1 FROM inbox WHERE execution_id = ? AND path = ?")) {
-                s.setString(1, executionId.value());
-                s.setString(2, path.value());
-                try (ResultSet rs = s.executeQuery()) {
-                    if (rs.next()) {
-                        return false;
+            // Shared: one atomic insert, so two replicas delivering the same update get one true.
+            if (!dialect.isShared()) {
+                try (PreparedStatement s = c.prepareStatement(
+                        "SELECT 1 FROM inbox WHERE execution_id = ? AND path = ?")) {
+                    s.setString(1, executionId.value());
+                    s.setString(2, path.value());
+                    try (ResultSet rs = s.executeQuery()) {
+                        if (rs.next()) {
+                            return false;
+                        }
                     }
                 }
             }
             try (PreparedStatement s = c.prepareStatement("INSERT INTO inbox (execution_id, "
-                    + "path, delivered, payload, acknowledged) "
-                    + "VALUES (?, ?, NEXT VALUE FOR inbox_order, ?, FALSE)")) {
+                    + "path, delivered, payload, acknowledged) VALUES (?, ?, "
+                    + dialect.nextValue("inbox_order") + ", ?, FALSE)"
+                    + (dialect.isShared() ? " ON CONFLICT (execution_id, path) DO NOTHING" : ""))) {
                 s.setString(1, executionId.value());
                 s.setString(2, path.value());
                 s.setBytes(3, payload);
-                s.executeUpdate();
+                return s.executeUpdate() == 1;
             }
-            return true;
         });
     }
 
