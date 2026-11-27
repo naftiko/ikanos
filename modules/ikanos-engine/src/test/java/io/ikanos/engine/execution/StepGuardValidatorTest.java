@@ -235,24 +235,41 @@ public class StepGuardValidatorTest {
         assertTrue(warnings.get(0).contains("with no limit"), warnings.get(0));
     }
 
-    @Test
-    void findErrorsShouldReportAReservedItemNameAndALimitThatDoesNotParse() {
-        List<String> errors = StepGuardValidator.findErrors(flow("""
+    private static List<String> forEachErrors(String as, String limit) {
+        return StepGuardValidator.findErrors(flow("""
                 - name: lines
                   type: forEach
                   items: order.lines
-                  as: outcome
-                  limit: "max +"
+                  as: %s
+                  limit: "%s"
                   do:
                     type: call
                     what: shop.check-line
-                """));
+                """.formatted(as, limit)));
+    }
 
-        assertEquals(2, errors.size(), errors.toString());
-        assertTrue(errors.stream().anyMatch(e -> e.startsWith("The limit of step 'lines'")),
-                errors.toString());
-        assertTrue(errors.stream().anyMatch(e -> e.contains("item 'outcome'")),
-                errors.toString());
+    @Test
+    void findErrorsShouldReportAnItemNamedOutcome() {
+        List<String> errors = forEachErrors("outcome", "50");
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).contains("item 'outcome'"), errors.get(0));
+    }
+
+    @Test
+    void findErrorsShouldReportAnItemNamedAuth() {
+        List<String> errors = forEachErrors("auth", "50");
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).contains("item 'auth'"), errors.get(0));
+    }
+
+    @Test
+    void findErrorsShouldReportALimitThatDoesNotParse() {
+        List<String> errors = forEachErrors("line", "max +");
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).startsWith("The limit of step 'lines'"), errors.get(0));
     }
 
     @Test
