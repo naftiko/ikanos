@@ -50,6 +50,9 @@ public final class MemoryUploadStore implements UploadStore {
      * {@code null}: its slots are not held to a per-caller share of the budget.
      */
     private final String sharedPrincipal;
+
+    /** Set by {@link #clear()}: the store takes no more reservations. */
+    private boolean closed;
     private final Map<String, Entry> entries = new HashMap<>();
     private long reserved;
 
@@ -85,6 +88,9 @@ public final class MemoryUploadStore implements UploadStore {
 
     @Override
     public synchronized boolean reserve(Map<String, Slot> slots, Instant now) {
+        if (closed) {
+            return false;
+        }
         purge(now);
         long size = 0;
         try {
@@ -195,6 +201,7 @@ public final class MemoryUploadStore implements UploadStore {
 
     @Override
     public synchronized void clear() {
+        closed = true;
         entries.values().forEach(this::free);
         entries.clear();
     }

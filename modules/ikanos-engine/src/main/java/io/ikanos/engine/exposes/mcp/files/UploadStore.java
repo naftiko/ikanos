@@ -105,7 +105,11 @@ public interface UploadStore {
      */
     int purge(Instant now);
 
-    /** Drops every slot, as the adapter that owns the store stops. */
+    /**
+     * Drops every slot, as the adapter that owns the store stops, and closes the store: any
+     * later {@link #reserve} is refused, since the adapter may still take a call before its
+     * listener closes, and nothing would purge what it reserved.
+     */
     void clear();
 
     /** A written slot. */

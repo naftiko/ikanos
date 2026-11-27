@@ -205,6 +205,8 @@ class MemoryUploadStoreTest {
 
         assertEquals(0, store.size());
         assertEquals(0, budget.used());
-        assertFalse(store.completeWrite("a", new byte[30]), "A write in flight keeps nothing");
+        assertFalse(store.completeWrite("a", new byte[30]), "A write in flight keeps nothing");        assertFalse(store.reserve(Map.of("c", slot("alice", 1)), NOW),
+                "A cleared store takes no more reservations");
+        assertEquals(0, budget.used());
     }
 }

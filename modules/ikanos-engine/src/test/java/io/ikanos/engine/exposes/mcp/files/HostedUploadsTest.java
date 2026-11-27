@@ -372,7 +372,11 @@ class HostedUploadsTest {
 
         assertEquals(0, budget.used());
         assertEquals(Received.NOT_FOUND,
-                put(hosted, token, "alice", "application/pdf", PDF.length, PDF));
+                put(hosted, token, "alice", "application/pdf", PDF.length, PDF));        // A call that arrives before the listener closes gets an error result, and holds nothing
+        assertThrows(FileInputs.InvalidFileException.class, () -> hosted.issue(JSON,
+                List.of(pending("f2", "application/pdf", PDF.length)), "alice", "s2",
+                STATE_EXPIRES));
+        assertEquals(0, budget.used());
     }
 
     @Test
