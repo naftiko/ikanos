@@ -38,9 +38,10 @@ import io.ikanos.engine.exposes.mcp.ServerCardBuilder.Template;
 
 /**
  * Serves the bytes of an MCP Server Card (SEP-2127): {@code GET} answers 200, or 304 when
- * {@code If-None-Match} matches its strong {@code ETag}; {@code OPTIONS} answers the CORS
- * preflight; any other method answers 405. Every answer carries the CORS headers the discovery
- * document requires, so a browser client on any origin can read the card.
+ * {@code If-None-Match} matches its strong {@code ETag}; {@code HEAD} answers the same without the
+ * body; {@code OPTIONS} answers the CORS preflight; any other method answers 405. Every answer
+ * carries the CORS headers the discovery document requires, so a browser client on any origin can
+ * read the card.
  *
  * <p>Without {@code card.url}, the card's remote URL is built from the request: its scheme and
  * {@code Host}, or, from a peer the adapter trusts ({@code trust: forwarded}),
@@ -76,7 +77,7 @@ public class ServerCardRestlet extends Restlet {
     /** Longest host accepted, as a DNS name is at most 253 characters, plus a port. */
     static final int AUTHORITY_MAX = 260;
 
-    private static final Set<Method> ALLOWED = Set.of(Method.GET, Method.OPTIONS);
+    private static final Set<Method> ALLOWED = Set.of(Method.GET, Method.HEAD, Method.OPTIONS);
 
     private final Template template;
     private final boolean authenticated;
@@ -121,7 +122,7 @@ public class ServerCardRestlet extends Restlet {
             response.setStatus(Status.SUCCESS_NO_CONTENT);
             return;
         }
-        if (!Method.GET.equals(method)) {
+        if (!Method.GET.equals(method) && !Method.HEAD.equals(method)) {
             response.setAllowedMethods(ALLOWED);
             response.setStatus(Status.CLIENT_ERROR_METHOD_NOT_ALLOWED);
             return;

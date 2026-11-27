@@ -195,6 +195,24 @@ class ServerCardRestletTest {
     }
 
     @Test
+    void headShouldAnswerLikeGet() throws Exception {
+        Response get = send(publicCard(), Method.GET, "/mcp/server-card");
+        Response head = send(publicCard(), Method.HEAD, "/mcp/server-card");
+        assertEquals(Status.SUCCESS_OK, head.getStatus());
+        assertEquals(get.getEntity().getTag(), head.getEntity().getTag());
+        assertEquals(get.getEntity().getMediaType(), head.getEntity().getMediaType());
+        assertEquals(get.getCacheDirectives(), head.getCacheDirectives());
+    }
+
+    @Test
+    void headShouldAnswerNotModifiedWhenIfNoneMatchNamesTheCard() {
+        Tag etag = send(publicCard(), Method.GET, "/mcp/server-card").getEntity().getTag();
+        Request request = request(Method.HEAD, "fleet.example.com");
+        request.getConditions().setNoneMatch(List.of(etag));
+        assertEquals(Status.REDIRECTION_NOT_MODIFIED, send(publicCard(), request).getStatus());
+    }
+
+    @Test
     void getShouldAllowAnyOriginAndExposeTheEtag() {
         Response response = send(publicCard(), Method.GET, "/mcp/server-card");
         assertEquals("*", response.getAccessControlAllowOrigin());
@@ -263,6 +281,7 @@ class ServerCardRestletTest {
         Response response = send(publicCard(), Method.POST, "/mcp/server-card");
         assertEquals(Status.CLIENT_ERROR_METHOD_NOT_ALLOWED, response.getStatus());
         assertTrue(response.getAllowedMethods().contains(Method.GET));
+        assertTrue(response.getAllowedMethods().contains(Method.HEAD));
     }
 
     /** Records whether it handled a request. */

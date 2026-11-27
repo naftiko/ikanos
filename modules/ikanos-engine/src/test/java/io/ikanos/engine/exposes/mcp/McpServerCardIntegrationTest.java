@@ -202,6 +202,27 @@ class McpServerCardIntegrationTest {
     }
 
     @Test
+    void cardShouldAnswerHeadLikeGetWithoutABody() throws Exception {
+        McpServerAdapter adapter = start(capability(findFreePort(), "", "      card: {}"));
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            HttpResponse<String> get = get(cardUrl(adapter));
+            HttpResponse<String> head = client.send(HttpRequest
+                    .newBuilder(URI.create(cardUrl(adapter)))
+                    .method("HEAD", HttpRequest.BodyPublishers.noBody()).build(),
+                    HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, head.statusCode());
+            assertEquals("", head.body());
+            assertEquals(get.headers().firstValue("ETag"), head.headers().firstValue("ETag"));
+            assertEquals(get.headers().firstValue("Cache-Control"),
+                    head.headers().firstValue("Cache-Control"));
+            assertTrue(head.headers().firstValue("Content-Type").orElse("")
+                    .startsWith(ServerCardBuilder.MEDIA_TYPE), head.headers().toString());
+        } finally {
+            adapter.getCapability().stop();
+        }
+    }
+
+    @Test
     void cardUrlShouldFollowTheHostAndIgnoreForwardedHeadersFromAnUntrustedPeer()
             throws Exception {
         McpServerAdapter adapter = start(capability(findFreePort(), FORWARDED_ELSEWHERE,
