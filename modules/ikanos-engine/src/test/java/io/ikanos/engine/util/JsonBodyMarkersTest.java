@@ -178,9 +178,36 @@ class JsonBodyMarkersTest {
         List<String> errors = JsonBodyMarkers.findErrors(data("""
                 admin: {$onlyIf: "auth.claims.https://example.com/role", include: true}
                 groups: {$onlyIf: "auth.claims.cognito:groups", include: true}
+                tenant: {$onlyIf: "auth.claims.x-tenant-id", include: true}
                 """));
 
         assertTrue(errors.isEmpty(), errors.toString());
+    }
+
+    @Test
+    void findErrorsShouldAcceptOnlyIfThatNamesADashedInputInSnakeCase() throws Exception {
+        List<String> errors = JsonBodyMarkers.findErrors(data("""
+                admin: {$onlyIf: is_admin, include: true}
+                crew: {$onlyIf: get_ship.crew-size, include: true}
+                """));
+
+        assertTrue(errors.isEmpty(), errors.toString());
+    }
+
+    @Test
+    void findErrorsShouldRejectOnlyIfThatNamesAnInputInKebabCase() throws Exception {
+        // As in a step guard (#1167): a dashed name is written with '_'
+        List<String> errors = JsonBodyMarkers.findErrors(data("""
+                admin: {$onlyIf: is-admin, include: true}
+                crew: {$onlyIf: get-ship.crew-size, include: true}
+                """));
+
+        assertEquals(List.of("/admin: $onlyIf names a dashed input in snake_case, as a step guard"
+                + " does: 'is-admin' is written with '-': write it 'is_admin'; write $$onlyIf to"
+                + " send a member named $onlyIf",
+                "/crew: $onlyIf names a dashed input in snake_case, as a step guard does:"
+                + " 'get-ship.crew-size' is written with '-': write it 'get_ship.crew-size';"
+                + " write $$onlyIf to send a member named $onlyIf"), errors);
     }
 
     @Test
@@ -242,6 +269,40 @@ class JsonBodyMarkersTest {
 
         assertTrue(JsonBodyMarkers.applies(Map.of("$onlyIf", "step.id"), parameters));
         assertFalse(JsonBodyMarkers.applies(Map.of("$onlyIf", "step.name"), parameters));
+    }
+
+    @Test
+    void appliesShouldReadADashedInputFromItsSnakeName() {
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put("is-admin", true);
+        parameters.put("get-ship", Map.of("crew-size", 3));
+        parameters.put("is-silent", false);
+
+        assertTrue(JsonBodyMarkers.applies(Map.of("$onlyIf", "is_admin"), parameters));
+        assertTrue(JsonBodyMarkers.applies(Map.of("$onlyIf", "get_ship.crew-size"), parameters));
+        assertFalse(JsonBodyMarkers.applies(Map.of("$onlyIf", "is_silent"), parameters));
+        assertFalse(JsonBodyMarkers.applies(Map.of("$onlyIf", "is_missing"), parameters));
+    }
+
+    @Test
+    void appliesShouldRefuseAnInputNamedInKebabCase() {
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> JsonBodyMarkers.applies(Map.of("$onlyIf", "is-admin"),
+                        Map.of("is-admin", true)));
+        assertTrue(error.getMessage().contains("write it 'is_admin'"), error.getMessage());
+    }
+
+    @Test
+    void appliesShouldRefuseANameThatMatchesMoreThanOneInput() {
+        // The load refuses it first where the caller's inputs are known; a call never picks one
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put("is-admin", true);
+        parameters.put("is_admin", false);
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> JsonBodyMarkers.applies(Map.of("$onlyIf", "is_admin"), parameters));
+        assertTrue(error.getMessage().contains("matches more than one name (is-admin, is_admin)"),
+                error.getMessage());
     }
 
     @Test

@@ -54,8 +54,11 @@ These rules are not covered there yet:
   are never sent themselves:
   - `$onlyIf: <input>` on an object other than the root sends it only when the input is present, not null and not
     `false` (`""`, `0` and the string `"false"` hold). Inputs are read after their defaults are
-    applied, so an input with a `default` holds unless its default is `false`. `$onlyIf` can
-    also name a caller claim, `auth.claims.<name>`, namespaced claims included
+    applied, so an input with a `default` holds unless its default is `false`. A dashed input is
+    named in snake_case, as in a step guard (`$onlyIf: is_admin` for an input `is-admin`): the
+    kebab form fails when the capability loads, and so does a name that matches more than one
+    input of a caller, such as `is_admin` when both `is_admin` and `is-admin` are declared.
+    `$onlyIf` can also name a caller claim, `auth.claims.<name>`, namespaced claims included
     (`auth.claims.https://example.com/role`). A missing claim fails the call instead of leaving
     the object out, as does a claim read inside an object or a `$first` variant that is left
     out, and an MCP resource whose body has such an `$onlyIf` cannot be `cacheScope: public`.
@@ -75,7 +78,7 @@ These rules are not covered there yet:
   `$first` or `$keep` also fails when the capability loads.
 
   `ikanos validate` warns about an `$onlyIf` that names no input of a tool, REST operation or flow
-  that calls the operation.
+  that calls the operation, and fails on one that matches more than one of its inputs.
 - In a `multipartForm` part whose `contentType` is `application/json` or a `+json` type,
   substituted values are JSON-encoded and the rendered `value` must be a single JSON document
   with no repeated member key, as for a `json` body.

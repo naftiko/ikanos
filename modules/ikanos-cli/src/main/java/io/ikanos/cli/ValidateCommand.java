@@ -157,6 +157,8 @@ public class ValidateCommand implements Callable<Integer> {
             List<String> exampleErrors =
                     spec != null ? InputDefaults.findExampleErrors(spec) : List.of();
             List<String> warnings = new ArrayList<>(definitions.warnings());
+            // A body $onlyIf that matches more than one input of its caller (#1132)
+            List<String> bodyConditionErrors = new ArrayList<>();
             if (spec != null) {
                 warnings.addAll(InputDefaults.findWarnings(spec));
                 // authentication.scopes no longer required on every call (#999)
@@ -173,6 +175,7 @@ public class ValidateCommand implements Callable<Integer> {
                         }
                     }
                     warnings.addAll(BodyConditionValidator.findWarnings(spec));
+                    bodyConditionErrors.addAll(BodyConditionValidator.findErrors(spec));
                 }
             }
 
@@ -181,7 +184,8 @@ public class ValidateCommand implements Callable<Integer> {
                     && headerErrors.isEmpty() && forwardErrors.isEmpty()
                     && definitions.errors().isEmpty()
                     && inferredCallErrors.isEmpty() && defaultErrors.isEmpty()
-                    && authorizationErrors.isEmpty() && exampleErrors.isEmpty()) {
+                    && authorizationErrors.isEmpty() && exampleErrors.isEmpty()
+                    && bodyConditionErrors.isEmpty()) {
                 System.out.println("✓ Validation successful!");
                 System.out.println("  File: " + filePath);
                 System.out.println("  Status: OK");
@@ -249,6 +253,11 @@ public class ValidateCommand implements Callable<Integer> {
                 }
                 for (String error : exampleErrors) {
                     System.err.println("\n  [" + errorCount + "] Invalid input example: "
+                            + error);
+                    errorCount++;
+                }
+                for (String error : bodyConditionErrors) {
+                    System.err.println("\n  [" + errorCount + "] Invalid body $onlyIf: "
                             + error);
                     errorCount++;
                 }

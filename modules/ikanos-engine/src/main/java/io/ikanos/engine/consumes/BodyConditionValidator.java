@@ -20,6 +20,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import io.ikanos.engine.util.GuardNames;
 import io.ikanos.engine.util.JsonBodyMarkers;
 import io.ikanos.spec.CapabilitySpec;
 import io.ikanos.spec.IkanosSpec;
@@ -40,7 +41,13 @@ import io.ikanos.spec.exposes.rest.RestServerSpec;
 
 /**
  * Finds the {@code $onlyIf} markers of a consumed body that name no input of a caller (#1132).
- * Such an object is never sent from that caller, which is most likely a misspelled name.
+ * Such an object is never sent from that caller, which is most likely a misspelled name. A
+ * dashed input is named in snake_case, as in a step guard ({@link GuardNames}), so
+ * {@code $onlyIf: is_admin} names an input {@code is-admin}.
+ *
+ * <p>An {@code $onlyIf} whose name matches more than one input of a caller, such as
+ * {@code is_admin} for the inputs {@code is_admin} and {@code is-admin}, is an error instead: it
+ * fails the load and {@code ikanos validate}, rather than one of them being picked.</p>
  *
  * <p>Only the callers whose inputs are known from the spec are checked: an MCP tool, a REST
  * operation or an aggregate flow that calls the operation with {@code call} and no {@code steps}
@@ -60,12 +67,39 @@ public final class BodyConditionValidator {
      */
     public static List<String> findWarnings(IkanosSpec spec) {
         List<String> warnings = new ArrayList<>();
+        walk(spec, warnings, new ArrayList<>());
+        return warnings;
+    }
+
+    /**
+     * @param spec the capability spec, with its definitions expanded; may be null
+     * @return one message per caller and {@code $onlyIf} name that matches more than one of its
+     *         inputs
+     */
+    public static List<String> findErrors(IkanosSpec spec) {
+        List<String> errors = new ArrayList<>();
+        walk(spec, new ArrayList<>(), errors);
+        return errors;
+    }
+
+    /**
+     * @throws IllegalArgumentException naming each {@code $onlyIf} that matches more than one
+     *         input of a caller
+     */
+    public static void validate(IkanosSpec spec) {
+        List<String> errors = findErrors(spec);
+        if (!errors.isEmpty()) {
+            throw new IllegalArgumentException(String.join("; ", errors));
+        }
+    }
+
+    private static void walk(IkanosSpec spec, List<String> warnings, List<String> errors) {
         if (spec == null) {
-            return warnings;
+            return;
         }
         Map<String, ConsumedBody> bodies = consumedBodies(spec);
         if (bodies.isEmpty()) {
-            return warnings;
+            return;
         }
         for (ServerSpec server : exposes(spec)) {
             if (server instanceof McpServerSpec mcp && mcp.getTools() != null) {
@@ -77,7 +111,7 @@ public final class BodyConditionValidator {
                     Set<String> inputs = names(tool.getInputParameters());
                     inputs.addAll(keys(tool.getWith()));
                     check(tool.getCall(), inputs, "MCP tool '" + entry.getKey() + "' in '"
-                            + mcp.getNamespace() + "'", bodies, warnings);
+                            + mcp.getNamespace() + "'", bodies, warnings, errors);
                 }
             } else if (server instanceof RestServerSpec rest && rest.getResources() != null) {
                 for (RestServerResourceSpec resource : rest.getResources().values()) {
@@ -95,7 +129,7 @@ public final class BodyConditionValidator {
                         inputs.addAll(keys(operation.getWith()));
                         check(operation.getCall(), inputs, "REST operation '"
                                 + operation.getMethod() + " " + resource.getPath() + "' in '"
-                                + rest.getNamespace() + "'", bodies, warnings);
+                                + rest.getNamespace() + "'", bodies, warnings, errors);
                     }
                 }
             }
@@ -113,10 +147,9 @@ public final class BodyConditionValidator {
                         : new HashSet<>(flow.getInputParameters().keySet());
                 inputs.addAll(keys(flow.getWith()));
                 check(flow.getCall(), inputs, "aggregate '" + aggregate.getNamespace()
-                        + "' flow '" + entry.getKey() + "'", bodies, warnings);
+                        + "' flow '" + entry.getKey() + "'", bodies, warnings, errors);
             }
         }
-        return warnings;
     }
 
     /** The {@code $onlyIf} names of a consumed body, and the inputs its operation declares. */
@@ -124,7 +157,7 @@ public final class BodyConditionValidator {
     }
 
     private static void check(ServerCallSpec call, Set<String> callerInputs, String caller,
-            Map<String, ConsumedBody> bodies, List<String> warnings) {
+            Map<String, ConsumedBody> bodies, List<String> warnings, List<String> errors) {
         if (call == null || call.getOperation() == null) {
             return;
         }
@@ -136,9 +169,15 @@ public final class BodyConditionValidator {
         inputs.addAll(keys(call.getWith()));
         inputs.addAll(body.inputs());
         for (String name : body.conditions()) {
-            if (!name.contains(".") && !inputs.contains(name)) {
-                warnings.add(caller + " calls " + call.getOperation() + ", whose body has '"
-                        + JsonBodyMarkers.ONLY_IF + ": " + name + "', but '" + name
+            // A claim is named as the token writes it; its first segment, auth, has no '_'
+            String head = GuardNames.head(name);
+            List<String> matches = GuardNames.matches(inputs, head);
+            String marker = caller + " calls " + call.getOperation() + ", whose body has '"
+                    + JsonBodyMarkers.ONLY_IF + ": " + name + "'";
+            if (matches.size() > 1) {
+                errors.add(marker + ", but " + GuardNames.ambiguityError(head, matches));
+            } else if (!name.contains(".") && matches.isEmpty()) {
+                warnings.add(marker + ", but '" + name
                         + "' is not one of its inputs: that object is never sent from it");
             }
         }

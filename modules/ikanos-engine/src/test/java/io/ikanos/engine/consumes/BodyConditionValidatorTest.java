@@ -14,6 +14,7 @@
 package io.ikanos.engine.consumes;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -195,6 +196,71 @@ class BodyConditionValidatorTest {
 
         assertTrue(BodyConditionValidator.findWarnings(spec).isEmpty(),
                 BodyConditionValidator.findWarnings(spec).toString());
+    }
+
+    @Test
+    void findWarningsShouldAcceptASnakeNameForADashedInput() throws Exception {
+        IkanosSpec spec = spec("""
+                            silent:
+                              type: boolean
+                              description: "Skip notifications"
+                            icon-emoji:
+                              type: string
+                              description: "Emoji"
+                """, "");
+
+        List<String> warnings = BodyConditionValidator.findWarnings(spec);
+
+        assertTrue(warnings.isEmpty(), warnings.toString());
+        assertTrue(BodyConditionValidator.findErrors(spec).isEmpty());
+    }
+
+    @Test
+    void findErrorsShouldRefuseANameThatMatchesMoreThanOneInput() throws Exception {
+        // icon_emoji could read the input icon_emoji or the input icon-emoji
+        IkanosSpec spec = spec("""
+                            silent:
+                              type: boolean
+                              description: "Skip notifications"
+                            icon_emoji:
+                              type: string
+                              description: "Emoji"
+                            icon-emoji:
+                              type: string
+                              description: "Emoji, dashed"
+                """, "");
+
+        List<String> errors = BodyConditionValidator.findErrors(spec);
+
+        assertEquals(List.of("MCP tool 'patch-page' in 'tools' calls notion.patch-page, whose"
+                + " body has '$onlyIf: icon_emoji', but 'icon_emoji' matches more than one name"
+                + " (icon-emoji, icon_emoji), since '-' is written '_': rename one of them"),
+                errors);
+        assertTrue(BodyConditionValidator.findWarnings(spec).isEmpty());
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> BodyConditionValidator.validate(spec));
+        assertEquals(errors.get(0), error.getMessage());
+    }
+
+    @Test
+    void findErrorsShouldRefuseANameThatMatchesACallerInputAndAnOperationInput()
+            throws Exception {
+        // page_id is an input of the consumed operation; page-id one of the tool
+        List<String> errors = BodyConditionValidator.findErrors(spec("""
+                            silent:
+                              type: boolean
+                              description: "Skip notifications"
+                            icon_emoji:
+                              type: string
+                              description: "Emoji"
+                            page-id:
+                              type: string
+                              description: "Page, dashed"
+                """, ""));
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).contains("'$onlyIf: page_id', but 'page_id' matches more than"
+                + " one name (page-id, page_id)"), errors.toString());
     }
 
     @Test

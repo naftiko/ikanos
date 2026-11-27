@@ -602,6 +602,40 @@ public class ValidateCommandTest {
                 + " true"), errCapture.toString());
     }
 
+    @Test
+    public void callShouldFailWhenABodyOnlyIfNamesAnInputInKebabCase() {
+        Path yaml = tempDir.resolve("body-only-if-kebab.yaml");
+        assertDoesNotThrow(() -> Files.writeString(yaml, bodyMarkersCapability(
+                "notifications: {$onlyIf: is-quiet, mode: silent}")));
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        assertEquals(1, exitCode, "a dashed $onlyIf name is written in snake_case");
+        assertTrue(errCapture.toString().contains("'is-quiet' is written with '-': write it"
+                + " 'is_quiet'"), errCapture.toString());
+    }
+
+    @Test
+    public void callShouldFailWhenABodyOnlyIfNameMatchesMoreThanOneInput() {
+        Path yaml = tempDir.resolve("body-only-if-ambiguous.yaml");
+        String capability = bodyMarkersCapability(
+                "notifications: {$onlyIf: is_quiet, mode: silent}").replace(
+                        "quiet: {type: boolean, description: \"Skip notifications\"}",
+                        "is_quiet: {type: boolean, description: \"Skip notifications\"}\n"
+                                + "            is-quiet: {type: boolean,"
+                                + " description: \"Skip, dashed\"}");
+        assertTrue(capability.contains("is-quiet:"), capability);
+        assertDoesNotThrow(() -> Files.writeString(yaml, capability));
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        assertEquals(1, exitCode, errCapture.toString() + outCapture);
+        assertTrue(errCapture.toString().contains("Invalid body $onlyIf: MCP tool 'patch-page' in"
+                + " 'tools' calls notion.patch-page, whose body has '$onlyIf: is_quiet', but"
+                + " 'is_quiet' matches more than one name (is-quiet, is_quiet)"),
+                errCapture.toString());
+    }
+
     /** A tool with the input 'quiet', calling an operation whose body has {@code member}. */
     private static String bodyMarkersCapability(String member) {
         return """

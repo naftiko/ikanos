@@ -293,7 +293,9 @@ public class Capability {
                 this.bindings.get())) {
             Context.getCurrentLogger().log(Level.WARNING, warning);
         }
-        // A body $onlyIf that names no input of its caller is never sent from it (#1132)
+        // A body $onlyIf that matches more than one input of its caller is refused, and one that
+        // names none is never sent from it (#1132)
+        BodyConditionValidator.validate(spec);
         for (String warning : BodyConditionValidator.findWarnings(spec)) {
             Context.getCurrentLogger().log(Level.WARNING, warning);
         }

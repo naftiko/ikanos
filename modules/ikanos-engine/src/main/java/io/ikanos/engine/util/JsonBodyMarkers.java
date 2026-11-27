@@ -28,7 +28,9 @@ import java.util.regex.Pattern;
  * <ul>
  * <li>{@code $onlyIf: x} on an object: the object is sent only when {@code x} is present and not
  * {@code false}. {@code x} is looked up like the {@code x} of a {@code "{{x}}"} placeholder, so
- * an empty string, {@code 0} or the string {@code "false"} hold.</li>
+ * an empty string, {@code 0} or the string {@code "false"} hold. A dashed input is named in
+ * snake_case ({@code $onlyIf: is_admin} for an input {@code is-admin}), as in a step guard
+ * ({@link GuardNames}).</li>
  * <li>{@code $first: [variants]} as the only member of an object: the object is replaced by the
  * first variant whose {@code $onlyIf} holds, or that has none (the fallback), and is left out when
  * no variant applies, or when the chosen variant resolves to nothing (later variants are not
@@ -74,7 +76,43 @@ public final class JsonBodyMarkers {
 
     /** @return whether {@code text} is what an {@code $onlyIf} may name: an input or a claim */
     static boolean isName(String text) {
-        return NAME.matcher(text).matches() || CLAIM.matcher(text).matches();
+        return NAME.matcher(text).matches() || isClaim(text);
+    }
+
+    /** @return whether {@code text} names a caller claim, which is named as the token writes it */
+    static boolean isClaim(String text) {
+        return CLAIM.matcher(text).matches();
+    }
+
+    /**
+     * @return why {@code name} cannot be the value of an {@code $onlyIf}, or {@code null} when it
+     *         can: it must be a name, and a dashed input must be named in snake_case
+     */
+    static String nameError(Object name) {
+        if (!(name instanceof String text) || !isName(text)) {
+            return "$onlyIf must name an input, without braces, such as '$onlyIf: silent'";
+        }
+        if (isClaim(text)) {
+            return null;
+        }
+        String dashed = GuardNames.dashedNameError(text);
+        return dashed == null ? null : "$onlyIf names a dashed input in snake_case, as a step"
+                + " guard does: " + dashed;
+    }
+
+    /**
+     * @param name the name an {@code $onlyIf} holds, valid
+     * @param parameters the request parameters, may be null
+     * @return the name to look up: a dashed input named in snake_case becomes its declared name
+     * @throws IllegalArgumentException when the name matches more than one parameter
+     */
+    static String declaredName(String name, Map<String, Object> parameters) {
+        if (isClaim(name)) {
+            return name;
+        }
+        String head = GuardNames.head(name);
+        String key = GuardNames.resolve(parameters, head);
+        return key == null || key.equals(head) ? name : key + name.substring(head.length());
     }
 
     /** @return whether {@code key}, as authored, is one of the three marker names */
@@ -119,21 +157,24 @@ public final class JsonBodyMarkers {
      * @param parameters the request parameters, may be null
      * @return {@code true} when {@code object} has no {@code $onlyIf}, or when the input it names
      *         is present and not {@code false}
-     * @throws IllegalArgumentException when {@code $onlyIf} does not name an input; the load-time
-     *         check ({@link #findErrors}) reports it first
+     * @throws IllegalArgumentException when {@code $onlyIf} does not name an input, names a
+     *         dashed input with its dash, or matches more than one parameter; the load-time checks
+     *         ({@link #findErrors}, and {@code BodyConditionValidator} where the caller's
+     *         inputs are known) report these first
      */
     static boolean applies(Map<?, ?> object, Map<String, Object> parameters) {
         if (!object.containsKey(ONLY_IF)) {
             return true;
         }
         Object name = object.get(ONLY_IF);
-        if (!(name instanceof String text) || !isName(text)) {
-            throw new IllegalArgumentException(
-                    "$onlyIf in structured JSON body data must name an input");
+        String error = nameError(name);
+        if (error != null) {
+            throw new IllegalArgumentException("In structured JSON body data, " + error);
         }
+        String text = (String) name;
         // A caller claim is checked as in a placeholder: a missing claim fails the call (#998)
         Resolver.requireCallerValues("{{" + text + "}}", parameters);
-        Object value = Resolver.lookupReference(text, parameters);
+        Object value = Resolver.lookupReference(declaredName(text, parameters), parameters);
         return value != null && !Boolean.FALSE.equals(value);
     }
 
@@ -179,10 +220,11 @@ public final class JsonBodyMarkers {
     }
 
     private static void checkObject(Map<?, ?> object, String where, List<String> errors) {
-        if (object.containsKey(ONLY_IF) && !(object.get(ONLY_IF) instanceof String name
-                && isName(name))) {
-            errors.add(where + ": $onlyIf must name an input, without braces, such as"
-                    + " '$onlyIf: silent'" + sendAsData(ONLY_IF));
+        if (object.containsKey(ONLY_IF)) {
+            String error = nameError(object.get(ONLY_IF));
+            if (error != null) {
+                errors.add(where + ": " + error + sendAsData(ONLY_IF));
+            }
         }
         if (object.containsKey(KEEP) && !Boolean.TRUE.equals(object.get(KEEP))) {
             errors.add(where + ": $keep must be true; leave it out otherwise" + sendAsData(KEEP));
