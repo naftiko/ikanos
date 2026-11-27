@@ -29,6 +29,10 @@ final class GuardIdentifiers {
 
     /** CEL's name for the binary minus operator. */
     private static final String SUBTRACT = "_-_";
+    /** CEL's names for logical not, numeric negation and indexing. */
+    private static final String NOT = "!_";
+    private static final String NEGATE = "-_";
+    private static final String INDEX = "_[_]";
 
     private GuardIdentifiers() {
     }
@@ -88,10 +92,20 @@ final class GuardIdentifiers {
                 && expr.call().args().size() == 2;
     }
 
-    /** {@code a} gives {@code [a]}, {@code a - b} gives {@code [a, b]}; anything else null. */
+    /**
+     * {@code a} gives {@code [a]}, {@code a - b} gives {@code [a, b]}, and a negation reads
+     * through: {@code !get-ship.active} parses as {@code (!get) - ship.active}, so {@code !a}
+     * and {@code -a} give {@code [a]}; anything else null.
+     */
     private static List<String> dashedParts(CelExpr expr) {
         if (expr.getKind() == CelExpr.ExprKind.Kind.IDENT) {
             return List.of(expr.ident().name());
+        }
+        if (expr.getKind() == CelExpr.ExprKind.Kind.CALL && expr.call().target().isEmpty()
+                && expr.call().args().size() == 1
+                && (NOT.equals(expr.call().function())
+                        || NEGATE.equals(expr.call().function()))) {
+            return dashedParts(expr.call().args().get(0));
         }
         if (expr.getKind() == CelExpr.ExprKind.Kind.CALL && isSubtraction(expr)
                 && expr.call().args().get(1).getKind() == CelExpr.ExprKind.Kind.IDENT) {
@@ -106,8 +120,9 @@ final class GuardIdentifiers {
     }
 
     /**
-     * The name a path starts with: {@code ship} for {@code ship.count}, {@code ship.crew.size()}
-     * or {@code ship.crew.filter(c, c.active)}; null if none.
+     * The name a path starts with: {@code ship} for {@code ship.count}, {@code ship.crew.size()},
+     * {@code ship.crew.filter(c, c.active)}, {@code ship['count']} or {@code ship.crew[0]}; null
+     * if none.
      */
     private static String headName(CelExpr expr) {
         CelExpr current = expr;
@@ -118,10 +133,14 @@ final class GuardIdentifiers {
                 }
                 case SELECT -> current = current.select().operand();
                 case CALL -> {
-                    if (current.call().target().isEmpty()) {
+                    if (current.call().target().isPresent()) {
+                        current = current.call().target().get();
+                    } else if (INDEX.equals(current.call().function())
+                            && !current.call().args().isEmpty()) {
+                        current = current.call().args().get(0);
+                    } else {
                         return null;
                     }
-                    current = current.call().target().get();
                 }
                 // a macro such as filter or all, expanded over the list it reads
                 case COMPREHENSION -> current = current.comprehension().iterRange();

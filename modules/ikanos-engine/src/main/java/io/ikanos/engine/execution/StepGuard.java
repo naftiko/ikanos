@@ -199,22 +199,28 @@ public final class StepGuard {
             return null;
         } catch (IllegalArgumentException e) {
             String message = e.getMessage();
-            return (message.startsWith(prefix) ? message.substring(prefix.length()) : message)
-                    + dashHint(onlyIf);
+            String error = message.startsWith(prefix) ? message.substring(prefix.length())
+                    : message;
+            return error + dashHint(onlyIf, error);
         }
     }
 
     /**
-     * A hint for an expression that does not compile and subtracts names, as a dashed name
-     * written with its dash does ({@code list-merged.filter(...)}), or an empty string.
+     * A hint, on a line of its own, for an expression that does not compile because it subtracts
+     * names, as a dashed name written with its dash does ({@code list-merged.filter(...)}); an
+     * empty string when the error is not about a subtraction or the expression subtracts no
+     * names.
      */
-    static String dashHint(String expression) {
+    static String dashHint(String expression, String error) {
+        if (error == null || !error.contains("'_-_'")) {
+            return "";
+        }
         List<List<String>> subtractions = subtractedNames(expression);
         if (subtractions.isEmpty()) {
             return "";
         }
         List<String> parts = subtractions.get(0);
-        return ". '-' is minus in CEL: if '" + String.join("-", parts) + "' is a name, write it '"
+        return "\n'-' is minus in CEL: if '" + String.join("-", parts) + "' is a name, write it '"
                 + String.join("_", parts) + "'";
     }
 

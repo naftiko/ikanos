@@ -214,6 +214,35 @@ public class StepGuardTest {
     }
 
     @Test
+    public void subtractedNamesShouldReadThroughANegationAndAnIndex() {
+        assertEquals(List.of(List.of("get", "ship")),
+                StepGuard.subtractedNames("!get-ship.active"));
+        assertEquals(List.of(List.of("get", "ship")),
+                StepGuard.subtractedNames("-get-ship.count < 0"));
+        assertEquals(List.of(List.of("get", "ship")),
+                StepGuard.subtractedNames("get-ship['count'] > 0"));
+        assertEquals(List.of(List.of("get", "ship")),
+                StepGuard.subtractedNames("get-ship.crew[0].name == 'x'"));
+    }
+
+    @Test
+    public void parseErrorShouldHintAtANegatedDashedName() {
+        String error = StepGuard.parseError("!get-ship.active");
+
+        assertNotNull(error);
+        assertTrue(error.endsWith("\n'-' is minus in CEL: if 'get-ship' is a name, write it"
+                + " 'get_ship'"), error);
+    }
+
+    @Test
+    public void parseErrorShouldNotHintWhenTheErrorIsNotAboutASubtraction() {
+        String error = StepGuard.parseError("a - b > 0 && sizee(x)");
+
+        assertNotNull(error);
+        assertFalse(error.contains("is minus in CEL"), error);
+    }
+
+    @Test
     public void parseErrorShouldHintAtADashedNameWrittenWithItsDash() {
         String error = StepGuard.parseError("size(list-merged.filter(pr, pr.closed)) > 0");
 
