@@ -34,8 +34,8 @@ import java.time.format.DateTimeParseException;
  * at {@code store.url}, which several replicas share; each is discovered with
  * {@code ServiceLoader}. When the store module is missing, the capability fails at load with an
  * error naming the module, and never falls back to {@code none}. {@code distributed} also fails
- * at load on a store that does not declare itself shared. {@link #close()} releases the store,
- * such as the H2 file or the PostgreSQL connection pool.</p>
+ * at load on a store that does not declare itself shared, or without a {@code sealingKey}.
+ * {@link #close()} releases the store, such as the H2 file or the PostgreSQL connection pool.</p>
  */
 public final class Durability implements AutoCloseable {
 
@@ -154,6 +154,12 @@ public final class Durability implements AutoCloseable {
         if (url == null) {
             throw new IllegalArgumentException("Durability mode 'distributed' needs "
                     + "durability.store.url: the JDBC URL of the database its replicas share");
+        }
+        if (spec.getSealingKey() == null || spec.getSealingKey().isBlank()) {
+            // Without it, each replica draws its own key and rejects the state another sealed,
+            // such as a requestState or an upstream task's credentials.
+            throw new IllegalArgumentException("Durability mode 'distributed' needs "
+                    + "durability.sealingKey: one key every replica shares");
         }
         Map<String, String> settings = new LinkedHashMap<>();
         settings.put("url", url);

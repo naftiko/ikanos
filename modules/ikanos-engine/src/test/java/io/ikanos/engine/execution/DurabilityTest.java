@@ -112,7 +112,19 @@ public class DurabilityTest {
         DurabilityStoreSpec store = new DurabilityStoreSpec(type);
         store.setUrl(url);
         spec.setStore(store);
+        spec.setSealingKey("AAECAwQFBgcICQoLDA0ODw==");
         return spec;
+    }
+
+    @Test
+    void fromSpecShouldRequireASealingKeyForTheDistributedMode() {
+        DurabilitySpec spec = distributed("postgres", "jdbc:postgresql://db/ikanos");
+        spec.setSealingKey(" ");
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> Durability.fromSpec(spec));
+
+        assertTrue(e.getMessage().contains("durability.sealingKey"), e.getMessage());
     }
 
     @Test

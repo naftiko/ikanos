@@ -121,6 +121,7 @@ class DurabilitySchemaValidationTest {
     @ValueSource(strings = {
             "{ mode: distributed }",
             "{ mode: distributed, store: { type: postgres } }",
+            "{ mode: distributed, store: { url: jdbc-url } }",
             "{ mode: distributed, store: { type: h2, url: jdbc-url } }",
             "{ mode: memory, store: { type: h2 } }",
             "{ mode: local, store: { type: jdbc, url: jdbc-url } }",
