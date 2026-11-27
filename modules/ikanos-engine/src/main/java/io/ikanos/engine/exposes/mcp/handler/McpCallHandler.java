@@ -177,7 +177,9 @@ public abstract class McpCallHandler {
      * A {@code -32021} error when the request does not declare every elicitation mode in
      * {@code modes}, or {@code null} when it does. A server must not send a client a mode it did
      * not declare, and an empty {@code elicitation: {}} declares form only. The error names the
-     * modes missing: as an empty {@code elicitation} when only form is, as before.
+     * modes missing: as an empty {@code elicitation} when only form is and the client declares no
+     * elicitation at all, as before, and by name otherwise, so a client that declares only
+     * {@code url} reads that it lacks {@code form}.
      *
      * @param modes the modes to be asked in; when empty, form, the mode of any question
      */
@@ -195,13 +197,20 @@ public abstract class McpCallHandler {
         }
         ObjectNode required = MAPPER.createObjectNode();
         ObjectNode elicitation = required.putObject("elicitation");
-        if (!missing.equals(Set.of(OperationStepElicitSpec.FORM))) {
+        boolean formOnly = missing.equals(Set.of(OperationStepElicitSpec.FORM));
+        if (!formOnly || capabilities.supportsElicitation()) {
             missing.forEach(elicitation::putObject);
         }
-        String message = missing.contains(OperationStepElicitSpec.URL)
-                ? label + " asks for input in URL mode; it needs the elicitation capability"
-                        + " with url"
-                : label + " asks for input; it needs the elicitation capability";
+        String message;
+        if (missing.contains(OperationStepElicitSpec.URL)) {
+            message = label + " asks for input in URL mode; it needs the elicitation capability"
+                    + " with url";
+        } else if (capabilities.supportsElicitation()) {
+            message = label + " asks for input in form mode; it needs the elicitation capability"
+                    + " with form";
+        } else {
+            message = label + " asks for input; it needs the elicitation capability";
+        }
         return missingCapability(idNode, message, required);
     }
 

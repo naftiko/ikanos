@@ -68,9 +68,14 @@ class McpUrlElicitationIntegrationTest {
                           outputParameters: []
                         create-project:
                           outputParameters: []
+                        get-broken-status:
+                          outputParameters: []
                       responses:
                         get-setup-status: '{"status":"pending"}'
                         create-project: '{"projectId":"p-1","paymentMethodId":"{{paymentMethodId}}"}'
+                        get-broken-status: '{"error":"unavailable"}'
+                      statuses:
+                        get-broken-status: 500
                   aggregates:
                   - namespace: billing
                     flows:
@@ -95,6 +100,56 @@ class McpUrlElicitationIntegrationTest {
                             call: payments.create-project
                             with:
                               paymentMethodId: "{{payment.paymentMethodId}}"
+                      broken-check:
+                        description: A payment step whose check fails upstream.
+                        steps:
+                          payment:
+                            type: elicit
+                            mode: url
+                            message: Add a payment method.
+                            url: "https://billing.example.com/setup?ref={{elicitation.id}}"
+                            check:
+                              type: call
+                              call: payments.get-broken-status
+                              with:
+                                ref: "{{elicitation.id}}"
+                            outputParameters:
+                              paymentMethodId:
+                                type: string
+                      ask-for-ref:
+                        description: A flow that asks its caller, called as a check.
+                        steps:
+                          confirm:
+                            type: elicit
+                            message: Confirm the reference?
+                            fields:
+                              confirmed:
+                                type: boolean
+                      asking-check:
+                        description: A payment step whose check asks its caller for input.
+                        steps:
+                          payment:
+                            type: elicit
+                            mode: url
+                            message: Add a payment method.
+                            url: "https://billing.example.com/setup?ref={{elicitation.id}}"
+                            check:
+                              type: call
+                              call: billing.ask-for-ref
+                              with:
+                                ref: "{{elicitation.id}}"
+                            outputParameters:
+                              paymentMethodId:
+                                type: string
+                      confirm-only:
+                        description: Ask the caller to confirm in a form.
+                        steps:
+                          confirm:
+                            type: elicit
+                            message: Create the project?
+                            fields:
+                              confirmed:
+                                type: boolean
                   exposes:
                   - type: mcp
                     address: localhost
@@ -105,6 +160,33 @@ class McpUrlElicitationIntegrationTest {
                       create-paid-project:
                         description: Create a paid project, once a payment method is added.
                         ref: billing.create-paid-project
+                      broken-check:
+                        description: A payment step whose check fails upstream.
+                        ref: billing.broken-check
+                      asking-check:
+                        description: A payment step whose check asks its caller for input.
+                        ref: billing.asking-check
+                      confirm-only:
+                        description: Ask the caller to confirm in a form.
+                        ref: billing.confirm-only
+                    resources:
+                      payment-page:
+                        uri: billing://payment
+                        description: The payment method, once the customer added one.
+                        steps:
+                          payment:
+                            type: elicit
+                            mode: url
+                            message: Add a payment method.
+                            url: "https://billing.example.com/setup?ref={{elicitation.id}}"
+                            check:
+                              type: call
+                              call: payments.get-setup-status
+                              with:
+                                ref: "{{elicitation.id}}"
+                            outputParameters:
+                              paymentMethodId:
+                                type: string
                   - type: control
                     address: localhost
                     port: 0
@@ -261,5 +343,147 @@ class McpUrlElicitationIntegrationTest {
         List<Map<String, Object>> checks = FakeClientAdapter.CALLS.stream()
                 .filter(params -> params.containsKey("ref")).toList();
         assertEquals(id, checks.get(checks.size() - 1).get("ref"), checks.toString());
+    }
+
+    /** A call of {@code tool} with no arguments. */
+    private static String callOf(String tool) {
+        return "{\"name\":\"" + tool + "\",\"arguments\":{}}";
+    }
+
+    /** A retry of the call of {@code tool}, answering {@code key} with {@code action}. */
+    private String answer(String tool, JsonNode asked, String key, String action) {
+        ObjectNode retry = (ObjectNode) jsonMapper.readTree(callOf(tool));
+        retry.put("requestState", asked.path("requestState").asString());
+        retry.putObject("inputResponses").putObject(key).put("action", action);
+        return retry.toString();
+    }
+
+    /** Asserts the response ends the call with a failure, not another question. */
+    private static void assertFailed(JsonNode response) {
+        JsonNode result = response.path("result");
+        assertFalse("input_required".equals(result.path("resultType").asString()),
+                response.toString());
+        assertTrue(response.has("error") || result.path("isError").asBoolean(false),
+                response.toString());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"decline", "cancel"})
+    void aDeclinedOrCancelledUrlQuestionShouldFailTheStep(String action) throws Exception {
+        for (String mode : List.of("none", "memory")) {
+            McpServerAdapter adapter = load(mode);
+            JsonNode first = urlCall(adapter, CALL);
+
+            ObjectNode answered = call(adapter,
+                    answer("create-paid-project", first, KEY, action), "{\"url\":{}}");
+
+            assertFailed(answered);
+            assertTrue(FakeClientAdapter.CALLS.stream().noneMatch(p -> p.containsKey("ref")),
+                    mode + ": the check never runs on a " + action);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"decline", "cancel"})
+    void aDeclinedOrCancelledReAskShouldFailTheStep(String action) throws Exception {
+        for (String mode : List.of("none", "memory")) {
+            McpServerAdapter adapter = load(mode);
+            JsonNode first = urlCall(adapter, CALL);
+            JsonNode second = urlCall(adapter, accept(first, KEY));
+            setupStatus(DONE);
+
+            ObjectNode answered = call(adapter,
+                    answer("create-paid-project", second, KEY + "@2", action), "{\"url\":{}}");
+
+            assertFailed(answered);
+            assertFalse(answered.toString().contains("pm_123"), mode + ": " + answered);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"none", "memory"})
+    void aCheckThatFailsUpstreamShouldFailTheStep(String mode) throws Exception {
+        McpServerAdapter adapter = load(mode);
+        JsonNode first = urlCall(adapter, callOf("broken-check"));
+        assertEquals("input_required", first.path("resultType").asString(), first.toString());
+
+        assertFailed(call(adapter, answer("broken-check", first, KEY, "accept"),
+                "{\"url\":{}}"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"none", "memory"})
+    void aCheckThatAsksItsCallerForInputShouldBeRefused(String mode) throws Exception {
+        McpServerAdapter adapter = load(mode);
+        JsonNode first = call(adapter, callOf("asking-check"), "{\"form\":{},\"url\":{}}")
+                .path("result");
+        assertEquals("input_required", first.path("resultType").asString(), first.toString());
+
+        ObjectNode answered = call(adapter, answer("asking-check", first, KEY, "accept"),
+                "{\"form\":{},\"url\":{}}");
+
+        assertFailed(answered);
+        assertFalse(answered.path("result").path("inputRequests").has("steps/confirm"),
+                answered.toString());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"none", "memory"})
+    void aClientThatDeclaresUrlOnlyShouldBeRefusedAFormQuestionNamingForm(String mode)
+            throws Exception {
+        JsonNode error = call(load(mode), callOf("confirm-only"), "{\"url\":{}}").path("error");
+
+        assertEquals(-32021, error.path("code").asInt(), error.toString());
+        JsonNode elicitation = error.path("data").path("requiredCapabilities")
+                .path("elicitation");
+        assertTrue(elicitation.has("form"), error.toString());
+        assertFalse(elicitation.has("url"), error.toString());
+    }
+
+    private ObjectNode read(McpServerAdapter adapter, String paramsJson, String elicitation)
+            throws Exception {
+        ObjectNode request = jsonMapper.createObjectNode();
+        request.put("jsonrpc", "2.0");
+        request.put("id", 1);
+        request.put("method", "resources/read");
+        ObjectNode params = (ObjectNode) jsonMapper.readTree(paramsJson);
+        ObjectNode meta = params.putObject("_meta");
+        meta.put("io.modelcontextprotocol/protocolVersion", ProtocolDispatcher.MCP_PROTOCOL_VERSION);
+        meta.putObject("io.modelcontextprotocol/clientCapabilities")
+                .set("elicitation", jsonMapper.readTree(elicitation));
+        request.set("params", params);
+        return new ProtocolDispatcher(adapter).dispatch(request).responseBody();
+    }
+
+    @org.junit.jupiter.api.Test
+    void resourcesReadShouldRefuseAFormOnlyClientBeforeAnyStepRunsInMemoryMode()
+            throws Exception {
+        JsonNode error = read(load("memory"), "{\"uri\":\"billing://payment\"}", "{}")
+                .path("error");
+
+        assertEquals(-32021, error.path("code").asInt(), error.toString());
+        assertTrue(error.path("data").path("requiredCapabilities").path("elicitation")
+                .has("url"), error.toString());
+        assertTrue(FakeClientAdapter.CALLS.isEmpty(), FakeClientAdapter.CALLS.toString());
+    }
+
+    @org.junit.jupiter.api.Test
+    void resourcesReadShouldAskInUrlModeAndCompleteInMemoryMode() throws Exception {
+        McpServerAdapter adapter = load("memory");
+        String uri = "{\"uri\":\"billing://payment\"}";
+        JsonNode first = read(adapter, uri, "{\"url\":{}}").path("result");
+        assertEquals("url", first.path("inputRequests").path(KEY).path("params").path("mode")
+                .asString(), first.toString());
+        setupStatus(DONE);
+
+        ObjectNode retry = (ObjectNode) jsonMapper.readTree(uri);
+        retry.put("requestState", first.path("requestState").asString());
+        retry.putObject("inputResponses").putObject(KEY).put("action", "accept");
+        JsonNode done = read(adapter, retry.toString(), "{\"url\":{}}").path("result");
+
+        assertEquals("complete", done.path("resultType").asString("complete"), done.toString());
+        // The resource maps no output: it is done once its check found the value.
+        assertTrue(FakeClientAdapter.CALLS.stream().anyMatch(p -> p.containsKey("ref")),
+                FakeClientAdapter.CALLS.toString());
     }
 }
