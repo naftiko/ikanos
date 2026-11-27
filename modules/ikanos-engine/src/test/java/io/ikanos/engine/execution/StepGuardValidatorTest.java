@@ -175,6 +175,46 @@ public class StepGuardValidatorTest {
     }
 
     @Test
+    void findErrorsShouldHintAtADashedNameInItemsThatDoesNotCompile() {
+        List<String> errors = StepGuardValidator.findErrors(flow("""
+                - name: list-merged
+                  type: call
+                  what: github.list-merged
+                - name: issues
+                  type: forEach
+                  items: "list-merged.filter(pr, pr.closed)"
+                  limit: 50
+                  do:
+                    type: call
+                    what: github.get-issue
+                """));
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).startsWith("The items of step 'issues'")
+                && errors.get(0).endsWith("write it 'list_merged'"), errors.get(0));
+    }
+
+    @Test
+    void findWarningsShouldReportADashedNameReadAsASubtractionInALimit() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow("""
+                - name: page-size
+                  type: call
+                  what: github.page-size
+                - name: lines
+                  type: forEach
+                  items: order.lines
+                  limit: "page-size + 1"
+                  do:
+                    type: call
+                    what: shop.check-line
+                """));
+
+        assertEquals(1, warnings.size(), warnings.toString());
+        assertTrue(warnings.get(0).startsWith("The limit of step 'lines'")
+                && warnings.get(0).contains("write 'page_size'"), warnings.get(0));
+    }
+
+    @Test
     void findErrorsShouldCheckTheGuardOfASequenceDo() {
         List<String> errors = StepGuardValidator.findErrors(flow("""
                 - name: lines

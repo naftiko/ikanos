@@ -218,7 +218,12 @@ public final class StepGuardValidator {
         if (error != null) {
             findings.errors().add(label + " is not a valid CEL expression: " + error);
         } else {
+            Set<String> explained = warnDashedNames(label, forEach.getItems(), visible,
+                    findings.warnings());
             for (String name : StepGuard.referencedNames(forEach.getItems())) {
+                if (explained.contains(name)) {
+                    continue;
+                }
                 if (readsSibling(name, siblings)) {
                     findings.errors().add(label + " reads track '" + name + "', which runs at"
                             + " the same time: a track sees only the steps before its parallel"
@@ -246,7 +251,12 @@ public final class StepGuardValidator {
             if (limitError != null) {
                 findings.errors().add(limitLabel + " is not a valid CEL expression: " + limitError);
             }
+            Set<String> explained = limitError != null ? Set.of()
+                    : warnDashedNames(limitLabel, limit, visible, findings.warnings());
             for (String name : StepGuard.referencedNames(limit)) {
+                if (explained.contains(name)) {
+                    continue;
+                }
                 if (readsSibling(name, siblings)) {
                     findings.errors().add(limitLabel + " reads track '" + name + "', which runs"
                             + " at the same time: a track sees only the steps before its parallel"
@@ -353,16 +363,8 @@ public final class StepGuardValidator {
                                     + " skipped."));
                 }
             }
-            Set<String> explained = new HashSet<>();
-            for (List<String> parts : StepGuard.subtractedNames(guard.expression())) {
-                String dashed = String.join("-", parts);
-                if ((criterion ? own : visible).contains(dashed)) {
-                    findings.warnings().add(guard.label() + " reads '" + String.join(" - ", parts)
-                            + "', a subtraction: CEL reads '-' as minus. To read '"
-                            + dashed + "', write '" + String.join("_", parts) + "'.");
-                    explained.addAll(parts);
-                }
-            }
+            Set<String> explained = warnDashedNames(guard.label(), guard.expression(),
+                    criterion ? own : visible, findings.warnings());
             for (String name : StepGuard.referencedNames(guard.expression())) {
                 if (readsSibling(name, siblings)) {
                     findings.errors().add(guard.label() + " reads track '" + name
@@ -430,6 +432,28 @@ public final class StepGuardValidator {
                         .matcher(value).find()
                 || Pattern.compile("^\\s*\\$\\." + quoted + "(\\.|\\[|\\s*$)").matcher(value)
                         .find();
+    }
+
+    /**
+     * Warns about each subtraction of names in a CEL expression that, joined by {@code -}, name
+     * something visible ({@code get-ship.count} when a step is named {@code get-ship}): CEL reads
+     * the dash as minus, and the name is written {@code get_ship}.
+     *
+     * @return the names those subtractions explain, not to be reported again as unknown
+     */
+    static Set<String> warnDashedNames(String label, String expression, Set<String> visible,
+            List<String> warnings) {
+        Set<String> explained = new HashSet<>();
+        for (List<String> parts : StepGuard.subtractedNames(expression)) {
+            String dashed = String.join("-", parts);
+            if (visible.contains(dashed)) {
+                warnings.add(label + " reads '" + String.join(" - ", parts) + "', a subtraction:"
+                        + " CEL reads '-' as minus. To read '" + dashed + "', write '"
+                        + String.join("_", parts) + "'.");
+                explained.addAll(parts);
+            }
+        }
+        return explained;
     }
 
     private static boolean readsSibling(String name, Set<String> siblings) {
