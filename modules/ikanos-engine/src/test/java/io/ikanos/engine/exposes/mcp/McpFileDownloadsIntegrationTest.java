@@ -66,15 +66,27 @@ class McpFileDownloadsIntegrationTest {
     private McpServerAdapter adapter;
     private HttpClient http;
     private String baseUrl;
+    private int upstreamPort;
+    private String authHeader = "Authorization";
+    private String authValue = "Bearer " + TOKEN;
     private int nextId = 1;
 
     @BeforeEach
     void start() throws Exception {
         new Random(7).nextBytes(photo);
-        int upstreamPort = freePort();
+        upstreamPort = freePort();
         upstream = upstream(upstreamPort);
         upstream.start();
+        http = HttpClient.newHttpClient();
+        startAdapter("""
+                    authentication:
+                      type: bearer
+                      token: "%s"
+                """.formatted(TOKEN));
+    }
 
+    /** Starts the MCP adapter on a free port, behind {@code authentication} (YAML lines). */
+    private void startAdapter(String authentication) throws Exception {
         int port = freePort();
         IkanosSpec spec = IkanosMappers.lenientYaml().readValue("""
                 ikanos: "%s"
@@ -101,9 +113,7 @@ class McpFileDownloadsIntegrationTest {
                     address: 127.0.0.1
                     port: %d
                     namespace: photos-mcp
-                    authentication:
-                      type: bearer
-                      token: "%s"
+                %s
                     files:
                       downloads:
                         inlineThreshold: "1KiB"
@@ -127,11 +137,10 @@ class McpFileDownloadsIntegrationTest {
                         download:
                           url: url
                           size: size
-                """.formatted(VersionHelper.getSchemaVersion(), upstreamPort, port, TOKEN),
-                IkanosSpec.class);
+                """.formatted(VersionHelper.getSchemaVersion(), upstreamPort, port,
+                authentication.stripTrailing()), IkanosSpec.class);
         adapter = (McpServerAdapter) new Capability(spec).getServerAdapters().getFirst();
         adapter.start();
-        http = HttpClient.newHttpClient();
         baseUrl = "http://127.0.0.1:" + port + "/";
     }
 
@@ -143,13 +152,34 @@ class McpFileDownloadsIntegrationTest {
     }
 
     @Test
-    void serverDiscoverShouldAdvertiseTheFilesExtensionWithDownload() throws Exception {
+    void serverDiscoverShouldAdvertiseTheFilesExtensionWithoutSettings() throws Exception {
         JsonNode result = rpc("server/discover", null, JSON.createObjectNode(), false);
 
         JsonNode files = result.path("capabilities").path("extensions")
                 .path("io.modelcontextprotocol/files");
-        assertTrue(files.path("download").isObject(), result.toString());
-        assertFalse(files.has("upload"), result.toString());
+        assertTrue(files.isObject(), result.toString());
+        assertTrue(files.isEmpty(), "download is a client setting, uploads come later: " + result);
+    }
+
+    @Test
+    void binaryToolShouldStayInlineBehindAHeaderApiKey() throws Exception {
+        adapter.stop();
+        startAdapter("""
+                    authentication:
+                      type: apikey
+                      placement: header
+                      key: X-API-Key
+                      value: "%s"
+                """.formatted(TOKEN));
+        authHeader = "X-API-Key";
+        authValue = TOKEN;
+
+        JsonNode result = callTool("get-photo", true);
+
+        assertTrue(result.path("_meta").path("io.modelcontextprotocol/files").isMissingNode(),
+                "A client resends only Authorization, so no link: " + result);
+        assertEquals(Base64.getEncoder().encodeToString(photo),
+                result.path("content").get(0).path("data").asString());
     }
 
     @Test
@@ -253,7 +283,7 @@ class McpFileDownloadsIntegrationTest {
                 .POST(HttpRequest.BodyPublishers.ofString(JSON.writeValueAsString(body)))
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json, text/event-stream")
-                .header("Authorization", "Bearer " + TOKEN)
+                .header(authHeader, authValue)
                 .header("MCP-Protocol-Version", ProtocolDispatcher.MCP_PROTOCOL_VERSION)
                 .header("Mcp-Method", method);
         if (name != null) {

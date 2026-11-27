@@ -47,13 +47,12 @@ public final class McpFiles {
     }
 
     /**
-     * The settings {@code server/discover} advertises: {@code download} only, since the engine
-     * does not accept uploads yet.
+     * The settings {@code server/discover} advertises: none, since {@code download} is a client
+     * setting and the engine does not accept uploads yet. Advertising the extension is what lets
+     * a client declare {@code download}.
      */
     public static ObjectNode serverSettings(ObjectMapper mapper) {
-        ObjectNode settings = mapper.createObjectNode();
-        settings.putObject(DOWNLOAD);
-        return settings;
+        return mapper.createObjectNode();
     }
 
     /**
