@@ -24,7 +24,6 @@ import io.ikanos.durable.ExecutionResult;
 import io.ikanos.durable.NodePath;
 import io.ikanos.durable.Runner;
 import io.ikanos.durable.core.DirectRunner;
-import io.ikanos.durable.core.ExecutionBusyException;
 import io.ikanos.engine.consumes.ConsumedInvocation;
 import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.engine.consumes.http.StandardRequestHeaders;
@@ -91,24 +90,18 @@ public final class Executions {
             } else {
                 // A task: each step is journaled, and one recorded by an earlier run is restored.
                 ExecutionId id = scope.nextExecutionId();
-                try {
-                    result = scope.runner().run(
-                            new ExecutionRequest(id, null, ExecutionInputs.current(), null),
-                            interpreter, request -> {
-                                // Shutting down: stop before this action, leaving it to the next
-                                // process.
-                                scope.checkNotStopping();
-                                return DurableScope.within(
-                                        scope.child(request.executionId(), request.path()),
-                                        () -> ExecutionInputs.within(inputs, request.path(),
-                                                () -> runJournaledNode(request.action(), run,
-                                                        nodeRunner)));
-                            });
-                } catch (ExecutionBusyException e) {
-                    // Another replica owns this run now: recorded as the calling step's failure,
-                    // it would fail the task that replica carries on.
-                    throw new DurableScope.Superseded(e);
-                }
+                result = scope.runNested(
+                        new ExecutionRequest(id, null, ExecutionInputs.current(), null),
+                        interpreter, request -> {
+                            // Shutting down: stop before this action, leaving it to the next
+                            // process.
+                            scope.checkNotStopping();
+                            return DurableScope.within(
+                                    scope.child(request.executionId(), request.path()),
+                                    () -> ExecutionInputs.within(inputs, request.path(),
+                                            () -> runJournaledNode(request.action(), run,
+                                                    nodeRunner)));
+                        });
                 if (result instanceof ExecutionResult.Completed) {
                     // Recorded before this run started: walk the tree once against the journal,
                     // so the outputs mappings read are restored.

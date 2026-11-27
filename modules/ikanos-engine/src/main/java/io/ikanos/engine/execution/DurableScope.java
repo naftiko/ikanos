@@ -150,11 +150,25 @@ public final class DurableScope {
             return java.util.Optional.empty();
         }
         ExecutionId id = scope.nextExecutionId();
-        return java.util.Optional.of(scope.runner().run(
+        return java.util.Optional.of(scope.runNested(
                 io.ikanos.durable.ExecutionRequest.of(id, null), interpreter, request -> {
                     scope.checkNotStopping();
                     return executor.execute(request);
                 }));
+    }
+
+    /**
+     * Runs a nested execution of this scope on its runner. One that another replica owns now,
+     * as when it took the task over while this one stalled, ends with {@link Superseded}:
+     * recorded as the calling action's failure, it would fail the task that replica carries on.
+     */
+    io.ikanos.durable.ExecutionResult runNested(io.ikanos.durable.ExecutionRequest request,
+            io.ikanos.durable.Interpreter interpreter, io.ikanos.durable.ActionExecutor executor) {
+        try {
+            return runner.run(request, interpreter, executor);
+        } catch (io.ikanos.durable.core.ExecutionBusyException e) {
+            throw new Superseded(e);
+        }
     }
 
     /** Whether the action in progress runs inside a journaled run. */

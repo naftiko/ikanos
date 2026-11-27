@@ -162,6 +162,31 @@ public class DurableScopeTest {
     }
 
     @Test
+    void aJournaledRunShouldEndWithoutAFailureWhenAnotherReplicaOwnsIt() {
+        // The run of an MCP call that waits on an upstream task, taken over the same way.
+        Stores stores = sharedStores();
+        JournaledRunner replica = new JournaledRunner(stores, new JsonPayloadCodec(),
+                Clock.systemUTC(), "test");
+        ExecutionId nested = new ExecutionId(ROOT.value() + "/steps");
+        stores.queue().acquire(nested, "another-replica", java.time.Duration.ofSeconds(30))
+                .orElseThrow();
+        List<String> invoked = new ArrayList<>();
+
+        try {
+            assertThrows(DurableScope.Superseded.class, () -> DurableScope.with(replica, ROOT,
+                    () -> DurableScope.runJournaled(view -> List.of(
+                            new io.ikanos.durable.Command.ScheduleAction(
+                                    new NodePath("poll"), "poll", null)),
+                            request -> invoked.add("poll"))));
+        } finally {
+            replica.close();
+        }
+
+        assertTrue(invoked.isEmpty());
+        assertTrue(stores.journal().read(nested).isEmpty());
+    }
+
+    @Test
     void stepsShouldRunDirectlyOutsideAScope() {
         CountingRunner nodes = new CountingRunner();
 
