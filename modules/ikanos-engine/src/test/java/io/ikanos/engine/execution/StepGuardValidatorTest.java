@@ -154,6 +154,49 @@ public class StepGuardValidatorTest {
     }
 
     @Test
+    void findErrorsShouldReportASequenceInsideASequence() {
+        List<String> errors = StepGuardValidator.findErrors(flow("""
+                - name: gather
+                  type: parallel
+                  tracks:
+                    - name: a
+                      type: sequence
+                      steps:
+                        - name: inner
+                          type: sequence
+                          steps:
+                            - name: deep
+                              type: call
+                              what: x.y
+                    - name: b
+                      type: call
+                      what: x.z
+                """));
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).contains("Step 'inner'"), errors.get(0));
+    }
+
+    @Test
+    void findErrorsShouldNotTakeAPlainWithValueForATrackRead() {
+        List<String> errors = StepGuardValidator.findErrors(flow("""
+                - name: gather
+                  type: parallel
+                  tracks:
+                    - name: billing
+                      type: call
+                      what: crm.get-account
+                    - name: region
+                      type: call
+                      what: crm.get-region
+                      with:
+                        zone: billing.eu
+                """));
+
+        assertTrue(errors.isEmpty(), errors.toString());
+    }
+
+    @Test
     void findErrorsShouldReportATrackNamedLikeAStepOfTheSameList() {
         List<String> errors = StepGuardValidator.findErrors(flow("""
                 - name: profile

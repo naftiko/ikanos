@@ -16,6 +16,7 @@ package io.ikanos.engine.aggregates;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.concurrent.Callable;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -143,6 +144,38 @@ public class AggregateFlow {
      * @param parameters resolved input parameters (merged with adapter-level 'with')
      * @return a transport-neutral {@link FlowResult}
      */
+    /**
+     * The flows active on this thread, outermost first: a step run on a thread of its own, such
+     * as a track of a {@code parallel} step, carries them over, so a chain of flow calls through
+     * it still counts toward {@code maxCallDepth}.
+     */
+    public static List<String> callChain() {
+        Deque<String> chain = CALL_CHAIN.get();
+        return chain == null ? List.of() : List.copyOf(chain);
+    }
+
+    /**
+     * Runs {@code work} with {@code chain} as the flows active on this thread, then restores
+     * the thread's own.
+     */
+    public static <T> T withCallChain(List<String> chain, Callable<T> work) throws Exception {
+        Deque<String> previous = CALL_CHAIN.get();
+        if (chain.isEmpty()) {
+            CALL_CHAIN.remove();
+        } else {
+            CALL_CHAIN.set(new ArrayDeque<>(chain));
+        }
+        try {
+            return work.call();
+        } finally {
+            if (previous == null) {
+                CALL_CHAIN.remove();
+            } else {
+                CALL_CHAIN.set(previous);
+            }
+        }
+    }
+
     public FlowResult execute(Map<String, Object> parameters) throws Exception {
         String ref = getRef();
         Deque<String> chain = CALL_CHAIN.get();

@@ -202,6 +202,11 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
+    public void scriptDefaultsRuleShouldFireForAScriptStepNestedInAFlowTrack() {
+        assertRuleFires("rules/polychro-script-defaults-nested.yaml", "ikanos-script-defaults-required");
+    }
+
+    @Test
     public void stepsUniqueNamesRuleShouldNotFireWhenStepNamesAreDistinct() {
         LintResult result = lintFixture("rules/polychro-steps-distinct-names.yaml");
 

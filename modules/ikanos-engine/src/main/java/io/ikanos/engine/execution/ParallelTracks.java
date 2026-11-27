@@ -81,6 +81,8 @@ public final class ParallelTracks {
                 run.stepContext().getAllStepOutputs());
         ExecutionInputs.Snapshot inputs = ExecutionInputs.capture();
         DurableScope scope = DurableScope.current();
+        // The error-body setting, the flow call chain and the logging context of the request
+        ThreadCarry carry = ThreadCarry.capture();
         TelemetryBootstrap telemetry = TelemetryBootstrap.get();
         Span groupSpan = telemetry.startStepParallelSpan(stepIndex, step.getName());
 
@@ -96,6 +98,13 @@ public final class ParallelTracks {
                     // A track reads the outcomes of the steps before the group, as a copy.
                     StepOutcomes.inherit(trackRun.runtimeParameters(), parameters);
                     outputs.forEach(trackRun.stepContext()::storeStepOutput);
+                    // The guard of a sequence track: a single step's runs with the step.
+                    if (track.getValue() instanceof OperationStepSequenceSpec sequence
+                            && !StepGuard.holds(name, sequence.getOnlyIf(),
+                                    StepGuard.parametersOf(trackRun))) {
+                        TelemetryBootstrap.get().recordStepSkipped(stepIndex, name);
+                        return trackRun;
+                    }
                     Span trackSpan = TelemetryBootstrap.get().startStepTrackSpan(name);
                     try (Scope trackOtel = trackSpan.makeCurrent()) {
                         Callable<StepRun> steps = () -> Executions.runSteps(
@@ -111,7 +120,8 @@ public final class ParallelTracks {
                         TelemetryBootstrap.endSpan(trackSpan);
                     }
                 };
-                futures.put(name, threads.submit(Context.current().wrap(work)));
+                futures.put(name, threads.submit(Context.current().wrap(
+                        () -> carry.run(work))));
             }
             RuntimeException failure = null;
             for (Map.Entry<String, Future<StepRun>> future : futures.entrySet()) {

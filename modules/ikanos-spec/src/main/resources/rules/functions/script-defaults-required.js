@@ -39,69 +39,36 @@ export default function scriptDefaultsRequired(targetVal) {
 
   const results = [];
 
-  // Collect all script steps from all step-bearing contexts
+  // Collect every step of the capability: the steps of MCP tools and resources,
+  // REST operations and aggregate flows, and the steps nested in them (tracks of a
+  // parallel step, steps of a sequence, the do of a forEach). Tools, resources,
+  // operations and flows may be maps keyed by name or lists, so the document is
+  // walked whole; a step is an object with a type in a steps or tracks list, or a do.
   const stepSources = [];
-
-  // MCP tools
-  for (let e = 0; e < exposes.length; e++) {
-    const adapter = exposes[e];
-    if (!adapter) continue;
-    if (adapter.type === "mcp" && Array.isArray(adapter.tools)) {
-      for (let t = 0; t < adapter.tools.length; t++) {
-        const tool = adapter.tools[t];
-        if (Array.isArray(tool.steps)) {
-          for (let s = 0; s < tool.steps.length; s++) {
-            stepSources.push({
-              step: tool.steps[s],
-              path: ["capability", "exposes", e, "tools", t, "steps", s],
-            });
-          }
-        }
-      }
+  function collect(node, path) {
+    if (Array.isArray(node)) {
+      node.forEach((item, index) => collect(item, path.concat(index)));
+      return;
     }
-    // REST operations
-    if (adapter.type === "rest" && Array.isArray(adapter.resources)) {
-      for (let r = 0; r < adapter.resources.length; r++) {
-        const resource = adapter.resources[r];
-        if (Array.isArray(resource.operations)) {
-          for (let o = 0; o < resource.operations.length; o++) {
-            const op = resource.operations[o];
-            if (Array.isArray(op.steps)) {
-              for (let s = 0; s < op.steps.length; s++) {
-                stepSources.push({
-                  step: op.steps[s],
-                  path: [
-                    "capability", "exposes", e,
-                    "resources", r, "operations", o, "steps", s,
-                  ],
-                });
-              }
-            }
+    if (!node || typeof node !== "object") {
+      return;
+    }
+    for (const key of Object.keys(node)) {
+      const value = node[key];
+      if ((key === "steps" || key === "tracks") && Array.isArray(value)) {
+        value.forEach((step, index) => {
+          if (step && typeof step === "object" && typeof step.type === "string") {
+            stepSources.push({ step, path: path.concat(key, index) });
           }
-        }
+        });
+      } else if (key === "do" && value && typeof value === "object"
+          && typeof value.type === "string") {
+        stepSources.push({ step: value, path: path.concat(key) });
       }
+      collect(value, path.concat(key));
     }
   }
-
-  // Aggregate functions
-  const aggregates = Array.isArray(capability.aggregates)
-    ? capability.aggregates
-    : [];
-  for (let a = 0; a < aggregates.length; a++) {
-    const agg = aggregates[a];
-    const functions = Array.isArray(agg.functions) ? agg.functions : [];
-    for (let f = 0; f < functions.length; f++) {
-      const fn = functions[f];
-      if (Array.isArray(fn.steps)) {
-        for (let s = 0; s < fn.steps.length; s++) {
-          stepSources.push({
-            step: fn.steps[s],
-            path: ["capability", "aggregates", a, "functions", f, "steps", s],
-          });
-        }
-      }
-    }
-  }
+  collect(capability, ["capability"]);
 
   // Report script steps that omit location or language without defaults
   for (const { step, path } of stepSources) {
