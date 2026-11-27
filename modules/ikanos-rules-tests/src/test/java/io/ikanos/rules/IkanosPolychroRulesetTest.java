@@ -197,6 +197,11 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
+    public void stepsUniqueNamesRuleShouldFireWhenTwoTracksOfOneParallelStepShareAName() {
+        assertRuleFires("rules/polychro-tracks-duplicate-names.yaml", "ikanos-steps-unique-names");
+    }
+
+    @Test
     public void stepsUniqueNamesRuleShouldNotFireWhenStepNamesAreDistinct() {
         LintResult result = lintFixture("rules/polychro-steps-distinct-names.yaml");
 

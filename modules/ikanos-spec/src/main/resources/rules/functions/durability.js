@@ -142,6 +142,29 @@ function entries(collection) {
   return [];
 }
 
+/**
+ * Every step of a step list, depth first: each step, then the tracks of a
+ * `parallel` step and the steps of a `sequence`, with locators relative to the
+ * list.
+ */
+function allSteps(collection) {
+  const all = [];
+  for (const s of entries(collection)) {
+    all.push(s);
+    const step = s.value;
+    if (step && typeof step === "object") {
+      for (const key of ["tracks", "steps"]) {
+        if (Array.isArray(step[key])) {
+          for (const inner of allSteps(step[key])) {
+            all.push({ key: inner.key, value: inner.value, locator: s.locator.concat(key, ...inner.locator) });
+          }
+        }
+      }
+    }
+  }
+  return all;
+}
+
 function findControl(capability) {
   for (const e of entries(capability.exposes)) {
     const adapter = e.value;
@@ -258,7 +281,7 @@ function flowAsks(flow, asks) {
   if (target && asks.has(target)) {
     return true;
   }
-  for (const s of entries(flow.steps)) {
+  for (const s of allSteps(flow.steps)) {
     const step = s.value;
     if (step && (step.type === "elicit"
         || (step.type === "call" && typeof step.what === "string" && asks.has(step.what)))) {
@@ -304,7 +327,7 @@ function checkElicitSafety(capability) {
   const results = [];
   for (const container of stepContainers(capability)) {
     let unsafeCall = null;
-    for (const s of entries(container.steps)) {
+    for (const s of allSteps(container.steps)) {
       const step = s.value;
       if (!step || typeof step !== "object") {
         continue;

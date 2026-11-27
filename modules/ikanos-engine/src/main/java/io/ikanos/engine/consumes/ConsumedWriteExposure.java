@@ -32,6 +32,7 @@ import io.ikanos.spec.exposes.mcp.McpToolHintsSpec;
 import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
 import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
+import io.ikanos.spec.util.NestedSteps;
 import io.ikanos.spec.util.OperationStepCallSpec;
 import io.ikanos.spec.util.OperationStepSpec;
 
@@ -228,7 +229,8 @@ public final class ConsumedWriteExposure {
         if (steps == null) {
             return null;
         }
-        for (OperationStepSpec step : steps.values()) {
+        // Every step, those of tracks and sequences included (#1169)
+        for (OperationStepSpec step : NestedSteps.all(steps)) {
             if (step instanceof OperationStepCallSpec call && call.getCall() != null) {
                 String reached = inTarget(capability, call.getCall(), seen, isWrite);
                 if (reached != null) {

@@ -96,6 +96,29 @@ function entries(collection) {
   return [];
 }
 
+/**
+ * Every step of a step list, depth first: each step, then the tracks of a
+ * `parallel` step and the steps of a `sequence`, with locators relative to the
+ * list.
+ */
+function allSteps(collection) {
+  const all = [];
+  for (const s of entries(collection)) {
+    all.push(s);
+    const step = s.value;
+    if (step && typeof step === "object") {
+      for (const key of ["tracks", "steps"]) {
+        if (Array.isArray(step[key])) {
+          for (const inner of allSteps(step[key])) {
+            all.push({ key: inner.key, value: inner.value, locator: s.locator.concat(key, ...inner.locator) });
+          }
+        }
+      }
+    }
+  }
+  return all;
+}
+
 function buildModel(capability) {
   const flows = new Map(); // "ns.flow" -> { flow, path, calls: [{ ref, path }] }
   const aggregateNamespaces = new Set();
@@ -115,7 +138,7 @@ function buildModel(capability) {
       if (typeof flow.call === "string") {
         calls.push({ ref: flow.call, path: path.concat("call") });
       }
-      for (const s of entries(flow.steps)) {
+      for (const s of allSteps(flow.steps)) {
         const step = s.value;
         if (step && step.type === "call" && typeof step.what === "string") {
           calls.push({ ref: step.what, path: path.concat("steps", ...s.locator, "what") });

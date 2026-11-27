@@ -33,6 +33,7 @@ import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
 import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.util.OperationStepCallSpec;
+import io.ikanos.spec.util.NestedSteps;
 import io.ikanos.spec.util.OperationStepSpec;
 
 /**
@@ -175,7 +176,7 @@ public final class ConsumedReferenceValidator {
         if (steps == null) {
             return;
         }
-        for (OperationStepSpec step : steps.values()) {
+        for (OperationStepSpec step : NestedSteps.all(steps)) {
             if (step instanceof OperationStepCallSpec callStep) {
                 checkReference(callStep.getCall(), where + " step '" + step.getName() + "'",
                         clientAdapters);
