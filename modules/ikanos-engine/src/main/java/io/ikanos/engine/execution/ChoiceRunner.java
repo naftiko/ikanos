@@ -13,8 +13,6 @@
  */
 package io.ikanos.engine.execution;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import io.ikanos.durable.NodePath;
@@ -99,20 +97,13 @@ public final class ChoiceRunner {
                     pathRun.setLastResult(null);
                 }
             }
-            List<String> names = new ArrayList<>(steps.keySet());
-            for (int i = names.size() - 1; i >= 0; i--) {
-                JsonNode output = pathRun.stepContext().getStepOutput(names.get(i));
-                if (output != null && !output.isNull() && !output.isMissingNode()) {
-                    journaled.set(OUTPUT, output);
-                    break;
-                }
+            JsonNode output = ParallelTracks.outputOf(steps, pathRun);
+            if (output != null) {
+                journaled.set(OUTPUT, output);
             }
-            for (int i = names.size() - 1; i >= 0; i--) {
-                String outcome = StepOutcomes.get(pathRun.runtimeParameters(), names.get(i));
-                if (outcome != null) {
-                    journaled.put(OUTCOME, outcome);
-                    break;
-                }
+            String outcome = ParallelTracks.outcomeOf(steps, pathRun);
+            if (outcome != null) {
+                journaled.put(OUTCOME, outcome);
             }
         } catch (RuntimeException e) {
             TelemetryBootstrap.recordError(span, e);

@@ -216,7 +216,7 @@ public final class ParallelTracks {
     }
 
     /** The outcome of a track: that of its last call step that ran, or {@code null}. */
-    private static String outcomeOf(Map<String, OperationStepSpec> steps, StepRun run) {
+    static String outcomeOf(Map<String, OperationStepSpec> steps, StepRun run) {
         List<String> names = new ArrayList<>(steps.keySet());
         for (int i = names.size() - 1; i >= 0; i--) {
             String outcome = StepOutcomes.get(run.runtimeParameters(), names.get(i));

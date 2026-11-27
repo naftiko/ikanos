@@ -177,6 +177,40 @@ public class ChoiceRunnerTest {
     }
 
     @Test
+    void aReplayShouldRestoreAFinishedChoiceWithoutRunningItsPath() throws Exception {
+        ExecutionTree tree = tree(choice("bug", call("incident"), call("ask")), call("after"));
+        Nodes first = new Nodes();
+        first.crashOn.add("after");
+        assertThrows(Crash.class, () -> DurableScope.with(runner, new ExecutionId("task-2"),
+                () -> Executions.runSteps(tree, new StepRun(Map.of("bug", true)), first)));
+
+        Nodes second = new Nodes();
+        StepRun resumed = DurableScope.with(runner, new ExecutionId("task-2"),
+                () -> Executions.runSteps(tree, new StepRun(Map.of("bug", true)), second));
+
+        assertEquals(List.of("after"), second.invoked, "the choice is restored from the journal");
+        assertEquals("incident", resumed.stepContext().getStepOutput("route").path("step")
+                .asString());
+        assertEquals("success", StepOutcomes.get(resumed.runtimeParameters(), "route"));
+    }
+
+    @Test
+    void aSequencePathShouldRunNothingWhenItsOwnGuardDoesNotHold() {
+        OperationStepSequenceSpec path = new OperationStepSequenceSpec("both");
+        Map<String, OperationStepSpec> steps = new LinkedHashMap<>();
+        steps.put("page", call("page"));
+        path.setSteps(steps);
+        path.setOnlyIf("urgent");
+        Nodes nodes = new Nodes();
+
+        StepRun run = Executions.runSteps(tree(choice("bug", path, call("ask"))),
+                new StepRun(Map.of("bug", true, "urgent", false)), nodes);
+
+        assertTrue(nodes.invoked.isEmpty(), "then was picked, and its guard skipped it");
+        assertNull(run.stepContext().getStepOutput("route"));
+    }
+
+    @Test
     void aChoiceShouldRecordASpanNamingThePathItTook() {
         InMemorySpanExporter spans = InMemorySpanExporter.create();
         TelemetryBootstrap.init(OpenTelemetrySdk.builder()

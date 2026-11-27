@@ -317,6 +317,15 @@ public final class StepGuardValidator {
     private static void visitChoice(OperationStepChoiceSpec choice, Set<String> visible,
             String where, int depth, Set<String> siblings, Findings findings) {
         String label = "The if of step '" + choice.getName() + "' in " + where;
+        if (choice.getIf() == null || choice.getIf().isBlank()) {
+            // An empty condition holds, as an absent onlyIf does: then would always run.
+            findings.errors().add("Step '" + choice.getName() + "' in " + where + " is a choice"
+                    + " without an 'if'.");
+        }
+        if (choice.getThen() == null) {
+            findings.errors().add("Step '" + choice.getName() + "' in " + where + " is a choice"
+                    + " without a 'then' path.");
+        }
         String error = StepGuard.parseError(choice.getIf());
         if (error != null) {
             findings.errors().add(label + " is not a valid CEL expression: " + error);
@@ -333,8 +342,9 @@ public final class StepGuardValidator {
                             + " step.");
                 } else if (!visible.contains(name)) {
                     findings.warnings().add(label + " reads '" + name + "', which no input,"
-                            + " 'with' value or earlier step provides: the else path always"
-                            + " runs.");
+                            + " 'with' value or earlier step provides: "
+                            + (choice.getElse() != null ? "the else path always runs."
+                                    : "the then path never runs."));
                 }
             }
         }

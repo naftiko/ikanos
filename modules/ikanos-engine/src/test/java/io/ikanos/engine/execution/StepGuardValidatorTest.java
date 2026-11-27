@@ -376,6 +376,35 @@ public class StepGuardValidatorTest {
     }
 
     @Test
+    void findErrorsShouldReportAChoiceWithoutAnIf() {
+        List<String> errors = StepGuardValidator.findErrors(flow("""
+                - name: route
+                  type: choice
+                  then:
+                    type: call
+                    what: notion.create-incident
+                """));
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).contains("without an 'if'"), errors.get(0));
+    }
+
+    @Test
+    void findWarningsShouldSayThenNeverRunsWhenAChoiceWithoutElseReadsNothing() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow("""
+                - name: route
+                  type: choice
+                  if: missing
+                  then:
+                    type: call
+                    what: notion.create-incident
+                """));
+
+        assertEquals(1, warnings.size(), warnings.toString());
+        assertTrue(warnings.get(0).endsWith("the then path never runs."), warnings.get(0));
+    }
+
+    @Test
     void findErrorsShouldReportAnIfThatDoesNotParse() {
         List<String> errors = StepGuardValidator.findErrors(flow("""
                 - name: route

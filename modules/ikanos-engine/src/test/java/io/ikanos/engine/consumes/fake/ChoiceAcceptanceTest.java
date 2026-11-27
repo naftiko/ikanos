@@ -18,7 +18,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import io.ikanos.Capability;
@@ -118,10 +117,5 @@ class ChoiceAcceptanceTest {
                 ((McpSchema.TextContent) result.content().get(0)).text());
         assertEquals(routed, payload.path("routed").asString());
         assertEquals(1, FakeClientAdapter.CALLS.size(), "one path, one call");
-    }
-
-    @Test
-    void theCapabilityShouldLoadWithNoGuardError() throws Exception {
-        new Capability(IkanosMappers.lenientYaml().readValue(CAPABILITY, IkanosSpec.class));
     }
 }
