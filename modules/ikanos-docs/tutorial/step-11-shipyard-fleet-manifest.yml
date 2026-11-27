@@ -44,10 +44,9 @@ capability:
     description: "Shipyard MCP tools for fleet management"
     # MCP Server Card (SEP-2127): a public JSON description of this server at
     # GET /mcp/server-card, readable before a client connects. It names the bearer header
-    # clients must send, never the token. card.url says where clients reach the server,
-    # since 0.0.0.0 is not an address they can use.
-    card:
-      url: "http://localhost:3001/mcp"
+    # clients must send, never the token, and advertises the URL the client fetched it from
+    # (set card.url for a fixed one).
+    card: {}
     # Shared by the tools of this adapter only: expanded at load time, so tools/list is the
     # same as if each tool declared them inline.
     definitions:

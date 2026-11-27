@@ -723,7 +723,7 @@ public class IkanosPolychroRulesetTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"ikanos-mcp-card-name", "ikanos-mcp-card-version",
-        "ikanos-mcp-card-description", "ikanos-mcp-card-title", "ikanos-mcp-card-url", "ikanos-mcp-card-authenticated",
+        "ikanos-mcp-card-description", "ikanos-mcp-card-title", "ikanos-mcp-card-authenticated",
         "ikanos-mcp-card-repository"})
     public void mcpCardRuleShouldFireOnItsViolation(String ruleId) {
         LintResult result =

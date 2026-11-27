@@ -2,7 +2,6 @@
 #
 # The card has no name source (no info.publisher, no card.name), a version range,
 # a description over 100 characters, an info.display over 100 characters (the title),
-# a wildcard address without card.url,
 # authenticated: true without authentication, and a repository off the known forges.
 ikanos: "1.0.0-beta11"
 

@@ -202,6 +202,42 @@ class McpServerCardIntegrationTest {
     }
 
     @Test
+    void cardUrlShouldFollowTheHostAndIgnoreForwardedHeadersFromAnUntrustedPeer()
+            throws Exception {
+        McpServerAdapter adapter = start(capability(findFreePort(), FORWARDED_ELSEWHERE,
+                "      card: {}"));
+        try {
+            HttpResponse<String> response = get(cardUrl(adapter),
+                    "X-Forwarded-Host", "evil.example", "X-Forwarded-Proto", "https");
+            assertEquals(200, response.statusCode());
+            assertEquals("http://127.0.0.1:" + adapter.getMcpServerSpec().getPort() + "/mcp",
+                    JSON.readTree(response.body()).path("remotes").path(0).path("url")
+                            .asString());
+            assertFalse(response.headers().firstValue("Vary").isPresent(),
+                    response.headers().toString());
+        } finally {
+            adapter.getCapability().stop();
+        }
+    }
+
+    @Test
+    void cardUrlShouldTakeTheForwardedHeadersOfATrustedPeer() throws Exception {
+        McpServerAdapter adapter = start(capability(findFreePort(), FORWARDED_LOCAL,
+                "      card: {}"));
+        try {
+            HttpResponse<String> response = get(cardUrl(adapter),
+                    "X-Forwarded-Host", "fleet.example.com", "X-Forwarded-Proto", "https");
+            assertEquals(200, response.statusCode());
+            assertEquals("https://fleet.example.com/mcp", JSON.readTree(response.body())
+                    .path("remotes").path(0).path("url").asString());
+            assertEquals("*", response.headers().firstValue("Vary").orElse(null),
+                    response.headers().toString());
+        } finally {
+            adapter.getCapability().stop();
+        }
+    }
+
+    @Test
     void cardShouldAnswerTheCorsPreflight() throws Exception {
         McpServerAdapter adapter = start(capability(findFreePort(), BEARER, "      card: {}"));
         try (HttpClient client = HttpClient.newHttpClient()) {

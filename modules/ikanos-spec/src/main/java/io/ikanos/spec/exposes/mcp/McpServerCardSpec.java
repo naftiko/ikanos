@@ -55,7 +55,7 @@ public class McpServerCardSpec {
         this.version.set(version);
     }
 
-    /** @return the public endpoint URL, such as behind a gateway, else one is generated */
+    /** @return the fixed public endpoint URL, else the card takes the URL each client used */
     public String getUrl() {
         return url.get();
     }

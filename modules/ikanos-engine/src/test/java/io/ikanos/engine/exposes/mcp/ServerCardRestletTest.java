@@ -15,39 +15,86 @@ package io.ikanos.engine.exposes.mcp;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import java.util.function.Predicate;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.restlet.Context;
 import org.restlet.Request;
 import org.restlet.Response;
 import org.restlet.Restlet;
 import org.restlet.data.CacheDirective;
+import org.restlet.data.Dimension;
 import org.restlet.data.Method;
 import org.restlet.data.Status;
 import org.restlet.data.Tag;
-import io.ikanos.engine.exposes.mcp.ServerCardBuilder.ServerCard;
+import io.ikanos.engine.exposes.mcp.ServerCardBuilder.Template;
+import io.ikanos.spec.InfoSpec;
+import io.ikanos.spec.exposes.mcp.McpServerCardSpec;
+import io.ikanos.spec.exposes.mcp.McpServerSpec;
+import io.ikanos.spec.util.IkanosMappers;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Unit tests for {@link ServerCardRestlet} and {@link ServerCardRoute}: the card's status codes,
- * caching and CORS headers, and which requests reach the card.
+ * its URL built from the request, caching and CORS headers, and which requests reach the card.
  */
 class ServerCardRestletTest {
 
-    private static final ServerCard CARD = new ServerCard("{\"name\":\"io.example/tools\"}",
-            "abc123");
+    private static final ObjectMapper JSON = IkanosMappers.json();
+    private static final Predicate<Request> UNTRUSTED = request -> false;
+    private static final Predicate<Request> TRUSTED = request -> true;
 
-    private static Response send(Restlet restlet, Method method, String path) {
-        Request request = new Request(method, "http://localhost:3001" + path);
+    private static Template template(String fixedUrl) {
+        McpServerSpec server = new McpServerSpec("10.0.1.12", 3001, "shipyard-tools",
+                "Shipyard MCP tools for fleet management");
+        server.setPath("/mcp");
+        McpServerCardSpec card = new McpServerCardSpec();
+        card.setUrl(fixedUrl);
+        server.setCard(card);
+        InfoSpec info = new InfoSpec("Shipyard Fleet Management", "Fleet management", null, null);
+        info.setVersion("1.4.0");
+        info.setPublisher("io.naftiko");
+        return ServerCardBuilder.build(server, info, List.of("2026-07-28"), warning -> { });
+    }
+
+    private static final Template TEMPLATE = template(null);
+
+    private static Request request(Method method, String host, String... headers) {
+        Request request = new Request(method, "http://localhost:3001/mcp/server-card");
+        if (host != null) {
+            request.getHeaders().add("Host", host);
+        }
+        for (int i = 0; i < headers.length; i += 2) {
+            request.getHeaders().add(headers[i], headers[i + 1]);
+        }
+        return request;
+    }
+
+    private static Response send(Restlet restlet, Request request) {
         Response response = new Response(request);
         restlet.handle(request, response);
         return response;
     }
 
+    private static Response send(Restlet restlet, Method method, String path) {
+        Request request = new Request(method, "http://localhost:3001" + path);
+        request.getHeaders().add("Host", "fleet.example.com");
+        return send(restlet, request);
+    }
+
+    private static String remoteUrl(Response response) throws Exception {
+        return JSON.readTree(response.getEntity().getText()).path("remotes").path(0).path("url")
+                .asString();
+    }
+
     private static ServerCardRestlet publicCard() {
-        return new ServerCardRestlet(new Context(), CARD, false, null);
+        return new ServerCardRestlet(new Context(), TEMPLATE, false, null, UNTRUSTED);
     }
 
     @Test
@@ -56,8 +103,95 @@ class ServerCardRestletTest {
         assertEquals(Status.SUCCESS_OK, response.getStatus());
         assertEquals(ServerCardBuilder.MEDIA_TYPE,
                 response.getEntity().getMediaType().getName());
-        assertEquals(new Tag("abc123", false), response.getEntity().getTag());
-        assertEquals(CARD.json(), response.getEntity().getText());
+        assertEquals(new Tag(TEMPLATE.render("http://fleet.example.com").etag(), false),
+                response.getEntity().getTag());
+        assertEquals(TEMPLATE.render("http://fleet.example.com").json(),
+                response.getEntity().getText());
+    }
+
+    @Test
+    void getShouldBuildTheUrlFromTheHostTheClientAddressed() throws Exception {
+        Response response = send(publicCard(), request(Method.GET, "Fleet.Example.com:8443"));
+        assertEquals("http://fleet.example.com:8443/mcp", remoteUrl(response));
+    }
+
+    @Test
+    void getShouldNeverPublishTheBindAddress() throws Exception {
+        Response response = send(publicCard(), request(Method.GET, "fleet.example.com"));
+        String card = response.getEntity().getText();
+        assertFalse(card.contains("10.0.1.12"), card);
+        assertFalse(card.contains(":3001"), card);
+    }
+
+    @Test
+    void getShouldChangeTheEtagWithTheUrl() {
+        ServerCardRestlet restlet = publicCard();
+        Tag first = send(restlet, request(Method.GET, "a.example.com")).getEntity().getTag();
+        Tag second = send(restlet, request(Method.GET, "b.example.com")).getEntity().getTag();
+        Tag again = send(restlet, request(Method.GET, "a.example.com")).getEntity().getTag();
+        assertNotEquals(first, second);
+        assertEquals(first, again);
+    }
+
+    @Test
+    void getShouldAnswerBadRequestWithoutAHost() {
+        Response response = send(publicCard(), request(Method.GET, null));
+        assertEquals(Status.CLIENT_ERROR_BAD_REQUEST, response.getStatus());
+        assertEquals(null, response.getEntity());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"evil.example/path", "user@evil.example", "a b", "evil.example:",
+        "-evil.example", "evil.example:123456"})
+    void getShouldAnswerBadRequestOnAnInvalidHost(String host) {
+        Response response = send(publicCard(), request(Method.GET, host));
+        assertEquals(Status.CLIENT_ERROR_BAD_REQUEST, response.getStatus());
+    }
+
+    @Test
+    void getShouldAcceptAnIpv6Host() throws Exception {
+        Response response = send(publicCard(), request(Method.GET, "[::1]:3001"));
+        assertEquals("http://[::1]:3001/mcp", remoteUrl(response));
+    }
+
+    @Test
+    void getShouldIgnoreForwardedHeadersFromAnUntrustedPeer() throws Exception {
+        Response response = send(publicCard(), request(Method.GET, "fleet.example.com",
+                "X-Forwarded-Host", "evil.example", "X-Forwarded-Proto", "https"));
+        assertEquals("http://fleet.example.com/mcp", remoteUrl(response));
+        assertTrue(response.getDimensions().isEmpty(), response.getDimensions().toString());
+    }
+
+    @Test
+    void getShouldTakeForwardedHeadersFromATrustedPeerAndVaryOnEverything() throws Exception {
+        ServerCardRestlet restlet =
+                new ServerCardRestlet(new Context(), TEMPLATE, false, null, TRUSTED);
+        Response response = send(restlet, request(Method.GET, "ikanos.internal:3001",
+                "X-Forwarded-Host", "public.example.com, ikanos.internal",
+                "X-Forwarded-Proto", "HTTPS"));
+        assertEquals("https://public.example.com/mcp", remoteUrl(response));
+        assertTrue(response.getDimensions().contains(Dimension.UNSPECIFIED));
+    }
+
+    @Test
+    void getShouldRefuseAnUnusableForwardedHeaderFromATrustedPeer() {
+        ServerCardRestlet restlet =
+                new ServerCardRestlet(new Context(), TEMPLATE, false, null, TRUSTED);
+        assertEquals(Status.CLIENT_ERROR_BAD_REQUEST, send(restlet, request(Method.GET,
+                "ikanos.internal", "X-Forwarded-Proto", "ftp")).getStatus());
+        assertEquals(Status.CLIENT_ERROR_BAD_REQUEST, send(restlet, request(Method.GET,
+                "ikanos.internal", "X-Forwarded-Host", "evil.example/x")).getStatus());
+    }
+
+    @Test
+    void getShouldPreferCardUrlOverTheRequest() throws Exception {
+        ServerCardRestlet restlet = new ServerCardRestlet(new Context(),
+                template("https://fleet.example.com/mcp"), false, null, TRUSTED);
+        Response response = send(restlet, request(Method.GET, null,
+                "X-Forwarded-Host", "other.example"));
+        assertEquals(Status.SUCCESS_OK, response.getStatus());
+        assertEquals("https://fleet.example.com/mcp", remoteUrl(response));
+        assertTrue(response.getDimensions().isEmpty(), response.getDimensions().toString());
     }
 
     @Test
@@ -77,8 +211,8 @@ class ServerCardRestletTest {
 
     @Test
     void getShouldBePrivatelyCacheableWhenTheCardIsAuthenticated() {
-        ServerCardRestlet restlet = new ServerCardRestlet(new Context(), CARD, true,
-                "Authorization");
+        ServerCardRestlet restlet = new ServerCardRestlet(new Context(), TEMPLATE, true,
+                "Authorization", UNTRUSTED);
         List<CacheDirective> cache = send(restlet, Method.GET, "/mcp/server-card")
                 .getCacheDirectives();
         assertTrue(cache.contains(CacheDirective.privateInfo()), cache.toString());
@@ -86,20 +220,17 @@ class ServerCardRestletTest {
 
     @Test
     void getShouldAnswerNotModifiedWhenIfNoneMatchNamesTheCard() {
-        Request request = new Request(Method.GET, "http://localhost:3001/mcp/server-card");
-        request.getConditions().setNoneMatch(List.of(new Tag("abc123", false)));
-        Response response = new Response(request);
-        publicCard().handle(request, response);
-        assertEquals(Status.REDIRECTION_NOT_MODIFIED, response.getStatus());
+        Tag etag = send(publicCard(), Method.GET, "/mcp/server-card").getEntity().getTag();
+        Request request = request(Method.GET, "fleet.example.com");
+        request.getConditions().setNoneMatch(List.of(etag));
+        assertEquals(Status.REDIRECTION_NOT_MODIFIED, send(publicCard(), request).getStatus());
     }
 
     @Test
     void getShouldServeTheCardWhenIfNoneMatchNamesAnotherVersion() {
-        Request request = new Request(Method.GET, "http://localhost:3001/mcp/server-card");
+        Request request = request(Method.GET, "fleet.example.com");
         request.getConditions().setNoneMatch(List.of(new Tag("old", false)));
-        Response response = new Response(request);
-        publicCard().handle(request, response);
-        assertEquals(Status.SUCCESS_OK, response.getStatus());
+        assertEquals(Status.SUCCESS_OK, send(publicCard(), request).getStatus());
     }
 
     @Test
@@ -113,16 +244,16 @@ class ServerCardRestletTest {
 
     @Test
     void optionsShouldAllowTheCredentialsHeaderWhenTheCardIsAuthenticated() {
-        ServerCardRestlet restlet = new ServerCardRestlet(new Context(), CARD, true,
-                "X-Api-Key");
+        ServerCardRestlet restlet = new ServerCardRestlet(new Context(), TEMPLATE, true,
+                "X-Api-Key", UNTRUSTED);
         Response response = send(restlet, Method.OPTIONS, "/mcp/server-card");
         assertTrue(response.getAccessControlAllowHeaders().contains("X-Api-Key"));
     }
 
     @Test
     void optionsShouldNotAllowACredentialsHeaderOnAPublicCard() {
-        ServerCardRestlet restlet = new ServerCardRestlet(new Context(), CARD, false,
-                "Authorization");
+        ServerCardRestlet restlet = new ServerCardRestlet(new Context(), TEMPLATE, false,
+                "Authorization", UNTRUSTED);
         Response response = send(restlet, Method.OPTIONS, "/mcp/server-card");
         assertFalse(response.getAccessControlAllowHeaders().contains("Authorization"));
     }

@@ -2,8 +2,8 @@
  * Polychro rule function: mcp-server-card
  *
  * Mirrors the engine's load-time checks on MCP Server Cards (SEP-2127, #1165), so a
- * card that would fail the load, or be served with a misleading URL, is reported
- * before the capability starts. Applies to every `mcp` exposes entry that declares
+ * card that would fail the load, or be served incomplete, is reported before the
+ * capability starts. Applies to every `mcp` exposes entry that declares
  * `card`, in `capability.exposes` and in root-level `exposes`.
  *
  * functionOptions.check selects one rule:
@@ -15,8 +15,6 @@
  *                    100 characters at most (the engine never truncates it)
  *   - title:         `card.title` or `info.display`, when set, must not be blank and be
  *                    100 characters at most (the schema does not limit `info.display`)
- *   - url:           a wildcard `address` without `card.url` advertises the machine's
- *                    host name, which clients elsewhere may not resolve
  *   - authenticated: `card.authenticated: true` has no effect without `authentication`
  *                    or `trust.mode: forwarded`
  *   - repository:    a repository outside github.com, gitlab.com and bitbucket.org is
@@ -24,7 +22,6 @@
  */
 const NAME = /^[a-zA-Z0-9.-]+\/[a-zA-Z0-9._-]+$/;
 const VERSION_RANGE = /^\s*[\^~><=]|\|\||\s-\s|(^|\.)[xX*](\.|$)/;
-const WILDCARDS = new Set(["0.0.0.0", "::", "[::]", "0:0:0:0:0:0:0:0"]);
 const FORGES = new Set(["github.com", "gitlab.com", "bitbucket.org"]);
 
 export default function mcpServerCard(targetVal, options) {
@@ -102,14 +99,6 @@ function scan(exposes, basePath, info, check, results) {
             + (card.title === undefined
               ? "; info.display is " + length + " characters long, so set a shorter card.title."
               : "."), at("card"));
-        }
-        return;
-      }
-      case "url": {
-        if (card.url === undefined && typeof adapter.address === "string"
-            && WILDCARDS.has(adapter.address.trim())) {
-          report(ns + " listens on '" + adapter.address + "', so its card advertises the"
-            + " machine's host name; set card.url to the URL clients reach it at.", at("card"));
         }
         return;
       }

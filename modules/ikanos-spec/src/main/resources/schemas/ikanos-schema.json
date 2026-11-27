@@ -1057,7 +1057,7 @@
           "type": "string",
           "format": "uri",
           "pattern": "^https?://",
-          "description": "Public URL of the MCP endpoint, for a server reached through a gateway, a proxy or a tunnel. Default: `http://<address>:<port><path>`, where an unset `address` is `localhost` and a wildcard one (`0.0.0.0`, `::`) is the machine's host name."
+          "description": "Fixed public URL of the MCP endpoint, the same for every client, such as a canonical URL behind several gateways. Default: the origin each client fetched the card from (the request's scheme and `Host`, or `X-Forwarded-Proto` and `X-Forwarded-Host` from a peer that `trust: forwarded` trusts), followed by `path`. The bind address is never published."
         },
         "title": {
           "type": "string",

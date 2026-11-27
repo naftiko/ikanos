@@ -31,6 +31,7 @@ import com.networknt.schema.Schema;
 import com.networknt.schema.SchemaRegistry;
 import com.networknt.schema.SpecificationVersion;
 import io.ikanos.engine.exposes.mcp.ServerCardBuilder.ServerCard;
+import io.ikanos.engine.exposes.mcp.ServerCardBuilder.Template;
 import io.ikanos.spec.IconSpec;
 import io.ikanos.spec.InfoSpec;
 import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
@@ -59,6 +60,7 @@ class ServerCardBuilderTest {
     private static final ObjectMapper JSON = IkanosMappers.json();
     private static final List<String> VERSIONS = List.of("2026-07-28");
     private static final String SECRET = "s3cr3t-value-that-must-not-leak";
+    private static final String ORIGIN = "http://fleet.example.com:3001";
 
     private final List<String> warnings = new ArrayList<>();
     private McpServerSpec server;
@@ -76,8 +78,8 @@ class ServerCardBuilderTest {
     }
 
     private JsonNode render() {
-        ServerCard card = ServerCardBuilder.build(server, info, VERSIONS, warnings::add,
-                () -> "fleet.internal");
+        ServerCard card = ServerCardBuilder.build(server, info, VERSIONS, warnings::add)
+                .render(ORIGIN);
         JsonNode json = JSON.readTree(card.json());
         assertConformsToUpstreamSchema(json);
         return json;
@@ -279,46 +281,35 @@ class ServerCardBuilderTest {
     }
 
     @Test
-    void buildShouldGenerateTheUrlFromAddressPortAndPath() {
-        assertEquals("http://127.0.0.1:3001/mcp",
+    void buildShouldTakeTheUrlFromTheOriginTheClientUsedAndThePath() {
+        assertEquals("http://fleet.example.com:3001/mcp",
                 render().path("remotes").path(0).path("url").asString());
     }
 
     @Test
-    void buildShouldPreferCardUrlOverTheGeneratedOne() {
+    void buildShouldPreferCardUrlOverTheOrigin() {
         server.getCard().setUrl("https://fleet.example.com/mcp");
-        assertEquals("https://fleet.example.com/mcp",
-                render().path("remotes").path(0).path("url").asString());
+        Template template = ServerCardBuilder.build(server, info, VERSIONS, warnings::add);
+        assertTrue(template.isFixed());
+        assertEquals("https://fleet.example.com/mcp", render().path("remotes").path(0)
+                .path("url").asString());
+        assertEquals(template.render(null).json(), template.render("http://other").json());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"10.0.1.12", "0.0.0.0", "::"})
+    void buildShouldNeverPublishTheBindAddress(String address) {
+        server.setAddress(address);
+        JsonNode card = render();
+        assertEquals("http://fleet.example.com:3001/mcp",
+                card.path("remotes").path(0).path("url").asString());
+        assertTrue(warnings.isEmpty(), warnings.toString());
     }
 
     @Test
-    void buildShouldAdvertiseLocalhostWhenAddressIsUnset() {
-        server.setAddress(null);
-        assertEquals("http://localhost:3001/mcp",
-                render().path("remotes").path(0).path("url").asString());
-    }
-
-    @Test
-    void buildShouldAdvertiseTheHostNameAndWarnWhenAddressIsAWildcard() {
-        server.setAddress("0.0.0.0");
-        assertEquals("http://fleet.internal:3001/mcp",
-                render().path("remotes").path(0).path("url").asString());
-        assertTrue(warnings.stream().anyMatch(w -> w.contains("card.url")), warnings.toString());
-    }
-
-    @Test
-    void buildShouldBracketAnIpv6Address() {
-        server.setAddress("::1");
-        assertEquals("http://[::1]:3001/mcp",
-                render().path("remotes").path(0).path("url").asString());
-    }
-
-    @Test
-    void buildShouldDropTheDefaultHttpPort() {
-        server.setPort(80);
+    void buildShouldAppendNoPathAtTheRoot() {
         server.setPath(null);
-        assertEquals("http://127.0.0.1",
-                render().path("remotes").path(0).path("url").asString());
+        assertEquals(ORIGIN, render().path("remotes").path(0).path("url").asString());
     }
 
     @Test
@@ -333,8 +324,8 @@ class ServerCardBuilderTest {
         BearerAuthenticationSpec bearer = new BearerAuthenticationSpec();
         bearer.setToken(SECRET);
         server.setAuthentication(bearer);
-        ServerCard card = ServerCardBuilder.build(server, info, VERSIONS, warnings::add,
-                () -> "h");
+        ServerCard card = ServerCardBuilder.build(server, info, VERSIONS, warnings::add)
+                .render(ORIGIN);
         JsonNode header = JSON.readTree(card.json()).path("remotes").path(0).path("headers")
                 .path(0);
         assertEquals("Authorization", header.path("name").asString());
@@ -367,7 +358,7 @@ class ServerCardBuilderTest {
         apiKey.setValue(SECRET);
         server.setAuthentication(apiKey);
         JsonNode remote = render().path("remotes").path(0);
-        assertEquals("http://127.0.0.1:3001/mcp?api_key={key}", remote.path("url").asString());
+        assertEquals("http://fleet.example.com:3001/mcp?api_key={key}", remote.path("url").asString());
         assertTrue(remote.path("variables").path("key").path("isSecret").asBoolean());
         assertFalse(remote.has("headers"));
     }
@@ -431,20 +422,20 @@ class ServerCardBuilderTest {
 
     @Test
     void buildShouldGiveTheSameCardTheSameEtag() {
-        ServerCard first = ServerCardBuilder.build(server, info, VERSIONS, warnings::add,
-                () -> "h");
-        ServerCard second = ServerCardBuilder.build(server, info, VERSIONS, warnings::add,
-                () -> "h");
+        ServerCard first = ServerCardBuilder.build(server, info, VERSIONS, warnings::add)
+                .render(ORIGIN);
+        ServerCard second = ServerCardBuilder.build(server, info, VERSIONS, warnings::add)
+                .render(ORIGIN);
         assertEquals(first.etag(), second.etag());
     }
 
     @Test
     void buildShouldChangeTheEtagWhenTheCardChanges() {
-        ServerCard first = ServerCardBuilder.build(server, info, VERSIONS, warnings::add,
-                () -> "h");
+        ServerCard first = ServerCardBuilder.build(server, info, VERSIONS, warnings::add)
+                .render(ORIGIN);
         info.setVersion("1.5.0");
-        ServerCard second = ServerCardBuilder.build(server, info, VERSIONS, warnings::add,
-                () -> "h");
+        ServerCard second = ServerCardBuilder.build(server, info, VERSIONS, warnings::add)
+                .render(ORIGIN);
         assertNotEquals(first.etag(), second.etag());
     }
 }

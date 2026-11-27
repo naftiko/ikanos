@@ -13,9 +13,7 @@
  */
 package io.ikanos.engine.exposes.mcp;
 
-import java.net.InetAddress;
 import java.net.URI;
-import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -23,9 +21,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import org.restlet.Context;
 import io.ikanos.spec.IconSpec;
@@ -41,10 +37,16 @@ import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * Renders the MCP Server Card (SEP-2127) of an HTTP MCP server, once, from the capability's
- * {@code info} and the {@code mcp} exposes entry, with the {@code card} block's overrides. A card
- * that would break the v1 schema fails the load instead of being served, so nothing is ever
- * truncated or guessed silently.
+ * Renders the MCP Server Card (SEP-2127) of an HTTP MCP server from the capability's
+ * {@code info} and the {@code mcp} exposes entry, with the {@code card} block's overrides. Every
+ * field is resolved and checked once, at load, into a {@link Template}: a card that would break the
+ * v1 schema fails the load instead of being served, so nothing is ever truncated or guessed
+ * silently.
+ *
+ * <p>The remote URL is {@code card.url} when set. Otherwise it is the origin the client fetched
+ * the card from, followed by the adapter's {@code path} ({@link Template#render}), so neither the
+ * bind address nor the machine's host name is ever published: a card must not reveal internal
+ * network topology.</p>
  *
  * <p>The card describes the shape of the headers the server's {@code authentication} expects,
  * never a bound value.</p>
@@ -79,9 +81,6 @@ public final class ServerCardBuilder {
     static final Pattern VERSION_RANGE =
             Pattern.compile("^\\s*[\\^~><=]|\\|\\||\\s-\\s|(^|\\.)[xX*](\\.|$)");
 
-    static final Set<String> WILDCARD_ADDRESSES = Set.of("0.0.0.0", "::", "[::]",
-            "0:0:0:0:0:0:0:0");
-
     static final Map<String, String> REPOSITORY_SOURCES = Map.of("github.com", "github",
             "gitlab.com", "gitlab", "bitbucket.org", "bitbucket");
 
@@ -105,23 +104,20 @@ public final class ServerCardBuilder {
     }
 
     /**
-     * Render the card of {@code server}, logging warnings to the current Restlet logger.
+     * Resolve and check the card of {@code server}, logging warnings to the current Restlet
+     * logger.
      *
      * @throws IllegalArgumentException when the server declares no card can be built from
      */
-    public static ServerCard build(McpServerSpec server, InfoSpec info,
+    public static Template build(McpServerSpec server, InfoSpec info,
             List<String> protocolVersions) {
         return build(server, info, protocolVersions,
-                message -> Context.getCurrentLogger().warning(message),
-                ServerCardBuilder::localHostName);
+                message -> Context.getCurrentLogger().warning(message));
     }
 
-    /**
-     * Render the card, with the warnings sent to {@code warnings} and the machine's host name,
-     * for a wildcard {@code address}, taken from {@code hostName}.
-     */
-    static ServerCard build(McpServerSpec server, InfoSpec info, List<String> protocolVersions,
-            Consumer<String> warnings, Supplier<String> hostName) {
+    /** Resolve and check the card, with the warnings sent to {@code warnings}. */
+    static Template build(McpServerSpec server, InfoSpec info, List<String> protocolVersions,
+            Consumer<String> warnings) {
         McpServerCardSpec card = server.getCard();
         if (card == null) {
             throw new IllegalArgumentException(where(server) + " declares no 'card'");
@@ -160,16 +156,61 @@ public final class ServerCardBuilder {
                     + " 'authentication' or 'trust: forwarded'; the card stays public.");
         }
 
-        ObjectNode remote = json.putArray("remotes").addObject();
-        remote.put("type", "streamable-http");
-        String url = card.getUrl() != null ? checkHttpUrl(server, "url", card.getUrl())
-                : generateUrl(server, warnings, hostName);
-        putAuthentication(remote, url, server.getAuthentication());
-        ArrayNode versions = remote.putArray("supportedProtocolVersions");
-        protocolVersions.forEach(versions::add);
+        String fixedUrl = card.getUrl() != null ? checkHttpUrl(server, "url", card.getUrl())
+                : null;
+        String path = server.getPath() == null || "/".equals(server.getPath()) ? ""
+                : server.getPath();
+        return new Template(json, fixedUrl, path, server.getAuthentication(),
+                List.copyOf(protocolVersions));
+    }
 
-        String text = JSON.writeValueAsString(json);
-        return new ServerCard(text, etag(text));
+    /**
+     * A resolved and checked card, short of its remote URL. A card with {@code card.url} is
+     * rendered once; any other is rendered for the origin of each request.
+     */
+    public static final class Template {
+
+        private final ObjectNode base;
+        private final String path;
+        private final AuthenticationSpec authentication;
+        private final List<String> protocolVersions;
+        private final ServerCard fixed;
+
+        Template(ObjectNode base, String fixedUrl, String path,
+                AuthenticationSpec authentication, List<String> protocolVersions) {
+            this.base = base;
+            this.path = path;
+            this.authentication = authentication;
+            this.protocolVersions = protocolVersions;
+            this.fixed = fixedUrl != null ? renderUrl(fixedUrl) : null;
+        }
+
+        /** Whether the remote URL is {@code card.url}, the same for every request. */
+        public boolean isFixed() {
+            return fixed != null;
+        }
+
+        /**
+         * The card for a client that fetched it from {@code origin}: {@code card.url} when set,
+         * else {@code <origin><path>}.
+         *
+         * @param origin {@code <scheme>://<host>[:<port>]}, as the client addressed the server;
+         *        ignored, and may be {@code null}, when the template {@link #isFixed()}
+         */
+        public ServerCard render(String origin) {
+            return fixed != null ? fixed : renderUrl(origin + path);
+        }
+
+        private ServerCard renderUrl(String url) {
+            ObjectNode json = base.deepCopy();
+            ObjectNode remote = json.putArray("remotes").addObject();
+            remote.put("type", "streamable-http");
+            putAuthentication(remote, url, authentication);
+            ArrayNode versions = remote.putArray("supportedProtocolVersions");
+            protocolVersions.forEach(versions::add);
+            String text = JSON.writeValueAsString(json);
+            return new ServerCard(text, etag(text));
+        }
     }
 
     static String resolveName(McpServerSpec server, McpServerCardSpec card, InfoSpec info) {
@@ -332,34 +373,6 @@ public final class ServerCardBuilder {
         node.put("isSecret", true);
     }
 
-    /**
-     * {@code http://<host>[:<port>]<path>}. An unset {@code address} is {@code localhost}, where
-     * the adapter listens; a wildcard one is the machine's host name, with a warning, as clients
-     * elsewhere may not resolve it.
-     */
-    static String generateUrl(McpServerSpec server, Consumer<String> warnings,
-            Supplier<String> hostName) {
-        String address = server.getAddress();
-        String host;
-        if (address == null || address.isBlank()) {
-            host = "localhost";
-        } else if (WILDCARD_ADDRESSES.contains(address.trim())) {
-            host = hostName.get();
-            warnings.accept(where(server) + " listens on '" + address + "', so its card"
-                    + " advertises the host name '" + host + "'; set card.url to the URL"
-                    + " clients reach it at.");
-        } else {
-            host = address.trim();
-        }
-        if (host.contains(":") && !host.startsWith("[")) {
-            host = "[" + host + "]"; // IPv6 literal
-        }
-        int port = server.getPort();
-        String path = server.getPath() == null || "/".equals(server.getPath()) ? ""
-                : server.getPath();
-        return "http://" + host + (port == 80 || port <= 0 ? "" : ":" + port) + path;
-    }
-
     static String checkHttpUrl(McpServerSpec server, String field, String url) {
         try {
             URI uri = URI.create(url);
@@ -383,14 +396,6 @@ public final class ServerCardBuilder {
             return Base64.getUrlEncoder().withoutPadding().encodeToString(digest);
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 is not available", e);
-        }
-    }
-
-    static String localHostName() {
-        try {
-            return InetAddress.getLocalHost().getCanonicalHostName();
-        } catch (UnknownHostException e) {
-            return "localhost";
         }
     }
 

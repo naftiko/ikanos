@@ -472,21 +472,6 @@ rules:
       functionOptions:
         check: description
 
-  ikanos-mcp-card-url:
-    message: "{{error}}"
-    description: >
-      An adapter listening on a wildcard address (`0.0.0.0`, `::`) advertises the
-      machine's host name on its server card, which clients elsewhere may not
-      resolve. Set `card.url` to the URL clients reach the server at, such as the
-      gateway's.
-    severity: warn
-    recommended: true
-    given: "$"
-    then:
-      function: mcp-server-card
-      functionOptions:
-        check: url
-
   ikanos-mcp-card-authenticated:
     message: "{{error}}"
     description: >

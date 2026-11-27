@@ -20,7 +20,7 @@ import io.ikanos.spec.exposes.AuthorizationSpec;
 import io.ikanos.engine.exposes.ServerAdapter;
 import io.ikanos.engine.exposes.mcp.search.ToolSearchCatalog;
 import io.ikanos.engine.exposes.mcp.search.ToolSearchProviders;
-import io.ikanos.engine.exposes.mcp.ServerCardBuilder.ServerCard;
+import io.ikanos.engine.exposes.mcp.ServerCardBuilder.Template;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
 import io.ikanos.spec.consumes.http.AuthenticationSpec;
@@ -94,8 +94,8 @@ public class McpServerAdapter extends ServerAdapter {
     /** Server card requests served at once, apart from the MCP endpoint's own limit. */
     static final int CARD_REQUESTS_IN_PROGRESS = 8;
 
-    /** The rendered server card (SEP-2127), set when the HTTP transport declares a card. */
-    private final AtomicReference<ServerCard> serverCard = new AtomicReference<>();
+    /** The server card (SEP-2127), set when the HTTP transport declares a card. */
+    private final AtomicReference<Template> serverCard = new AtomicReference<>();
 
     private final ToolHandler toolHandler;
     private final List<McpSchema.Tool> tools;
@@ -202,7 +202,8 @@ public class McpServerAdapter extends ServerAdapter {
         // check and the authentication chain. With card.authenticated, only its CORS preflight
         // is: GET goes through the authentication chain when the adapter declares one, else
         // through the trusted peer check in forwarded mode, so it is restricted like the rest.
-        ServerCardRestlet cardRestlet = buildServerCardRestlet(context, serverSpec);
+        ServerCardRestlet cardRestlet = buildServerCardRestlet(context, serverSpec,
+                dispatcher.getIdentityResolver());
         boolean cardRestricted = cardRestlet != null
                 && ServerCardBuilder.isRestricted(serverSpec);
         Restlet limitedCard = cardRestlet != null
@@ -256,19 +257,32 @@ public class McpServerAdapter extends ServerAdapter {
     }
 
     /**
-     * Render the server card when the spec declares one, else {@code null}. A card that cannot
-     * be built fails the load.
+     * Build the server card when the spec declares one, else {@code null}. A card that cannot
+     * be built fails the load. Its URL takes the forwarded headers of a peer that
+     * {@code trust: forwarded} trusts only.
      */
-    private ServerCardRestlet buildServerCardRestlet(Context context, McpServerSpec serverSpec) {
+    private ServerCardRestlet buildServerCardRestlet(Context context, McpServerSpec serverSpec,
+            AgentIdentityResolver identityResolver) {
         if (serverSpec.getCard() == null) {
             return null;
         }
-        ServerCard card = ServerCardBuilder.build(serverSpec,
+        Template card = ServerCardBuilder.build(serverSpec,
                 getCapability().getSpec().getInfo(), ProtocolDispatcher.SUPPORTED_PROTOCOL_VERSIONS);
         this.serverCard.set(card);
         boolean authenticated = ServerCardBuilder.isRestricted(serverSpec);
         return new ServerCardRestlet(context, card, authenticated,
-                credentialsHeader(serverSpec.getAuthentication()));
+                credentialsHeader(serverSpec.getAuthentication()),
+                request -> trustsForwardedHeaders(identityResolver, request));
+    }
+
+    /**
+     * Whether {@code request} comes from a peer whose forwarded headers are trusted: only in
+     * {@code forwarded} mode, from a peer inside {@code trustedNetworks}.
+     */
+    static boolean trustsForwardedHeaders(AgentIdentityResolver identityResolver,
+            Request request) {
+        return identityResolver.isForwarded() && identityResolver.isTrustedPeer(
+                request.getClientInfo() != null ? request.getClientInfo().getAddress() : null);
     }
 
     /**
@@ -285,8 +299,8 @@ public class McpServerAdapter extends ServerAdapter {
         return "Authorization";
     }
 
-    /** The rendered server card, or {@code null} when the adapter publishes none. */
-    public ServerCard getServerCard() {
+    /** The server card, or {@code null} when the adapter publishes none. */
+    public Template getServerCard() {
         return serverCard.get();
     }
 
