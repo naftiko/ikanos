@@ -37,6 +37,7 @@ public final class StepRun {
     private final StepExecutionContext stepContext = new StepExecutionContext();
     private final Set<NodePath> evaluated = new HashSet<>();
     private final Map<NodePath, Object> answers = new HashMap<>();
+    private final Map<String, JsonNode> finished = new java.util.LinkedHashMap<>();
     private ConsumedResult lastResult;
     private Exception failure;
 
@@ -103,6 +104,20 @@ public final class StepRun {
         }
         stepContext.storeStepOutput(stepName, json);
         runtimeParameters.put(stepName, MAPPER.convertValue(json, Object.class));
+    }
+
+    /**
+     * Records the output of a URL mode {@code elicit} step whose check found the interaction
+     * done, under its key in the state a replay carries, so later rounds restore it instead of
+     * deciding again.
+     */
+    void recordFinished(String carryKey, JsonNode output) {
+        finished.put(carryKey, output);
+    }
+
+    /** The outputs of the URL mode steps finished in this run, by their key in the carry. */
+    Map<String, JsonNode> finished() {
+        return finished;
     }
 
     boolean isEvaluated(NodePath path) {

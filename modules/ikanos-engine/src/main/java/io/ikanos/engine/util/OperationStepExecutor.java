@@ -534,6 +534,11 @@ public class OperationStepExecutor {
     JsonNode applyUrlAnswer(OperationStepElicitSpec step, Object answer, StepNode node,
             StepRun run, String namespace) {
         requireAccepted(step, answer);
+        JsonNode finished = Elicitation.finishedOutput(node);
+        if (finished != null) {
+            // Found done by an earlier round: restored, never decided again.
+            return storeAnswer(step, finished, run);
+        }
         OperationStepCallSpec check = step.getCheck();
         if (check == null || check.getCall() == null) {
             throw new IllegalStateException(
@@ -563,6 +568,7 @@ public class OperationStepExecutor {
                 throw new InteractionPendingException("Step '" + step.getName()
                         + "': the check has no value yet for " + String.join(", ", missing));
             }
+            Elicitation.recordFinished(node, run, content);
             return storeAnswer(step, content, run);
         } catch (InteractionPendingException e) {
             throw e;

@@ -33,6 +33,7 @@ import io.ikanos.durable.NodePath;
 import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.Capability;
 import io.ikanos.engine.aggregates.AggregateFlow;
+import io.ikanos.engine.consumes.http.PathSegmentEncoder;
 import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.consumes.ClientSpec;
 import io.ikanos.spec.consumes.mcp.McpClientSpec;
@@ -59,6 +60,9 @@ public final class Elicitation {
 
     /** Key prefix, in the state a replay carries, of the value a URL question's id derives from. */
     static final String CARRY_PREFIX = "elicitation/";
+
+    /** Key prefix, in the state a replay carries, of the output of a finished URL mode step. */
+    static final String DONE_PREFIX = "elicitation-done/";
 
     private static final int NONCE_BYTES = 16;
     private static final int ID_LENGTH = 32;
@@ -175,6 +179,26 @@ public final class Elicitation {
     }
 
     /**
+     * The output of the URL mode step at {@code node} when an earlier round of the call found
+     * it done, or {@code null}: it is restored, not decided again, so a check whose answer
+     * changed since never asks the caller again nor gives later steps another output than the
+     * one earlier rounds used.
+     */
+    public static JsonNode finishedOutput(StepNode node) {
+        Object done = ExecutionInputs.carried()
+                .get(new NodePath(DONE_PREFIX + ExecutionInputs.qualify(node.path()).value()));
+        return done instanceof JsonNode json && json.isObject() ? json : null;
+    }
+
+    /**
+     * Records that the URL mode step at {@code node} is done with {@code output}, to be kept in
+     * the state the call carries to its next round.
+     */
+    public static void recordFinished(StepNode node, StepRun run, JsonNode output) {
+        run.recordFinished(DONE_PREFIX + ExecutionInputs.qualify(node.path()).value(), output);
+    }
+
+    /**
      * The URL a URL mode step sends its caller to: its {@code url} rendered as a Mustache
      * template against {@code parameters}, as the message is.
      *
@@ -183,7 +207,16 @@ public final class Elicitation {
      *         host, in development
      */
     static String url(OperationStepElicitSpec step, Map<String, Object> parameters) {
-        String url = render(step, step.getUrl(), "URL", parameters);
+        // Each value is percent-encoded by position, as in a consumed URI (GHSA-rvg4-2rxw-mc64):
+        // an input or a step output stays one path segment or one query value, so it can add no
+        // parameter and change no path; the template's literal text is kept as is.
+        String url;
+        try {
+            url = PathSegmentEncoder.encodeMarkedValues(render(step, step.getUrl(), "URL",
+                    parameters, PathSegmentEncoder::mark));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("Step '" + step.getName() + "': " + e.getMessage());
+        }
         URI uri;
         try {
             uri = new URI(url);
@@ -204,6 +237,11 @@ public final class Elicitation {
 
     private static String render(OperationStepElicitSpec step, String template, String what,
             Map<String, Object> parameters) {
+        return render(step, template, what, parameters, null);
+    }
+
+    private static String render(OperationStepElicitSpec step, String template, String what,
+            Map<String, Object> parameters, java.util.function.UnaryOperator<String> encoder) {
         Resolver.requireCallerValues(template, parameters);
         List<String> unresolved = Resolver.unresolvedVariables(template, parameters);
         if (!unresolved.isEmpty()) {
@@ -211,7 +249,8 @@ public final class Elicitation {
                     + " reads " + String.join(", ", unresolved)
                     + ", which no input or earlier step provides");
         }
-        return Resolver.resolveMustacheTemplate(template, parameters);
+        return encoder == null ? Resolver.resolveMustacheTemplate(template, parameters)
+                : Resolver.resolveMustacheTemplate(template, parameters, encoder);
     }
 
     /**

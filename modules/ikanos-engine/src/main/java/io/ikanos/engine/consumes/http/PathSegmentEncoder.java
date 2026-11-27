@@ -33,7 +33,7 @@ import java.nio.charset.StandardCharsets;
  * {@code /posts}), and encoding the dots is not enough since {@code %2E} may be decoded back.
  * Such a URI is rejected.</p>
  */
-final class PathSegmentEncoder {
+public final class PathSegmentEncoder {
 
     private static final char[] HEX = "0123456789ABCDEF".toCharArray();
 
@@ -49,7 +49,7 @@ final class PathSegmentEncoder {
      * {@code Resolver.resolveMustacheTemplate}. Markers already present in the value are dropped,
      * so a caller cannot forge one.
      */
-    static String mark(String value) {
+    public static String mark(String value) {
         String clean = value.replace(String.valueOf(VALUE_START), "")
                 .replace(String.valueOf(VALUE_END), "");
         return VALUE_START + clean + VALUE_END;
@@ -64,7 +64,7 @@ final class PathSegmentEncoder {
      * @throws IllegalArgumentException when a path segment made only of substituted values is
      *         empty, {@code .} or {@code ..}
      */
-    static String encodeMarkedValues(String rendered) {
+    public static String encodeMarkedValues(String rendered) {
         if (rendered == null || rendered.indexOf(VALUE_START) < 0) {
             return rendered;
         }

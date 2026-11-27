@@ -73,7 +73,12 @@ public final class ExecutionInputs {
         return with(answers, latest, round, Map.of(), work);
     }
 
-    private static <T> T with(Map<NodePath, Object> answers, Map<NodePath, Object> latest,
+    /**
+     * Runs {@code work} with {@code answers} available to the runs it starts, of which
+     * {@code latest} arrived in round {@code round} of a journaled call, and the state earlier
+     * rounds carried ({@link InputRequiredException#carry}).
+     */
+    public static <T> T with(Map<NodePath, Object> answers, Map<NodePath, Object> latest,
             int round, Map<NodePath, Object> carried, Callable<T> work) throws Exception {
         return run(new Snapshot(Map.copyOf(answers), Map.copyOf(latest), round,
                 Map.copyOf(carried), null), work);
