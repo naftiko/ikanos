@@ -1116,6 +1116,14 @@ public class Resolver {
      * condition. An object or array written empty ({@code {}}, {@code []}) is kept, and so is a
      * placeholder whose value is an empty string, object or array: it is a value, not an
      * absence. A root object or array is always sent, empty if need be.</li>
+     * <li>Three markers of the authored data are never sent (#1132, {@link JsonBodyMarkers}):
+     * an object with {@code $onlyIf: x} is left out unless {@code x} is present and not
+     * {@code false}; a value {@code {$first: [variants]}} takes the first variant whose
+     * {@code $onlyIf} holds, or that has none, and is left out when none applies or when the
+     * chosen one resolves to nothing (later variants are not tried), while a {@code $first}
+     * whose value is not a list, such as a MongoDB accumulator, is sent as written; an object with
+     * {@code $keep: true} is sent as {@code {}} instead of being left out when emptied. A key
+     * written {@code $$...} is sent with one {@code $} less.</li>
      * <li>Any other string containing placeholders stays a JSON string: its text is kept exactly
      * (quotes and backslashes included) and each substituted value is inserted as text, a list,
      * map or array value as its JSON text.</li>
@@ -1153,13 +1161,29 @@ public class Resolver {
     private static JsonNode resolveJsonDataNode(Object data, Map<String, Object> parameters,
             ObjectMapper jsonMapper) {
         if (data instanceof Map<?, ?> map) {
+            // The markers are read from the authored keys, before any key is resolved, so a
+            // caller value can never become one (#1132)
+            if (JsonBodyMarkers.isChoice(map)) {
+                return resolveJsonChoice(map.get(JsonBodyMarkers.FIRST), parameters, jsonMapper);
+            }
+            if (!JsonBodyMarkers.applies(map, parameters)) {
+                // Left out, but its caller claims are still checked, as for any member (#998)
+                requireCallerValuesIn(map, parameters);
+                return null;
+            }
             ObjectNode object = jsonMapper.createObjectNode();
+            int members = 0;
             for (Map.Entry<?, ?> entry : map.entrySet()) {
+                String authoredKey = String.valueOf(entry.getKey());
+                if (JsonBodyMarkers.isMarkerIn(map, authoredKey)) {
+                    continue;
+                }
+                members++;
                 // A caller claim in the key is checked even when the member is left out (#998)
-                requireCallerValues(String.valueOf(entry.getKey()), parameters);
+                requireCallerValues(authoredKey, parameters);
                 JsonNode value = resolveJsonDataNode(entry.getValue(), parameters, jsonMapper);
                 if (value != null) {
-                    String key = resolveJsonKey(String.valueOf(entry.getKey()), parameters,
+                    String key = resolveJsonKey(JsonBodyMarkers.unescape(authoredKey), parameters,
                             jsonMapper);
                     // A placeholder key must not replace another member, in particular one the
                     // capability author fixed. The key is not echoed: it may be caller data.
@@ -1170,8 +1194,10 @@ public class Resolver {
                     object.set(key, value);
                 }
             }
-            // Emptied by left-out members, not written empty by the author (#985).
-            return object.isEmpty() && !map.isEmpty() ? null : object;
+            // Emptied by left-out members, not written empty by the author (#985), unless the
+            // author asked to keep it (#1132).
+            return object.isEmpty() && members > 0 && !JsonBodyMarkers.keeps(map) ? null
+                    : object;
         }
         if (data instanceof java.util.Collection<?> items) {
             ArrayNode array = jsonMapper.createArrayNode();
@@ -1187,13 +1213,7 @@ public class Resolver {
             requireCallerValues(text, parameters);
             java.util.regex.Matcher single = SINGLE_PLACEHOLDER.matcher(text);
             if (single.matches()) {
-                String reference = single.group(1);
-                // A caller claim is read as requireCallerValues checked it, 'this' steps skipped,
-                // never through an input named 'this' (#998)
-                Object value = isCallerClaims(reference) ? lookupVariable(reference, parameters)
-                        : lookupPath(parameters, reference);
-                // {{.}} looks up the whole parameter map, {{auth.}} the root (#998)
-                requireNoCallerRoot(value);
+                Object value = lookupReference(single.group(1), parameters);
                 return value == null ? null : toJsonNode(value, jsonMapper);
             }
             if (text.contains("{{")) {
@@ -1203,6 +1223,76 @@ public class Resolver {
             return jsonMapper.getNodeFactory().stringNode(text);
         }
         return jsonMapper.valueToTree(data);
+    }
+
+    /**
+     * Resolve a {@code $first} choice (#1132): the first variant whose {@code $onlyIf} holds, or
+     * that has none, is resolved as the value. A chosen variant that resolves to nothing leaves
+     * the value out; the variants after it are not tried.
+     *
+     * @return the resolved variant, or {@code null} when no variant applies
+     */
+    private static JsonNode resolveJsonChoice(Object variants, Map<String, Object> parameters,
+            ObjectMapper jsonMapper) {
+        if (!(variants instanceof java.util.Collection<?> list)) {
+            throw new IllegalArgumentException(
+                    "$first in structured JSON body data must be a list of objects");
+        }
+        JsonNode chosen = null;
+        boolean found = false;
+        for (Object variant : list) {
+            if (found || variant instanceof Map<?, ?> object
+                    && !JsonBodyMarkers.applies(object, parameters)) {
+                // Not sent, but its caller claims are still checked, as for any member (#998)
+                requireCallerValuesIn(variant, parameters);
+                continue;
+            }
+            found = true;
+            chosen = resolveJsonDataNode(variant, parameters, jsonMapper);
+        }
+        return chosen;
+    }
+
+    /**
+     * Check the caller claims that structured body data reads, without resolving it: every key,
+     * every string value and every {@code $onlyIf} name (#998). Called on data that is left out,
+     * so a missing claim fails the call whether or not its member is sent.
+     */
+    static void requireCallerValuesIn(Object data, Map<String, Object> parameters) {
+        if (data instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                String key = String.valueOf(entry.getKey());
+                if (JsonBodyMarkers.ONLY_IF.equals(key) && entry.getValue() instanceof String name) {
+                    requireCallerValues("{{" + name + "}}", parameters);
+                } else {
+                    requireCallerValues(key, parameters);
+                    requireCallerValuesIn(entry.getValue(), parameters);
+                }
+            }
+        } else if (data instanceof java.util.Collection<?> items) {
+            for (Object item : items) {
+                requireCallerValuesIn(item, parameters);
+            }
+        } else if (data instanceof String text) {
+            requireCallerValues(text, parameters);
+        }
+    }
+
+    /**
+     * The value of a whole-value reference of structured body data: the {@code x} of a
+     * {@code "{{x}}"} placeholder, or the input an {@code $onlyIf} names. Called after
+     * {@link #requireCallerValues} checked it.
+     *
+     * @return the value, or {@code null} when it is absent or null
+     */
+    static Object lookupReference(String reference, Map<String, Object> parameters) {
+        // A caller claim is read as requireCallerValues checked it, 'this' steps skipped, never
+        // through an input named 'this' (#998)
+        Object value = isCallerClaims(reference) ? lookupVariable(reference, parameters)
+                : lookupPath(parameters, reference);
+        // {{.}} looks up the whole parameter map, {{auth.}} the root (#998)
+        requireNoCallerRoot(value);
+        return value;
     }
 
     /**

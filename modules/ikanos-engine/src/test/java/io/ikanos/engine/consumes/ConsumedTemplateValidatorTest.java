@@ -222,6 +222,65 @@ public class ConsumedTemplateValidatorTest {
     }
 
     @Test
+    void findErrorsShouldReportMisusedMarkerInStructuredBodyWithItsPath() throws Exception {
+        List<String> errors = ConsumedTemplateValidator.findErrors(spec("""
+                              body:
+                                type: "json"
+                                data:
+                                  filter: {$keep: false, team: "{{team}}"}
+                """, "/items"));
+
+        assertEquals(List.of("svc.create body /filter: $keep must be true; leave it out"
+                + " otherwise; write $$keep to send a member named $keep"), errors);
+    }
+
+    @Test
+    void findErrorsShouldReportMarkerInFormFields() throws Exception {
+        // In a form map, a marker would be sent as a form field named $onlyIf
+        List<String> errors = ConsumedTemplateValidator.findErrors(spec("""
+                              body:
+                                type: "formUrlEncoded"
+                                data:
+                                  $onlyIf: "silent"
+                                  scope: "read"
+                """, "/items"));
+
+        assertEquals(List.of("svc.create body: $onlyIf applies to structured json data only: a"
+                + " form field cannot be named $onlyIf"), errors);
+    }
+
+    @Test
+    void findErrorsShouldAcceptMarkersInStructuredBody() throws Exception {
+        List<String> errors = ConsumedTemplateValidator.findErrors(spec("""
+                              body:
+                                type: "json"
+                                data:
+                                  icon:
+                                    $first:
+                                      - {$onlyIf: emoji, type: emoji, emoji: "{{emoji}}"}
+                                      - {type: external, external: {url: "{{url}}"}}
+                                  filter: {$keep: true, team: "{{team}}"}
+                                  notifications: {$onlyIf: silent, mode: silent}
+                """, "/items"));
+
+        assertTrue(errors.isEmpty(), errors.toString());
+    }
+
+    @Test
+    void validateShouldRejectMisusedMarkerWhenCapabilityLoads() throws Exception {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> ConsumedTemplateValidator.validate(spec("""
+                              body:
+                                type: "json"
+                                data:
+                                  icon: {$first: []}
+                """, "/items")));
+
+        assertTrue(e.getMessage().contains("/icon: $first must be a non-empty list of objects"),
+                e.getMessage());
+    }
+
+    @Test
     void validateShouldAcceptNullSpec() {
         assertDoesNotThrow(() -> ConsumedTemplateValidator.validate(null));
     }

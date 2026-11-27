@@ -23,6 +23,7 @@ import tools.jackson.databind.node.ObjectNode;
 import com.networknt.schema.Schema;
 import com.networknt.schema.SchemaRegistry;
 import com.networknt.schema.SpecificationVersion;
+import io.ikanos.engine.consumes.BodyConditionValidator;
 import io.ikanos.engine.consumes.ConsumedQueryParameterValidator;
 import io.ikanos.engine.consumes.ConsumedTemplateValidator;
 import io.ikanos.engine.consumes.http.ConsumedHeaderValidator;
@@ -156,10 +157,26 @@ public class ValidateCommand implements Callable<Integer> {
             List<String> exampleErrors =
                     spec != null ? InputDefaults.findExampleErrors(spec) : List.of();
             List<String> warnings = new ArrayList<>(definitions.warnings());
+            // A body $onlyIf that matches more than one input of its caller (#1132)
+            List<String> bodyConditionErrors = new ArrayList<>();
             if (spec != null) {
                 warnings.addAll(InputDefaults.findWarnings(spec));
                 // authentication.scopes no longer required on every call (#999)
                 warnings.addAll(AccessControl.findWarnings(spec));
+                // A body $onlyIf that names no input of its caller (#1132), on the expanded inputs
+                if (definitions.errors().isEmpty()) {
+                    // As at load: a tool with no call reaches the operation it is named after
+                    if (inferredCallErrors.isEmpty()) {
+                        try {
+                            InferredToolCallResolver.resolve(spec);
+                        } catch (IllegalArgumentException e) {
+                            // An operation in an import is not visible here; such a tool is
+                            // checked when the capability loads
+                        }
+                    }
+                    warnings.addAll(BodyConditionValidator.findWarnings(spec));
+                    bodyConditionErrors.addAll(BodyConditionValidator.findErrors(spec));
+                }
             }
 
             // Display validation result.
@@ -167,7 +184,8 @@ public class ValidateCommand implements Callable<Integer> {
                     && headerErrors.isEmpty() && forwardErrors.isEmpty()
                     && definitions.errors().isEmpty()
                     && inferredCallErrors.isEmpty() && defaultErrors.isEmpty()
-                    && authorizationErrors.isEmpty() && exampleErrors.isEmpty()) {
+                    && authorizationErrors.isEmpty() && exampleErrors.isEmpty()
+                    && bodyConditionErrors.isEmpty()) {
                 System.out.println("✓ Validation successful!");
                 System.out.println("  File: " + filePath);
                 System.out.println("  Status: OK");
@@ -235,6 +253,11 @@ public class ValidateCommand implements Callable<Integer> {
                 }
                 for (String error : exampleErrors) {
                     System.err.println("\n  [" + errorCount + "] Invalid input example: "
+                            + error);
+                    errorCount++;
+                }
+                for (String error : bodyConditionErrors) {
+                    System.err.println("\n  [" + errorCount + "] Invalid body $onlyIf: "
                             + error);
                     errorCount++;
                 }

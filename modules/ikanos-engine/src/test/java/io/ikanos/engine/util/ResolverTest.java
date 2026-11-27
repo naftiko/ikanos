@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -1703,6 +1704,59 @@ public class ResolverTest {
         assertThrows(CallerClaimMissingException.class,
                 () -> Resolver.resolveJsonData(Map.of("note", "by {{auth.claims.email}}"),
                         callerParameters(Map.of("sub", "alice"))));
+    }
+
+    @Test
+    void resolveJsonDataShouldCheckAClaimInAnObjectWhoseOnlyIfDoesNotHold() {
+        // #1132: the object is left out by its $onlyIf, its claims are still checked (#998)
+        assertThrows(CallerClaimMissingException.class,
+                () -> Resolver.resolveJsonData(Map.of("a", Map.of("$onlyIf", "flag",
+                        "owner", "{{auth.claims.email}}")),
+                        callerParameters(Map.of("sub", "alice"))),
+                "#998: a missing claim must fail the call wherever the body reads it");
+    }
+
+    @Test
+    void resolveJsonDataShouldCheckAClaimInAFirstVariantNotChosen() {
+        Map<String, Object> skipped = Map.of("$onlyIf", "flag", "owner", "{{auth.claims.email}}");
+        Map<String, Object> untried = Map.of("owner", "{{auth.claims.email}}");
+        // Skipped because its $onlyIf does not hold
+        assertThrows(CallerClaimMissingException.class,
+                () -> Resolver.resolveJsonData(Map.of("a", Map.of("$first",
+                        List.of(skipped, Map.of("type", "none")))),
+                        callerParameters(Map.of("sub", "alice"))));
+        // Not tried because a variant before it was chosen
+        assertThrows(CallerClaimMissingException.class,
+                () -> Resolver.resolveJsonData(Map.of("a", Map.of("$first",
+                        List.of(Map.of("type", "none"), untried))),
+                        callerParameters(Map.of("sub", "alice"))));
+    }
+
+    @Test
+    void resolveJsonDataShouldSendAFirstThatIsNotAListAsWritten() {
+        // #1132: only a list makes $first a marker, so a MongoDB accumulator is sent as written
+        Map<String, Object> group = new LinkedHashMap<>();
+        group.put("_id", "$customer");
+        group.put("item", Map.of("$first", "$items"));
+        group.put("top", Map.of("$first", Map.of("$slice", List.of("$items", 1))));
+
+        assertEquals("{\"$group\":{\"_id\":\"$customer\",\"item\":{\"$first\":\"$items\"},"
+                + "\"top\":{\"$first\":{\"$slice\":[\"$items\",1]}}}}",
+                Resolver.resolveJsonData(Map.of("$group", group), Map.of()).toString());
+    }
+
+    @Test
+    void resolveJsonDataShouldSendAnEscapedFirstListAsAMember() {
+        assertEquals("{\"$first\":[\"$a\"]}",
+                Resolver.resolveJsonData(Map.of("$$first", List.of("$a")), Map.of()).toString());
+    }
+
+    @Test
+    void resolveJsonDataShouldCheckAClaimThatTheOnlyIfOfALeftOutObjectNames() {
+        Map<String, Object> inner = Map.of("$onlyIf", "auth.claims.email", "x", 1);
+        assertThrows(CallerClaimMissingException.class,
+                () -> Resolver.resolveJsonData(Map.of("a", Map.of("$onlyIf", "flag",
+                        "b", inner)), callerParameters(Map.of("sub", "alice"))));
     }
 
     @Test

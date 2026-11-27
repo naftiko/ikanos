@@ -50,6 +50,35 @@ These rules are not covered there yet:
 - In a `json` body whose `data` is an object, a placeholder in a key is resolved too, but two
   members that resolve to the same key fail the call. In a string template, substituted values
   are JSON-encoded, so string placeholders must be quoted.
+- In a `json` body whose `data` is an object or array, three markers decide what is sent and
+  are never sent themselves:
+  - `$onlyIf: <input>` on an object other than the root sends it only when the input is present, not null and not
+    `false` (`""`, `0` and the string `"false"` hold). Inputs are read after their defaults are
+    applied, so an input with a `default` holds unless its default is `false`. A dashed input is
+    named in snake_case, as in a step guard (`$onlyIf: is_admin` for an input `is-admin`): the
+    kebab form fails when the capability loads, and so does a name that matches more than one
+    input of a caller, such as `is_admin` when both `is_admin` and `is-admin` are declared.
+    `$onlyIf` can also name a caller claim, `auth.claims.<name>`, namespaced claims included
+    (`auth.claims.https://example.com/role`). A missing claim fails the call instead of leaving
+    the object out, as does a claim read inside an object or a `$first` variant that is left
+    out, and an MCP resource whose body has such an `$onlyIf` cannot be `cacheScope: public`.
+    An `$onlyIf` on an input shapes the body but is no access control, since the caller decides
+    whether the input is present: gate a part of the body on identity with a claim.
+  - `{$first: [variants]}` as a value takes the first variant object whose `$onlyIf` holds, or
+    that has no `$onlyIf`. It is left out when no variant applies, or when the chosen one resolves
+    to nothing. `$first` is a marker only when its value is a list: with any other value, such
+    as the MongoDB accumulator `{$first: "$items"}`, it is sent as written.
+  - `$keep: true` on an object sends it as `{}` when all its members are left out.
+
+  A key that starts with `$$` is sent with one `$` less, so `$$onlyIf`, `$$first` and `$$keep`
+  send a member of that name. A misused marker fails when the capability loads, with a message
+  that names this escape.
+
+  Form fields have no markers and no `$$` escape, so a `formUrlEncoded` field named `$onlyIf`,
+  `$first` or `$keep` also fails when the capability loads.
+
+  `ikanos validate` warns about an `$onlyIf` that names no input of a tool, REST operation or flow
+  that calls the operation, and fails on one that matches more than one of its inputs.
 - In a `multipartForm` part whose `contentType` is `application/json` or a `+json` type,
   substituted values are JSON-encoded and the rendered `value` must be a single JSON document
   with no repeated member key, as for a `json` body.

@@ -45,6 +45,7 @@ import io.ikanos.engine.imports.ImportResolver;
 import io.ikanos.engine.imports.NamespaceUniquenessValidator;
 import io.ikanos.engine.imports.RootSectionsValidator;
 import io.ikanos.engine.imports.SourceFileLoader;
+import io.ikanos.engine.consumes.BodyConditionValidator;
 import io.ikanos.engine.consumes.ClientAdapterRegistry;
 import io.ikanos.engine.consumes.ConsumedReferenceValidator;
 import io.ikanos.engine.consumes.ConsumedWriteExposure;
@@ -290,6 +291,12 @@ public class Capability {
         }
         for (String warning : ConsumedTemplateValidator.findUnboundCredentials(spec,
                 this.bindings.get())) {
+            Context.getCurrentLogger().log(Level.WARNING, warning);
+        }
+        // A body $onlyIf that matches more than one input of its caller is refused, and one that
+        // names none is never sent from it (#1132)
+        BodyConditionValidator.validate(spec);
+        for (String warning : BodyConditionValidator.findWarnings(spec)) {
             Context.getCurrentLogger().log(Level.WARNING, warning);
         }
         Map<String, Tunnel> tunnels = TunnelBootstrap.discoverAndStart(

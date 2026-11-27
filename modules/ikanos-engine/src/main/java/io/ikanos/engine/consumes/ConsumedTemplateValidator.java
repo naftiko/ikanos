@@ -18,6 +18,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import io.ikanos.engine.consumes.http.ConsumedAuthentication;
+import io.ikanos.engine.util.JsonBodyMarkers;
 import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.IkanosSpec;
@@ -38,7 +39,8 @@ import io.ikanos.spec.consumes.mcp.McpClientSpec;
  * of a request body (a plain string body, string {@code data}, and each string inside structured
  * {@code data}, including form fields and multipart parts), and the authentication values that
  * {@code ConsumedAuthentication} renders for HTTP and MCP adapters (basic and digest username and
- * password, bearer token, API key name and value). Templates are compiled the way the engine
+ * password, bearer token, API key name and value), and the {@code $onlyIf}, {@code $first} and
+ * {@code $keep} markers of structured body data (#1132). Templates are compiled the way the engine
  * renders them ({@link Resolver#templateError}). Messages name the adapter namespace, the
  * operation and the location, plus the kind and line of the parse error, and never echo the
  * template text, which may hold static credentials.</p>
@@ -113,6 +115,7 @@ public final class ConsumedTemplateValidator {
                 String where = ns + "." + operation.getName();
                 checkParameters(operation.getInputParameters(), where, errors);
                 checkBody(operation.getBody(), where + " body", errors);
+                checkBodyMarkers(operation.getBody(), where + " body", errors);
             }
         }
     }
@@ -210,6 +213,39 @@ public final class ConsumedTemplateValidator {
         } else if (body instanceof Collection<?> items) {
             for (Object item : items) {
                 checkBody(item, where, errors);
+            }
+        }
+    }
+
+    /**
+     * Checks the {@code $onlyIf}, {@code $first} and {@code $keep} markers of a body (#1132). They
+     * apply to structured data that is built as a JSON tree; in the field map of a
+     * {@code formUrlEncoded} body they would be sent as form fields, so they are refused there.
+     * Multipart parts and string data hold no markers.
+     */
+    private static void checkBodyMarkers(Object body, String where, List<String> errors) {
+        if (!(body instanceof Map<?, ?> spec)) {
+            return;
+        }
+        Object data = spec.get("data");
+        String type = String.valueOf(spec.containsKey("type") ? spec.get("type") : "json");
+        if ("formUrlEncoded".equalsIgnoreCase(type)) {
+            if (data instanceof Map<?, ?> fields) {
+                for (Object key : fields.keySet()) {
+                    if (JsonBodyMarkers.isMarker(String.valueOf(key))) {
+                        errors.add(where + ": " + key + " applies to structured json data only:"
+                                + " a form field cannot be named " + key);
+                    }
+                }
+            }
+            return;
+        }
+        if ("multipartForm".equalsIgnoreCase(type)) {
+            return;
+        }
+        if (data instanceof Map<?, ?> || data instanceof Collection<?>) {
+            for (String error : JsonBodyMarkers.findErrors(data)) {
+                errors.add(where + " " + error);
             }
         }
     }

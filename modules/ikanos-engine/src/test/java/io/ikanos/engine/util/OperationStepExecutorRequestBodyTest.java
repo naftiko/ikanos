@@ -1039,6 +1039,187 @@ class OperationStepExecutorRequestBodyTest {
                 ctx.getRequest().getEntity().getText());
     }
 
+    private static final String NOTION_PATCH_PAGE = """
+                                body:
+                                  type: "json"
+                                  data:
+                                    properties: "{{properties}}"
+                                    icon:
+                                      $first:
+                                        - {$onlyIf: icon_emoji, type: emoji, emoji: "{{icon_emoji}}"}
+                                        - {$onlyIf: icon_url, type: external, external: {url: "{{icon_url}}"}}
+                                    template:
+                                      $first:
+                                        - {$onlyIf: template_id, type: template_id, template_id: "{{template_id}}", timezone: "{{timezone}}"}
+                                        - {$onlyIf: use_default_template, type: default, timezone: "{{timezone}}"}
+                                    notifications: {$onlyIf: silent, mode: silent}
+                """;
+
+    @Test
+    void findClientRequestForShouldSendOnlyIfObjectWithoutTheMarkerWhenItsInputIsTrue()
+            throws Exception {
+        assertEquals("{\"notifications\":{\"mode\":\"silent\"}}",
+                send(NOTION_PATCH_PAGE, Map.of("silent", true)));
+    }
+
+    @Test
+    void findClientRequestForShouldLeaveOutOnlyIfObjectWhenItsInputIsFalse() throws Exception {
+        assertEquals("{\"properties\":{\"Done\":true}}", send(NOTION_PATCH_PAGE,
+                Map.of("silent", false, "properties", Map.of("Done", true))));
+    }
+
+    @Test
+    void findClientRequestForShouldLeaveOutOnlyIfObjectWhenItsInputIsAbsent() throws Exception {
+        assertEquals("{\"properties\":{\"Done\":true}}",
+                send(NOTION_PATCH_PAGE, Map.of("properties", Map.of("Done", true))));
+    }
+
+    @Test
+    void findClientRequestForShouldTakeTheFirstVariantWhoseOnlyIfHolds() throws Exception {
+        assertEquals("{\"icon\":{\"type\":\"emoji\",\"emoji\":\"🚀\"}}", send(NOTION_PATCH_PAGE,
+                Map.of("icon_emoji", "🚀", "icon_url", "https://example.com/i.png")));
+    }
+
+    @Test
+    void findClientRequestForShouldTakeALaterVariantWhenTheEarlierOnesDoNotApply()
+            throws Exception {
+        assertEquals("{\"icon\":{\"type\":\"external\",\"external\":{\"url\":"
+                + "\"https://example.com/i.png\"}}}",
+                send(NOTION_PATCH_PAGE, Map.of("icon_url", "https://example.com/i.png")));
+    }
+
+    @Test
+    void findClientRequestForShouldLeaveOutAbsentMembersOfTheChosenVariant() throws Exception {
+        assertEquals("{\"template\":{\"type\":\"default\"}}",
+                send(NOTION_PATCH_PAGE, Map.of("use_default_template", true)));
+    }
+
+    @Test
+    void findClientRequestForShouldSendEmptyRootWhenNoVariantAndNoMemberApplies()
+            throws Exception {
+        assertEquals("{}", send(NOTION_PATCH_PAGE, Map.of("use_default_template", false)));
+    }
+
+    @Test
+    void findClientRequestForShouldTakeTheFallbackVariantWhenNoOtherApplies() throws Exception {
+        assertEquals("{\"position\":{\"type\":\"end\"}}", send("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    position:
+                                      $first:
+                                        - {$onlyIf: after, type: after_block, after_block: {id: "{{after}}"}}
+                                        - {$onlyIf: at_start, type: start}
+                                        - {type: end}
+                """, Map.of("at_start", false)));
+    }
+
+    @Test
+    void findClientRequestForShouldLeaveOutValueWhenTheChosenVariantResolvesToNothing()
+            throws Exception {
+        // The chosen variant is emptied: the value is left out, the fallback is not tried
+        assertEquals("{}", send("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    position:
+                                      $first:
+                                        - {$onlyIf: after, after_block: {id: "{{after_id}}"}}
+                                        - {type: end}
+                """, Map.of("after", true)));
+    }
+
+    @Test
+    void findClientRequestForShouldChooseVariantOfAnArrayElement() throws Exception {
+        assertEquals("{\"parents\":[{\"type\":\"workspace\"}]}", send("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    parents:
+                                      - $first:
+                                          - {$onlyIf: page_id, page_id: "{{page_id}}"}
+                                          - {type: workspace}
+                                      - {$onlyIf: page_id, page_id: "{{page_id}}"}
+                """, Map.of("unused", 1)));
+    }
+
+    @Test
+    void findClientRequestForShouldKeepObjectMarkedKeepWhenAllItsMembersAreLeftOut()
+            throws Exception {
+        // Gong requires filter on search-calls, even when no filter input is given
+        assertEquals("{\"filter\":{},\"cursor\":\"c1\"}", send("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    filter: {$keep: true, fromDateTime: "{{fromDateTime}}", callIds: "{{callIds}}"}
+                                    cursor: "{{cursor}}"
+                """, Map.of("cursor", "c1")));
+    }
+
+    @Test
+    void findClientRequestForShouldLeaveOutHoldingWhenObjectEmptiedByAbsentMembers()
+            throws Exception {
+        assertEquals("{\"a\":1}", send("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    a: 1
+                                    filter: {$onlyIf: enabled, team: "{{team}}"}
+                """, Map.of("enabled", true)));
+    }
+
+    @Test
+    void findClientRequestForShouldKeepEmptiedHoldingWhenObjectMarkedKeep() throws Exception {
+        assertEquals("{\"filter\":{}}", send("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    filter: {$onlyIf: enabled, $keep: true, team: "{{team}}"}
+                """, Map.of("enabled", true)));
+    }
+
+    @Test
+    void findClientRequestForShouldSendEscapedMarkerKeyWithOneDollarLess() throws Exception {
+        assertEquals("{\"query\":{\"$onlyIf\":\"x\",\"$ref\":\"#/a\"}}", send("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    query: {$$onlyIf: "x", $ref: "#/a"}
+                """, Map.of("unused", 1)));
+    }
+
+    @Test
+    void findClientRequestForShouldNotReadMarkerFromResolvedKey() throws Exception {
+        // A caller value that resolves a key to $onlyIf is data, never a marker
+        assertEquals("{\"filter\":{\"$onlyIf\":\"absent\",\"mode\":\"silent\"}}", send("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    filter:
+                                      "{{key}}": "absent"
+                                      mode: silent
+                """, Map.of("key", "$onlyIf")));
+    }
+
+    @Test
+    void capabilityShouldFailToLoadWhenMarkerIsMisused() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> executorWithBody("""
+                                body:
+                                  type: "json"
+                                  data:
+                                    icon: {$first: [{type: none}, {$onlyIf: url, type: external}]}
+                """));
+
+        assertTrue(e.getMessage().contains("/icon/$first/1: never used"), e.getMessage());
+    }
+
+    private String send(String bodyYaml, Map<String, Object> parameters) throws Exception {
+        HttpInvocation ctx = (HttpInvocation) executorWithBody(bodyYaml)
+                .findClientRequestFor("svc", "op", new HashMap<>(parameters));
+        return ctx.getRequest().getEntity().getText();
+    }
+
     private OperationStepExecutor executorWithBody(String bodyYaml) throws Exception {
         String yaml = """
                 ikanos: "%s"
