@@ -1027,6 +1027,69 @@ public class ValidateCommandTest {
                 "Root binds should not also be reported as a schema mismatch:\n" + err);
     }
 
+    /** A capability whose MCP tool runs one step guarded by {@code onlyIf}. */
+    private Path guardedStepCapability(String onlyIf) {
+        Path yaml = tempDir.resolve("guarded-step.yaml");
+        assertDoesNotThrow(() -> Files.writeString(yaml, """
+                ikanos: "%s"
+                info:
+                  display: "Guarded step"
+                  description: "A step that runs only when its guard holds"
+                capability:
+                  consumes:
+                    - type: "http"
+                      namespace: "api"
+                      baseUri: "https://api.example.com"
+                      resources:
+                        items:
+                          path: "/items"
+                          operations:
+                            list-items:
+                              method: "GET"
+                  exposes:
+                    - type: "mcp"
+                      port: 3000
+                      namespace: "tools"
+                      description: "Tools"
+                      tools:
+                        list:
+                          description: "List the items"
+                          steps:
+                            - name: "fetch"
+                              type: "call"
+                              what: "api.list-items"
+                              onlyIf: "%s"
+                          mappings:
+                            - target: "items"
+                              value: "$.fetch"
+                          outputParameters:
+                            items:
+                              type: "array"
+                """.formatted(IKANOS, onlyIf)));
+        return yaml;
+    }
+
+    @Test
+    public void callShouldReportAStepGuardThatDoesNotParse() {
+        int exitCode = new CommandLine(new ValidateCommand())
+                .execute(guardedStepCapability("auth.claims.sub ==").toString());
+
+        String err = errCapture.toString();
+        assertEquals(1, exitCode);
+        assertTrue(err.contains("Invalid step guard: The onlyIf of step 'fetch' in MCP tool 'list'"),
+                err);
+    }
+
+    @Test
+    public void callShouldWarnAboutAStepGuardThatReadsANameNothingProvides() {
+        int exitCode = new CommandLine(new ValidateCommand())
+                .execute(guardedStepCapability("ordr.status == 'open'").toString());
+
+        String out = outCapture.toString();
+        assertEquals(0, exitCode, errCapture.toString());
+        assertTrue(out.contains("reads 'ordr'"), out);
+    }
+
     @Test
     public void callShouldReportAStepMapWithTheMigrateHintAndNothingElse() {
         Path yaml = tempDir.resolve("step-map.yaml");

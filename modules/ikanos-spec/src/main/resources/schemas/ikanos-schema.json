@@ -3927,6 +3927,11 @@
           "$ref": "#/$defs/IdentifierKebab",
           "description": "The step name, unique within its list. Later steps, templates and mappings read the step output under this name."
         },
+        "onlyIf": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Runs the step only when this condition holds; otherwise the step is skipped and has no output. A bare name such as `customer.id` holds when the value is present and is neither null nor false (an absent value skips the step). Anything else is a CEL expression that must evaluate to a boolean, such as `order.status == 'overdue'`; its variables are the inputs, `with` values and earlier step outputs, named as in templates, with `-` written `_` (`get_ship.status`)."
+        },
         "type": {
           "type": "string",
           "enum": [

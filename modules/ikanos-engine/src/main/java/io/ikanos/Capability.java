@@ -43,6 +43,7 @@ import io.ikanos.engine.imports.ConsumesImportStrategy;
 import io.ikanos.engine.imports.ExposesImportStrategy;
 import io.ikanos.engine.imports.ImportResolver;
 import io.ikanos.engine.imports.NamespaceUniquenessValidator;
+import io.ikanos.engine.execution.StepGuardValidator;
 import io.ikanos.engine.imports.RootSectionsValidator;
 import io.ikanos.engine.imports.SourceFileLoader;
 import io.ikanos.engine.consumes.ClientAdapterRegistry;
@@ -274,6 +275,10 @@ public class Capability {
         ConsumedTemplateValidator.validate(spec);
         InputDefaults.validate(spec);
         for (String warning : InputDefaults.findWarnings(spec)) {
+            Context.getCurrentLogger().log(Level.WARNING, warning);
+        }
+        StepGuardValidator.validate(spec);
+        for (String warning : StepGuardValidator.findWarnings(spec)) {
             Context.getCurrentLogger().log(Level.WARNING, warning);
         }
         ConsumedQueryParameterValidator.validate(spec);

@@ -237,6 +237,7 @@ capability:
             what: registry.list-crew
           - name: resolve-crew
             type: lookup
+            onlyIf: get-ship.assignedCrew
             index: list-crew
             match: crewId
             lookupValue: "$.get-ship.assignedCrew"

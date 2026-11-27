@@ -13,6 +13,7 @@
  */
 package io.ikanos.engine.execution;
 
+import io.ikanos.engine.observability.TelemetryBootstrap;
 import java.util.List;
 import java.util.Optional;
 import io.ikanos.durable.ActionOutcome;
@@ -46,6 +47,31 @@ public final class StepInterpreter implements Interpreter {
     @Override
     public List<Command> next(ExecutionView view) {
         for (StepNode node : tree.nodes()) {
+            if (run.isSkipped(node.path())) {
+                continue;
+            }
+            // An action with an outcome already ran, so its guard held: evaluating it again would
+            // see the step's own output.
+            if (!run.isEvaluated(node.path()) && node.step() != null
+                    && node.step().getOnlyIf() != null
+                    && !(node.kind().isAction() && view.outcome(node.path()).isPresent())) {
+                boolean runs;
+                try {
+                    runs = StepGuard.holds(node.step().getName(), node.step().getOnlyIf(),
+                            Elicitation.parameters(run));
+                } catch (RuntimeException e) {
+                    run.fail(e);
+                    return List.of(new Command.Fail(failureOf(e)));
+                }
+                if (!runs) {
+                    // Skipped: no output, nothing journaled. The guard reads only what the run
+                    // already holds, so a replay skips the step again.
+                    TelemetryBootstrap.get().recordStepSkipped(node.index(),
+                            node.step().getName());
+                    run.markSkipped(node.path());
+                    continue;
+                }
+            }
             if (node.kind() == StepNode.Kind.ELICIT) {
                 Optional<Object> answer = view.update(node.path());
                 if (answer.isEmpty()) {

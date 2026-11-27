@@ -36,6 +36,7 @@ public final class StepRun {
     private final Map<String, Object> runtimeParameters = new HashMap<>();
     private final StepExecutionContext stepContext = new StepExecutionContext();
     private final Set<NodePath> evaluated = new HashSet<>();
+    private final Set<NodePath> skipped = new HashSet<>();
     private final Map<NodePath, Object> answers = new HashMap<>();
     private ConsumedResult lastResult;
     private Exception failure;
@@ -110,6 +111,16 @@ public final class StepRun {
     }
 
     void markEvaluated(NodePath path) {
+        evaluated.add(path);
+    }
+
+    /** Whether the step at {@code path} was skipped by its {@code onlyIf} guard. */
+    boolean isSkipped(NodePath path) {
+        return skipped.contains(path);
+    }
+
+    void markSkipped(NodePath path) {
+        skipped.add(path);
         evaluated.add(path);
     }
 }
