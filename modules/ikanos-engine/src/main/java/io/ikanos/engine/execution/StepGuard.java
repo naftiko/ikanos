@@ -232,19 +232,19 @@ public final class StepGuard {
         if (isBareName(onlyIf)) {
             String name = onlyIf.strip();
             requireCallerRoot(label, Set.of(firstSegment(name)), parameters);
-            return isPresent(read(parameters, name));
+            return isPresent(read(visible(parameters), name));
         }
         Compiled compiled = compile(label, onlyIf);
         requireCallerRoot(label, compiled.names(), parameters);
         Map<String, Object> variables = new LinkedHashMap<>();
         for (String name : compiled.names()) {
             Object value = lookup(parameters, name);
-            if (value == null) {
-                // The guard reads a value the run does not have: it does not hold, as for a
-                // bare name.
-                return false;
+            if (value != null) {
+                variables.put(name, toCel(value));
             }
-            variables.put(name, toCel(value));
+            // A name the run does not have stays unbound: CEL reports reading it as an
+            // attribute it cannot find, unless the result does not depend on it, as in
+            // "outcome.find == 'not-found' || find.id != ''" when the first term holds.
         }
         Object result;
         try {
@@ -258,11 +258,17 @@ public final class StepGuard {
                 throw exceeded.failure();
             }
             if (e.getErrorCode() == CelErrorCode.ATTRIBUTE_NOT_FOUND) {
-                // A field the value does not have, such as order.missing: absent, as above.
+                // A name the run does not have, or a field its value does not have, such as
+                // order.missing: absent, so the guard does not hold, as for a bare name.
                 return false;
             }
             throw new IllegalArgumentException(label + " could not be evaluated: "
                     + e.getMessage(), e);
+        }
+        if (result instanceof dev.cel.runtime.CelUnknownSet) {
+            // The result depends on a name the run does not have: absent, so the guard does not
+            // hold, as for a bare name.
+            return false;
         }
         if (!(result instanceof Boolean value)) {
             throw new IllegalArgumentException(label + " must evaluate to true or false, not "
@@ -559,6 +565,11 @@ public final class StepGuard {
      * ({@code get_ship} for {@code get-ship}).
      */
     static Object lookup(Map<String, Object> parameters, String name) {
+        if (StepOutcomes.ROOT.equals(name)) {
+            // Only the engine's own outcomes are read under this reserved name.
+            Object outcomes = parameters.get(name);
+            return StepOutcomes.isOutcomes(outcomes) ? outcomes : null;
+        }
         if (parameters.containsKey(name)) {
             return parameters.get(name);
         }
@@ -606,6 +617,17 @@ public final class StepGuard {
             return value;
         }
         return String.valueOf(value);
+    }
+
+    /** The parameters, without a value under the outcomes' name that is not the engine's. */
+    private static Map<String, Object> visible(Map<String, Object> parameters) {
+        if (!parameters.containsKey(StepOutcomes.ROOT)
+                || StepOutcomes.isOutcomes(parameters.get(StepOutcomes.ROOT))) {
+            return parameters;
+        }
+        Map<String, Object> visible = new java.util.HashMap<>(parameters);
+        visible.remove(StepOutcomes.ROOT);
+        return visible;
     }
 
     /** Reads a dotted path from the parameters, through maps and JSON objects. */

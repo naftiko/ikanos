@@ -90,6 +90,15 @@ public interface ConsumedResult {
      *
      * @return the failure cause, or {@code null} when the adapter has none
      */
+    /**
+     * The protocol-neutral outcome of the call ({@code StepOutcomes}), when the adapter can tell
+     * it better than its status, such as a SQL connection failure reported as 502; {@code null}
+     * to derive it from the status.
+     */
+    default String stepOutcome() {
+        return null;
+    }
+
     default Throwable failureCause() {
         return null;
     }

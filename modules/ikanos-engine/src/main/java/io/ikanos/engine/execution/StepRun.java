@@ -45,6 +45,8 @@ public final class StepRun {
         if (baseParameters != null) {
             runtimeParameters.putAll(baseParameters);
         }
+        // Outcomes are the run's own: a called flow does not read its caller's.
+        StepOutcomes.forget(runtimeParameters);
     }
 
     /** Parameters for template resolution, extended with each step's output. */
@@ -97,8 +99,12 @@ public final class StepRun {
             JsonNode outcome = journaled instanceof JsonNode json ? json : null;
             lastResult = RestoredResult.responseOf(outcome);
             output = RestoredResult.outputOf(outcome);
-            // The outcome follows from the journaled status, so a replay reads the same one.
-            StepOutcomes.put(runtimeParameters, stepName, StepOutcomes.of(lastResult));
+            // The outcome journaled with the call, or else the one its status maps to, so a
+            // replay reads the same one.
+            StepOutcomes.put(runtimeParameters, stepName,
+                    outcome != null && outcome.hasNonNull(RestoredResult.OUTCOME)
+                            ? outcome.get(RestoredResult.OUTCOME).asString()
+                            : StepOutcomes.of(lastResult));
         }
         if (stepName == null || !(output instanceof JsonNode json) || json.isNull()
                 || json.isMissingNode()) {

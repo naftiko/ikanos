@@ -64,7 +64,7 @@ public final class StepGuardValidator {
 
     /** One step list and what its steps can read before the first step runs. */
     private record Container(String where, Map<String, OperationStepSpec> steps,
-            Set<String> names) {
+            Set<String> names, boolean declaresOutcome) {
     }
 
     /**
@@ -103,7 +103,13 @@ public final class StepGuardValidator {
     public static List<String> findErrors(IkanosSpec spec) {
         List<String> errors = new ArrayList<>();
         for (Container container : containers(spec)) {
+            if (container.declaresOutcome()) {
+                errors.add(reserved("An input or a 'with' key", container.where()));
+            }
             for (OperationStepSpec step : container.steps().values()) {
+                if (StepOutcomes.ROOT.equals(step.getName())) {
+                    errors.add(reserved("A step", container.where()));
+                }
                 for (Guard guard : guardsOf(step, container.where())) {
                     String error = StepGuard.parseError(guard.expression());
                     if (error != null) {
@@ -206,7 +212,10 @@ public final class StepGuardValidator {
                             : flow.getValue().getInputParameters().values(),
                             flow.getValue().getWith());
                     add(containers, "flow '" + aggregate.getNamespace() + "." + flow.getKey()
-                            + "'", flow.getValue().getSteps(), names);
+                            + "'", flow.getValue().getSteps(), names, declaresOutcome(
+                                    flow.getValue().getInputParameters() == null ? null
+                                            : flow.getValue().getInputParameters().values(),
+                                    flow.getValue().getWith()));
                 }
             }
         }
@@ -217,7 +226,9 @@ public final class StepGuardValidator {
         if (mcp.getTools() != null) {
             for (Map.Entry<String, McpServerToolSpec> tool : mcp.getTools().entrySet()) {
                 add(containers, "MCP tool '" + tool.getKey() + "'", tool.getValue().getSteps(),
-                        names(tool.getValue().getInputParameters(), tool.getValue().getWith()));
+                        names(tool.getValue().getInputParameters(), tool.getValue().getWith()),
+                        declaresOutcome(tool.getValue().getInputParameters(),
+                                tool.getValue().getWith()));
             }
         }
         if (mcp.getResources() != null) {
@@ -232,7 +243,8 @@ public final class StepGuardValidator {
                     }
                 }
                 add(containers, "MCP resource '" + resource.getKey() + "'",
-                        resource.getValue().getSteps(), names);
+                        resource.getValue().getSteps(), names,
+                        declaresOutcome(null, resource.getValue().getWith()));
             }
         }
     }
@@ -249,16 +261,43 @@ public final class StepGuardValidator {
                 Set<String> names = names(operation.getInputParameters(), operation.getWith());
                 names.addAll(names(resource.getInputParameters(), null));
                 add(containers, "REST operation '" + operation.getMethod() + " "
-                        + resource.getPath() + "'", operation.getSteps(), names);
+                        + resource.getPath() + "'", operation.getSteps(), names,
+                        declaresOutcome(operation.getInputParameters(), operation.getWith())
+                                || declaresOutcome(resource.getInputParameters(), null));
             }
         }
     }
 
     private static void add(List<Container> containers, String where,
-            Map<String, OperationStepSpec> steps, Set<String> names) {
+            Map<String, OperationStepSpec> steps, Set<String> names, boolean declaresOutcome) {
         if (steps != null && !steps.isEmpty()) {
-            containers.add(new Container(where, steps, names));
+            containers.add(new Container(where, steps, names, declaresOutcome));
         }
+    }
+
+    /**
+     * The error for the reserved name {@code outcome}: a value under it would hide the step
+     * outcomes, and could make a guard read the caller's data as an outcome.
+     */
+    private static String reserved(String what, String where) {
+        return what + " in " + where + " is named '" + StepOutcomes.ROOT + "', which is reserved"
+                + " for the outcomes of the steps (" + StepOutcomes.ROOT + ".<step>). Rename it.";
+    }
+
+    /** Whether the inputs or the {@code with} keys use the reserved name {@code outcome}. */
+    private static boolean declaresOutcome(Collection<InputParameterSpec> inputs,
+            Map<String, Object> with) {
+        if (with != null && with.containsKey(StepOutcomes.ROOT)) {
+            return true;
+        }
+        if (inputs != null) {
+            for (InputParameterSpec input : inputs) {
+                if (StepOutcomes.ROOT.equals(input.getName())) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /** Input and {@code with} names, with the alias of each dashed name, and the caller root. */

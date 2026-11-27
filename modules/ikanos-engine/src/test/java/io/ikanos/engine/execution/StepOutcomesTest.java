@@ -52,29 +52,63 @@ public class StepOutcomesTest {
     }
 
     @Test
-    void putShouldKeepACallerParameterNamedOutcome() {
+    void putShouldReplaceAValueUnderTheReservedName() {
         Map<String, Object> parameters = new HashMap<>(Map.of("outcome", "won"));
 
         StepOutcomes.put(parameters, "find", "success");
 
-        assertEquals("won", parameters.get("outcome"));
+        assertEquals("success", StepOutcomes.get(parameters, "find"));
     }
 
     @Test
-    void withoutBodyShouldKeepOnlyTheStatus() {
-        assertEquals(404, StepOutcomes.withoutBody(404).status());
-        assertFalse(StepOutcomes.withoutBody(404).hasBody());
+    void putShouldNotChangeTheMapAnotherRunCopied() {
+        Map<String, Object> caller = new HashMap<>();
+        StepOutcomes.put(caller, "find", "success");
+        Map<String, Object> called = new HashMap<>(caller);
+
+        StepOutcomes.put(called, "find", "failure");
+
+        assertEquals("success", StepOutcomes.get(caller, "find"));
     }
 
     @Test
-    void restoreOutputShouldRestoreTheOutcomeOfAJournaledCall() {
+    void aNewRunShouldNotInheritTheOutcomesOfItsCaller() {
+        Map<String, Object> caller = new HashMap<>();
+        StepOutcomes.put(caller, "find", "not-found");
+
+        StepRun called = new StepRun(caller);
+
+        assertNull(StepOutcomes.get(called.runtimeParameters(), "find"));
+    }
+
+    @Test
+    void acceptedShouldBeASuccessWithNoContent() {
+        assertEquals(204, StepOutcomes.accepted().status());
+        assertTrue(StepOutcomes.accepted().isSuccessful());
+        assertFalse(StepOutcomes.accepted().hasBody());
+    }
+
+    @Test
+    void restoreOutputShouldRestoreTheOutcomeJournaledWithACall() {
         StepRun run = new StepRun(null);
+        tools.jackson.databind.node.ObjectNode journaled = (tools.jackson.databind.node.ObjectNode)
+                RestoredResult.journal(null, StepOutcomes.accepted());
+        journaled.put(RestoredResult.OUTCOME, "not-found");
 
-        run.restoreOutput("find", RestoredResult.journal(null, StepOutcomes.withoutBody(404)),
-                true);
+        run.restoreOutput("find", journaled, true);
 
         assertTrue(StepGuard.holds("next", "outcome.find == 'not-found'",
                 run.runtimeParameters()));
+    }
+
+    @Test
+    void restoreOutputShouldMapTheStatusOfACallJournaledWithoutAnOutcome() {
+        StepRun run = new StepRun(null);
+
+        run.restoreOutput("find",
+                RestoredResult.journal(null, new RestoredResult(429, null, null)), true);
+
+        assertEquals("throttled", StepOutcomes.get(run.runtimeParameters(), "find"));
     }
 
     @Test

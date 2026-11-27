@@ -23,6 +23,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import io.ikanos.Capability;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
+import io.ikanos.engine.exposes.rest.ResourceRestlet;
+import io.ikanos.engine.exposes.rest.RestServerAdapter;
+import io.ikanos.spec.exposes.rest.RestServerSpec;
+import org.restlet.Request;
+import org.restlet.Response;
+import org.restlet.data.Method;
 import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.spec.util.VersionHelper;
@@ -157,6 +163,83 @@ class OutcomeHandlingAcceptanceTest {
 
         assertTrue(Boolean.TRUE.equals(result.isError()), String.valueOf(result));
         assertEquals(1, FakeClientAdapter.CALLS.size());
+    }
+
+    /** A flow that ends right after an accepted not-found, exposed over MCP and REST. */
+    private static Capability endsOnNotFound() throws Exception {
+        return new Capability(IkanosMappers.lenientYaml().readValue("""
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - type: fake
+                      namespace: notion
+                      operations:
+                        find-page:
+                          outputParameters: []
+                      responses:
+                        find-page: '{"error":"no such page"}'
+                      statuses:
+                        find-page: 404
+                  aggregates:
+                    - namespace: pages
+                      flows:
+                        exists:
+                          description: Whether the page exists
+                          steps:
+                            - name: find
+                              type: call
+                              what: notion.find-page
+                              successCriteria:
+                                - "outcome.find == 'success' || outcome.find == 'not-found'"
+                            - name: missing
+                              type: end
+                              onlyIf: "outcome.find == 'not-found'"
+                  exposes:
+                    - type: mcp
+                      address: localhost
+                      port: 0
+                      namespace: pages-mcp
+                      description: Page tools
+                      tools:
+                        exists:
+                          description: Whether the page exists
+                          ref: pages.exists
+                    - type: rest
+                      address: localhost
+                      port: 0
+                      namespace: pages-rest
+                      resources:
+                        - path: /exists
+                          name: exists
+                          operations:
+                            - method: GET
+                              ref: pages.exists
+                """.formatted(IKANOS), IkanosSpec.class));
+    }
+
+    @Test
+    void aFlowEndingOnAnAcceptedNotFoundShouldAnswerAsASuccessOverMcp() throws Exception {
+        McpServerAdapter mcp = (McpServerAdapter) endsOnNotFound().getServerAdapters().get(0);
+
+        McpSchema.CallToolResult result = mcp.getToolHandler().handleToolCall("exists", Map.of());
+
+        assertFalse(Boolean.TRUE.equals(result.isError()), String.valueOf(result));
+        assertFalse(String.valueOf(result).contains("no such page"), String.valueOf(result));
+    }
+
+    @Test
+    void aFlowEndingOnAnAcceptedNotFoundShouldAnswerAsASuccessOverRest() throws Exception {
+        Capability capability = endsOnNotFound();
+        RestServerAdapter adapter = (RestServerAdapter) capability.getServerAdapters().get(1);
+        RestServerSpec spec = (RestServerSpec) adapter.getSpec();
+        ResourceRestlet restlet = new ResourceRestlet(capability, spec,
+                spec.getResources().values().iterator().next());
+        Request request = new Request(Method.GET, "http://localhost/exists");
+        Response response = new Response(request);
+
+        restlet.handle(request, response);
+
+        assertTrue(response.getStatus().isSuccess(), String.valueOf(response.getStatus()));
     }
 
     @Test

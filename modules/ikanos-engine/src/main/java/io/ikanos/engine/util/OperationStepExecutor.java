@@ -396,11 +396,11 @@ public class OperationStepExecutor {
                                 null, null);
                     }
                     if (!lastResult.isSuccessful()) {
-                        // Accepted by a criterion, such as a 'not-found': the step has no
-                        // output, and the run keeps only the status, so the unread body is
-                        // neither passed through nor journaled.
+                        // Accepted by a criterion, such as a 'not-found': the step succeeded
+                        // with no output. Its unread body is neither passed through nor
+                        // journaled, and the run keeps a success with no content.
                         lastResult.release();
-                        run.setLastResult(StepOutcomes.withoutBody(lastResult.status()));
+                        run.setLastResult(StepOutcomes.accepted());
                     }
                     return stepOutput;
                 } catch (Exception e) {
@@ -1049,18 +1049,6 @@ public class OperationStepExecutor {
     }
 
     /**
-     * Throw {@link StepFailedException} when a call step's consumed result is not 2xx.
-     * A missing result or status (connection failure) counts as a failure too.
-     *
-     * <p>The rule is strictly 2xx, not "below 400", and is tested with
-     * {@link ConsumedResult#isSuccessful()} rather than {@link ConsumedResult#outcome()}, whose
-     * {@code SUCCESS} only means "not an error". The HTTP client follows redirects by default
-     * (Restlet {@code followRedirects=true}), so a 3xx only reaches this check when it was not
-     * followed: 304 Not Modified, 300 Multiple Choices, or a redirect without a usable
-     * {@code Location}. None of these carries the step output, so the sequence fails rather
-     * than letting later steps read an empty or unrelated body.</p>
-     */
-    /**
      * Stores a successful call step's output for lookups, templates and mappings, when its
      * response is JSON, and returns it; {@code null} when it has none.
      *
@@ -1089,6 +1077,18 @@ public class OperationStepExecutor {
         return null;
     }
 
+    /**
+     * Throw {@link StepFailedException} when a call step's consumed result is not 2xx.
+     * A missing result or status (connection failure) counts as a failure too.
+     *
+     * <p>The rule is strictly 2xx, not "below 400", and is tested with
+     * {@link ConsumedResult#isSuccessful()} rather than {@link ConsumedResult#outcome()}, whose
+     * {@code SUCCESS} only means "not an error". The HTTP client follows redirects by default
+     * (Restlet {@code followRedirects=true}), so a 3xx only reaches this check when it was not
+     * followed: 304 Not Modified, 300 Multiple Choices, or a redirect without a usable
+     * {@code Location}. None of these carries the step output, so the sequence fails rather
+     * than letting later steps read an empty or unrelated body.</p>
+     */
     public static void failIfUnsuccessful(String stepName, ConsumedResult result) {
         if (result != null && result.isSuccessful()) {
             return;

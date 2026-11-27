@@ -53,9 +53,17 @@ public final class StepOutcomes {
     private StepOutcomes() {
     }
 
-    /** The outcome of a call's result; {@code failure} for no result. */
+    /**
+     * The outcome of a call's result: the one its adapter reports, if any, else the one its
+     * status maps to; {@code failure} for no result.
+     */
     public static String of(ConsumedResult result) {
-        return result == null ? FAILURE : of(result.status());
+        if (result == null) {
+            return FAILURE;
+        }
+        String reported = result.stepOutcome();
+        return reported != null && VOCABULARY.contains(reported) ? reported
+                : of(result.status());
     }
 
     /** The outcome of a call that answered with {@code status}. */
@@ -77,41 +85,67 @@ public final class StepOutcomes {
 
     /**
      * Records a step's outcome in the run's parameters, under {@link #ROOT}, with the alias of a
-     * name that has a dash. A parameter the caller named {@code outcome} is kept, and the
-     * outcomes are then not readable.
+     * name that has a dash. The map is replaced, never changed in place: parameters are copied
+     * shallowly into the flows a step calls, so a called flow must not write into its caller's
+     * outcomes. The name {@code outcome} is reserved ({@code StepGuardValidator} refuses an
+     * input, {@code with} key or step of that name), so any other value under it is replaced.
      */
-    @SuppressWarnings("unchecked")
     public static void put(Map<String, Object> parameters, String step, String outcome) {
-        if (step == null) {
+        if (step == null || outcome == null) {
             return;
         }
-        Object root = parameters.get(ROOT);
-        Map<String, Object> outcomes;
-        if (root instanceof OutcomeMap map) {
-            outcomes = map;
-        } else if (root == null) {
-            outcomes = new OutcomeMap();
-            parameters.put(ROOT, outcomes);
-        } else {
-            return;
-        }
+        OutcomeMap outcomes = parameters.get(ROOT) instanceof OutcomeMap map
+                ? new OutcomeMap(map) : new OutcomeMap();
         outcomes.put(step, outcome);
         String alias = step.replace('-', '_');
         if (!alias.equals(step)) {
             outcomes.putIfAbsent(alias, outcome);
         }
+        parameters.put(ROOT, outcomes);
+    }
+
+    /** The outcome recorded for {@code step} in the parameters, or {@code null}. */
+    public static String get(Map<String, Object> parameters, String step) {
+        return parameters.get(ROOT) instanceof OutcomeMap map
+                && map.get(step) instanceof String outcome ? outcome : null;
+    }
+
+    /** Whether {@code value} is the engine's own map of outcomes. */
+    static boolean isOutcomes(Object value) {
+        return value instanceof OutcomeMap;
     }
 
     /**
-     * A result that keeps only a call's status, for a step a success criterion accepted
-     * although it did not answer {@code 2xx}: it has no body to pass through or journal.
+     * Removes the outcomes a run inherits from its caller's parameters: a flow, or a track, reads
+     * the outcomes of its own steps only, so a replay, which does not run a finished call again,
+     * gives it the same ones.
      */
-    public static ConsumedResult withoutBody(int status) {
-        return new RestoredResult(status, null, null);
+    static void forget(Map<String, Object> parameters) {
+        if (parameters.get(ROOT) instanceof OutcomeMap) {
+            parameters.remove(ROOT);
+        }
+    }
+
+    /**
+     * The result a run keeps for a step a success criterion accepted although it did not answer
+     * {@code 2xx}: a success with no content ({@code 204}), since the step succeeded and has no
+     * output. A flow or an operation that ends on it answers as a success, not with the
+     * upstream's error. Its outcome is journaled on its own ({@code RestoredResult.OUTCOME}), as
+     * the status no longer tells it.
+     */
+    public static ConsumedResult accepted() {
+        return new RestoredResult(204, null, null);
     }
 
     /** The map of outcomes, told apart from a caller's parameter of the same name. */
     static final class OutcomeMap extends LinkedHashMap<String, Object> {
         private static final long serialVersionUID = 1L;
+
+        OutcomeMap() {
+        }
+
+        OutcomeMap(Map<String, Object> outcomes) {
+            super(outcomes);
+        }
     }
 }

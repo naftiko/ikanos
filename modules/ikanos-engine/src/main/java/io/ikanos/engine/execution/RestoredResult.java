@@ -42,6 +42,8 @@ final class RestoredResult implements ConsumedResult {
     static final String STATUS = "status";
     static final String MEDIA_TYPE = "mediaType";
     static final String BODY = "body";
+    /** The step's outcome, journaled when its status does not tell it ({@link StepOutcomes}). */
+    static final String OUTCOME = "outcome";
 
     private final int status;
     private final String mediaType;

@@ -30,6 +30,7 @@ import io.ikanos.engine.consumes.http.StandardRequestHeaders;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.spec.util.OperationStepElicitSpec;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * The one entry point through which steps and single calls run, whatever exposed them.
@@ -210,8 +211,15 @@ public final class Executions {
             throw new ActionFailedException(StepInterpreter.failureOf(e), e);
         }
         if (node.kind() == StepNode.Kind.CALL) {
-            return RestoredResult.journal(output instanceof JsonNode json ? json : null,
-                    run.lastResult());
+            JsonNode journaled = RestoredResult.journal(
+                    output instanceof JsonNode json ? json : null, run.lastResult());
+            // The outcome, which the status of an accepted step no longer tells
+            String outcome = node.step() == null ? null
+                    : StepOutcomes.get(run.runtimeParameters(), node.step().getName());
+            if (outcome != null && journaled instanceof ObjectNode object) {
+                object.put(RestoredResult.OUTCOME, outcome);
+            }
+            return journaled;
         }
         return output;
     }

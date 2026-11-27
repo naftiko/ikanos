@@ -105,6 +105,34 @@ public class StepGuardValidatorTest {
     }
 
     @Test
+    void findErrorsShouldReportAStepNamedOutcome() {
+        List<String> errors = StepGuardValidator.findErrors(flow("""
+                - name: outcome
+                  type: call
+                  what: notion.find
+                """));
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).contains("'outcome', which is reserved"), errors.get(0));
+    }
+
+    @Test
+    void findErrorsShouldReportAWithKeyNamedOutcome() {
+        IkanosSpec spec = flow("""
+                - name: find
+                  type: call
+                  what: notion.find
+                """);
+        spec.getCapability().getAggregates().values().iterator().next().getFlows()
+                .get("remind").setWith(java.util.Map.of("outcome", "won"));
+
+        List<String> errors = StepGuardValidator.findErrors(spec);
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).startsWith("An input or a 'with' key"), errors.get(0));
+    }
+
+    @Test
     void findWarningsShouldLetASuccessCriterionReadItsOwnStep() {
         List<String> warnings = StepGuardValidator.findWarnings(flow("""
                 - name: find
