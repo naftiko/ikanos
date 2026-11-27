@@ -20,6 +20,7 @@ import io.ikanos.Capability;
 import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.CapabilitySpec;
 import io.ikanos.engine.aggregates.FlowCallValidator;
+import io.ikanos.engine.execution.StepGuard;
 import io.ikanos.spec.aggregates.AggregateFlowSpec;
 import io.ikanos.spec.aggregates.AggregateSpec;
 import io.ikanos.spec.consumes.ClientSpec;
@@ -153,7 +154,14 @@ public class McpCallHandlersFactory {
     }
 
     /**
-     * Whether reading {@code resource} may render a template that reads a caller claim: in the
+     * Step fields read as CEL expressions rather than templates: their top-level names, not
+     * {@code {{...}}}, say whether they read the caller root.
+     */
+    private static final Set<String> EXPRESSION_FIELDS = Set.of("onlyIf");
+
+    /**
+     * Whether reading {@code resource} may depend on a caller claim: a template that reads one,
+     * or a step guard that reads the caller root (a step that runs only for some callers), in the
      * resource's own call, {@code with} and steps, or in what they call, transitively. A consumed
      * adapter counts whole; an aggregate flow counts with its own call, {@code with}, steps and
      * input parameter sets, then what it calls in turn ({@link FlowCallValidator#callsOf}), so a
@@ -255,6 +263,19 @@ public class McpCallHandlersFactory {
         return dot < 0 ? operation : operation.substring(0, dot);
     }
 
+    /** Whether an expression field, or any expression of a list of them, reads the caller root. */
+    private static boolean expressionReadsCaller(JsonNode value) {
+        if (value.isString()) {
+            return StepGuard.referencedNames(value.asString()).contains(Resolver.CALLER_ROOT);
+        }
+        for (JsonNode element : value.isArray() ? value : List.<JsonNode>of()) {
+            if (expressionReadsCaller(element)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static boolean readsCallerClaims(JsonNode node) {
         if (node == null) {
             return false;
@@ -264,7 +285,9 @@ public class McpCallHandlersFactory {
         }
         for (Map.Entry<String, JsonNode> member : node.properties()) {
             if (Resolver.readsCallerClaims(member.getKey())
-                    || readsCallerClaims(member.getValue())) {
+                    || readsCallerClaims(member.getValue())
+                    || EXPRESSION_FIELDS.contains(member.getKey())
+                            && expressionReadsCaller(member.getValue())) {
                 return true;
             }
         }
