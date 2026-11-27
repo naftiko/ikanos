@@ -14,6 +14,7 @@
 package io.ikanos.engine.exposes.mcp.model;
 
 import tools.jackson.databind.node.ObjectNode;
+import io.ikanos.engine.exposes.mcp.McpSubscription;
 
 /**
  * A record representing a dispatch result.
@@ -21,14 +22,21 @@ import tools.jackson.databind.node.ObjectNode;
  * @param rpcError     the JsonRpc error if relevant (an error occurred), null otherwise.
  * @param isOnError    true if an error occurred, false otherwise.
  * @param responseBody the response body.
+ * @param subscription the stream a {@code subscriptions/listen} request opened, which the
+ *                     transport runs in place of a response body; null otherwise.
  */
-public record DispatchResult(ObjectNode responseBody, boolean isOnError, JsonRpcError rpcError) {
+public record DispatchResult(ObjectNode responseBody, boolean isOnError, JsonRpcError rpcError,
+        McpSubscription subscription) {
 
     public DispatchResult(ObjectNode responseBody, JsonRpcError rpcError) {
-        this(responseBody, true, rpcError);
+        this(responseBody, true, rpcError, null);
     }
 
     public DispatchResult(ObjectNode responseBody) {
-        this(responseBody, false, null);
+        this(responseBody, false, null, null);
+    }
+
+    public DispatchResult(McpSubscription subscription) {
+        this(null, false, null, subscription);
     }
 }

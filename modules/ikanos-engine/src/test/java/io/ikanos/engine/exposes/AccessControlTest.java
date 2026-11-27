@@ -53,6 +53,35 @@ class AccessControlTest {
     // ─── Scopes ─────────────────────────────────────────────────────────────────
 
     @Test
+    void allowsShouldAcceptATokenThatMeetsTheRequirementWithoutAnsweringAnything() {
+        Request request = new Request(Method.POST, "http://localhost/mcp");
+        request.getAttributes().put(OAuth2AuthenticationRestlet.VALIDATED_CLAIMS_ATTRIBUTE,
+                new JWTClaimsSet.Builder().claim("scope", "records.read").build());
+
+        assertTrue(AccessControl.allows(scopes("records.read"), request));
+    }
+
+    @Test
+    void allowsShouldRefuseATokenMissingARequiredScope() {
+        Request request = new Request(Method.POST, "http://localhost/mcp");
+        request.getAttributes().put(OAuth2AuthenticationRestlet.VALIDATED_CLAIMS_ATTRIBUTE,
+                new JWTClaimsSet.Builder().claim("scope", "records.read").build());
+
+        assertFalse(AccessControl.allows(scopes("records.write"), request));
+    }
+
+    @Test
+    void allowsShouldRefuseARequestWithoutAValidatedToken() {
+        assertFalse(AccessControl.allows(scopes("records.read"),
+                new Request(Method.POST, "http://localhost/mcp")));
+    }
+
+    @Test
+    void allowsShouldAcceptAnyRequestWhenNothingIsRequired() {
+        assertTrue(AccessControl.allows(null, new Request(Method.POST, "http://localhost/mcp")));
+    }
+
+    @Test
     void checkShouldAcceptTokenCarryingEveryRequiredScope() {
         JWTClaimsSet claims = new JWTClaimsSet.Builder()
                 .claim("scope", "records.read records.write admin").build();

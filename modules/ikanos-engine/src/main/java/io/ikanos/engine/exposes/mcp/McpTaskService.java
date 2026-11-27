@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.CancellationException;
@@ -151,6 +152,7 @@ public final class McpTaskService {
     private final ExecutorService workers;
     private final AtomicBoolean draining = new AtomicBoolean();
     private final InlineRounds inline;
+    private final List<Consumer<String>> listeners = new CopyOnWriteArrayList<>();
 
     /**
      * @param ttlMs how long a task is kept after creation, from the durability retention, or
@@ -182,6 +184,44 @@ public final class McpTaskService {
         this.onCancel = hook;
         inline.whenCancelled(hook);
         return this;
+    }
+
+    /**
+     * Calls {@code listener} with a task's ID each time its status may have changed in this
+     * process: a round ends (completed, failed, waiting on input, or stopped by a drain), answers
+     * start the next round, or the task is cancelled. The listener reads the task again to know
+     * its status, so a call that changed nothing is harmless. It runs on the thread that made the
+     * change and must not block.
+     *
+     * @return what removes the listener
+     */
+    public Runnable onChange(Consumer<String> listener) {
+        listeners.add(listener);
+        return () -> listeners.remove(listener);
+    }
+
+    /** The number of change listeners, for the tests. */
+    int listenerCount() {
+        return listeners.size();
+    }
+
+    /** Tells the listeners that the task of an execution may have changed. */
+    void changed(ExecutionId executionId) {
+        if (listeners.isEmpty()) {
+            return;
+        }
+        String taskId = runner.record(executionId).map(record -> record.labels().get(TASK_ID))
+                .orElse(null);
+        if (taskId == null) {
+            return;
+        }
+        for (Consumer<String> listener : listeners) {
+            try {
+                listener.accept(taskId);
+            } catch (RuntimeException e) {
+                // A listener never fails the task it hears about.
+            }
+        }
     }
 
     /**
@@ -274,6 +314,8 @@ public final class McpTaskService {
                 // This worker's own entry only: a later submit may already have replaced it.
                 running.remove(executionId, self.get());
                 cleanUpIfCancelled(executionId);
+                // Once no longer tracked as running, so a reader sees the status the round left.
+                changed(executionId);
             }
             return null;
         }) {
@@ -429,6 +471,8 @@ public final class McpTaskService {
             }
         }
         lastUpdated.put(record.executionId(), clock.instant());
+        // input_required → working, unless the round already ended again.
+        changed(record.executionId());
         return true;
     }
 
@@ -490,7 +534,20 @@ public final class McpTaskService {
             onCancel.accept(record.executionId());
         }
         lastUpdated.put(record.executionId(), clock.instant());
+        changed(record.executionId());
         return true;
+    }
+
+    /**
+     * The current state of a task for a {@code notifications/tasks} notification: what
+     * {@link #get} returns, a {@code DetailedTask}, without the {@code resultType} of a result.
+     * Empty for an unknown ID and for a task created by another principal.
+     */
+    public Optional<ObjectNode> notification(String taskId, String principal) {
+        return get(taskId, principal).map(task -> {
+            task.remove(McpResultType.FIELD);
+            return task;
+        });
     }
 
     /**

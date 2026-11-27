@@ -150,6 +150,22 @@ public final class AccessControl {
     }
 
     /**
+     * Whether the request's validated token meets the requirement, without answering anything:
+     * for a decision that is not a refusal of the request, such as which tasks a subscription
+     * may watch.
+     *
+     * @param requirement the requirement that applies, or {@code null} for none
+     */
+    public static boolean allows(AuthorizationSpec requirement, Request request) {
+        if (requirement == null) {
+            return true;
+        }
+        Object claims = request.getAttributes()
+                .get(OAuth2AuthenticationRestlet.VALIDATED_CLAIMS_ATTRIBUTE);
+        return claims instanceof JWTClaimsSet validated && check(requirement, validated) == null;
+    }
+
+    /**
      * Checks a requirement against validated claims.
      *
      * @return {@code null} when the claims meet the requirement, else why they don't

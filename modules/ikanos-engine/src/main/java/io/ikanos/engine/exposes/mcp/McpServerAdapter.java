@@ -36,11 +36,15 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.logging.Level;
 import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import io.ikanos.engine.execution.Durability;
 import io.ikanos.engine.exposes.CallerClaims;
 import io.ikanos.engine.exposes.mcp.handler.ToolsCallHandler;
@@ -72,6 +76,21 @@ public class McpServerAdapter extends ServerAdapter {
      */
     static final java.time.Duration DRAIN_TIMEOUT = java.time.Duration.ofSeconds(30);
 
+    /** Most subscriptions one caller keeps open on this adapter at once. */
+    static final int MAX_SUBSCRIPTIONS_PER_OWNER = 32;
+
+    /** Most subscriptions the callers this adapter cannot tell apart keep open, together. */
+    static final int MAX_ANONYMOUS_SUBSCRIPTIONS = 256;
+
+    /**
+     * How long a subscription may wait for its stream to start before it is given up: the
+     * listener's idle timeout, past which its connection is gone anyway.
+     */
+    static final Duration SUBSCRIPTION_START_TIMEOUT = Duration.ofSeconds(30);
+
+    /** Longest wait, on stop, for the open subscriptions to answer their request. */
+    static final Duration SUBSCRIPTIONS_CLOSE_TIMEOUT = Duration.ofSeconds(2);
+
     /**
      * Stdio handler and thread — only initialized for stdio transport. Held in
      * {@link AtomicReference} so {@code start()} and {@code stop()} can publish/observe them
@@ -93,6 +112,7 @@ public class McpServerAdapter extends ServerAdapter {
     private final SkillHandler skillHandler;
     private final McpTaskService taskService;
     private final McpRequestState requestState;
+    private final Set<McpSubscription> subscriptions = ConcurrentHashMap.newKeySet();
 
     public McpServerAdapter(Capability capability, McpServerSpec serverSpec) {
         super(capability, serverSpec);
@@ -261,6 +281,70 @@ public class McpServerAdapter extends ServerAdapter {
     /** The task service, or {@code null} when the capability runs under {@code none}. */
     public McpTaskService getTaskService() {
         return taskService;
+    }
+
+    /**
+     * Opens a {@code subscriptions/listen} subscription to the status of {@code taskIds}, tracked
+     * until it ends so that {@link #stop} closes it gracefully. Needs {@link #servesTasks}.
+     *
+     * @param id the JSON-RPC ID of the request
+     * @param owner the caller, as {@code tasks/get} takes it
+     */
+    public McpSubscription subscribe(JsonNode id, String owner, List<String> taskIds) {
+        synchronized (subscriptions) {
+            giveUpUnstarted(Instant.now());
+            // An open stream holds none of maxRequestsInProgress: this bounds what one caller
+            // keeps open (a listener, a connection, a thread each). Callers the adapter cannot
+            // tell apart (no authentication, bearer, apikey) share one owner, so they share a
+            // larger limit, adapter-wide.
+            boolean anonymous = AgentIdentityResolver
+                    .anonymousOwner(getMcpServerSpec().getNamespace()).equals(owner);
+            int limit = anonymous ? MAX_ANONYMOUS_SUBSCRIPTIONS : MAX_SUBSCRIPTIONS_PER_OWNER;
+            long open = subscriptions.stream()
+                    .filter(subscription -> subscription.owner().equals(owner)).count();
+            if (open >= limit) {
+                throw new IllegalStateException(anonymous
+                        ? "Too many open subscriptions on this server for callers it does not "
+                                + "identify (" + limit + "): end one before opening another"
+                        : "Too many open subscriptions for this caller (" + limit
+                                + "): end one before opening another");
+            }
+            McpSubscription subscription = new McpSubscription(id, owner, taskIds, taskService,
+                    Clock.systemUTC());
+            subscriptions.add(subscription);
+            subscription.whenEnded(() -> subscriptions.remove(subscription));
+            return subscription;
+        }
+    }
+
+    /**
+     * Gives up the subscriptions whose stream has not started {@link #SUBSCRIPTION_START_TIMEOUT}
+     * before {@code now}: their client left before the stream was written, so nothing will run
+     * them, and they would hold a slot of their caller's limit until the adapter stops.
+     */
+    void giveUpUnstarted(Instant now) {
+        Instant cutoff = now.minus(SUBSCRIPTION_START_TIMEOUT);
+        for (McpSubscription subscription : List.copyOf(subscriptions)) {
+            subscription.giveUpIfNotStartedBy(cutoff);
+        }
+    }
+
+    /** The number of open subscriptions, for the tests. */
+    int subscriptionCount() {
+        return subscriptions.size();
+    }
+
+    /** Waits, at most {@code timeout}, for the closed subscriptions to write their result. */
+    private void awaitSubscriptionsEnded(Duration timeout) {
+        long deadline = System.nanoTime() + timeout.toNanos();
+        while (!subscriptions.isEmpty() && System.nanoTime() < deadline) {
+            try {
+                Thread.sleep(20);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
     }
 
     /**
@@ -494,6 +578,10 @@ public class McpServerAdapter extends ServerAdapter {
                         + "resumes them (namespace: " + getMcpServerSpec().getNamespace() + ")");
             }
         }
+        // Then, while the transport is still open: each subscription answers its request, the
+        // graceful end a client tells apart from a dropped stream.
+        subscriptions.forEach(McpSubscription::close);
+        awaitSubscriptionsEnded(SUBSCRIPTIONS_CLOSE_TIMEOUT);
         if (getMcpServerSpec().isStdio()) {
             StdioJsonRpcHandler handler = stdioHandler.get();
             if (handler != null) {

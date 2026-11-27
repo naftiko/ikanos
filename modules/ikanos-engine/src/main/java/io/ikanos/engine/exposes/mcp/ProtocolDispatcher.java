@@ -28,6 +28,7 @@ import io.ikanos.engine.exposes.mcp.model.DispatchResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerFailureResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerSuccessResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerResult;
+import io.ikanos.engine.exposes.mcp.model.HandlerStreamResult;
 import io.ikanos.engine.exposes.mcp.model.McpRequestContext;
 import io.ikanos.engine.exposes.mcp.search.ToolSearchCatalog;
 import io.ikanos.engine.exposes.mcp.search.ToolSearchMode;
@@ -212,6 +213,10 @@ public class ProtocolDispatcher {
 
                         return new DispatchResult(rpcResponse);
                     }
+                    case HandlerStreamResult streamResult -> {
+                        // A stream of messages the transport writes, not one response.
+                        return new DispatchResult(streamResult.subscription());
+                    }
                 }
             } else {
                 return new DispatchResult(buildJsonRpcError(idNode, METHOD_NOT_FOUND.getCode(),
@@ -332,9 +337,7 @@ public class ProtocolDispatcher {
         } else if (httpRequest != null && TASK_METHODS.contains(method)) {
             tool = taskToolName(request.path("params").path("taskId").asString(null), httpRequest);
         }
-        // One lookup with the embedded check (#1126): the tool as ToolHandler registers it
-        return tool != null ? adapter.requirementFor(tool)
-                : AccessControl.effective(serverSpec, null);
+        return requirementOfTool(tool);
     }
 
     /**
@@ -405,6 +408,28 @@ public class ProtocolDispatcher {
      */
     Set<String> requiredScopes() {
         return requiredScopes;
+    }
+
+    /**
+     * The scopes or claims the caller's token must carry to read a task of its own, as for
+     * {@code tasks/get}: the requirement of the tool the task runs, else the adapter's.
+     *
+     * @param taskId the task
+     * @param httpRequest the inbound HTTP request, which names the task's owner
+     * @return the requirement, or {@code null} when none applies
+     */
+    AuthorizationSpec taskRequirement(String taskId, Request httpRequest) {
+        return serverSpec == null ? null
+                : requirementOfTool(taskToolName(taskId, httpRequest));
+    }
+
+    /**
+     * The requirement of a tool, else the adapter's. One lookup with the embedded check (#1126):
+     * the tool as ToolHandler registers it.
+     */
+    private AuthorizationSpec requirementOfTool(String toolName) {
+        return toolName != null ? adapter.requirementFor(toolName)
+                : AccessControl.effective(serverSpec, null);
     }
 
     /**

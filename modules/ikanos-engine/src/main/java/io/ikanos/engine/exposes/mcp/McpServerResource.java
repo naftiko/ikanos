@@ -25,9 +25,15 @@ import io.ikanos.engine.exposes.mcp.model.JsonRpcCodeMapper;
 import io.ikanos.engine.exposes.mcp.model.JsonRpcError;
 import io.ikanos.engine.exposes.mcp.model.McpHeader;
 import io.ikanos.spec.exposes.AuthorizationSpec;
+import com.nimbusds.jwt.JWTClaimsSet;
+import io.ikanos.engine.exposes.OAuth2AuthenticationRestlet;
+import java.time.Duration;
+import org.restlet.Request;
 import org.restlet.data.Header;
 import org.restlet.data.MediaType;
+import org.restlet.data.ServerSentEvent;
 import org.restlet.data.Status;
+import org.restlet.representation.EventStreamRepresentation;
 import org.restlet.representation.Representation;
 import org.restlet.representation.StringRepresentation;
 import org.restlet.resource.Delete;
@@ -110,6 +116,9 @@ public class McpServerResource extends ServerResource {
                 setStatusCode(result.rpcError());
             }
 
+            if (result.subscription() != null) {
+                return stream(dispatcher, result.subscription());
+            }
             if (result.responseBody() != null) {
                 return toJsonRepresentation(mapper, result.responseBody());
             } else {
@@ -138,6 +147,46 @@ public class McpServerResource extends ServerResource {
             }
         }
     }
+
+    /**
+     * Answers a {@code subscriptions/listen} request with its stream: a {@code text/event-stream}
+     * whose events are the subscription's messages, written once this request has returned
+     * through the adapter's chain, so an open stream holds none of its requests in progress.
+     * The subscription keeps only the tasks whose tool's authorization the token meets, as
+     * {@code tasks/get} requires, and ends gracefully when the token expires. A comment every
+     * {@link #HEARTBEAT_INTERVAL} keeps an idle stream open and finds a client that left.
+     */
+    private Representation stream(ProtocolDispatcher dispatcher, McpSubscription subscription) {
+        try {
+            secure(dispatcher, subscription, getRequest());
+            ObjectMapper mapper = dispatcher.getMapper();
+            return new EventStreamRepresentation(sink -> subscription.run(message -> sink.send(
+                    ServerSentEvent.builder().data(mapper.writeValueAsString(message)).build())),
+                    HEARTBEAT_INTERVAL);
+        } catch (RuntimeException e) {
+            // The request fails before any stream exists: nothing will ever run it.
+            subscription.discard();
+            throw e;
+        }
+    }
+
+    /**
+     * Limits a subscription to what the request's token allows: the tasks whose tool's
+     * authorization it meets, as {@code tasks/get} requires, until the token expires.
+     */
+    static void secure(ProtocolDispatcher dispatcher, McpSubscription subscription,
+            Request request) {
+        subscription.retain(taskId -> AccessControl.allows(
+                dispatcher.taskRequirement(taskId, request), request));
+        Object claims = request.getAttributes()
+                .get(OAuth2AuthenticationRestlet.VALIDATED_CLAIMS_ATTRIBUTE);
+        if (claims instanceof JWTClaimsSet validated && validated.getExpirationTime() != null) {
+            subscription.expireAt(validated.getExpirationTime().toInstant());
+        }
+    }
+
+    /** Half the listener's idle timeout, so an open stream is never idle long enough to close. */
+    static final Duration HEARTBEAT_INTERVAL = Duration.ofSeconds(15);
 
     /**
      * Sets the HTTP status based on the JsonRpc error.
