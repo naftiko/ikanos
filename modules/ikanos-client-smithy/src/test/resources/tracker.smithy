@@ -12,7 +12,7 @@ use aws.protocols#restJson1
 service Tracker {
     version: "2024-01-01"
     operations: [GetIssue, CreateIssue, SlowCall, SlowBodyCall, EchoHeaders, DownloadAttachment,
-        WatchIssues]
+        UploadAttachment, WatchIssues]
     errors: [ServerFault]
 }
 
@@ -106,6 +106,23 @@ operation DownloadAttachment {
         @required
         @httpPayload
         data: AttachmentData
+    }
+}
+
+/// A streaming blob input, which the adapter refuses at load time.
+@http(method: "PUT", uri: "/attachments/{attachmentId}")
+operation UploadAttachment {
+    input := {
+        @required
+        @httpLabel
+        attachmentId: String
+
+        @required
+        @httpPayload
+        data: AttachmentData
+    }
+    output := {
+        size: Long
     }
 }
 

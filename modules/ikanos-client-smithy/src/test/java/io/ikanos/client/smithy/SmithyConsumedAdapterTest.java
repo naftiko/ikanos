@@ -633,6 +633,22 @@ class SmithyConsumedAdapterTest {
     }
 
     @Test
+    void constructorShouldRefuseAStreamingBlobInput() throws Exception {
+        SmithyClientSpec spec = spec("""
+                upload:
+                  description: An attachment upload.
+                  operation: UploadAttachment
+                  inputParameters:
+                    id: { type: string, required: true, description: Id., wireName: attachmentId }
+                """, "");
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> new SmithyConsumedAdapter(null, spec, Map.of()));
+        assertTrue(e.getMessage().contains("'upload'")
+                && e.getMessage().contains("streaming input member 'data'"), e.getMessage());
+    }
+
+    @Test
     void constructorShouldRefuseAnEventStreamOutput() throws Exception {
         SmithyClientSpec spec = spec("""
                 watch:
