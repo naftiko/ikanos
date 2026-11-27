@@ -44,40 +44,40 @@ capability:
         hints:
           readOnly: true
         steps:
-          run:
+          - name: run
             type: call
-            call: payments.checkout
+            what: payments.checkout
       pay-idempotent:
         description: Claims idempotent while its step reaches a flow that posts
         hints:
           idempotent: true
         steps:
-          run:
+          - name: run
             type: call
-            call: payments.checkout
+            what: payments.checkout
       quote:
         description: Read-only, and so is the flow its step reaches
         hints:
           readOnly: true
         steps:
-          run:
+          - name: run
             type: call
-            call: payments.quote
+            what: payments.quote
       pay:
         description: Claims nothing, so nothing to contradict
         steps:
-          run:
+          - name: run
             type: call
-            call: payments.checkout
+            what: payments.checkout
     resources:
       receipt:
         display: Receipt
         uri: shop://receipt
         description: A resource has no ref, so a call step is how it reaches a flow
         steps:
-          pay:
+          - name: pay
             type: call
-            call: payments.checkout
+            what: payments.checkout
   - type: mcp
     address: localhost
     port: 9301
@@ -89,17 +89,17 @@ capability:
       pay-by-default:
         description: Read-only through the server's hints while its step reaches a flow that posts
         steps:
-          run:
+          - name: run
             type: call
-            call: payments.checkout
+            what: payments.checkout
       pay-destructive:
         description: destructive without readOnly resolves readOnly to false
         hints:
           destructive: true
         steps:
-          run:
+          - name: run
             type: call
-            call: payments.checkout
+            what: payments.checkout
   - type: rest
     address: localhost
     port: 9302
@@ -112,6 +112,6 @@ capability:
           create:
             method: POST
             steps:
-              pay:
+              - name: pay
                 type: call
-                call: payments.checkout
+                what: payments.checkout

@@ -406,8 +406,8 @@ function flowSteps(tool) {
   }
   for (const s of entries(tool.steps)) {
     const step = s.value;
-    if (step && step.type === "call" && typeof step.call === "string") {
-      targets.push(step.call);
+    if (step && step.type === "call" && typeof step.what === "string") {
+      targets.push(step.what);
     }
   }
   return targets;

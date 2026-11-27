@@ -414,9 +414,9 @@ class FlowCompositionTest {
         // resource, which has no ref; the lint checks the tool's hints against the flow instead.
         String exposes = MCP_EXPOSES.replace("ref: payments.checkout", """
                 steps:
-                            pay:
+                            - name: pay
                               type: call
-                              call: payments.checkout
+                              what: payments.checkout
                               with:
                                 amount: shop-mcp.amount
                           inputParameters:

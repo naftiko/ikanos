@@ -70,15 +70,15 @@ class McpConsumedReferenceTest {
                     read:
                       description: Dotted tool name
                       steps:
-                        read:
+                        - name: read
                           type: call
-                          call: fs.files.read
+                          what: fs.files.read
                     find:
                       description: Plain tool name
                       steps:
-                        find:
+                        - name: find
                           type: call
-                          call: fs.search
+                          what: fs.search
                     direct:
                       description: Flow-level call
                       call: fs.files.read
@@ -102,9 +102,9 @@ class McpConsumedReferenceTest {
                       uri: demo://file
                       description: Reads through a step
                       steps:
-                        read:
+                        - name: read
                           type: call
-                          call: fs.files.read
+                          what: fs.files.read
             """;
 
     private static String capability() {

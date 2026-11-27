@@ -108,9 +108,9 @@ class ConsumedWriteExposureTest {
                       description: Settles an order.
                       %s
                       steps:
-                        cancel:
+                        - name: cancel
                           type: call
-                          call: orders.cancel-order
+                          what: orders.cancel-order
             """;
 
     /** The capability section of a spec with the given flow semantics and exposes block. */
