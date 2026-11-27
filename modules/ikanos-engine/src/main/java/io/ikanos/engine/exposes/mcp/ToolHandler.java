@@ -326,6 +326,14 @@ public class ToolHandler {
         try {
             arguments = FileInputs.check(getInputParameters(toolName), arguments,
                     maxInlineBytes);
+            // A ref tool that declares its own inputs, none of them a file, still sends its
+            // flow's file inputs: the call limit applies to them too
+            if (toolSpec.getRef() != null
+                    && !FileInputs.takesFiles(getInputParameters(toolName))) {
+                arguments = FileInputs.check(
+                        capability.lookupFlow(toolSpec.getRef()).getInputParameters(),
+                        arguments, maxInlineBytes);
+            }
         } catch (FileInputs.InvalidFileException e) {
             return textResult(e.getMessage(), true);
         }

@@ -157,6 +157,13 @@ class FileInputsIntegrationTest {
                       store-raw:
                         description: Store the raw bytes of a report.
                         ref: documents.store-raw
+                      store-raw-own-inputs:
+                        description: Store raw bytes, with inputs declared on the tool.
+                        ref: documents.store-raw
+                        inputParameters:
+                          report:
+                            type: object
+                            description: The report, redeclared as an object.
                       import-report-own-inputs:
                         description: Import a report, with inputs declared on the tool.
                         ref: documents.import-report
@@ -177,6 +184,7 @@ class FileInputsIntegrationTest {
                     address: 127.0.0.1
                     port: %d
                     namespace: documents-api
+                    maxBinarySize: 2KiB
                     resources:
                       reports:
                         path: /reports
@@ -184,6 +192,17 @@ class FileInputsIntegrationTest {
                           import:
                             method: POST
                             ref: documents.import-report
+                      own-raw:
+                        path: /own-raw
+                        operations:
+                          store:
+                            method: POST
+                            ref: documents.store-raw
+                            inputParameters:
+                              report:
+                                in: body
+                                type: object
+                                description: The report, redeclared as an object.
                       own-reports:
                         path: /own-reports
                         operations:
@@ -236,8 +255,8 @@ class FileInputsIntegrationTest {
             throws Exception {
         JsonNode tools = rpc("tools/list", null, JSON.createObjectNode(), true).path("tools");
 
-        assertEquals(List.of("import-report", "store-raw", "import-report-own-inputs", "ping"),
-                names(tools));
+        assertEquals(List.of("import-report", "store-raw", "store-raw-own-inputs",
+                "import-report-own-inputs", "ping"), names(tools));
         JsonNode report = tools.get(0).path("inputSchema").path("properties").path("report");
         assertEquals("object", report.path("type").asString());
         assertEquals(JSON.readTree("{\"accept\":[\"application/pdf\",\".csv\"],\"maxSize\":1024}"),
@@ -341,6 +360,21 @@ class FileInputsIntegrationTest {
     }
 
     @Test
+    void toolThatRedeclaresTheFlowFileInputShouldStillBeBoundByMaxInlineBytes()
+            throws Exception {
+        ObjectNode arguments = JSON.createObjectNode();
+        arguments.set("report", fileArgument("file-1", "big.bin", "application/octet-stream",
+                new byte[3000]));
+
+        JsonNode result = callTool("store-raw-own-inputs", arguments);
+
+        assertTrue(result.path("isError").asBoolean(), result.toString());
+        assertTrue(result.path("content").get(0).path("text").asString().contains("limit"),
+                result.toString());
+        assertTrue(received.isEmpty(), "The flow must not run");
+    }
+
+    @Test
     void toolThatRedeclaresTheFlowFileInputShouldStillSendAnAcceptedFile() throws Exception {
         ObjectNode arguments = JSON.createObjectNode();
         arguments.set("report", fileArgument("file-1", "q3.pdf", "application/pdf", PDF));
@@ -387,6 +421,23 @@ class FileInputsIntegrationTest {
                 new byte[2048]));
 
         HttpResponse<String> response = http.send(HttpRequest.newBuilder(URI.create(ownInputsUrl))
+                .POST(HttpRequest.BodyPublishers.ofString(JSON.writeValueAsString(body)))
+                .header("Content-Type", "application/json").build(),
+                HttpResponse.BodyHandlers.ofString());
+
+        assertEquals(400, response.statusCode(), response.body());
+        assertTrue(received.isEmpty(), "The flow must not run");
+    }
+
+    @Test
+    void operationThatRedeclaresTheFlowFileInputShouldStillBeBoundByMaxBinarySize()
+            throws Exception {
+        ObjectNode body = JSON.createObjectNode();
+        body.set("report", fileArgument("file-1", "big.bin", "application/octet-stream",
+                new byte[3000]));
+
+        HttpResponse<String> response = http.send(HttpRequest.newBuilder(
+                URI.create(ownInputsUrl.replace("/own-reports", "/own-raw")))
                 .POST(HttpRequest.BodyPublishers.ofString(JSON.writeValueAsString(body)))
                 .header("Content-Type", "application/json").build(),
                 HttpResponse.BodyHandlers.ofString());

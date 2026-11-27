@@ -207,6 +207,14 @@ public class OperationStepExecutor {
             params = FileInputs.check(inheritedInputs, params, maxFileBytes);
         }
 
+        // A ref operation that declares its own inputs inherits none, but still sends its
+        // flow's file inputs: the adapter's maxBinarySize bounds them too
+        if (!takesFiles && serverOp != null && serverOp.getRef() != null && capability != null) {
+            params = FileInputs.check(capability.lookupFlow(serverOp.getRef())
+                    .getInputParameters(), params, BinarySize.parseOrDefault(
+                            serverSpec != null ? serverSpec.getMaxBinarySize() : null));
+        }
+
         return params;
     }
 
