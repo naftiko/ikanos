@@ -36,11 +36,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.logging.Level;
 import java.time.Clock;
+import java.time.Duration;
 import io.ikanos.engine.execution.Durability;
 import io.ikanos.engine.exposes.CallerClaims;
 import io.ikanos.engine.exposes.mcp.handler.ToolsCallHandler;
@@ -72,6 +75,9 @@ public class McpServerAdapter extends ServerAdapter {
      */
     static final java.time.Duration DRAIN_TIMEOUT = java.time.Duration.ofSeconds(30);
 
+    /** Longest wait, on stop, for the open subscriptions to answer their request. */
+    static final Duration SUBSCRIPTIONS_CLOSE_TIMEOUT = Duration.ofSeconds(2);
+
     /**
      * Stdio handler and thread — only initialized for stdio transport. Held in
      * {@link AtomicReference} so {@code start()} and {@code stop()} can publish/observe them
@@ -93,6 +99,7 @@ public class McpServerAdapter extends ServerAdapter {
     private final SkillHandler skillHandler;
     private final McpTaskService taskService;
     private final McpRequestState requestState;
+    private final Set<McpSubscription> subscriptions = ConcurrentHashMap.newKeySet();
 
     public McpServerAdapter(Capability capability, McpServerSpec serverSpec) {
         super(capability, serverSpec);
@@ -261,6 +268,39 @@ public class McpServerAdapter extends ServerAdapter {
     /** The task service, or {@code null} when the capability runs under {@code none}. */
     public McpTaskService getTaskService() {
         return taskService;
+    }
+
+    /**
+     * Opens a {@code subscriptions/listen} subscription to the status of {@code taskIds}, tracked
+     * until it ends so that {@link #stop} closes it gracefully. Needs {@link #servesTasks}.
+     *
+     * @param id the JSON-RPC ID of the request
+     * @param owner the caller, as {@code tasks/get} takes it
+     */
+    public McpSubscription subscribe(JsonNode id, String owner, List<String> taskIds) {
+        McpSubscription subscription = new McpSubscription(id, owner, taskIds, taskService,
+                Clock.systemUTC());
+        subscriptions.add(subscription);
+        subscription.whenEnded(() -> subscriptions.remove(subscription));
+        return subscription;
+    }
+
+    /** The number of open subscriptions, for the tests. */
+    int subscriptionCount() {
+        return subscriptions.size();
+    }
+
+    /** Waits, at most {@code timeout}, for the closed subscriptions to write their result. */
+    private void awaitSubscriptionsEnded(Duration timeout) {
+        long deadline = System.nanoTime() + timeout.toNanos();
+        while (!subscriptions.isEmpty() && System.nanoTime() < deadline) {
+            try {
+                Thread.sleep(20);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
     }
 
     /**
@@ -494,6 +534,10 @@ public class McpServerAdapter extends ServerAdapter {
                         + "resumes them (namespace: " + getMcpServerSpec().getNamespace() + ")");
             }
         }
+        // Then, while the transport is still open: each subscription answers its request, the
+        // graceful end a client tells apart from a dropped stream.
+        subscriptions.forEach(McpSubscription::close);
+        awaitSubscriptionsEnded(SUBSCRIPTIONS_CLOSE_TIMEOUT);
         if (getMcpServerSpec().isStdio()) {
             StdioJsonRpcHandler handler = stdioHandler.get();
             if (handler != null) {

@@ -20,6 +20,8 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 
 import io.ikanos.engine.exposes.mcp.model.DispatchResult;
@@ -47,6 +49,12 @@ public class StdioJsonRpcHandler implements Runnable {
     private final InputStream input;
     private final PrintStream output;
     private volatile boolean running;
+
+    /** Method of the notification a client cancels a request with. */
+    static final String CANCELLED = "notifications/cancelled";
+
+    /** The running subscriptions, by the JSON text of their request ID. */
+    private final Map<String, McpSubscription> subscriptions = new ConcurrentHashMap<>();
 
     /**
      * Create a stdio handler using System.in / System.out.
@@ -82,17 +90,20 @@ public class StdioJsonRpcHandler implements Runnable {
 
                 try {
                     JsonNode request = dispatcher.getMapper().readTree(line);
+                    cancelSubscriptionIfAsked(request);
                     // Extract W3C trace context from params._meta (stdio has no HTTP headers,
                     // so _meta is the only carrier — see McpMetaTraceContextBridge), create the
                     // SERVER span, and populate MDC identically to the Streamable HTTP transport.
                     DispatchResult dispatchResult = dispatcher.dispatchWithTracing(request, null);
+                    if (dispatchResult.subscription() != null) {
+                        listen(dispatchResult.subscription());
+                        continue;
+                    }
                     ObjectNode response = dispatchResult.responseBody();
 
                     // Notifications return null — no response to write
                     if (response != null) {
-                        String json = dispatcher.getMapper().writeValueAsString(response);
-                        output.println(json);
-                        output.flush();
+                        writeLine(dispatcher.getMapper().writeValueAsString(response));
                     }
                 } catch (JacksonException e) {
                     Context.getCurrentLogger().log(Level.SEVERE, "Error processing request", e);
@@ -102,8 +113,7 @@ public class StdioJsonRpcHandler implements Runnable {
                     ObjectNode errorResponse = buildJsonRpcError(
                             null, PARSE_ERROR.getCode(), "Parse error: " + e.getMessage());
                     try {
-                        output.println(dispatcher.getMapper().writeValueAsString(errorResponse));
-                        output.flush();
+                        writeLine(dispatcher.getMapper().writeValueAsString(errorResponse));
                     } catch (JacksonException ex) {
                         Context.getCurrentLogger().log(Level.SEVERE, "Error serializing error response", ex);
                         // Cannot serialize the error response — nothing more we can do
@@ -115,7 +125,64 @@ public class StdioJsonRpcHandler implements Runnable {
                 System.err.println("MCP stdio error: " + e.getMessage());
                 Context.getCurrentLogger().log(Level.SEVERE, "MCP stdio error", e);
             }
+        } finally {
+            // The client is gone: its subscriptions end with it, and nothing is left to answer.
+            subscriptions.values().forEach(McpSubscription::cancel);
         }
+    }
+
+    /**
+     * Writes one message, as one line. Subscriptions write from their own threads, so lines are
+     * written one at a time and never interleave.
+     */
+    private void writeLine(String json) {
+        synchronized (output) {
+            output.println(json);
+            output.flush();
+        }
+    }
+
+    /**
+     * Runs a subscription on its own virtual thread: every subscription shares stdout with the
+     * responses, its messages told apart by their subscription ID.
+     */
+    private void listen(McpSubscription subscription) {
+        String key = subscription.id().toString();
+        McpSubscription previous = subscriptions.put(key, subscription);
+        if (previous != null) {
+            // A client reusing an ID it still listens on: the newer request replaces the older.
+            previous.cancel();
+        }
+        Thread.ofVirtual().name("mcp-stdio-subscription").start(() -> {
+            try {
+                subscription.run(message -> writeLine(
+                        dispatcher.getMapper().writeValueAsString(message)));
+            } catch (IOException | RuntimeException e) {
+                Context.getCurrentLogger().log(Level.WARNING, "MCP stdio subscription ended", e);
+            } finally {
+                subscriptions.remove(key, subscription);
+            }
+        });
+    }
+
+    /**
+     * Cancels the subscription a client's {@code notifications/cancelled} names by its
+     * {@code requestId}: on stdio, that is how a client ends a {@code subscriptions/listen}.
+     */
+    private void cancelSubscriptionIfAsked(JsonNode message) {
+        if (message.isObject() && !message.has("id")
+                && CANCELLED.equals(message.path("method").asString(""))) {
+            McpSubscription subscription = subscriptions
+                    .get(message.path("params").path("requestId").toString());
+            if (subscription != null) {
+                subscription.cancel();
+            }
+        }
+    }
+
+    /** The number of running subscriptions, for the tests. */
+    int subscriptionCount() {
+        return subscriptions.size();
     }
 
     /**

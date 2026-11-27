@@ -233,6 +233,61 @@ class McpTasksIntegrationTest {
     }
 
     @Test
+    void subscriptionsListenShouldNotExistWhenTheServerServesNoTasks() throws Exception {
+        McpServerAdapter adapter = load(clearanceCapability("", "task"));
+
+        JsonNode error = dispatch(adapter, "subscriptions/listen",
+                "{\"notifications\":{\"taskIds\":[]}}", true).path("error");
+
+        assertEquals(-32601, error.path("code").asInt(),
+                "Task notifications are the only type a subscription carries");
+    }
+
+    @Test
+    void subscriptionsListenShouldRefuseAFilterThatIsNoObject() throws Exception {
+        McpServerAdapter adapter = load(clearanceCapability(MEMORY, "task"));
+
+        JsonNode error = dispatch(adapter, "subscriptions/listen", "{\"notifications\":[]}", true)
+                .path("error");
+
+        assertEquals(-32602, error.path("code").asInt());
+    }
+
+    @Test
+    void subscriptionsListenShouldRefuseTaskIdsThatAreNotStrings() throws Exception {
+        McpServerAdapter adapter = load(clearanceCapability(MEMORY, "task"));
+
+        JsonNode error = dispatch(adapter, "subscriptions/listen",
+                "{\"notifications\":{\"taskIds\":[42]}}", true).path("error");
+
+        assertEquals(-32602, error.path("code").asInt());
+    }
+
+    @Test
+    void subscriptionsListenShouldOpenASubscriptionToTheCallersTasks() throws Exception {
+        McpServerAdapter adapter = load(clearanceCapability(MEMORY, "task"));
+        ObjectNode request = jsonMapper.createObjectNode();
+        request.put("jsonrpc", "2.0");
+        request.put("id", 7);
+        request.put("method", "subscriptions/listen");
+        ObjectNode params = request.putObject("params");
+        params.putObject("notifications").putArray("taskIds").add("no-such-task");
+        ObjectNode meta = params.putObject("_meta");
+        meta.put("io.modelcontextprotocol/protocolVersion", ProtocolDispatcher.MCP_PROTOCOL_VERSION);
+        meta.putObject("io.modelcontextprotocol/clientCapabilities").putObject("extensions")
+                .putObject(TASKS);
+
+        McpSubscription subscription = new ProtocolDispatcher(adapter).dispatch(request)
+                .subscription();
+
+        assertEquals(7, subscription.id().asInt());
+        assertTrue(subscription.agreed().isEmpty(), "An unknown task is not agreed to");
+        assertEquals(1, adapter.subscriptionCount());
+        subscription.discard();
+        assertEquals(0, adapter.subscriptionCount());
+    }
+
+    @Test
     void toolsCallShouldAnswerSynchronouslyUnderTheNoneMode() throws Exception {
         McpServerAdapter adapter = load(clearanceCapability("", "task"));
 

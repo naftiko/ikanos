@@ -148,6 +148,10 @@ public class McpCallHandlersFactory {
             handlers.add(new TasksUpdateHandler(adapter,
                     List.of(MCP_PROTOCOL_VERSION, MCP_METHOD, MCP_NAME),
                     List.of(protocolsVersionsValidator), List.of(serverDataAppender)));
+            // Task status notifications are the only type a subscription carries.
+            handlers.add(new SubscriptionsListenHandler(adapter,
+                    List.of(MCP_PROTOCOL_VERSION, MCP_METHOD),
+                    List.of(protocolsVersionsValidator), List.of()));
         }
         return List.copyOf(handlers);
     }

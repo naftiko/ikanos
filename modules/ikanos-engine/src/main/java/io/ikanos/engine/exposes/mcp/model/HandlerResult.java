@@ -16,5 +16,6 @@ package io.ikanos.engine.exposes.mcp.model;
 /**
  * A marker interface for handler's results.
  */
-public sealed interface HandlerResult permits HandlerSuccessResult, HandlerFailureResult {
+public sealed interface HandlerResult permits HandlerSuccessResult, HandlerFailureResult,
+        HandlerStreamResult {
 }
