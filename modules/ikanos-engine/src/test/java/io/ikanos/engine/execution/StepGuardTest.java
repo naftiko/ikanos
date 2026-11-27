@@ -204,4 +204,20 @@ public class StepGuardTest {
         assertTrue(StepGuard.subtractedNames("total - 1 > 0").isEmpty());
         assertTrue(StepGuard.subtractedNames("a.b - c > 0").isEmpty());
     }
+
+    @Test
+    public void subtractedNamesShouldFollowMethodCallsAndMacros() {
+        assertEquals(List.of(List.of("get", "ship")),
+                StepGuard.subtractedNames("get-ship.crew.size() > 0"));
+        assertEquals(List.of(List.of("list", "merged")),
+                StepGuard.subtractedNames("size(list-merged.filter(pr, pr.closed)) > 0"));
+    }
+
+    @Test
+    public void parseErrorShouldHintAtADashedNameWrittenWithItsDash() {
+        String error = StepGuard.parseError("size(list-merged.filter(pr, pr.closed)) > 0");
+
+        assertNotNull(error);
+        assertTrue(error.endsWith("if 'list-merged' is a name, write it 'list_merged'"), error);
+    }
 }

@@ -199,8 +199,23 @@ public final class StepGuard {
             return null;
         } catch (IllegalArgumentException e) {
             String message = e.getMessage();
-            return message.startsWith(prefix) ? message.substring(prefix.length()) : message;
+            return (message.startsWith(prefix) ? message.substring(prefix.length()) : message)
+                    + dashHint(onlyIf);
         }
+    }
+
+    /**
+     * A hint for an expression that does not compile and subtracts names, as a dashed name
+     * written with its dash does ({@code list-merged.filter(...)}), or an empty string.
+     */
+    static String dashHint(String expression) {
+        List<List<String>> subtractions = subtractedNames(expression);
+        if (subtractions.isEmpty()) {
+            return "";
+        }
+        List<String> parts = subtractions.get(0);
+        return ". '-' is minus in CEL: if '" + String.join("-", parts) + "' is a name, write it '"
+                + String.join("_", parts) + "'";
     }
 
     /**

@@ -105,13 +105,31 @@ final class GuardIdentifiers {
         return null;
     }
 
-    /** The name a path starts with: {@code ship} for {@code ship.count}; null if none. */
+    /**
+     * The name a path starts with: {@code ship} for {@code ship.count}, {@code ship.crew.size()}
+     * or {@code ship.crew.filter(c, c.active)}; null if none.
+     */
     private static String headName(CelExpr expr) {
         CelExpr current = expr;
-        while (current.getKind() == CelExpr.ExprKind.Kind.SELECT) {
-            current = current.select().operand();
+        while (true) {
+            switch (current.getKind()) {
+                case IDENT -> {
+                    return current.ident().name();
+                }
+                case SELECT -> current = current.select().operand();
+                case CALL -> {
+                    if (current.call().target().isEmpty()) {
+                        return null;
+                    }
+                    current = current.call().target().get();
+                }
+                // a macro such as filter or all, expanded over the list it reads
+                case COMPREHENSION -> current = current.comprehension().iterRange();
+                default -> {
+                    return null;
+                }
+            }
         }
-        return current.getKind() == CelExpr.ExprKind.Kind.IDENT ? current.ident().name() : null;
     }
 
     private static void walk(CelExpr expr, Set<String> bound, Set<String> names) {
