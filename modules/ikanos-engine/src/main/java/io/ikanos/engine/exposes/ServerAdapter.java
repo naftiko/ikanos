@@ -174,6 +174,18 @@ public abstract class ServerAdapter extends Adapter {
                 getSpec().getNamespace(), next);
     }
 
+    /**
+     * Limits a side endpoint of this adapter, such as the MCP server card, to {@code limit}
+     * requests at once, apart from the adapter's own limit, so a flood of them cannot take the
+     * slots of the adapter's main requests. Past it, a request gets an immediate 503. Its metrics
+     * carry the adapter type {@code <type>/<endpoint>}, such as {@code mcp/server-card}, so a
+     * flood of side requests never shows as load on the adapter's main endpoint.
+     */
+    protected Restlet limitSideRequestsInProgress(int limit, String endpoint, Restlet next) {
+        return new RequestsInProgressFilter(limit, getSpec().getType() + "/" + endpoint,
+                getSpec().getNamespace(), next);
+    }
+
     /** The requests in progress this adapter allows, or 0 when it has no limit (the control port). */
     int getRequestsInProgressLimit() {
         return requestsInProgressLimit;

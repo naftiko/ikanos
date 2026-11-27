@@ -18,6 +18,7 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.mcp.ProtocolDispatcher;
+import io.ikanos.engine.exposes.mcp.ServerCardBuilder;
 import io.ikanos.exception.ProcessorException;
 import io.ikanos.spec.InfoSpec;
 
@@ -34,12 +35,10 @@ public class ServerDataAppender implements DispatchPostProcessor {
     public ServerDataAppender(McpServerAdapter adapter, ObjectMapper mapper) {
         ObjectNode serverInfoData = mapper.createObjectNode();
         serverInfoData.put("name", adapter.getMcpServerSpec().getNamespace());
+        // The same version as the server card (SEP-2127): card.version, else info.version
         InfoSpec infoSpec = adapter.getCapability().getSpec().getInfo();
-        if (infoSpec != null && infoSpec.getVersion() != null) {
-            serverInfoData.put("version", infoSpec.getVersion());
-        } else {
-            serverInfoData.put("version", "unspecified");
-        }
+        String version = ServerCardBuilder.resolveVersion(adapter.getMcpServerSpec(), infoSpec);
+        serverInfoData.put("version", version != null ? version : "unspecified");
         ObjectNode severInfoObjectNode = mapper.createObjectNode();
         severInfoObjectNode.set("io.modelcontextprotocol/serverInfo", serverInfoData);
         this.serverInfo = severInfoObjectNode;

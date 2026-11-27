@@ -964,12 +964,139 @@
           "items": {
             "$ref": "#/$defs/Person"
           }
+        },
+        "publisher": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9.-]+$",
+          "minLength": 1,
+          "maxLength": 150,
+          "description": "Reverse-DNS prefix of the publisher, such as `io.naftiko` or `com.example`. MCP Server Cards name each server `<publisher>/<namespace>`, as SEP-2127 requires a name with exactly one slash."
+        },
+        "websiteUrl": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://",
+          "description": "Home page or documentation of the capability. Published on the MCP Server Cards of its servers, unless a card sets its own."
+        },
+        "repositoryUrl": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://",
+          "description": "URL of the capability's source repository. Published as `repository` on the MCP Server Cards of its servers when the host is github.com, gitlab.com or bitbucket.org, unless a card sets its own."
+        },
+        "icons": {
+          "type": "array",
+          "description": "Icons a client may show for the capability. Published on the MCP Server Cards of its servers, unless a card sets its own. Prefer icons served from the same origin as the server, or from a host clients trust.",
+          "items": {
+            "$ref": "#/$defs/Icon"
+          },
+          "minItems": 1
         }
       },
       "required": [
         "display",
         "description"
       ],
+      "additionalProperties": false
+    },
+    "Icon": {
+      "type": "object",
+      "description": "An icon, in the shape of the MCP `Icon`.",
+      "properties": {
+        "src": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^(https?:|data:)",
+          "description": "Image URL: `https:` (or `http:` for local development) or a `data:` URI."
+        },
+        "mimeType": {
+          "type": "string",
+          "description": "Image media type, such as `image/png` or `image/svg+xml`."
+        },
+        "sizes": {
+          "type": "array",
+          "description": "Sizes the image fits, such as `48x48`, or `any` for a scalable image.",
+          "items": {
+            "type": "string",
+            "pattern": "^(\\d+x\\d+|any)$"
+          },
+          "minItems": 1
+        },
+        "theme": {
+          "type": "string",
+          "enum": [
+            "light",
+            "dark"
+          ],
+          "description": "The background the icon is designed for."
+        }
+      },
+      "required": [
+        "src"
+      ],
+      "additionalProperties": false
+    },
+    "McpServerCard": {
+      "type": "object",
+      "description": "MCP Server Card (SEP-2127, extension `io.modelcontextprotocol/server-card`). Declaring it, even as `card: {}`, serves a static JSON description of this server at `GET <path>/server-card`, which clients read before they open a session: its name, version, endpoint, the headers its authentication expects (never their values) and the protocol versions it speaks. The engine generates every field from `info` and this exposes entry; a field set here replaces the generated value for this server only. Not allowed with `transport: stdio`.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9.-]+/[a-zA-Z0-9._-]+$",
+          "minLength": 3,
+          "maxLength": 200,
+          "description": "Server name in reverse-DNS form with exactly one slash, such as `io.naftiko/shipyard-tools`. Default: `<info.publisher>/<namespace>`; one of the two is required."
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "description": "Published server version, such as `1.4.0`. Default: `info.version`; one of the two is required. A version range such as `^1.2.3` is rejected. Also returned as `serverInfo.version`."
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://",
+          "description": "Fixed public URL of the MCP endpoint, the same for every client, such as a canonical URL behind several gateways. Default: the origin each client fetched the card from (the request's scheme and `Host`, or `X-Forwarded-Proto` and `X-Forwarded-Host` from a peer that `trust: forwarded` trusts), followed by `path`. The bind address is never published."
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Human-readable name. Default: `info.display`."
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Short description, at most 100 characters. Default: the exposes entry's `description`; a longer one must be shortened here, as the engine never truncates it."
+        },
+        "websiteUrl": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://",
+          "description": "Home page of this server. Default: `info.websiteUrl`."
+        },
+        "repositoryUrl": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://",
+          "description": "Source repository of this server. Default: `info.repositoryUrl`."
+        },
+        "icons": {
+          "type": "array",
+          "description": "Icons of this server. Replaces `info.icons` whole.",
+          "items": {
+            "$ref": "#/$defs/Icon"
+          },
+          "minItems": 1
+        },
+        "authenticated": {
+          "type": "boolean",
+          "default": false,
+          "description": "Serve the card only to the callers the MCP endpoint admits: behind this server's `authentication`, with the same credentials as the MCP endpoint, or, under `trust: forwarded` without `authentication`, behind the trusted peer check. For deployments where only known clients should learn the server exists. Default: `false`, a public card, as SEP-2127 intends, which registries and crawlers can read. No effect without `authentication` or `trust: forwarded`."
+        }
+      },
       "additionalProperties": false
     },
     "Person": {
@@ -1465,6 +1592,9 @@
           "$ref": "#/$defs/McpToolHints",
           "description": "Default hints for every tool of this server. Each field is resolved on its own, from the most specific source to the broadest: the tool's own `hints`, then the hints derived from the `semantics` of the aggregate flow for a tool with `ref`, then these server `hints`. A tool only declares the fields that differ. A tool that declares `destructive: true` without its own `readOnly` resolves `readOnly` to `false`, so it is never advertised as read-only. The resolved hints are what `tools/list` advertises."
         },
+        "card": {
+          "$ref": "#/$defs/McpServerCard"
+        },
         "toolSearch": {
           "$ref": "#/$defs/McpToolSearch",
           "description": "Tool search for this endpoint. A client in deferred mode gets two meta-tools from tools/list, `search-tools` and `call-tool`, plus the pinned tools, and finds the other tools by searching, so their definitions stay out of every model request. A client selects the mode by adding `?toolSearch=deferred` or `?toolSearch=listed` to the endpoint URL; without it, `mode` applies. Deferred mode needs the optional `ikanos-tool-search` module on the classpath. Omitted means `mode: listed` with client selection allowed."
@@ -1543,6 +1673,11 @@
               {
                 "required": [
                   "authorization"
+                ]
+              },
+              {
+                "required": [
+                  "card"
                 ]
               }
             ]

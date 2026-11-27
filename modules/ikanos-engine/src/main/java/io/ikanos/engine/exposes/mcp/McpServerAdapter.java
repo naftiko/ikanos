@@ -16,10 +16,14 @@ package io.ikanos.engine.exposes.mcp;
 import io.ikanos.Capability;
 import io.ikanos.engine.aggregates.AggregateFlow;
 import io.ikanos.engine.exposes.AccessControl;
+import io.ikanos.spec.exposes.AuthorizationSpec;
 import io.ikanos.engine.exposes.ServerAdapter;
 import io.ikanos.engine.exposes.mcp.search.ToolSearchCatalog;
 import io.ikanos.engine.exposes.mcp.search.ToolSearchProviders;
+import io.ikanos.engine.exposes.mcp.ServerCardBuilder.Template;
 import io.ikanos.spec.InputParameterSpec;
+import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
+import io.ikanos.spec.consumes.http.AuthenticationSpec;
 import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
 import io.ikanos.engine.consumes.mcp.UpstreamTasks;
 import io.ikanos.spec.exposes.AuthorizationSpec;
@@ -30,12 +34,16 @@ import io.ikanos.spec.exposes.mcp.McpToolHintsSpec;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.restlet.Context;
 import org.restlet.Restlet;
+import org.restlet.Request;
+import org.restlet.Response;
+import org.restlet.routing.Filter;
 import org.restlet.routing.Router;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -82,6 +90,12 @@ public class McpServerAdapter extends ServerAdapter {
 
     /** OAuth 2.1 restlet, set when the HTTP transport uses {@code oauth2} authentication. */
     private final AtomicReference<McpOAuth2Restlet> oauth2Restlet = new AtomicReference<>();
+
+    /** Server card requests served at once, apart from the MCP endpoint's own limit. */
+    static final int CARD_REQUESTS_IN_PROGRESS = 8;
+
+    /** The server card (SEP-2127), set when the HTTP transport declares a card. */
+    private final AtomicReference<Template> serverCard = new AtomicReference<>();
 
     private final ToolHandler toolHandler;
     private final List<McpSchema.Tool> tools;
@@ -158,6 +172,12 @@ public class McpServerAdapter extends ServerAdapter {
                                 durability.runner(), id))
                 : null;
 
+        if (serverSpec.isStdio() && serverSpec.getCard() != null) {
+            throw new IllegalArgumentException("The mcp adapter '" + serverSpec.getNamespace()
+                    + "' declares 'card' with transport stdio; server cards are served over"
+                    + " HTTP only. Remove 'card'.");
+        }
+
         if (serverSpec.isStdio()) {
             initStdioTransport();
         } else {
@@ -176,16 +196,112 @@ public class McpServerAdapter extends ServerAdapter {
 
         Router router = new Router(context);
         router.attachDefault(McpServerResource.class);
+        Restlet endpoint = limitRequestsInProgress(router);
 
-        Restlet chain = buildServerChain(limitRequestsInProgress(router));
+        // Server card (SEP-2127): public by default, so it is routed ahead of the trusted peer
+        // check and the authentication chain. With card.authenticated, only its CORS preflight
+        // is: GET goes through the authentication chain when the adapter declares one, else
+        // through the trusted peer check in forwarded mode, so it is restricted like the rest.
+        ServerCardRestlet cardRestlet = buildServerCardRestlet(context, serverSpec,
+                dispatcher.getIdentityResolver());
+        boolean cardRestricted = cardRestlet != null
+                && ServerCardBuilder.isRestricted(serverSpec);
+        Restlet limitedCard = cardRestlet != null
+                ? limitSideRequestsInProgress(CARD_REQUESTS_IN_PROGRESS, "server-card",
+                        cardRestlet) : null;
+        if (cardRestricted && serverSpec.getAuthentication() != null) {
+            // Behind authentication, the card also takes the adapter's authorization, as every
+            // MCP request does in McpServerResource, so a token the endpoint refuses gets a 403
+            endpoint = new ServerCardRoute(context, serverSpec.getPath(),
+                    authorizeCard(context, serverSpec, limitedCard), false, endpoint);
+        }
+
+        Restlet chain = buildServerChain(endpoint);
         AgentIdentityResolver identityResolver = dispatcher.getIdentityResolver();
+        if (cardRestricted && serverSpec.getAuthentication() == null) {
+            // Forwarded mode without authentication: the trusted peer check is the boundary.
+            chain = new ServerCardRoute(context, serverSpec.getPath(), limitedCard, false, chain);
+        }
         if (identityResolver.isForwarded()) {
             // The gateway is the authentication boundary: refuse other peers before anything else.
             chain = new TrustedPeerFilter(context, identityResolver, chain);
         }
+        if (limitedCard != null) {
+            chain = new ServerCardRoute(context, serverSpec.getPath(), limitedCard,
+                    cardRestricted, chain);
+        }
 
         String address = serverSpec.getAddress() != null ? serverSpec.getAddress() : "localhost";
         initServer(address, serverSpec.getPort(), chain);
+    }
+
+    /**
+     * Wraps an authenticated card in the adapter-level {@code authorization} check, with the
+     * same insufficient_scope challenge the MCP endpoint answers (the OAuth2 restlet in front
+     * turns the denial into it).
+     */
+    static Restlet authorizeCard(Context context, McpServerSpec serverSpec, Restlet card) {
+        AuthorizationSpec requirement = AccessControl.effective(serverSpec, null);
+        if (requirement == null) {
+            return card;
+        }
+        Set<String> stillRequired =
+                AccessControl.requiredScopes(AccessControl.declaredIn(serverSpec));
+        return new Filter(context, card) {
+            @Override
+            protected int beforeHandle(Request request, Response response) {
+                return AccessControl.enforce(requirement, stillRequired, request, response)
+                        ? CONTINUE : STOP;
+            }
+        };
+    }
+
+    /**
+     * Build the server card when the spec declares one, else {@code null}. A card that cannot
+     * be built fails the load. Its URL takes the forwarded headers of a peer that
+     * {@code trust: forwarded} trusts only.
+     */
+    private ServerCardRestlet buildServerCardRestlet(Context context, McpServerSpec serverSpec,
+            AgentIdentityResolver identityResolver) {
+        if (serverSpec.getCard() == null) {
+            return null;
+        }
+        Template card = ServerCardBuilder.build(serverSpec,
+                getCapability().getSpec().getInfo(), ProtocolDispatcher.SUPPORTED_PROTOCOL_VERSIONS);
+        this.serverCard.set(card);
+        boolean authenticated = ServerCardBuilder.isRestricted(serverSpec);
+        return new ServerCardRestlet(context, card, authenticated,
+                credentialsHeader(serverSpec.getAuthentication()),
+                request -> trustsForwardedHeaders(identityResolver, request));
+    }
+
+    /**
+     * Whether {@code request} comes from a peer whose forwarded headers are trusted: only in
+     * {@code forwarded} mode, from a peer inside {@code trustedNetworks}.
+     */
+    static boolean trustsForwardedHeaders(AgentIdentityResolver identityResolver,
+            Request request) {
+        return identityResolver.isForwarded() && identityResolver.isTrustedPeer(
+                request.getClientInfo() != null ? request.getClientInfo().getAddress() : null);
+    }
+
+    /**
+     * The request header a client authenticates with, which a browser must be allowed to send in
+     * an authenticated card's CORS preflight, or {@code null} when credentials go in the query.
+     */
+    static String credentialsHeader(AuthenticationSpec authentication) {
+        if (authentication == null || authentication.getType() == null) {
+            return null;
+        }
+        if (authentication instanceof ApiKeyAuthenticationSpec apiKey) {
+            return apiKey.isQueryPlacement() ? null : apiKey.getKey();
+        }
+        return "Authorization";
+    }
+
+    /** The server card, or {@code null} when the adapter publishes none. */
+    public Template getServerCard() {
+        return serverCard.get();
     }
 
     @Override
