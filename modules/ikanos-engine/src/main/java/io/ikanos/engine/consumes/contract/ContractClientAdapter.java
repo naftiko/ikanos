@@ -256,6 +256,18 @@ public abstract class ContractClientAdapter extends ClientAdapter {
             routes.register(URI.create(endpoint).getHost(), tunnel);
             TunnelClientTransport.install(context, routes);
         }
+        return createClient(context, protocols);
+    }
+
+    /**
+     * Instantiates the Restlet client. Overridden by an adapter whose Restlet extension needs a
+     * client that rewrites its requests.
+     *
+     * @param context the client context
+     * @param protocols the client protocols
+     * @return the client, not started
+     */
+    protected Client createClient(Context context, List<Protocol> protocols) {
         return new Client(context, protocols);
     }
 
