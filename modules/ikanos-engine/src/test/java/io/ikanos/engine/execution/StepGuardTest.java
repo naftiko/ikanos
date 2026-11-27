@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import io.ikanos.engine.util.CallerRoot;
 import io.ikanos.spec.util.IkanosMappers;
 import org.junit.jupiter.api.Test;
 
@@ -88,6 +89,59 @@ public class StepGuardTest {
     @Test
     public void holdsShouldNotHoldWhenACelExpressionNamesAnAbsentVariable() {
         assertFalse(StepGuard.holds("s", "order.status == 'overdue'", Map.of()));
+    }
+
+    @Test
+    public void holdsShouldNotHoldWhenACelExpressionReadsAFieldTheValueDoesNotHave() {
+        Map<String, Object> run = params("order", Map.of("status", "paid"));
+
+        assertFalse(StepGuard.holds("s", "order.missing == 'x'", run));
+    }
+
+    @Test
+    public void holdsShouldRefuseAGuardThatCallsAFunctionThatDoesNotExist() {
+        Map<String, Object> run = params("items", List.of(1));
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> StepGuard.holds("s", "sizee(items) > 0", run));
+
+        assertTrue(error.getMessage().contains("not a valid CEL expression"), error.getMessage());
+    }
+
+    @Test
+    public void parseErrorShouldReportAMethodThatDoesNotExist() {
+        assertNotNull(StepGuard.parseError("name.startsWit('a')"));
+    }
+
+    @Test
+    public void holdsShouldRefuseAGuardReadingTheCallerClaimsWhenTheRunHasNone() {
+        IllegalArgumentException bare = assertThrows(IllegalArgumentException.class,
+                () -> StepGuard.holds("s", "auth.claims.sub", Map.of()));
+        IllegalArgumentException cel = assertThrows(IllegalArgumentException.class,
+                () -> StepGuard.holds("s", "auth.claims.sub == 'u-1'", Map.of()));
+
+        assertTrue(bare.getMessage().contains("caller's claims"), bare.getMessage());
+        assertTrue(cel.getMessage().contains("caller's claims"), cel.getMessage());
+    }
+
+    @Test
+    public void holdsShouldReadTheCallerClaimsOfTheRun() {
+        Map<String, Object> run = params("auth",
+                new CallerRoot(Map.of("claims", Map.of("sub", "u-1", "cognito:groups", "ops"))));
+
+        assertTrue(StepGuard.holds("s", "auth.claims.sub == 'u-1'", run));
+        assertTrue(StepGuard.holds("s", "auth.claims.cognito:groups", run));
+        assertFalse(StepGuard.holds("s", "auth.claims.email", run));
+    }
+
+    @Test
+    public void isBareNameShouldAcceptTheNamesOfABodyMarker() {
+        assertTrue(StepGuard.isBareName("auth.claims.cognito:groups"));
+        assertTrue(StepGuard.isBareName("items.0"));
+        assertTrue(StepGuard.isBareName("2fa-enabled"));
+        assertFalse(StepGuard.isBareName("1"));
+        assertFalse(StepGuard.isBareName("true"));
+        assertFalse(StepGuard.isBareName("a == b"));
     }
 
     @Test

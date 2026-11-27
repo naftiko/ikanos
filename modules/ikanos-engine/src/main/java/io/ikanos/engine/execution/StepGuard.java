@@ -24,7 +24,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
-import dev.cel.common.CelAbstractSyntaxTree;
+import dev.cel.common.CelErrorCode;
 import dev.cel.common.CelOptions;
 import dev.cel.common.CelValidationException;
 import dev.cel.common.CelValidationResult;
@@ -37,6 +37,8 @@ import dev.cel.runtime.CelEvaluationException;
 import dev.cel.runtime.CelRuntime;
 import dev.cel.runtime.CelRuntimeFactory;
 import dev.cel.common.values.NullValue;
+import io.ikanos.engine.util.CallerRoot;
+import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.util.IkanosMappers;
 import tools.jackson.databind.JsonNode;
 
@@ -54,20 +56,26 @@ import tools.jackson.databind.JsonNode;
  * {@code order.status == 'overdue'}. Its variables are the run's parameters (inputs,
  * {@code with} values, earlier step outputs) under the names templates use; a name with
  * {@code -}, which CEL does not allow in an identifier, is also bound with {@code _}
- * ({@code get_ship}). An expression that names a variable the run does not have does not
- * hold either.</li>
+ * ({@code get_ship}). An expression that names a variable the run does not have, or a field
+ * its value does not have, does not hold either.</li>
  * </ul>
  *
- * <p>The guard only reads values the run already holds, so it gives the same answer when a
- * durable run is replayed from its journal.</p>
+ * <p>A guard that reads the caller's claims ({@code auth}) fails when the run has none. Apart
+ * from those, the guard only reads values the run already holds, so it gives the same answer
+ * when a durable run is replayed from its journal.</p>
  */
 public final class StepGuard {
 
-    /** A bare name: dotted segments of letters, digits, {@code _} and {@code -}. */
+    /**
+     * A bare name: dotted segments looked up like the {@code x} of a {@code "{{x}}"}
+     * placeholder, as the {@code $onlyIf} marker of a structured JSON body does. A segment may
+     * start with a digit and hold {@code -} and {@code :}, as in
+     * {@code auth.claims.cognito:groups}.
+     */
     private static final Pattern BARE_NAME =
-            Pattern.compile("[A-Za-z_][A-Za-z0-9_-]*(\\.[A-Za-z_][A-Za-z0-9_-]*)*");
-    /** CEL identifiers; a parameter whose name is not one is bound only under its alias. */
-    private static final Pattern CEL_IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
+            Pattern.compile("[A-Za-z0-9_][A-Za-z0-9_:-]*(\\.[A-Za-z0-9_][A-Za-z0-9_:-]*)*");
+    /** A number, which a bare name never is: {@code 1} or {@code 1.5} are CEL literals. */
+    private static final Pattern NUMBER = Pattern.compile("[0-9]+(\\.[0-9]+)?");
     /** Words a bare name never is: CEL reads them as literals or reserves them. */
     private static final Set<String> CEL_WORDS = Set.of("true", "false", "null", "in", "as",
             "break", "const", "continue", "else", "for", "function", "if", "import", "let",
@@ -84,15 +92,15 @@ public final class StepGuard {
             .setOptions(OPTIONS)
             .build();
 
-    /** Compiled guards, by expression and the variables they were checked against. */
+    /** Compiled guards, by expression: each is checked against the names it reads. */
     private static final Map<String, Compiled> CACHE = new ConcurrentHashMap<>();
     private static final int CACHE_LIMIT = 1024;
 
     private StepGuard() {
     }
 
-    /** A guard compiled against a set of variables, or the variable it lacks. */
-    private record Compiled(CelRuntime.Program program, String missing) {
+    /** A guard compiled against the top-level names it reads, all declared as {@code dyn}. */
+    private record Compiled(CelRuntime.Program program, Set<String> names) {
     }
 
     /**
@@ -101,7 +109,8 @@ public final class StepGuard {
      */
     public static boolean isBareName(String onlyIf) {
         String guard = onlyIf.strip();
-        return BARE_NAME.matcher(guard).matches() && !CEL_WORDS.contains(guard);
+        return BARE_NAME.matcher(guard).matches() && !CEL_WORDS.contains(guard)
+                && !NUMBER.matcher(guard).matches();
     }
 
     /**
@@ -112,50 +121,91 @@ public final class StepGuard {
      * @param parameters the values the run holds: inputs, {@code with} values, step outputs
      * @return {@code true} when the step runs
      * @throws IllegalArgumentException when the guard is not a valid CEL expression, fails to
-     *         evaluate, or does not evaluate to a boolean
+     *         evaluate, does not evaluate to a boolean, or reads the caller's claims in a run
+     *         that has none
      */
     public static boolean holds(String step, String onlyIf, Map<String, Object> parameters) {
+        return evaluate("The onlyIf of step '" + step + "'", onlyIf, parameters);
+    }
+
+    private static boolean evaluate(String label, String onlyIf, Map<String, Object> parameters) {
         if (onlyIf == null || onlyIf.isBlank()) {
             return true;
         }
         if (isBareName(onlyIf)) {
-            return isPresent(read(parameters, onlyIf.strip()));
+            String name = onlyIf.strip();
+            requireCallerRoot(label, Set.of(firstSegment(name)), parameters);
+            return isPresent(read(parameters, name));
         }
-        Map<String, Object> variables = variables(parameters);
-        Compiled compiled = compile(step, onlyIf, variables.keySet());
-        if (compiled.missing() != null) {
-            return false;
+        Compiled compiled = compile(label, onlyIf);
+        requireCallerRoot(label, compiled.names(), parameters);
+        Map<String, Object> variables = new LinkedHashMap<>();
+        for (String name : compiled.names()) {
+            Object value = lookup(parameters, name);
+            if (value == null) {
+                // The guard reads a value the run does not have: it does not hold, as for a
+                // bare name.
+                return false;
+            }
+            variables.put(name, toCel(value));
         }
         Object result;
         try {
             result = compiled.program().eval(variables);
         } catch (CelEvaluationException e) {
-            throw new IllegalArgumentException("The onlyIf of step '" + step
-                    + "' could not be evaluated: " + e.getMessage(), e);
+            if (e.getErrorCode() == CelErrorCode.ATTRIBUTE_NOT_FOUND) {
+                // A field the value does not have, such as order.missing: absent, as above.
+                return false;
+            }
+            throw new IllegalArgumentException(label + " could not be evaluated: "
+                    + e.getMessage(), e);
         }
         if (!(result instanceof Boolean value)) {
-            throw new IllegalArgumentException("The onlyIf of step '" + step
-                    + "' must evaluate to true or false, not " + describe(result) + ".");
+            throw new IllegalArgumentException(label + " must evaluate to true or false, not "
+                    + describe(result) + ".");
         }
         return value;
     }
 
     /**
-     * Checks that a guard can be read, without evaluating it.
+     * A guard that reads the caller's claims fails, as a template does, when the run has no
+     * caller root: the request carried no validated token, or the run is a task resumed after a
+     * restart, whose caller claims were never journaled. Skipping the step instead would let a
+     * resumed task end as a success without it.
+     */
+    private static void requireCallerRoot(String label, Set<String> names,
+            Map<String, Object> parameters) {
+        if (names.contains(Resolver.CALLER_ROOT)
+                && !(parameters.get(Resolver.CALLER_ROOT) instanceof CallerRoot)) {
+            throw new IllegalArgumentException(label + " reads the caller's claims ('"
+                    + Resolver.CALLER_ROOT + "'), which this run does not have: the request"
+                    + " carried no validated token, or the run resumed after a restart");
+        }
+    }
+
+    /**
+     * Checks that a guard can be read, without evaluating it: that it parses, and that each
+     * function it calls exists.
      *
-     * @return the parse error, or {@code null} when the guard is a bare name or parses as CEL
+     * @return the error, or {@code null} when the guard is a bare name or a valid CEL expression
      */
     public static String parseError(String onlyIf) {
         if (onlyIf == null || onlyIf.isBlank() || isBareName(onlyIf)) {
             return null;
         }
-        CelValidationResult parsed = PARSER.parse(onlyIf);
-        return parsed.hasError() ? parsed.getErrorString() : null;
+        String prefix = "The guard is not a valid CEL expression: ";
+        try {
+            compile("The guard", onlyIf);
+            return null;
+        } catch (IllegalArgumentException e) {
+            String message = e.getMessage();
+            return message.startsWith(prefix) ? message.substring(prefix.length()) : message;
+        }
     }
 
     /**
      * The top-level names a guard reads: the first segment of a bare name, or the free
-     * identifiers of a CEL expression that the parser sees (comprehension variables excluded).
+     * identifiers of a CEL expression (comprehension variables excluded).
      *
      * @return the names, or an empty set when the guard cannot be parsed
      */
@@ -165,9 +215,7 @@ public final class StepGuard {
             return names;
         }
         if (isBareName(onlyIf)) {
-            String guard = onlyIf.strip();
-            int dot = guard.indexOf('.');
-            names.add(dot < 0 ? guard : guard.substring(0, dot));
+            names.add(firstSegment(onlyIf.strip()));
             return names;
         }
         CelValidationResult parsed = PARSER.parse(onlyIf);
@@ -175,19 +223,39 @@ public final class StepGuard {
             return names;
         }
         try {
-            CelAbstractSyntaxTree ast = parsed.getAst();
-            GuardIdentifiers.collect(ast, names);
+            GuardIdentifiers.collect(parsed.getAst(), names);
         } catch (CelValidationException e) {
-            return names;
+            return new TreeSet<>();
         }
         return names;
     }
 
-    private static Compiled compile(String step, String onlyIf, Set<String> names) {
-        String key = String.join("\u0000", new TreeSet<>(names)) + "\u0001" + onlyIf;
-        Compiled cached = CACHE.get(key);
+    private static String firstSegment(String name) {
+        int dot = name.indexOf('.');
+        return dot < 0 ? name : name.substring(0, dot);
+    }
+
+    /**
+     * Compiles a guard with each top-level name it reads declared as {@code dyn}, so a typo in a
+     * function or method name, such as {@code sizee(items)}, is an error rather than a guard
+     * that never holds.
+     */
+    private static Compiled compile(String label, String onlyIf) {
+        Compiled cached = CACHE.get(onlyIf);
         if (cached != null) {
             return cached;
+        }
+        CelValidationResult parsed = PARSER.parse(onlyIf);
+        if (parsed.hasError()) {
+            throw new IllegalArgumentException(label + " is not a valid CEL expression: "
+                    + parsed.getErrorString());
+        }
+        Set<String> names = new TreeSet<>();
+        try {
+            GuardIdentifiers.collect(parsed.getAst(), names);
+        } catch (CelValidationException e) {
+            throw new IllegalArgumentException(label + " is not a valid CEL expression: "
+                    + e.getMessage(), e);
         }
         CelCompilerBuilder builder = CelCompilerFactory.standardCelCompilerBuilder()
                 .setOptions(OPTIONS)
@@ -196,67 +264,42 @@ public final class StepGuard {
             builder.addVar(name, SimpleType.DYN);
         }
         CelValidationResult checked = builder.build().compile(onlyIf);
-        Compiled compiled;
         if (checked.hasError()) {
-            String missing = missingVariable(checked.getErrorString());
-            if (missing == null) {
-                throw new IllegalArgumentException("The onlyIf of step '" + step
-                        + "' is not a valid CEL expression: " + checked.getErrorString());
-            }
-            compiled = new Compiled(null, missing);
-        } else {
-            try {
-                compiled = new Compiled(RUNTIME.createProgram(checked.getAst()), null);
-            } catch (CelValidationException | dev.cel.runtime.CelEvaluationException e) {
-                throw new IllegalArgumentException("The onlyIf of step '" + step
-                        + "' is not a valid CEL expression: " + e.getMessage(), e);
-            }
+            throw new IllegalArgumentException(label + " is not a valid CEL expression: "
+                    + checked.getErrorString());
+        }
+        Compiled compiled;
+        try {
+            compiled = new Compiled(RUNTIME.createProgram(checked.getAst()), Set.copyOf(names));
+        } catch (CelValidationException | CelEvaluationException e) {
+            throw new IllegalArgumentException(label + " is not a valid CEL expression: "
+                    + e.getMessage(), e);
         }
         if (CACHE.size() >= CACHE_LIMIT) {
             CACHE.clear();
         }
-        CACHE.put(key, compiled);
+        CACHE.put(onlyIf, compiled);
         return compiled;
     }
 
     /**
-     * The variable named by an "undeclared reference" error, when every error of the check is
-     * one: the guard then reads a value the run does not have.
+     * The value of a top-level CEL name: the parameter of that name, or, for a name with an
+     * underscore that is no parameter, the parameter whose dashes it stands for
+     * ({@code get_ship} for {@code get-ship}).
      */
-    static String missingVariable(String errors) {
-        String missing = null;
-        for (String line : errors.split("\\R")) {
-            int at = line.indexOf("undeclared reference to '");
-            if (at >= 0) {
-                int start = at + "undeclared reference to '".length();
-                int end = line.indexOf('\'', start);
-                if (missing == null && end > start) {
-                    missing = line.substring(start, end);
+    static Object lookup(Map<String, Object> parameters, String name) {
+        if (parameters.containsKey(name)) {
+            return parameters.get(name);
+        }
+        if (name.indexOf('_') >= 0) {
+            for (Map.Entry<String, Object> entry : parameters.entrySet()) {
+                if (entry.getKey() != null && entry.getKey().indexOf('-') >= 0
+                        && entry.getKey().replace('-', '_').equals(name)) {
+                    return entry.getValue();
                 }
-            } else if (line.startsWith("ERROR:")) {
-                return null;
             }
         }
-        return missing;
-    }
-
-    /** The run's parameters as CEL variables, with an alias for each name that has a dash. */
-    static Map<String, Object> variables(Map<String, Object> parameters) {
-        Map<String, Object> variables = new LinkedHashMap<>();
-        parameters.forEach((name, value) -> {
-            if (name == null) {
-                return;
-            }
-            Object converted = toCel(value);
-            if (CEL_IDENTIFIER.matcher(name).matches()) {
-                variables.put(name, converted);
-            }
-            String alias = name.replace('-', '_');
-            if (!alias.equals(name) && CEL_IDENTIFIER.matcher(alias).matches()) {
-                variables.putIfAbsent(alias, converted);
-            }
-        });
-        return variables;
+        return null;
     }
 
     /** Converts a run value to the types CEL reads: maps, lists, long, double, string, bool. */

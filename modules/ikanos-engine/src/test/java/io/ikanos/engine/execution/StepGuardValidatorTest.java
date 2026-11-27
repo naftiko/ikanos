@@ -63,6 +63,19 @@ public class StepGuardValidatorTest {
     }
 
     @Test
+    void findErrorsShouldReportAGuardThatCallsAFunctionThatDoesNotExist() {
+        List<String> errors = StepGuardValidator.findErrors(flow("""
+                - name: alert
+                  type: call
+                  what: notify.send
+                  onlyIf: "sizee(order.lines) > 0"
+                """));
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).contains("sizee"), errors.get(0));
+    }
+
+    @Test
     void validateShouldRefuseACapabilityWithAGuardThatDoesNotParse() {
         IkanosSpec spec = flow("""
                 - name: alert

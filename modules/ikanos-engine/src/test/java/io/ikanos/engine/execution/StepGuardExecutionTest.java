@@ -159,6 +159,20 @@ public class StepGuardExecutionTest {
     }
 
     @Test
+    void runStepsShouldFailRatherThanSkipWhenAGuardReadsClaimsTheRunDoesNotHave() {
+        // A task resumed after a restart has no caller claims: skipping the step would let it
+        // end as a success without the step.
+        RecordingRunner nodes = new RecordingRunner();
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> Executions.runSteps(tree("audit?auth.claims.sub"), new StepRun(null),
+                        nodes));
+
+        assertTrue(error.getMessage().contains("caller's claims"), error.getMessage());
+        assertTrue(nodes.invoked.isEmpty());
+    }
+
+    @Test
     void runStepsShouldFailTheRunWhenAGuardIsNotABoolean() {
         RecordingRunner nodes = new RecordingRunner();
 
