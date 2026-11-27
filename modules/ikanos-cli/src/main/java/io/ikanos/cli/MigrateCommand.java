@@ -80,10 +80,21 @@ public class MigrateCommand implements Callable<Integer> {
         for (Path file : files) {
             try {
                 String text = Files.readString(file, StandardCharsets.UTF_8);
-                String migrated = migrate(file, text);
-                // A form the text rewrite does not handle (a flow-style 'steps: {...}', a step
-                // written as a '{...}' map over several lines) is reported, not passed over.
-                List<String> left = remaining(file, migrated);
+                String migrated;
+                List<String> left;
+                try {
+                    migrated = migrate(file, text);
+                    // A form the text rewrite does not handle (a flow-style 'steps: {...}', a
+                    // step written as a '{...}' map over several lines) is reported, not passed
+                    // over.
+                    left = remaining(file, migrated);
+                } catch (RuntimeException e) {
+                    // Not a document that can be read (a template, a broken fixture): nothing
+                    // in it can be migrated or checked, so it is skipped with a warning.
+                    err.println("Skipped " + file + ": not valid YAML or JSON ("
+                            + e.getMessage() + ")");
+                    continue;
+                }
                 if (!left.isEmpty()) {
                     err.println("Cannot migrate " + file + " fully: rewrite "
                             + String.join(", ", left) + " by hand ('steps' as a list of named"

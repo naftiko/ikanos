@@ -90,15 +90,26 @@ public class MigrateCommandTest {
     }
 
     @Test
-    public void callShouldKeepGoingPastAFileItCannotReadAndExitWithTwo() throws Exception {
+    public void callShouldSkipAJsonFileItCannotReadAndMigrateTheOthers() throws Exception {
         Path broken = Files.writeString(tempDir.resolve("a.json"), "{ not json");
         Path file = Files.writeString(tempDir.resolve("b.yml"), STEP_MAP);
 
         int exitCode = run(tempDir.toString());
 
-        assertEquals(2, exitCode);
-        assertTrue(err.toString().contains("Cannot migrate " + broken), err.toString());
+        assertEquals(0, exitCode, err.toString());
+        assertTrue(err.toString().contains("Skipped " + broken), err.toString());
         assertEquals(STEP_LIST, Files.readString(file));
+    }
+
+    @Test
+    public void callWithDryRunShouldSkipAYamlFileItCannotReadAndExitWithZero() throws Exception {
+        Path broken = Files.writeString(tempDir.resolve("a.yml"), "key: [unclosed\n");
+
+        int exitCode = run("--dry-run", tempDir.toString());
+
+        assertEquals(0, exitCode, err.toString());
+        assertTrue(err.toString().contains("Skipped " + broken), err.toString());
+        assertEquals("key: [unclosed\n", Files.readString(broken));
     }
 
     @Test
