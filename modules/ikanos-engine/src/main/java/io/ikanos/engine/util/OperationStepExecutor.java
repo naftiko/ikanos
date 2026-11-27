@@ -43,6 +43,7 @@ import io.ikanos.engine.execution.Executions;
 import io.ikanos.engine.execution.InputDeclinedException;
 import io.ikanos.engine.execution.InputRequiredException;
 import io.ikanos.engine.execution.NodeRunner;
+import io.ikanos.engine.execution.ForEachRunner;
 import io.ikanos.engine.execution.ParallelTracks;
 import io.ikanos.engine.execution.StepGuard;
 import io.ikanos.engine.execution.StepNode;
@@ -59,6 +60,7 @@ import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.util.OperationStepSpec;
 import io.ikanos.spec.util.OperationStepCallSpec;
+import io.ikanos.spec.util.OperationStepForEachSpec;
 import io.ikanos.spec.util.OperationStepParallelSpec;
 import io.ikanos.spec.util.OperationStepElicitSpec;
 import io.ikanos.spec.util.OperationStepLookupSpec;
@@ -533,6 +535,11 @@ public class OperationStepExecutor {
             }
             case OperationStepElicitSpec elicitStep -> {
                 return applyAnswer(elicitStep, run.answer(node.path()), run);
+            }
+            case OperationStepForEachSpec forEachStep -> {
+                // Each item runs its steps through this same method, in order.
+                return ForEachRunner.run(forEachStep, stepIndex, run, registry,
+                        (itemNode, itemRun) -> runStep(itemNode, itemRun, namespace, registry));
             }
             case OperationStepParallelSpec parallelStep -> {
                 // Each track runs its steps through this same method, on a thread of its own.

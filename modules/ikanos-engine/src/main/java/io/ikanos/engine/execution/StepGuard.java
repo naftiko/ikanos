@@ -259,12 +259,55 @@ public final class StepGuard {
         if (onlyIf == null || onlyIf.isBlank()) {
             return true;
         }
+        Object value = evaluateValue(label, onlyIf, parameters, evaluationLimit);
         if (isBareName(onlyIf)) {
-            String name = onlyIf.strip();
-            requireCallerRoot(label, Set.of(firstSegment(name)), parameters);
-            return isPresent(read(visible(parameters), name));
+            return isPresent(value);
         }
-        Compiled compiled = compile(label, onlyIf);
+        if (value == null) {
+            // The result depends on a name the run does not have, or on a field its value does
+            // not have: absent, so the guard does not hold, as for a bare name.
+            return false;
+        }
+        if (!(value instanceof Boolean holds)) {
+            throw new IllegalArgumentException(label + " must evaluate to true or false, not "
+                    + describe(value) + ".");
+        }
+        return holds;
+    }
+
+    /**
+     * The value an expression gives, read as a guard reads one: a bare name gives the value at
+     * its path, as the run holds it; a CEL expression gives its result, with lists, maps and
+     * numbers as CEL returns them.
+     *
+     * @param label what the expression is, for the error message, such as
+     *        {@code "The items of step 'issues'"}
+     * @return the value, or {@code null} when it reads a name or a field the run does not have
+     * @throws IllegalArgumentException when the expression is not a valid CEL expression, fails
+     *         to evaluate, or reads the caller's claims in a run that has none
+     */
+    public static Object value(String label, String expression, Map<String, Object> parameters) {
+        return value(label, expression, parameters, GuardManagementSpec.DEFAULT_EVALUATION_LIMIT);
+    }
+
+    /**
+     * The value an expression gives, evaluating at most {@code evaluationLimit}
+     * sub-expressions, as {@link #value(String, String, Map)}.
+     */
+    public static Object value(String label, String expression, Map<String, Object> parameters,
+            long evaluationLimit) {
+        return expression == null || expression.isBlank() ? null
+                : evaluateValue(label, expression, parameters, evaluationLimit);
+    }
+
+    private static Object evaluateValue(String label, String expression,
+            Map<String, Object> parameters, long evaluationLimit) {
+        if (isBareName(expression)) {
+            String name = expression.strip();
+            requireCallerRoot(label, Set.of(firstSegment(name)), parameters);
+            return read(visible(parameters), name);
+        }
+        Compiled compiled = compile(label, expression);
         requireCallerRoot(label, compiled.names(), parameters);
         Map<String, Object> variables = new LinkedHashMap<>();
         for (String name : compiled.names()) {
@@ -289,22 +332,13 @@ public final class StepGuard {
             }
             if (e.getErrorCode() == CelErrorCode.ATTRIBUTE_NOT_FOUND) {
                 // A name the run does not have, or a field its value does not have, such as
-                // order.missing: absent, so the guard does not hold, as for a bare name.
-                return false;
+                // order.missing: absent.
+                return null;
             }
             throw new IllegalArgumentException(label + " could not be evaluated: "
                     + e.getMessage(), e);
         }
-        if (result instanceof dev.cel.runtime.CelUnknownSet) {
-            // The result depends on a name the run does not have: absent, so the guard does not
-            // hold, as for a bare name.
-            return false;
-        }
-        if (!(result instanceof Boolean value)) {
-            throw new IllegalArgumentException(label + " must evaluate to true or false, not "
-                    + describe(result) + ".");
-        }
-        return value;
+        return result instanceof dev.cel.runtime.CelUnknownSet ? null : result;
     }
 
     /**

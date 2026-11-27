@@ -3941,12 +3941,12 @@
             "elicit",
             "end",
             "parallel",
-            "sequence"
+            "sequence",
+            "forEach"
           ]
         }
       },
       "required": [
-        "name",
         "type"
       ]
     },
@@ -4077,6 +4077,19 @@
       "unevaluatedProperties": false
     },
     "OperationStep": {
+      "description": "A step of a list (`steps`, `tracks`): any step, with a `name`.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/OperationStepAny"
+        },
+        {
+          "required": [
+            "name"
+          ]
+        }
+      ]
+    },
+    "OperationStepAny": {
       "oneOf": [
         {
           "$ref": "#/$defs/OperationStepCall"
@@ -4098,8 +4111,57 @@
         },
         {
           "$ref": "#/$defs/OperationStepSequence"
+        },
+        {
+          "$ref": "#/$defs/OperationStepForEach"
         }
       ]
+    },
+    "OperationStepForEach": {
+      "description": "Runs `do` once for each item of a list, in order. Its output is the list of each item's output. If an item fails, this step fails.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/OperationStepBase"
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "forEach"
+            },
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The list, read as a guard reads a value: a bare name such as `merged` or `order.lines`, or a CEL expression that gives a list. An absent value is an empty list."
+            },
+            "as": {
+              "$ref": "#/$defs/IdentifierKebab",
+              "description": "The name the current item is read under in `do`. Defaults to `item`."
+            },
+            "limit": {
+              "description": "Runs the first items only, as SQL's LIMIT does; the rest are skipped, the call goes on, and the engine logs a warning naming the step and how many items it skipped. A number, or the name of an input that gives one, so the caller can set it. No default: without it, every item runs.",
+              "oneOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "string",
+                  "minLength": 1
+                }
+              ]
+            },
+            "do": {
+              "$ref": "#/$defs/OperationStepAny",
+              "description": "The step run for each item: one step, or a `sequence`. Its `name` is optional (`do` by default)."
+            }
+          },
+          "required": [
+            "items",
+            "do"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
     },
     "OperationStepParallel": {
       "description": "Runs its tracks at the same time and continues once every track has finished. Each track sees the outputs of the steps before this one, never another track's; the steps after it read each track's output under the track's name, and the output of this step is `{track: output}`, which a tool or operation whose last step this is answers when it has no mappings. If one track fails, this step fails, but the other tracks are neither cancelled nor stopped: they run to their end, so their writes still happen, and the error reaches the caller only once the slowest track has finished. A track may not ask the caller (`elicit`) nor end the flow (`end`), and its name must differ from the steps and the other tracks of its list.",
