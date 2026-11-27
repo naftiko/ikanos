@@ -5125,7 +5125,7 @@
           "additionalProperties": {
             "$ref": "#/$defs/ConsumedHeaderParameter"
           },
-          "description": "Static headers sent on every call, keyed by header name."
+          "description": "Static headers sent on every call, keyed by header name. Over a plaintext endpoint, an `Authorization`, `Proxy-Authorization` or `Cookie` header, or a header whose value comes from a binding, is refused unless the endpoint is a loopback address or a `tunnel` is set; a header with a literal value is accepted."
         },
         "procedures": {
           "type": "object",
