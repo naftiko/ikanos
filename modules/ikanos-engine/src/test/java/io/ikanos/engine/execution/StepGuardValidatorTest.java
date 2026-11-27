@@ -178,6 +178,28 @@ public class StepGuardValidatorTest {
     }
 
     @Test
+    void findErrorsShouldCheckTheGuardOfASequenceTrack() {
+        List<String> errors = StepGuardValidator.findErrors(flow("""
+                - name: gather
+                  type: parallel
+                  tracks:
+                    - name: a
+                      type: call
+                      what: x.y
+                    - name: b
+                      type: sequence
+                      onlyIf: a
+                      steps:
+                        - name: b1
+                          type: call
+                          what: x.z
+                """));
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).contains("reads track 'a'"), errors.get(0));
+    }
+
+    @Test
     void findErrorsShouldNotTakeAPlainWithValueForATrackRead() {
         List<String> errors = StepGuardValidator.findErrors(flow("""
                 - name: gather

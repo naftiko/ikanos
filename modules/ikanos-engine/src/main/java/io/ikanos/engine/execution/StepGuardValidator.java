@@ -200,6 +200,8 @@ public final class StepGuardValidator {
                         + " which makes the flow hard to read and to trace.");
             }
             if (track.getValue() instanceof OperationStepSequenceSpec sequence) {
+                // The sequence's own guard, evaluated before its steps run
+                checkGuards(sequence, trackVisible, inner, others, findings);
                 visit(sequence.getSteps(), trackVisible, inner + ", track '" + name + "'",
                         depth + 2, others, findings);
             } else {
