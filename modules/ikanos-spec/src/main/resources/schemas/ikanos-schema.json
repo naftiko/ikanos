@@ -4101,7 +4101,7 @@
             },
             "url": {
               "type": "string",
-              "description": "URL mode only. The page the caller opens: a Mustache template, rendered like `message`, that may also read `{{elicitation.id}}`, an opaque id of this question that stays the same on every retry and is bound to the caller, so the page and `check` can correlate the interaction. The scheme and the host, with any port, must be written in the template: a value substituted there is refused, since it could send the user to another site; a value after them is percent-encoded, so it stays one path segment or one query value. It must use `https://` outside development. Never put credentials, personal data or a pre-authenticated token in it; the page must verify that the user who opens it is the caller who was asked."
+              "description": "URL mode only. The page the caller opens: a Mustache template, rendered like `message`, that may also read `{{elicitation.id}}`, an opaque id of this question that stays the same on every retry and is bound to the caller, so the page and `check` can correlate the interaction. The scheme and the host, with any port, must be written in the template: a value substituted there is refused, since it could send the user to another site; a value after them is percent-encoded, so it stays one path segment or one query value. It must use `https://`; plain `http://` is accepted for a local host (`localhost`, `127.0.0.1`, `[::1]`), which is meant for development. Never put credentials, personal data or a pre-authenticated token in it; the page must verify that the user who opens it is the caller who was asked."
             },
             "check": {
               "$ref": "#/$defs/OperationStepCall",

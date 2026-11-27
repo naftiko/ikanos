@@ -6,7 +6,7 @@
  *
  * Options:
  *   check: "https"         A URL mode step's `url` must start with `https://`. Plain `http://`
- *                          is accepted for localhost only, as the engine does, in development.
+ *                          is accepted for a local host only, as the engine does (meant for development).
  *   check: "no-sensitive"  A URL mode step's `url` must not read the caller's claims
  *                          (`{{auth...}}`) nor a binding (`{{KEY}}`, `{{namespace.KEY}}`):
  *                          a URL is logged, shown and shared, so it must never carry

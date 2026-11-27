@@ -1156,7 +1156,9 @@ rules:
       A URL mode `elicit` step sends the caller to a page to complete a step out
       of band, such as connecting an account or entering a payment method. The
       page must be served over `https://`; the engine refuses any other URL,
-      except `http://localhost` in development.
+      except plain `http://` for a local host (`localhost`, `127.0.0.1`,
+      `[::1]`), which is accepted in every environment and meant for
+      development.
     severity: error
     recommended: true
     given: "$"
