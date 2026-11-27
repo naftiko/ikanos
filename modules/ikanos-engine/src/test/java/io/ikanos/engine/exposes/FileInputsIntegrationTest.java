@@ -240,6 +240,7 @@ class FileInputsIntegrationTest {
 
         assertEquals(2048, files.path("maxInlineBytes").asInt(), files.toString());
         assertFalse(files.has("upload"), files.toString());
+        assertFalse(files.has("download"), "download is a client setting: " + files);
     }
 
     @Test

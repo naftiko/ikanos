@@ -27,6 +27,9 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
+import io.ikanos.spec.consumes.http.BearerAuthenticationSpec;
+import io.ikanos.spec.consumes.http.DigestAuthenticationSpec;
 import io.ikanos.spec.exposes.mcp.McpFileDownloadsSpec;
 import io.ikanos.spec.exposes.mcp.McpFilesSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
@@ -45,7 +48,7 @@ class McpFileDownloadsTest {
     private static final String ALICE = "alice";
 
     private static McpFileDownloads downloads(boolean hosted) {
-        return new McpFileDownloads(10, Duration.ofMinutes(5), hosted, new MemoryDownloadStore(),
+        return new McpFileDownloads(10, Duration.ofMinutes(5), hosted, new MemoryDownloadStore(256, 1 << 20, 1 << 20),
                 CLOCK);
     }
 
@@ -101,7 +104,7 @@ class McpFileDownloadsTest {
     @Test
     void hostedShouldKeepTheResultInlineWhenTheStoreIsFull() {
         McpFileDownloads full = new McpFileDownloads(10, Duration.ofMinutes(5), true,
-                new MemoryDownloadStore(1, 1024), CLOCK);
+                new MemoryDownloadStore(1, 1024, 1024), CLOCK);
         McpFiles.withDownloads(true, () -> full.hosted("a", new byte[11], "image/png", ALICE));
 
         assertNull(McpFiles.withDownloads(true,
@@ -276,6 +279,29 @@ class McpFileDownloadsTest {
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> McpFileDownloads.of(spec, CLOCK));
         assertTrue(e.getMessage().contains("export-orders"), e.getMessage());
+    }
+
+    @Test
+    void resendsCredentialShouldAcceptWhatAClientResendsInAuthorizationOrTheQuery() {
+        assertTrue(McpFileDownloads.resendsCredential(null));
+        assertTrue(McpFileDownloads.resendsCredential(new BearerAuthenticationSpec()));
+        assertTrue(McpFileDownloads.resendsCredential(
+                new ApiKeyAuthenticationSpec("api_key", "query", "secret")));
+    }
+
+    @Test
+    void resendsCredentialShouldRefuseAHeaderApiKeyOrDigest() {
+        assertFalse(McpFileDownloads.resendsCredential(
+                new ApiKeyAuthenticationSpec("X-API-Key", "header", "secret")));
+        assertFalse(McpFileDownloads.resendsCredential(new DigestAuthenticationSpec()));
+    }
+
+    @Test
+    void ofShouldNotHostDownloadsBehindAHeaderApiKey() {
+        McpServerSpec spec = server(new McpFilesSpec());
+        spec.setAuthentication(new ApiKeyAuthenticationSpec("X-API-Key", "header", "secret"));
+
+        assertFalse(McpFileDownloads.of(spec, CLOCK).hostsDownloads());
     }
 
     @Test

@@ -53,8 +53,9 @@ public final class McpFiles {
     }
 
     /**
-     * The settings {@code server/discover} advertises: {@code download}, and the inline upload
-     * limit. {@code upload} is not advertised: it announces out-of-band uploads and the
+     * The settings {@code server/discover} advertises: the inline upload limit only.
+     * {@code download} is a client setting, and advertising the extension is what lets a client
+     * declare it. {@code upload} is not advertised: it announces out-of-band uploads and the
      * {@code upload_required} result, which the engine does not support yet, and inline files
      * need only {@code maxInlineBytes}.
      *
@@ -62,7 +63,6 @@ public final class McpFiles {
      */
     public static ObjectNode serverSettings(ObjectMapper mapper, long maxInlineBytes) {
         ObjectNode settings = mapper.createObjectNode();
-        settings.putObject(DOWNLOAD);
         settings.put(MAX_INLINE_BYTES, maxInlineBytes);
         return settings;
     }
