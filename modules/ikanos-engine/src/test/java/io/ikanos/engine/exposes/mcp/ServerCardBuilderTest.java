@@ -151,6 +151,14 @@ class ServerCardBuilderTest {
         assertTrue(error.getMessage().contains("version"), error.getMessage());
     }
 
+    @Test
+    void buildShouldFailWhenTheVersionIsLongerThan255Characters() {
+        info.setVersion("1.0.0-" + "a".repeat(250));
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                this::render);
+        assertTrue(error.getMessage().contains("255"), error.getMessage());
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"^1.2.3", "~1.2.3", ">=1.2.3", "<2", "1.x", "1.*", "*",
             "1.0 - 2.0", "1.0 || 2.0"})
@@ -196,6 +204,33 @@ class ServerCardBuilderTest {
     @Test
     void buildShouldTakeTitleFromInfoDisplay() {
         assertEquals("Shipyard Fleet Management", render().path("title").asString());
+    }
+
+    @Test
+    void buildShouldFailWhenTheInfoDisplayTitleIsTooLong() {
+        info.setDisplay("x".repeat(101));
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                this::render);
+        assertTrue(error.getMessage().contains("card.title"), error.getMessage());
+    }
+
+    @Test
+    void buildShouldFailWhenTheCardTitleIsTooLong() {
+        server.getCard().setTitle("x".repeat(101));
+        assertThrows(IllegalArgumentException.class, this::render);
+    }
+
+    @Test
+    void buildShouldFailWhenTheTitleIsBlank() {
+        info.setDisplay("   ");
+        assertThrows(IllegalArgumentException.class, this::render);
+    }
+
+    @Test
+    void buildShouldAcceptAShortCardTitleOverALongInfoDisplay() {
+        info.setDisplay("x".repeat(500));
+        server.getCard().setTitle("Fleet");
+        assertEquals("Fleet", render().path("title").asString());
     }
 
     @Test
