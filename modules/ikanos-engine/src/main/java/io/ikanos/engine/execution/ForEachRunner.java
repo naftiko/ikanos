@@ -23,6 +23,7 @@ import org.restlet.Context;
 import io.ikanos.durable.NodePath;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.engine.step.StepHandlerRegistry;
+import io.ikanos.spec.exposes.control.GuardManagementSpec;
 import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.spec.util.OperationStepForEachSpec;
 import io.ikanos.spec.util.OperationStepSpec;
@@ -67,8 +68,9 @@ public final class ForEachRunner {
         Map<String, Object> parameters = new LinkedHashMap<>(run.runtimeParameters());
         Map<String, JsonNode> outputs = new LinkedHashMap<>(
                 run.stepContext().getAllStepOutputs());
-        List<Object> items = itemsOf(step, StepGuard.parametersOf(run));
-        Integer limit = limitOf(step, StepGuard.parametersOf(run));
+        long evaluationLimit = nodeRunner.guardEvaluationLimit();
+        List<Object> items = itemsOf(step, StepGuard.parametersOf(run), evaluationLimit);
+        Integer limit = limitOf(step, StepGuard.parametersOf(run), evaluationLimit);
         if (limit != null && items.size() > limit) {
             // As SQL's LIMIT: the first items run, the rest are skipped and the call goes on.
             Context.getCurrentLogger().log(Level.WARNING, "Step '" + step.getName()
@@ -91,18 +93,16 @@ public final class ForEachRunner {
                 StepRun itemRun = new StepRun(parameters);
                 StepOutcomes.inherit(itemRun.runtimeParameters(), parameters);
                 outputs.forEach(itemRun.stepContext()::storeStepOutput);
+                // Under its name only: a guard reads a dashed name in snake case through
+                // StepGuard.lookup, so no alias is stored that an inner item could not replace.
                 itemRun.runtimeParameters().put(itemName, items.get(i));
-                String alias = itemName.replace('-', '_');
-                if (!alias.equals(itemName)) {
-                    itemRun.runtimeParameters().putIfAbsent(alias, items.get(i));
-                }
                 // The guard of a sequence do, for this item: a single step's runs with it.
                 DurableScope itemScope = scope != null ? scope.track(position) : null;
                 Span itemSpan = TelemetryBootstrap.get().startStepItemSpan(i);
                 try (Scope itemOtel = itemSpan.makeCurrent()) {
                     if (step.getDo() instanceof io.ikanos.spec.util.OperationStepSequenceSpec seq
                             && !StepGuard.holds(step.getDo().getName(), seq.getOnlyIf(),
-                                    StepGuard.parametersOf(itemRun))) {
+                                    StepGuard.parametersOf(itemRun), evaluationLimit)) {
                         // Skipped for this item: a step.skip span under the item's, and no
                         // output.
                         TelemetryBootstrap.get().recordStepSkipped(stepIndex,
@@ -143,8 +143,13 @@ public final class ForEachRunner {
 
     /** The items: a list, a JSON array, or nothing for an absent value. */
     static List<Object> itemsOf(OperationStepForEachSpec step, Map<String, Object> parameters) {
+        return itemsOf(step, parameters, GuardManagementSpec.DEFAULT_EVALUATION_LIMIT);
+    }
+
+    static List<Object> itemsOf(OperationStepForEachSpec step, Map<String, Object> parameters,
+            long evaluationLimit) {
         String label = "The items of step '" + step.getName() + "'";
-        Object value = StepGuard.value(label, step.getItems(), parameters);
+        Object value = StepGuard.value(label, step.getItems(), parameters, evaluationLimit);
         if (value == null || value instanceof NullNode) {
             return List.of();
         }
@@ -169,10 +174,15 @@ public final class ForEachRunner {
 
     /** The limit: a number, the value of the input it names, or {@code null} for none. */
     static Integer limitOf(OperationStepForEachSpec step, Map<String, Object> parameters) {
+        return limitOf(step, parameters, GuardManagementSpec.DEFAULT_EVALUATION_LIMIT);
+    }
+
+    static Integer limitOf(OperationStepForEachSpec step, Map<String, Object> parameters,
+            long evaluationLimit) {
         Object limit = step.getLimit();
         if (limit instanceof String name) {
             limit = StepGuard.value("The limit of step '" + step.getName() + "'", name,
-                    parameters);
+                    parameters, evaluationLimit);
             if (limit instanceof JsonNode node) {
                 limit = node.isNumber() ? node.numberValue() : node.asString(null);
             }

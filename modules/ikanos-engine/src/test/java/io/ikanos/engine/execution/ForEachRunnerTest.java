@@ -270,4 +270,28 @@ public class ForEachRunnerTest {
                     && message.contains("skipped 3")), logs.messages().toString());
         }
     }
+
+    /**
+     * Two nested iterations with the same dashed item name: a guard in the inner one reads the
+     * inner item under its snake case name, not a stale alias of the outer one.
+     */
+    @Test
+    void anInnerItemShouldReplaceAnOuterOneOfTheSameDashedName() {
+        OperationStepCallSpec leaf = new OperationStepCallSpec("leaf", "port.leaf");
+        leaf.setOnlyIf("pull_request.id == 'child'");
+        OperationStepForEachSpec inner = new OperationStepForEachSpec("inner");
+        inner.setItems("pull_request.children");
+        inner.setAs("pull-request");
+        inner.setDo(leaf);
+        OperationStepForEachSpec outer = new OperationStepForEachSpec("outer");
+        outer.setItems("prs");
+        outer.setAs("pull-request");
+        outer.setDo(inner);
+        Nodes nodes = new Nodes();
+
+        Executions.runSteps(tree(outer), new StepRun(Map.of("prs", List.of(Map.of("id", "parent",
+                "children", List.of(Map.of("id", "child")))))), nodes);
+
+        assertEquals(1, nodes.invoked.size(), nodes.invoked.toString());
+    }
 }

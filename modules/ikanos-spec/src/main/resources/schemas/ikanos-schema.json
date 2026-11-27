@@ -4138,7 +4138,7 @@
               "description": "The name the current item is read under in `do`. Defaults to `item`."
             },
             "limit": {
-              "description": "Runs the first items only, as SQL's LIMIT does; the rest are skipped, the call goes on, and the engine logs a warning naming the step and how many items it skipped. A number, or the name of an input that gives one, so the caller can set it. No default: without it, every item runs.",
+              "description": "Runs the first items only, as SQL's LIMIT does; the rest are skipped, the call goes on, and the engine logs a warning naming the step and how many items it skipped. A whole number of at least 1, or a name or CEL expression that gives one, read like `onlyIf`: an input, so the caller can set it, or an earlier step's output (`page_size.value`). No default: without it every item runs, and so does a limit that reads an input the caller leaves out, so give such an input a `default`.",
               "oneOf": [
                 {
                   "type": "integer",
@@ -4218,7 +4218,7 @@
       "unevaluatedProperties": false
     },
     "OperationStepEnd": {
-      "description": "Ends the flow early, as a success: the steps after it do not run, and the output is built from what the steps before it gathered. Usually guarded with `onlyIf`. Not allowed inside a parallel track, where it would end only the track.",
+      "description": "Ends the flow early, as a success: the steps after it do not run, and the output is built from what the steps before it gathered. Usually guarded with `onlyIf`. Not allowed inside a parallel track or a forEach `do`, where it would end only the track or the current item.",
       "allOf": [
         {
           "$ref": "#/$defs/OperationStepBase"

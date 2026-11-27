@@ -778,4 +778,74 @@ public class StepGuardValidatorTest {
         assertTrue(errors.get(0).contains("has the name of a track of parallel step 'first'"),
                 errors.get(0));
     }
+
+    @Test
+    void findErrorsShouldReportAnEndInsideADo() {
+        List<String> errors = StepGuardValidator.findErrors(flow("""
+                - name: issues
+                  type: forEach
+                  items: order.lines
+                  do:
+                    type: sequence
+                    steps:
+                      - name: a
+                        type: call
+                        what: shop.a
+                      - name: stop
+                        type: end
+                """));
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).contains("ends the flow from inside a do"), errors.get(0));
+    }
+
+    /**
+     * A parallel step whose track holds a forEach whose sequence do holds another forEach:
+     * three constructs, the most the memo allows.
+     */
+    private static final String THREE_LEVELS = """
+            - name: group
+              type: parallel
+              tracks:
+                - name: lines
+                  type: forEach
+                  items: order.lines
+                  as: line
+                  limit: 10
+                  do:
+                    type: sequence
+                    steps:
+                      - name: parts
+                        type: forEach
+                        items: line.parts
+                        as: part
+                        limit: 10
+                        do:
+                          type: call
+                          what: shop.check-part
+                - name: other
+                  type: call
+                  what: shop.other
+            """;
+
+    @Test
+    void findWarningsShouldAcceptAForEachInAForEachInAParallelStep() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow(THREE_LEVELS));
+
+        assertTrue(warnings.stream().noneMatch(w -> w.contains("levels deep")),
+                warnings.toString());
+    }
+
+    @Test
+    void findWarningsShouldReportAForEachDoPastThreeLevels() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow(THREE_LEVELS.replace(
+                "              type: call\n              what: shop.check-part\n",
+                "              type: forEach\n              items: part.screws\n"
+                        + "              as: screw\n              limit: 10\n"
+                        + "              do:\n                type: call\n"
+                        + "                what: shop.check-screw\n")));
+
+        assertTrue(warnings.stream().anyMatch(w -> w.contains("more than 3 levels")),
+                warnings.toString());
+    }
 }

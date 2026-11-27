@@ -273,6 +273,14 @@ public final class StepGuardValidator {
             return;
         }
         String inner = where + ", forEach step '" + forEach.getName() + "'";
+        // An iteration has no early exit: an end would end only the current item's run
+        for (OperationStepSpec bodyStep : ParallelTracks.stepsOf(body.getName(), body).values()) {
+            if (bodyStep instanceof OperationStepEndSpec) {
+                findings.errors().add("Step '" + bodyStep.getName() + "' in " + inner + " ends"
+                        + " the flow from inside a do, where it would end only the current item."
+                        + " End the flow after the forEach step.");
+            }
+        }
         // One level per forEach step: a sequence do is the body, not a level
         int bodyDepth = depth + 1;
         if (bodyDepth > MAX_NESTING) {
