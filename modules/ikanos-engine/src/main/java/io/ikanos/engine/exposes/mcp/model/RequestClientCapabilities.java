@@ -29,6 +29,10 @@ public final class RequestClientCapabilities {
     /** Identifier of the tasks extension (SEP-2663). */
     public static final String TASKS_EXTENSION = "io.modelcontextprotocol/tasks";
 
+    /** The elicitation modes a client may declare in its {@code elicitation} capability. */
+    private static final String FORM = "form";
+    private static final String URL = "url";
+
     private static final RequestClientCapabilities NONE =
             new RequestClientCapabilities(MissingNode.getInstance());
 
@@ -58,8 +62,34 @@ public final class RequestClientCapabilities {
         return hasExtension(TASKS_EXTENSION);
     }
 
-    /** Whether the request declares that the client can answer elicitation requests. */
+    /**
+     * Whether the request declares that the client can answer elicitation requests, in any mode.
+     */
     public boolean supportsElicitation() {
         return capabilities.path("elicitation").isObject();
+    }
+
+    /**
+     * Whether the client can answer form mode elicitation requests: it declares {@code form} in
+     * its {@code elicitation} capability, or declares no mode at all ({@code elicitation: {}}),
+     * which means form only.
+     */
+    public boolean supportsFormElicitation() {
+        JsonNode elicitation = capabilities.path("elicitation");
+        return elicitation.isObject() && (elicitation.isEmpty() || elicitation.has(FORM));
+    }
+
+    /**
+     * Whether the client can answer URL mode elicitation requests: it declares {@code url} in its
+     * {@code elicitation} capability. A server must not send it a URL request otherwise.
+     */
+    public boolean supportsUrlElicitation() {
+        JsonNode elicitation = capabilities.path("elicitation");
+        return elicitation.isObject() && elicitation.has(URL);
+    }
+
+    /** Whether the client can answer elicitation requests in {@code mode}, form or url. */
+    public boolean supportsElicitation(String mode) {
+        return URL.equals(mode) ? supportsUrlElicitation() : supportsFormElicitation();
     }
 }

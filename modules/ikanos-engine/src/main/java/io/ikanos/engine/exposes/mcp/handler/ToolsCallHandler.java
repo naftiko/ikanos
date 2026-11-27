@@ -122,14 +122,16 @@ public class ToolsCallHandler extends McpCallHandler {
             // declares the tasks extension; otherwise the call is answered synchronously.
             if (adapter.getTaskService() != null && adapter.isTaskTool(toolName)) {
                 if (capabilities.supportsTasks()) {
-                    // A task that may ask needs a client that can answer: fail before creating
-                    // one that could never be answered (SEP-2663 input requests).
-                    if (!capabilities.supportsElicitation() && adapter.mayElicit(toolName)) {
-                        ObjectNode required = MAPPER.createObjectNode();
-                        required.putObject("elicitation");
-                        return missingCapability(idNode, "Tool '" + toolName
-                                + "' asks for input; it needs the elicitation capability",
-                                required);
+                    // A task that may ask needs a client that can answer, in every mode it may
+                    // ask in: fail before creating one that could never be answered (SEP-2663
+                    // input requests).
+                    java.util.Set<String> modes = adapter.elicitationModes(toolName);
+                    if (!modes.isEmpty()) {
+                        HandlerResult missing = missingElicitationModes(idNode, params,
+                                "Tool '" + toolName + "'", modes);
+                        if (missing != null) {
+                            return missing;
+                        }
                     }
                     String entry =
                             "mcp:" + adapter.getMcpServerSpec().getNamespace() + "/" + toolName;
@@ -469,6 +471,11 @@ public class ToolsCallHandler extends McpCallHandler {
     @Override
     protected boolean mayAsk(String toolName) {
         return adapter.mayElicit(toolName);
+    }
+
+    @Override
+    protected java.util.Set<String> askModes(String toolName) {
+        return adapter.elicitationModes(toolName);
     }
 
     /** Longest expected duration, in milliseconds, still answered synchronously. */

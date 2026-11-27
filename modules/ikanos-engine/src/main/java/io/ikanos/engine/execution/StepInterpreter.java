@@ -47,14 +47,22 @@ public final class StepInterpreter implements Interpreter {
     public List<Command> next(ExecutionView view) {
         for (StepNode node : tree.nodes()) {
             if (node.kind() == StepNode.Kind.ELICIT) {
-                Optional<Object> answer = view.update(node.path());
-                if (answer.isEmpty()) {
-                    return List.of(new Command.AwaitUpdate(node.path(), node));
-                }
                 if (!run.isEvaluated(node.path())) {
-                    run.setAnswer(node.path(), answer.get());
+                    // A URL mode step is asked again, under its next visit, each time its check
+                    // says the interaction is not done: the latest answer decides.
+                    // Under none, the visits before the latest answered one are no longer carried.
+                    int dropped = Elicitation.droppedVisits(node);
+                    int visit = answeredVisits(view, node, dropped);
+                    if (visit == dropped) {
+                        return List.of(new Command.AwaitUpdate(node.path().visit(dropped + 1),
+                                node));
+                    }
+                    run.setAnswer(node.path(), view.update(node.path().visit(visit)).get());
                     try {
                         nodeRunner.run(node, run);
+                    } catch (InteractionPendingException e) {
+                        return List.of(new Command.AwaitUpdate(node.path().visit(visit + 1),
+                                node));
                     } catch (RuntimeException e) {
                         run.fail(e);
                         return List.of(new Command.Fail(failureOf(e)));
@@ -90,6 +98,20 @@ public final class StepInterpreter implements Interpreter {
             }
         }
         return List.of(new Command.Complete(null));
+    }
+
+    /**
+     * How many visits of an {@code elicit} step have an answer, counting from {@code dropped}
+     * visits whose answers are no longer carried: {@code dropped} when the caller has not
+     * answered the next one yet. A form step has at most one visit; a URL mode step one more
+     * each time its check found the interaction not done.
+     */
+    static int answeredVisits(ExecutionView view, StepNode node, int dropped) {
+        int visits = dropped;
+        while (view.update(node.path().visit(visits + 1)).isPresent()) {
+            visits++;
+        }
+        return visits;
     }
 
     static Failure failureOf(Exception e) {

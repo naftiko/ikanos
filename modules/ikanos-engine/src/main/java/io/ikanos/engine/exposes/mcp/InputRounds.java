@@ -60,6 +60,9 @@ public final class InputRounds {
     /** Field of a call outcome that stopped at questions instead of returning a result. */
     static final String ASKED = "ikanos:inputRequests";
 
+    /** Field of such an outcome: the state the next rounds carry, such as a finished step. */
+    static final String CARRIED = "ikanos:carried";
+
     /** Field of such an outcome: when the round asked, in epoch milliseconds. */
     static final String ASKED_AT = "ikanos:askedAt";
 
@@ -76,20 +79,22 @@ public final class InputRounds {
      * the latest, with that round's number (0 for the first round).
      */
     record RoundInput(Map<NodePath, Object> answers, Map<NodePath, Object> latest,
-            int latestRound) {
+            int latestRound, Map<NodePath, Object> carried) {
     }
 
     /** The Interpreter of a call in rounds. */
     public static Interpreter interpreter() {
         return view -> {
             Map<NodePath, Object> answers = new LinkedHashMap<>();
+            Map<NodePath, Object> carried = new LinkedHashMap<>();
             Map<NodePath, Object> latest = Map.of();
             for (int round = 1;; round++) {
                 NodePath call = CALL.visit(round);
                 var outcome = view.outcome(call);
                 if (outcome.isEmpty()) {
                     return List.of(new Command.ScheduleAction(call,
-                            new RoundInput(Map.copyOf(answers), latest, round - 1), null));
+                            new RoundInput(Map.copyOf(answers), latest, round - 1,
+                                    Map.copyOf(carried)), null));
                 }
                 if (outcome.get() instanceof ActionOutcome.Failed failed) {
                     return List.of(new Command.Fail(failed.failure()));
@@ -98,6 +103,8 @@ public final class InputRounds {
                 if (!(value instanceof JsonNode node && node.has(ASKED))) {
                     return List.of(new Command.Complete(value));
                 }
+                node.path(CARRIED).properties()
+                        .forEach(e -> carried.put(new NodePath(e.getKey()), e.getValue()));
                 NodePath answered = ANSWERS.visit(round);
                 var update = view.update(answered);
                 if (update.isEmpty()) {
@@ -129,12 +136,16 @@ public final class InputRounds {
                             == ExecutionStatus.CANCELLED;
             try {
                 return ExecutionInputs.with(input.answers(), input.latest(), input.latestRound(),
-                        () -> DurableScope.with(runner, executionId, stop, work));
+                        input.carried(), () -> DurableScope.with(runner, executionId, stop, work));
             } catch (IllegalArgumentException e) {
                 throw new ActionFailedException(new Failure(INVALID_PARAMS, e.getMessage()), e);
             } catch (InputRequiredException e) {
                 ObjectNode asked = MAPPER.createObjectNode();
                 asked.set(ASKED, InputRequests.of(e));
+                if (!e.carry().isEmpty()) {
+                    ObjectNode carry = asked.putObject(CARRIED);
+                    e.carry().forEach(carry::set);
+                }
                 asked.put(ASKED_AT, clock.millis());
                 return asked;
             }

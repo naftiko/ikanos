@@ -56,6 +56,39 @@ public class McpRequestModelTest {
         assertFalse(capabilities.hasExtension("io.modelcontextprotocol/ui"));
     }
 
+    private static RequestClientCapabilities elicitation(String declared) {
+        return RequestClientCapabilities.from(JSON.readTree("""
+                {"_meta": {"io.modelcontextprotocol/clientCapabilities": {
+                  "elicitation": %s
+                }}}""".formatted(declared)));
+    }
+
+    @Test
+    void supportsFormElicitationShouldHoldWhenTheClientDeclaresNoMode() {
+        assertTrue(elicitation("{}").supportsFormElicitation());
+    }
+
+    @Test
+    void supportsUrlElicitationShouldNotHoldWhenTheClientDeclaresNoMode() {
+        assertFalse(elicitation("{}").supportsUrlElicitation());
+    }
+
+    @Test
+    void supportsElicitationShouldReadEachDeclaredMode() {
+        RequestClientCapabilities both = elicitation("{\"form\": {}, \"url\": {}}");
+
+        assertTrue(both.supportsElicitation("form"));
+        assertTrue(both.supportsElicitation("url"));
+    }
+
+    @Test
+    void supportsFormElicitationShouldNotHoldWhenTheClientDeclaresUrlOnly() {
+        RequestClientCapabilities urlOnly = elicitation("{\"url\": {}}");
+
+        assertFalse(urlOnly.supportsFormElicitation());
+        assertTrue(urlOnly.supportsUrlElicitation());
+    }
+
     @Test
     void capabilitiesShouldBeEmptyWhenTheRequestDeclaresNone() {
         assertFalse(RequestClientCapabilities.from(null).supportsTasks());

@@ -26,6 +26,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Supplier;
 import io.ikanos.engine.exposes.mcp.InputRequests;
 import tools.jackson.databind.node.ObjectNode;
@@ -42,6 +44,7 @@ import io.ikanos.engine.exposes.mcp.model.HandlerSuccessResult;
 import io.ikanos.engine.exposes.mcp.model.McpResultType;
 import io.ikanos.engine.exposes.mcp.model.RequestClientCapabilities;
 import io.ikanos.spec.util.IkanosMappers;
+import io.ikanos.spec.util.OperationStepElicitSpec;
 
 import static io.ikanos.engine.exposes.mcp.model.JsonRpcError.MISSING_REQUIRED_CLIENT_CAPABILITY;
 import static io.ikanos.engine.util.JsonRpcResponseBuilder.buildJsonRpcError;
@@ -144,11 +147,10 @@ public abstract class McpCallHandler {
             return new HandlerSuccessResult(ExecutionInputs.replaying(byPath(answers),
                     byPath(carried), run::get));
         } catch (InputRequiredException e) {
-            if (!RequestClientCapabilities.from(params).supportsElicitation()) {
-                ObjectNode required = MAPPER.createObjectNode();
-                required.putObject("elicitation");
-                return missingCapability(idNode,
-                        label + " asks for input; it needs the elicitation capability", required);
+            // Only a mode the client declared may be sent, whoever asks: a step or an upstream.
+            HandlerResult missing = missingElicitationModes(idNode, params, label, e.modes());
+            if (missing != null) {
+                return missing;
             }
             return new HandlerSuccessResult(
                     inputRequired(e, answers, carried, principal, digest));
@@ -164,6 +166,55 @@ public abstract class McpCallHandler {
     }
 
     /**
+     * The elicitation modes the entry named {@code name} may ask its caller in, {@code form}
+     * and {@code url}; empty when it cannot ask.
+     */
+    protected Set<String> askModes(String name) {
+        return Set.of();
+    }
+
+    /**
+     * A {@code -32021} error when the request does not declare every elicitation mode in
+     * {@code modes}, or {@code null} when it does. A server must not send a client a mode it did
+     * not declare, and an empty {@code elicitation: {}} declares form only. The error names the
+     * modes missing: as an empty {@code elicitation} when only form is and the client declares no
+     * elicitation at all, as before, and by name otherwise, so a client that declares only
+     * {@code url} reads that it lacks {@code form}.
+     *
+     * @param modes the modes to be asked in; when empty, form, the mode of any question
+     */
+    protected HandlerResult missingElicitationModes(JsonNode idNode, JsonNode params,
+            String label, Set<String> modes) {
+        RequestClientCapabilities capabilities = RequestClientCapabilities.from(params);
+        Set<String> missing = new TreeSet<>();
+        for (String mode : modes.isEmpty() ? Set.of(OperationStepElicitSpec.FORM) : modes) {
+            if (!capabilities.supportsElicitation(mode)) {
+                missing.add(mode);
+            }
+        }
+        if (missing.isEmpty()) {
+            return null;
+        }
+        ObjectNode required = MAPPER.createObjectNode();
+        ObjectNode elicitation = required.putObject("elicitation");
+        boolean formOnly = missing.equals(Set.of(OperationStepElicitSpec.FORM));
+        if (!formOnly || capabilities.supportsElicitation()) {
+            missing.forEach(elicitation::putObject);
+        }
+        String message;
+        if (missing.contains(OperationStepElicitSpec.URL)) {
+            message = label + " asks for input in URL mode; it needs the elicitation capability"
+                    + " with url";
+        } else if (capabilities.supportsElicitation()) {
+            message = label + " asks for input in form mode; it needs the elicitation capability"
+                    + " with form";
+        } else {
+            message = label + " asks for input; it needs the elicitation capability";
+        }
+        return missingCapability(idNode, message, required);
+    }
+
+    /**
      * One round of a journal-backed multi round-trip request: the first round starts a hidden
      * execution, and the sealed {@code requestState} names it, so each retry delivers its
      * {@code inputResponses} and resumes it. Steps already journaled, a write before the question
@@ -174,12 +225,11 @@ public abstract class McpCallHandler {
             Supplier<ObjectNode> run, String principal, String digest) throws Exception {
         // Checked before any step runs, as for a task: a -32021 carries no state, so a write
         // before the question would be journaled under an execution no retry could name, and
-        // run again by the retry that declares the capability.
-        if (!RequestClientCapabilities.from(params).supportsElicitation()) {
-            ObjectNode required = MAPPER.createObjectNode();
-            required.putObject("elicitation");
-            return missingCapability(idNode,
-                    label + " asks for input; it needs the elicitation capability", required);
+        // run again by the retry that declares the capability. Every mode the entry may ask in
+        // is required.
+        HandlerResult missing = missingElicitationModes(idNode, params, label, askModes(name));
+        if (missing != null) {
+            return missing;
         }
         ExecutionId executionId = null;
         int round = 0;
@@ -263,6 +313,9 @@ public abstract class McpCallHandler {
         // A key asked again, as by an upstream that rejected its answer, is open again: its old
         // answer is dropped, so a retry without a new one never replays it for the new question.
         answers.remove(pending);
+        // A URL mode step asked again keeps only its latest answer, so the state does not grow
+        // with each round.
+        answers.remove(e.droppedAnswers());
         // State a replay needs, such as an upstream's requestState, travels apart from the
         // answers: an upstream question keyed like it never overwrites it.
         e.carry().forEach(carried::set);

@@ -328,9 +328,17 @@ public class McpServerAdapter extends ServerAdapter {
      * calls a flow that may, at any depth.
      */
     public boolean mayElicit(String toolName) {
+        return !elicitationModes(toolName).isEmpty();
+    }
+
+    /**
+     * The elicitation modes the tool's flow may ask its caller in, {@code form} and {@code url};
+     * empty when it cannot ask.
+     */
+    public java.util.Set<String> elicitationModes(String toolName) {
         McpServerToolSpec toolSpec = getMcpServerSpec().getTools().get(toolName);
-        return toolSpec != null
-                && Elicitation.mayAsk(getCapability(), toolSpec.getRef(), toolSpec.getCall(),
+        return toolSpec == null ? java.util.Set.of()
+                : Elicitation.modes(getCapability(), toolSpec.getRef(), toolSpec.getCall(),
                         toolSpec.getSteps());
     }
 
@@ -340,17 +348,25 @@ public class McpServerAdapter extends ServerAdapter {
      * resource also serves the files under its URI ({@link ResourceHandler#matchesStatic}).
      */
     public boolean resourceMayElicit(String uri) {
+        return !resourceElicitationModes(uri).isEmpty();
+    }
+
+    /**
+     * The elicitation modes the resource that serves {@code uri} may ask its caller in, picked
+     * as {@link #resourceMayElicit} picks it; empty when it cannot ask.
+     */
+    public java.util.Set<String> resourceElicitationModes(String uri) {
         for (McpServerResourceSpec resource : getMcpServerSpec().getResources().values()) {
             if (resource.isStatic()) {
                 if (ResourceHandler.matchesStatic(resource.getUri(), uri)) {
-                    return false;
+                    return java.util.Set.of();
                 }
             } else if (ResourceHandler.matchTemplate(resource.getUri(), uri) != null) {
-                return Elicitation.mayAsk(getCapability(), null, resource.getCall(),
+                return Elicitation.modes(getCapability(), null, resource.getCall(),
                         resource.getSteps());
             }
         }
-        return false;
+        return java.util.Set.of();
     }
 
     /**

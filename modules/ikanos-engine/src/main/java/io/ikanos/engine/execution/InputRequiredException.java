@@ -41,17 +41,47 @@ public class InputRequiredException extends RuntimeException {
      * @param message the elicit step's message, rendered against the run's parameters when the
      *        question was asked; when {@code null}, the step's name is shown, never its message
      *        as written, which may be an unrendered template
+     * @param url what a URL mode elicit step sends its caller to; {@code null} for a form
+     *        question or an upstream's
      */
     public record Question(String key, OperationStepElicitSpec step, JsonNode request,
-            String message) {
+            String message, UrlRequest url) {
 
         public Question(String key, OperationStepElicitSpec step) {
-            this(key, step, null, null);
+            this(key, step, null, null, null);
         }
 
         public Question(String key, OperationStepElicitSpec step, JsonNode request) {
-            this(key, step, request, null);
+            this(key, step, request, null, null);
         }
+
+        public Question(String key, OperationStepElicitSpec step, JsonNode request,
+                String message) {
+            this(key, step, request, message, null);
+        }
+
+        /**
+         * The elicitation mode the question is asked in, {@code form} or {@code url}: an
+         * upstream's request names it (form when it names none), an elicit step declares it.
+         */
+        public String mode() {
+            if (request != null) {
+                return request.path("params").path("mode")
+                        .asString(OperationStepElicitSpec.FORM);
+            }
+            return step != null && step.isUrlMode() ? OperationStepElicitSpec.URL
+                    : OperationStepElicitSpec.FORM;
+        }
+    }
+
+    /**
+     * What a URL mode question sends its caller to.
+     *
+     * @param url the page, rendered when the question was asked, which may carry the
+     *        question's id ({@code {{elicitation.id}}}); the request sends no other id, since the
+     *        {@code 2026-07-28} {@code ElicitRequestURLParams} defines none
+     */
+    public record UrlRequest(String url) {
     }
 
     private final transient List<Question> questions;
@@ -80,5 +110,20 @@ public class InputRequiredException extends RuntimeException {
     /** The questions to ask, in the order the steps reached them. */
     public List<Question> questions() {
         return questions;
+    }
+
+    /**
+     * The keys of earlier answers a replay no longer needs and should not carry: those of the
+     * visits of a URL mode step asked again before its latest answered one.
+     */
+    public List<String> droppedAnswers() {
+        return carry == null ? List.of() : Elicitation.droppedAnswers(carry);
+    }
+
+    /** The elicitation modes the questions are asked in, in the order they first appear. */
+    public java.util.Set<String> modes() {
+        java.util.Set<String> modes = new java.util.LinkedHashSet<>();
+        questions.forEach(question -> modes.add(question.mode()));
+        return modes;
     }
 }

@@ -52,6 +52,7 @@ functions:
   - mcp-tool-search
   - mcp-tool-description
   - sql-procedures
+  - elicit-url
 
 rules:
 
@@ -1148,6 +1149,72 @@ rules:
       function: pattern
       functionOptions:
         notMatch: "example\\.com"
+
+  ikanos-elicit-url-https:
+    message: "{{error}}"
+    description: >
+      A URL mode `elicit` step sends the caller to a page to complete a step out
+      of band, such as connecting an account or entering a payment method. The
+      page must be served over `https://`; the engine refuses any other URL,
+      except plain `http://` for a local host (`localhost`, `127.0.0.1`,
+      `[::1]`), which is accepted in every environment and meant for
+      development.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: elicit-url
+      functionOptions:
+        check: https
+
+  ikanos-elicit-url-no-sensitive:
+    message: "{{error}}"
+    description: >
+      The URL of a URL mode `elicit` step is shown to the user, logged and may be
+      shared, so it must not carry credentials, personal data or a
+      pre-authenticated token. Do not read the caller's claims (`{{auth...}}`)
+      or a binding in it: carry `{{elicitation.id}}` instead and let the page sign
+      the user in. The id does not identify the caller: bind the interaction to
+      the caller in the step's `check` (see `ikanos-elicit-url-check-binds-caller`).
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: elicit-url
+      functionOptions:
+        check: no-sensitive
+
+  ikanos-elicit-url-check-binds-caller:
+    message: "{{error}}"
+    description: >
+      Anyone who has the URL of a URL mode `elicit` step can complete the
+      interaction under its `{{elicitation.id}}`, so the id alone does not tell
+      that the user who completed it is the caller who was asked. The step's
+      `check` should carry the caller's subject next to the id, such as
+      `user: "{{auth.claims.sub}}"`, and the upstream should return nothing when
+      another user completed the interaction: otherwise a caller who forwards the
+      URL gets the result of whoever completed it, such as their payment method.
+    severity: warn
+    recommended: true
+    given: "$"
+    then:
+      function: elicit-url
+      functionOptions:
+        check: check-binds-caller
+
+  ikanos-elicit-form-no-secrets:
+    message: "{{error}}"
+    description: >
+      The MCP specification forbids form mode elicitation for passwords, API
+      keys, tokens and payment credentials. Ask for them on a page with
+      `mode: url`, whose `check` reads the result once the user is done.
+    severity: warn
+    recommended: true
+    given: "$"
+    then:
+      function: elicit-url
+      functionOptions:
+        check: form-secrets
 
   ikanos-mcp-trust-network-too-broad:
     message: "{{error}}"

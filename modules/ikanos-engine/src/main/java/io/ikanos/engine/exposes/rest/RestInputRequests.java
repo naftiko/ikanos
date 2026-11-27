@@ -292,6 +292,9 @@ public final class RestInputRequests {
             e.questions().forEach(question -> pending.add(question.key()));
             // A key asked again is open again: its old answer is never replayed for it.
             answers.remove(pending);
+            // A URL mode step asked again keeps only its latest answer, so the handle does not
+            // grow with each round.
+            answers.remove(e.droppedAnswers());
             // State a replay needs, such as an upstream's requestState, travels apart from the
             // answers: an upstream question keyed like it never overwrites it.
             e.carry().forEach(carried::set);

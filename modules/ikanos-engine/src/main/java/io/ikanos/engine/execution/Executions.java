@@ -13,7 +13,9 @@
  */
 package io.ikanos.engine.execution;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import io.ikanos.durable.ActionFailedException;
 import io.ikanos.durable.ActionOutcome;
@@ -110,7 +112,14 @@ public final class Executions {
             }
         } catch (Asked asked) {
             // A flow called by one of these steps asks: its keys already carry their prefix.
-            throw asked.question;
+            // The URL steps this run finished travel with its questions.
+            Map<String, JsonNode> done = finished(run);
+            if (done.isEmpty()) {
+                throw asked.question;
+            }
+            Map<String, JsonNode> carry = new LinkedHashMap<>(asked.question.carry());
+            done.forEach(carry::putIfAbsent);
+            throw new InputRequiredException(asked.question.questions(), carry);
         }
         if (result instanceof ExecutionResult.Completed) {
             return run;
@@ -118,18 +127,50 @@ public final class Executions {
         if (result instanceof ExecutionResult.Suspended suspended) {
             // Only elicit steps await an update: the caller must answer them, under the full
             // path of the steps that called this run. Each message is rendered now, from the
-            // inputs and the outputs of the steps that ran before it.
+            // inputs and the outputs of the steps that ran before it. A URL mode step's URL is
+            // rendered too, with the id of its question, the same on every visit.
+            // The URL steps already found done travel with the questions, so a later round
+            // restores them instead of deciding again.
+            Map<String, JsonNode> carry = finished(run);
             throw new InputRequiredException(suspended.awaiting().stream()
                     .map(await -> {
-                        OperationStepElicitSpec step =
-                                (OperationStepElicitSpec) ((StepNode) await.request()).step();
+                        StepNode node = (StepNode) await.request();
+                        OperationStepElicitSpec step = (OperationStepElicitSpec) node.step();
+                        Map<String, Object> parameters = Elicitation.parameters(run);
+                        InputRequiredException.UrlRequest url = null;
+                        if (step.isUrlMode()) {
+                            String id = Elicitation.id(
+                                    ExecutionInputs.qualify(node.path()).value(), carry);
+                            parameters = Elicitation.urlParameters(run, id);
+                            url = new InputRequiredException.UrlRequest(
+                                    Elicitation.url(step, parameters));
+                            Elicitation.dropEarlierVisits(node, visitOf(await.path(), node),
+                                    carry);
+                        }
                         return new InputRequiredException.Question(
                                 ExecutionInputs.qualify(await.path()).value(), step, null,
-                                Elicitation.message(step, Elicitation.parameters(run)));
+                                Elicitation.message(step, parameters), url);
                     })
-                    .toList());
+                    .toList(), carry);
         }
         throw rethrowable(run, result);
+    }
+
+    /** The visit of {@code node} that {@code awaited} names: 1 for the node's own path. */
+    private static int visitOf(NodePath awaited, StepNode node) {
+        String first = node.path().value();
+        return awaited.value().equals(first) ? 1
+                : Integer.parseInt(awaited.value().substring(first.length() + 1));
+    }
+
+    /**
+     * The outputs of the URL mode steps found done, to carry with the questions that leave
+     * {@code run}: its own, and those of every run of the request, such as a called flow's.
+     */
+    private static Map<String, JsonNode> finished(StepRun run) {
+        Map<String, JsonNode> done = new LinkedHashMap<>(ExecutionInputs.finished());
+        done.putAll(run.finished());
+        return done;
     }
 
     /**

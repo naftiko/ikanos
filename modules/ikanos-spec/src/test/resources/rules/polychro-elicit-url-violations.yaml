@@ -1,0 +1,83 @@
+ikanos: 1.0.0-beta11
+info:
+  display: URL mode question violations
+  description: >-
+    Negative fixture: a URL mode elicit step over plain http, another whose URL
+    reads the caller's claims and a binding, and a form step that asks for an API key.
+capability:
+  binds:
+  - namespace: secrets
+    keys:
+      PAYMENTS_TOKEN: PAYMENTS_TOKEN
+  consumes:
+  - type: http
+    namespace: payments
+    description: Payments API
+    baseUri: https://payments.example.com
+    resources:
+      setups:
+        path: /setups/{{ref}}
+        operations:
+          get-setup-status:
+            method: GET
+  aggregates:
+  - display: billing flows
+    namespace: billing
+    flows:
+      insecure-page:
+        description: Send the customer to a page over plain http
+        steps:
+          payment:
+            type: elicit
+            mode: url
+            message: Add a payment method.
+            url: "http://billing.example.com/setup?ref={{elicitation.id}}"
+            check:
+              type: call
+              call: payments.get-setup-status
+              with:
+                ref: "{{elicitation.id}}"
+            outputParameters:
+              paymentMethodId:
+                type: string
+      leaky-page:
+        description: Send the customer to a page whose URL carries their email and a token
+        steps:
+          payment:
+            type: elicit
+            mode: url
+            message: Add a payment method.
+            url: "https://billing.example.com/setup?email={{auth.claims.email}}&token={{PAYMENTS_TOKEN}}"
+            check:
+              type: call
+              call: payments.get-setup-status
+              with:
+                ref: "{{elicitation.id}}"
+            outputParameters:
+              paymentMethodId:
+                type: string
+      key-in-form:
+        description: Ask the customer for an API key in a form
+        steps:
+          credentials:
+            type: elicit
+            message: Enter your API key.
+            fields:
+              apiKey:
+                type: string
+  exposes:
+  - type: mcp
+    address: localhost
+    port: 9318
+    namespace: billing-mcp
+    description: Billing tools
+    tools:
+      insecure-page:
+        description: Send the customer to a page over plain http
+        ref: billing.insecure-page
+      leaky-page:
+        description: Send the customer to a page whose URL carries their email and a token
+        ref: billing.leaky-page
+      key-in-form:
+        description: Ask the customer for an API key in a form
+        ref: billing.key-in-form

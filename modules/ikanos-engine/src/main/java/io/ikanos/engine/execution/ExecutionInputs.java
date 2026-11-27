@@ -16,6 +16,8 @@ package io.ikanos.engine.execution;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
+import tools.jackson.databind.JsonNode;
 import io.ikanos.durable.NodePath;
 
 /**
@@ -36,14 +38,16 @@ public final class ExecutionInputs {
      * The answers of the request, those of the latest round of a journaled call with that
      * round's number (0 before any), the state a replay carries apart from the answers, such as
      * an upstream's {@code requestState}, and the path of the calling steps of the current run
-     * ({@code null} at the top level). Captured when a run starts and set again in each of its
-     * actions, which may run on a thread of their own.
+     * ({@code null} at the top level), and the outputs of the URL mode steps found done so far
+     * by any run of the request, shared by all of them. Captured when a run starts and set again
+     * in each of its actions, which may run on a thread of their own.
      */
     record Snapshot(Map<NodePath, Object> answers, Map<NodePath, Object> latest, int round,
-            Map<NodePath, Object> carried, NodePath caller) {
+            Map<NodePath, Object> carried, NodePath caller, Map<String, JsonNode> finished) {
     }
 
-    private static final Snapshot EMPTY = new Snapshot(Map.of(), Map.of(), 0, Map.of(), null);
+    private static final Snapshot EMPTY =
+            new Snapshot(Map.of(), Map.of(), 0, Map.of(), null, Map.of());
     private static final ThreadLocal<Snapshot> CURRENT = new ThreadLocal<>();
 
     private ExecutionInputs() {
@@ -73,10 +77,15 @@ public final class ExecutionInputs {
         return with(answers, latest, round, Map.of(), work);
     }
 
-    private static <T> T with(Map<NodePath, Object> answers, Map<NodePath, Object> latest,
+    /**
+     * Runs {@code work} with {@code answers} available to the runs it starts, of which
+     * {@code latest} arrived in round {@code round} of a journaled call, and the state earlier
+     * rounds carried ({@link InputRequiredException#carry}).
+     */
+    public static <T> T with(Map<NodePath, Object> answers, Map<NodePath, Object> latest,
             int round, Map<NodePath, Object> carried, Callable<T> work) throws Exception {
         return run(new Snapshot(Map.copyOf(answers), Map.copyOf(latest), round,
-                Map.copyOf(carried), null), work);
+                Map.copyOf(carried), null, new ConcurrentHashMap<>()), work);
     }
 
     /** The answers and calling path of the current thread, to carry into the actions of a run. */
@@ -93,7 +102,7 @@ public final class ExecutionInputs {
         NodePath caller = snapshot.caller() == null ? step
                 : new NodePath(snapshot.caller().value() + "/" + step.value());
         return run(new Snapshot(snapshot.answers(), snapshot.latest(), snapshot.round(),
-                snapshot.carried(), caller), work);
+                snapshot.carried(), caller, snapshot.finished()), work);
     }
 
     /** The answers addressed to the current run, keyed by its local paths; empty outside one. */
@@ -160,6 +169,24 @@ public final class ExecutionInputs {
      */
     public static Map<NodePath, Object> carried() {
         return capture().carried();
+    }
+
+    /**
+     * Records the output of a URL mode step found done, under its key in the state a replay
+     * carries, for the whole request: a step of a called flow, whose run ends before the caller
+     * asks again, is kept too. Nothing is recorded outside a request that carries answers, where
+     * no later round could restore it.
+     */
+    static void recordFinished(String carryKey, JsonNode output) {
+        Snapshot snapshot = CURRENT.get();
+        if (snapshot != null) {
+            snapshot.finished().put(carryKey, output);
+        }
+    }
+
+    /** The outputs of the URL mode steps found done so far in the request, by carry key. */
+    static Map<String, JsonNode> finished() {
+        return capture().finished();
     }
 
     /**
