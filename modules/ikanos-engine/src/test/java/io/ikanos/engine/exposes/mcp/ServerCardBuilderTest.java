@@ -357,11 +357,12 @@ class ServerCardBuilderTest {
         assertFalse(card.toString().contains(SECRET));
     }
 
-    @Test
-    void buildShouldTemplateAQueryApiKeyIntoTheUrl() {
+    @ParameterizedTest
+    @ValueSource(strings = {"query", "Query", "QUERY"})
+    void buildShouldTemplateAQueryApiKeyIntoTheUrl(String placement) {
         ApiKeyAuthenticationSpec apiKey = new ApiKeyAuthenticationSpec();
         apiKey.setKey("api_key");
-        apiKey.setPlacement("query");
+        apiKey.setPlacement(placement);
         apiKey.setValue(SECRET);
         server.setAuthentication(apiKey);
         JsonNode remote = render().path("remotes").path(0);

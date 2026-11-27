@@ -248,7 +248,7 @@ public class McpServerAdapter extends ServerAdapter {
             return null;
         }
         if (authentication instanceof ApiKeyAuthenticationSpec apiKey) {
-            return "query".equals(apiKey.getPlacement()) ? null : apiKey.getKey();
+            return apiKey.isQueryPlacement() ? null : apiKey.getKey();
         }
         return "Authorization";
     }

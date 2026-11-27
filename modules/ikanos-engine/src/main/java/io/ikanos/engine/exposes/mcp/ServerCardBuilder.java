@@ -279,7 +279,7 @@ public final class ServerCardBuilder {
             return;
         }
         if ("apikey".equals(type) && authentication instanceof ApiKeyAuthenticationSpec apiKey
-                && "query".equals(apiKey.getPlacement())) {
+                && apiKey.isQueryPlacement()) {
             remote.put("url", url + (url.contains("?") ? "&" : "?") + apiKey.getKey() + "={key}");
             ObjectNode key = remote.putObject("variables").putObject("key");
             key.put("description", "API key for this server.");
