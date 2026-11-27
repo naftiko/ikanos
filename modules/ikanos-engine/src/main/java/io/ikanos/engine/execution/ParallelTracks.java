@@ -170,7 +170,9 @@ public final class ParallelTracks {
 
     /**
      * Records the outputs and outcomes of a {@code parallel} step's journaled output in
-     * {@code run}: each track's under its name, and the outputs together under the step's.
+     * {@code run}: each track's under its name, and the outputs together under the step's. The
+     * group output, {@code {track: output}}, is also the run's last result, so a tool or
+     * operation whose last step is the group, with no mappings, answers it.
      */
     static void restore(String stepName, JsonNode journaled, StepRun run) {
         if (journaled == null || !journaled.isObject()) {
@@ -182,6 +184,9 @@ public final class ParallelTracks {
                 run.runtimeParameters(), track.getKey(), track.getValue().asString()));
         if (stepName != null && outputs.isObject()) {
             run.putOutput(stepName, outputs);
+        }
+        if (outputs.isObject()) {
+            run.setLastResult(new RestoredResult(outputs));
         }
     }
 
