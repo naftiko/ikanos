@@ -11,6 +11,10 @@
  *                          (`{{auth...}}`) nor a binding (`{{KEY}}`, `{{namespace.KEY}}`):
  *                          a URL is logged, shown and shared, so it must never carry
  *                          credentials, personal data or a pre-authenticated token.
+ *   check: "check-binds-caller"
+ *                          A URL mode step's `check` should read the caller's claims
+ *                          (`{{auth.claims...}}`) in its `with`, so the upstream can return
+ *                          nothing when another user completed the interaction under the id.
  *   check: "form-secrets"  A form mode step should not ask for a field that looks like a
  *                          secret (password, API key, token, card number...): the MCP
  *                          specification forbids form mode for them, and URL mode is the
@@ -78,6 +82,20 @@ function bindings(doc) {
   return names;
 }
 
+/** Whether a `with` value, at any depth, reads the caller's claims. */
+function readsClaims(value) {
+  if (typeof value === "string") {
+    for (const match of value.matchAll(VARIABLE)) {
+      if (/^(this\.)?auth\.(this\.)?claims(\.|$)/.test(match[1])) return true;
+    }
+    return false;
+  }
+  if (value && typeof value === "object") {
+    return Object.values(value).some(readsClaims);
+  }
+  return false;
+}
+
 export default function elicitUrl(targetVal, options) {
   if (!targetVal || typeof targetVal !== "object") return;
   const check = options && options.check;
@@ -112,6 +130,15 @@ export default function elicitUrl(targetVal, options) {
             path: path.concat("url"),
           });
         }
+      }
+    } else if (check === "check-binds-caller" && urlMode && step.check
+        && typeof step.check === "object") {
+      if (!readsClaims(step.check.with)) {
+        results.push({
+          message: "Elicit step '" + name + "': the check does not read the caller's claims;"
+            + " pass the caller's subject next to the id, such as user: \"{{auth.claims.sub}}\".",
+          path: path.concat("check"),
+        });
       }
     } else if (check === "form-secrets" && !urlMode && step.fields
         && typeof step.fields === "object" && !Array.isArray(step.fields)) {

@@ -112,7 +112,9 @@ public class OperationStepElicitSpec extends OperationStepSpec {
 
     /**
      * URL mode: the call that decides on each retry whether the out-of-band step is done. Its
-     * {@code with} may read {@code {{elicitation.id}}}.
+     * {@code with} may read {@code {{elicitation.id}}}, and should carry the caller's subject
+     * ({@code {{auth.claims.sub}}}) so the upstream returns nothing when another user completed
+     * the interaction under that id: anyone who has the URL can complete it.
      */
     public OperationStepCallSpec getCheck() {
         return check;

@@ -1411,6 +1411,14 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
+    public void elicitUrlCheckBindsCallerRuleShouldWarnOnACheckThatReadsOnlyTheId() {
+        LintResult result = lintFixture("rules/polychro-elicit-url-violations.yaml");
+        assertEquals(2, findings(result, "ikanos-elicit-url-check-binds-caller"),
+            "Expected one warning per URL mode step, neither check reading the caller's "
+                + "claims." + System.lineSeparator() + result.output());
+    }
+
+    @Test
     public void elicitFormSecretsRuleShouldWarnOnAnApiKeyField() {
         assertWarnsOn("rules/polychro-elicit-url-violations.yaml",
             "ikanos-elicit-form-no-secrets", "'apiKey'");

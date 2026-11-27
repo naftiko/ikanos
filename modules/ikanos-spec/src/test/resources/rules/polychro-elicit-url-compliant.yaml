@@ -3,7 +3,8 @@ info:
   display: URL mode question
   description: >-
     Positive fixture: a URL mode elicit step sends the caller to an https page that
-    carries only the question's id, and a check reads the result.
+    carries only the question's id, and a check reads the result for that id and
+    the caller's subject.
 capability:
   consumes:
   - type: http
@@ -16,6 +17,8 @@ capability:
         operations:
           get-setup-status:
             method: GET
+            inputParameters:
+              user: { in: query }
   aggregates:
   - display: billing flows
     namespace: billing
@@ -33,6 +36,7 @@ capability:
               call: payments.get-setup-status
               with:
                 ref: "{{elicitation.id}}"
+                user: "{{auth.claims.sub}}"
             outputParameters:
               paymentMethodId:
                 type: string

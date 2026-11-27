@@ -1173,8 +1173,9 @@ rules:
       The URL of a URL mode `elicit` step is shown to the user, logged and may be
       shared, so it must not carry credentials, personal data or a
       pre-authenticated token. Do not read the caller's claims (`{{auth...}}`)
-      or a binding in it: carry `{{elicitation.id}}` instead, and let the page
-      identify the user itself and check that it is the caller who was asked.
+      or a binding in it: carry `{{elicitation.id}}` instead and let the page sign
+      the user in. The id does not identify the caller: bind the interaction to
+      the caller in the step's `check` (see `ikanos-elicit-url-check-binds-caller`).
     severity: error
     recommended: true
     given: "$"
@@ -1182,6 +1183,24 @@ rules:
       function: elicit-url
       functionOptions:
         check: no-sensitive
+
+  ikanos-elicit-url-check-binds-caller:
+    message: "{{error}}"
+    description: >
+      Anyone who has the URL of a URL mode `elicit` step can complete the
+      interaction under its `{{elicitation.id}}`, so the id alone does not tell
+      that the user who completed it is the caller who was asked. The step's
+      `check` should carry the caller's subject next to the id, such as
+      `user: "{{auth.claims.sub}}"`, and the upstream should return nothing when
+      another user completed the interaction: otherwise a caller who forwards the
+      URL gets the result of whoever completed it, such as their payment method.
+    severity: warn
+    recommended: true
+    given: "$"
+    then:
+      function: elicit-url
+      functionOptions:
+        check: check-binds-caller
 
   ikanos-elicit-form-no-secrets:
     message: "{{error}}"
