@@ -154,8 +154,8 @@ class McpConsumedReferenceTest {
 
     @Test
     void stepCallingAnUndeclaredToolShouldFailAtLoad() {
-        String yaml = replaceOnce(capability(), "call: fs.search\n        direct:",
-                "call: fs.serch\n        direct:");
+        String yaml = replaceOnce(capability(), "what: fs.search\n        direct:",
+                "what: fs.serch\n        direct:");
 
         assertEquals("Consumed namespace 'fs' has no operation 'serch' (called from aggregate "
                 + "'demo' flow 'find' step 'find')", loadError(yaml));
@@ -164,9 +164,9 @@ class McpConsumedReferenceTest {
     @Test
     void stepCallingAnUndeclaredDottedToolShouldFailAtLoad() {
         String yaml = replaceOnce(capability(), "Dotted tool name\n          steps:\n"
-                + "            read:\n              type: call\n              call: fs.files.read",
+                + "            - name: read\n              type: call\n              what: fs.files.read",
                 "Dotted tool name\n          steps:\n"
-                + "            read:\n              type: call\n              call: fs.files.reed");
+                + "            - name: read\n              type: call\n              what: fs.files.reed");
 
         assertEquals("Consumed namespace 'fs' has no operation 'files.reed' (called from "
                 + "aggregate 'demo' flow 'read' step 'read')", loadError(yaml));
@@ -192,10 +192,10 @@ class McpConsumedReferenceTest {
 
     @Test
     void exposedResourceStepCallingAnUndeclaredDottedToolShouldFailAtLoad() {
-        String yaml = replaceOnce(capability(), "a step\n          steps:\n            read:\n"
-                + "              type: call\n              call: fs.files.read",
-                "a step\n          steps:\n            read:\n"
-                + "              type: call\n              call: fs.files.read.x");
+        String yaml = replaceOnce(capability(), "a step\n          steps:\n            - name: read\n"
+                + "              type: call\n              what: fs.files.read",
+                "a step\n          steps:\n            - name: read\n"
+                + "              type: call\n              what: fs.files.read.x");
 
         assertEquals("Consumed namespace 'fs' has no operation 'files.read.x' (called from MCP "
                 + "resource 'file' in 'demo-mcp' step 'read')", loadError(yaml));
@@ -207,8 +207,8 @@ class McpConsumedReferenceTest {
      */
     @Test
     void dottedCallToAnHttpAdapterShouldFailAtLoad() {
-        String yaml = replaceOnce(capability(), "call: fs.search\n        direct:",
-                "call: api.list-items.extra\n        direct:");
+        String yaml = replaceOnce(capability(), "what: fs.search\n        direct:",
+                "what: api.list-items.extra\n        direct:");
 
         assertEquals("Consumed namespace 'api' has no operation 'list-items.extra' (called from "
                 + "aggregate 'demo' flow 'find' step 'find')", loadError(yaml));

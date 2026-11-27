@@ -835,7 +835,7 @@ class MappedOutputDefinitionsExpanderTest {
                 get-ship:
                   description: "Get ship."
                   steps:
-                    fetch: { type: call, call: erp.get-ship }
+                    - { name: fetch, type: call, what: erp.get-ship }
                   mappings:
                     - target: ship
                       value: "$.fetch"
@@ -1009,7 +1009,7 @@ class MappedOutputDefinitionsExpanderTest {
                 get-codes:
                   description: "Get codes."
                   steps:
-                    fetch: { type: call, call: erp.get-codes }
+                    - { name: fetch, type: call, what: erp.get-codes }
                   mappings:
                     - target: codes
                       value: "$.fetch"
@@ -1044,7 +1044,7 @@ class MappedOutputDefinitionsExpanderTest {
                 get-codes:
                   description: "Get codes."
                   steps:
-                    fetch: { type: call, call: erp.get-codes }
+                    - { name: fetch, type: call, what: erp.get-codes }
                   mappings:
                     - target: o
                       value: "$.fetch"
