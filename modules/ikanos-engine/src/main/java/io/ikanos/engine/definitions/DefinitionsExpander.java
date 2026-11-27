@@ -750,7 +750,7 @@ public final class DefinitionsExpander {
                 resolveListedMappingSets(property, location);
             }
             String name = use.getSchema();
-            Mappings mappings = mergeMappings(use, location);
+            ListedSets sets = listedSets(use, location);
             if (position == Position.UNREAD) {
                 if (lookupSchema(name, location) != null) {
                     markUsed(name);
@@ -760,13 +760,14 @@ public final class DefinitionsExpander {
                         + " are never read. Remove it, or bind the outer items instead.");
                 return use;
             }
-            // Charged the schema it expands and the entries of the sets it lists, before
-            // anything is bound or reported: a set listed by many outputs is multiplied by
-            // each use
+            // Charged the schema it expands and the entries of the sets it lists, before the
+            // sets are merged or anything is bound or reported: a set listed by many outputs is
+            // multiplied by each use, so a use the budget refuses costs only the names it lists
             if (!resolvable(name, location)
-                    || !withinBudget(size(name) + mappings.setEntries())) {
+                    || !withinBudget(size(name) + sets.entries())) {
                 return use;
             }
+            Mappings mappings = mergeMappings(sets, use);
             InputParameterSpec root = target(schemas.get(name));
             boolean object = "object".equals(root.getType());
             boolean withProperties = isObjectWithProperties(root);
@@ -816,36 +817,61 @@ public final class DefinitionsExpander {
          *                   reference's own {@code mappings}
          * @param unresolved whether a listed mapping set does not resolve, so the paths it would
          *                   bind are unknown
-         * @param setEntries the number of entries of the listed mapping sets, each charged to the
-         *                   expansion budget on every use
          */
         record Mappings(Map<String, String> values, Map<String, String> origins,
-                boolean unresolved, long setEntries) {
+                boolean unresolved) {
         }
 
-        /** Merge the mapping sets of a schema reference, in order, then its own mappings. */
-        Mappings mergeMappings(OutputParameterSpec use, String location) {
-            Map<String, String> values = new LinkedHashMap<>();
-            Map<String, String> origins = new HashMap<>();
+        /**
+         * The mapping sets a schema reference lists, resolved but not merged.
+         *
+         * @param sets       the resolved sets, by name, in the listed order
+         * @param unresolved whether a listed mapping set does not resolve
+         * @param entries    the number of entries of the resolved sets, charged to the expansion
+         *                   budget on every use before they are merged
+         */
+        record ListedSets(List<Map.Entry<String, Map<String, String>>> sets, boolean unresolved,
+                long entries) {
+        }
+
+        /**
+         * Resolve the mapping sets a schema reference lists and count their entries, at a cost
+         * proportional to the names listed, not to the size of the sets.
+         */
+        ListedSets listedSets(OutputParameterSpec use, String location) {
+            List<Map.Entry<String, Map<String, String>>> sets = new ArrayList<>();
             boolean unresolved = false;
-            long setEntries = 0;
+            long entries = 0;
             for (String name : use.getMappingSets()) {
                 Map<String, String> set = resolveMappingSet(name, location);
                 if (set == null) {
                     unresolved = true;
                     continue;
                 }
-                setEntries += set.size();
-                for (Map.Entry<String, String> entry : set.entrySet()) {
+                entries += set.size();
+                sets.add(Map.entry(name, set));
+            }
+            return new ListedSets(sets, unresolved, entries);
+        }
+
+        /**
+         * Merge the listed mapping sets of a schema reference, in order, then its own mappings.
+         * Called once its use is charged, as the merge costs the entries of the sets.
+         */
+        static Mappings mergeMappings(ListedSets listed, OutputParameterSpec use) {
+            Map<String, String> values = new LinkedHashMap<>();
+            Map<String, String> origins = new HashMap<>();
+            for (Map.Entry<String, Map<String, String>> set : listed.sets()) {
+                for (Map.Entry<String, String> entry : set.getValue().entrySet()) {
                     values.put(entry.getKey(), entry.getValue());
-                    origins.put(entry.getKey(), name);
+                    origins.put(entry.getKey(), set.getKey());
                 }
             }
             for (Map.Entry<String, String> entry : use.getMappings().entrySet()) {
                 values.put(entry.getKey(), entry.getValue());
                 origins.remove(entry.getKey());
             }
-            return new Mappings(values, origins, unresolved, setEntries);
+            return new Mappings(values, origins, listed.unresolved());
         }
 
         /**
