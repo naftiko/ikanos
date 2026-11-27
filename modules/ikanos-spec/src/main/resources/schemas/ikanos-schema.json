@@ -3123,7 +3123,7 @@
       "properties": {
         "namespace": {
           "$ref": "#/$defs/IdentifierKebab",
-          "description": "Unique adapter identifier (kebab-case). Used as the call target: `call: namespace.resource.operation`. Must be unique within the file."
+          "description": "Unique adapter identifier (kebab-case). Used as the call target, `namespace.resource.operation`, in a unit's `call:` or a step's `what:`. Must be unique within the file."
         },
         "type": {
           "type": "string",
@@ -3219,7 +3219,7 @@
     },
     "ConsumedHttpResource": {
       "type": "object",
-      "description": "A logical resource group on the upstream API. Combines a path segment with a set of HTTP operations and optional shared parameters.\n\n**When to use** \u2014 Each distinct REST resource (e.g. `/databases`, `/pages/{id}`) maps to one `ConsumedHttpResource`. Group operations that share the same base path and lifecycle.\n**Naming** \u2014 `name` is used as part of the call reference: `call: namespace.resource-name.operation-name`.\n**See also** \u2014 `ConsumedHttpOperation` (individual method + body), `ConsumedInputParameter` (path/query/header params).",
+      "description": "A logical resource group on the upstream API. Combines a path segment with a set of HTTP operations and optional shared parameters.\n\n**When to use** \u2014 Each distinct REST resource (e.g. `/databases`, `/pages/{id}`) maps to one `ConsumedHttpResource`. Group operations that share the same base path and lifecycle.\n**Naming** \u2014 `name` is used as part of the call reference, `namespace.resource-name.operation-name`, in a unit's `call:` or a step's `what:`.\n**See also** \u2014 `ConsumedHttpOperation` (individual method + body), `ConsumedInputParameter` (path/query/header params).",
       "properties": {
         "display": {
           "type": "string",
@@ -3370,11 +3370,11 @@
     },
     "ConsumesMcp": {
       "type": "object",
-      "description": "Inline MCP server adapter. Declares a curated subset of an upstream MCP server's tools, callable from steps exactly like a consumed HTTP operation (`call: namespace.tool`).\n\n**When to use** \u2014 Compose a right-sized upstream MCP capability (for example another Ikanos capability's `exposes: type: mcp` surface) without bypassing its tool contract.\n**Execution model** \u2014 Stateless Streamable HTTP, MCP `2026-07-28`: one `tools/call` JSON-RPC POST per invocation, no `initialize` handshake and no session. The response document is `structuredContent` when present, otherwise the single text content (parsed as JSON when possible). Upstream tool descriptions and annotations are never forwarded to any exposed surface.\n**See also** \u2014 `ConsumesHttp`, `McpTool`.",
+      "description": "Inline MCP server adapter. Declares a curated subset of an upstream MCP server's tools, callable exactly like a consumed HTTP operation, from a unit's `call:` or a step's `what:` (`namespace.tool`).\n\n**When to use** \u2014 Compose a right-sized upstream MCP capability (for example another Ikanos capability's `exposes: type: mcp` surface) without bypassing its tool contract.\n**Execution model** \u2014 Stateless Streamable HTTP, MCP `2026-07-28`: one `tools/call` JSON-RPC POST per invocation, no `initialize` handshake and no session. The response document is `structuredContent` when present, otherwise the single text content (parsed as JSON when possible). Upstream tool descriptions and annotations are never forwarded to any exposed surface.\n**See also** \u2014 `ConsumesHttp`, `McpTool`.",
       "properties": {
         "namespace": {
           "$ref": "#/$defs/IdentifierKebab",
-          "description": "Unique adapter identifier (kebab-case). Used as the call target: `call: namespace.tool`."
+          "description": "Unique adapter identifier (kebab-case). Used as the call target, `namespace.tool`, in a unit's `call:` or a step's `what:`."
         },
         "type": {
           "type": "string",
@@ -3492,11 +3492,11 @@
     },
     "ConsumesSql": {
       "type": "object",
-      "description": "Inline relational database adapter. Declares the procedures a capability may call over JDBC, callable from steps exactly like a consumed HTTP operation (`call: namespace.procedure`).\n\n**When to use** \u2014 Read data that lives behind SQL, without custom Java or an ETL job.\n**Execution model** \u2014 Each call borrows a pooled connection, binds the step's values as JDBC bind variables, runs the procedure and returns one JSON row document, `{rows, rowCount}`. Only declared procedures are reachable; caller input never enters the SQL text. Ikanos ships no JDBC driver: the operator adds the driver for their database to the class path (in the image, the `/app/lib` extension directory).\n**See also** \u2014 `ConsumesHttp`, `ConsumesMcp`.",
+      "description": "Inline relational database adapter. Declares the procedures a capability may call over JDBC, callable exactly like a consumed HTTP operation, from a unit's `call:` or a step's `what:` (`namespace.procedure`).\n\n**When to use** \u2014 Read data that lives behind SQL, without custom Java or an ETL job.\n**Execution model** \u2014 Each call borrows a pooled connection, binds the step's values as JDBC bind variables, runs the procedure and returns one JSON row document, `{rows, rowCount}`. Only declared procedures are reachable; caller input never enters the SQL text. Ikanos ships no JDBC driver: the operator adds the driver for their database to the class path (in the image, the `/app/lib` extension directory).\n**See also** \u2014 `ConsumesHttp`, `ConsumesMcp`.",
       "properties": {
         "namespace": {
           "$ref": "#/$defs/IdentifierKebab",
-          "description": "Unique adapter identifier (kebab-case). Used as the call target: `call: namespace.procedure`."
+          "description": "Unique adapter identifier (kebab-case). Used as the call target, `namespace.procedure`, in a unit's `call:` or a step's `what:`."
         },
         "type": {
           "type": "string",
@@ -4826,7 +4826,7 @@
     },
     "FlowManagementSpec": {
       "type": "object",
-      "description": "Limits on aggregate flow execution. An aggregate flow may call another flow with `call: {namespace}.{flow-name}`; cycles are rejected at load time.",
+      "description": "Limits on aggregate flow execution. An aggregate flow may call another flow, `{namespace}.{flow-name}`, from its `call:` or a step's `what:`; cycles are rejected at load time.",
       "properties": {
         "maxCallDepth": {
           "type": "integer",
