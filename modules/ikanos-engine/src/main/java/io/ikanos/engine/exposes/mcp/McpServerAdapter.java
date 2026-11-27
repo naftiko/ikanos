@@ -46,6 +46,7 @@ import io.ikanos.engine.execution.Durability;
 import io.ikanos.engine.exposes.CallerClaims;
 import io.ikanos.engine.exposes.mcp.handler.ToolsCallHandler;
 import io.ikanos.engine.exposes.mcp.files.McpFileDownloads;
+import io.ikanos.engine.exposes.mcp.files.McpFileUploads;
 import io.ikanos.engine.util.BinarySize;
 import io.ikanos.engine.util.FileInputs;
 import io.ikanos.spec.util.IkanosMappers;
@@ -99,6 +100,9 @@ public class McpServerAdapter extends ServerAdapter {
     private final McpRequestState requestState;
     private final McpFileDownloads fileDownloads;
 
+    /** Out-of-band uploads through presigned URLs, or {@code null} when no tool takes them. */
+    private final McpFileUploads fileUploads;
+
     /** The tools that take a file: listed only to clients of the files extension. */
     private final Set<String> fileTools;
 
@@ -125,6 +129,8 @@ public class McpServerAdapter extends ServerAdapter {
                 serverSpec.getNamespace(), serverSpec.getMaxBinarySize(), fileDownloads,
                 maxInlineBytes);
         this.fileTools = fileTools(capability, serverSpec, toolHandler);
+        this.fileUploads = McpFileUploads.of(capability, serverSpec, requestState,
+                maxInlineBytes);
 
         // Build MCP Tool definitions from the spec
         this.tools = new ArrayList<>();
@@ -177,6 +183,17 @@ public class McpServerAdapter extends ServerAdapter {
                         .whenCancelled(id -> UpstreamTasks.cancelUnder(capability,
                                 durability.runner(), id))
                 : null;
+
+        // An upload retry runs the tool directly: a state that answers an upload request cannot
+        // also carry answers to questions
+        if (fileUploads != null) {
+            for (String tool : fileUploads.tools()) {
+                if (mayElicit(tool)) {
+                    throw new IllegalArgumentException("MCP tool '" + tool + "' takes files out of"
+                            + " band (upload) and may ask for input (elicit): it cannot do both");
+                }
+            }
+        }
 
         if (serverSpec.isStdio()) {
             initStdioTransport();
@@ -455,6 +472,14 @@ public class McpServerAdapter extends ServerAdapter {
      */
     public McpFileDownloads getFileDownloads() {
         return fileDownloads;
+    }
+
+    /**
+     * @return the out-of-band upload side of the MCP files extension, or {@code null} when no
+     *         exposed tool's flow declares {@code upload} (or the block declares no {@code files})
+     */
+    public McpFileUploads getFileUploads() {
+        return fileUploads;
     }
 
     public ResourceHandler getResourceHandler() {

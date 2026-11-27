@@ -78,9 +78,11 @@ public final class McpRequestState {
      *        operation and its input parameters; {@code null} when nothing was
      * @param carried the state a replay needs, such as an upstream's {@code requestState}, by
      *        key: kept apart from the answers, so no answer can overwrite it
+     * @param uploads the upload request the state answers (files extension): the files to
+     *        confirm and their stored objects; {@code null} when it answers none
      */
     public record Content(ObjectNode answers, List<String> pending, String executionId,
-            int round, JsonNode bound, ObjectNode carried) {
+            int round, JsonNode bound, ObjectNode carried, JsonNode uploads) {
     }
 
     McpRequestState(SecretKey key, Clock clock) {
@@ -91,6 +93,29 @@ public final class McpRequestState {
         this.key = key;
         this.clock = clock;
         this.scope = scope;
+    }
+
+    /** How long a state stays valid once sealed, unless sealed with its own expiry. */
+    public Duration ttl() {
+        return TTL;
+    }
+
+    /** The current time of this sealer's clock. */
+    public Instant now() {
+        return clock.instant();
+    }
+
+    /**
+     * Seals the state of an upload request (files extension): the record that it was issued,
+     * with the files to confirm and their stored objects, bound to a principal and a request.
+     * A retry that presents it answers the upload request, and never gets another one.
+     *
+     * @param expiresAt when the state expires, the latest an upload target may stay valid
+     */
+    public String sealUploads(String principal, String requestDigest, JsonNode uploads,
+            Instant expiresAt) {
+        return seal(principal, requestDigest, MAPPER.createObjectNode(), null, List.of(), null,
+                0, null, expiresAt, uploads);
     }
 
     /** A state sealer with a fresh random key. */
@@ -159,7 +184,8 @@ public final class McpRequestState {
      */
     public String sealReplay(String principal, String requestDigest, ObjectNode answers,
             ObjectNode carried, List<String> pending, JsonNode bound) {
-        return seal(principal, requestDigest, answers, carried, pending, null, 0, bound, null);
+        return seal(principal, requestDigest, answers, carried, pending, null, 0, bound, null,
+                null);
     }
 
     /**
@@ -188,13 +214,16 @@ public final class McpRequestState {
             List<String> pending, String executionId, int round, JsonNode bound,
             Instant expiresAt) {
         return seal(principal, requestDigest, answers, null, pending, executionId, round, bound,
-                expiresAt);
+                expiresAt, null);
     }
 
     private String seal(String principal, String requestDigest, ObjectNode answers,
             ObjectNode carried, List<String> pending, String executionId, int round,
-            JsonNode bound, Instant expiresAt) {
+            JsonNode bound, Instant expiresAt, JsonNode uploads) {
         ObjectNode payload = MAPPER.createObjectNode();
+        if (uploads != null) {
+            payload.set("u", uploads);
+        }
         if (carried != null && !carried.isEmpty()) {
             payload.set("c", carried);
         }
@@ -258,7 +287,8 @@ public final class McpRequestState {
                 pending, payload.path("x").asString(null), payload.path("r").asInt(0),
                 payload.has("b") ? payload.get("b") : null,
                 payload.path("c").isObject() ? (ObjectNode) payload.get("c")
-                        : MAPPER.createObjectNode());
+                        : MAPPER.createObjectNode(),
+                payload.has("u") ? payload.get("u") : null);
     }
 
     /**

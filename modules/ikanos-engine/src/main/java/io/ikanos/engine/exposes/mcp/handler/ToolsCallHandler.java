@@ -54,7 +54,10 @@ import static io.ikanos.engine.util.JsonRpcResponseBuilder.buildJsonRpcError;
 import io.ikanos.engine.exposes.mcp.model.RequestClientCapabilities;
 import io.ikanos.engine.execution.InputRequiredException;
 import io.ikanos.engine.exposes.mcp.McpCallContext;
+import io.ikanos.engine.exposes.mcp.files.McpFileUploads;
 import io.ikanos.engine.exposes.mcp.files.McpFiles;
+import io.ikanos.engine.exposes.mcp.McpRequestState;
+import io.ikanos.engine.util.FileInputs;
 
 /**
  * The tools/call handler.
@@ -118,6 +121,18 @@ public class ToolsCallHandler extends McpCallHandler {
                     ? MAPPER.treeToValue(argumentsNode, Map.class)
                     : new ConcurrentHashMap<>();
 
+            // Files extension: a file sent out of band is answered with an upload request, and
+            // the retry that presents its requestState runs the tool once the bytes are
+            // confirmed. Before any task is created, as the draft asks.
+            McpFileUploads uploads = adapter.getFileUploads();
+            if (uploads != null && uploads.takesUploads(toolName)) {
+                HandlerResult uploadRound = uploadRound(uploads, idNode, params, toolName,
+                        argumentsNode, arguments, capabilities, principal);
+                if (uploadRound != null) {
+                    return uploadRound;
+                }
+            }
+
             // Tasks (SEP-2663): the server decides per request. A task is returned only when the
             // tool's flow declares mode: task, the capability is durable, and this request
             // declares the tasks extension; otherwise the call is answered synchronously.
@@ -162,6 +177,64 @@ public class ToolsCallHandler extends McpCallHandler {
             return new HandlerFailureResult(INVALID_PARAMS, buildJsonRpcError(idNode, INVALID_PARAMS.getCode(), "Invalid params: " + e.getMessage()));
         } catch (Exception e) {
             return new HandlerSuccessResult(executionFailure(e));
+        }
+    }
+
+    /**
+     * One round of an out-of-band upload (draft files extension), or {@code null} when the call
+     * is not one: it sends every file inline, or presents the {@code requestState} of another
+     * kind of round.
+     *
+     * <p>The initial call gets an {@code upload_required} result, or {@code -32021} when it
+     * did not declare {@code upload}. The retry that presents the upload request's
+     * {@code requestState} is answered in the draft's order: the state is verified and bound to
+     * the tool, its arguments and the principal ({@code -32602} otherwise), the bytes of each file
+     * are confirmed (an error result otherwise), the state is consumed when the tool is unsafe to
+     * run twice ({@code -32602} when another retry consumed it first), then the tool runs.</p>
+     */
+    private HandlerResult uploadRound(McpFileUploads uploads, JsonNode idNode, JsonNode params,
+            String toolName, JsonNode argumentsNode, Map<String, Object> arguments,
+            RequestClientCapabilities capabilities, String principal) throws Exception {
+        String digest = McpRequestState.digest(METHOD_NAME, toolName, argumentsNode);
+        String token = params.path("requestState").asString(null);
+        if (token != null && !token.isEmpty()) {
+            McpRequestState.Content state =
+                    adapter.getRequestState().open(token, principal, digest);
+            if (state.uploads() == null) {
+                return null;
+            }
+            Map<String, FileInputs.Uploaded> confirmed;
+            try {
+                confirmed = uploads.confirm(toolName, state.uploads(), arguments);
+            } catch (FileInputs.InvalidFileException e) {
+                return new HandlerSuccessResult(toolError(e.getMessage()));
+            }
+            if (uploads.singleUse(toolName) && !uploads.claim(state.uploads())) {
+                throw new IllegalArgumentException("requestState was already used");
+            }
+            boolean downloads = capabilities.acceptsDownloads();
+            return new HandlerSuccessResult(FileInputs.withUploads(confirmed,
+                    () -> McpFiles.withDownloads(downloads, () -> callTool(toolName, arguments))));
+        }
+        List<FileInputs.PendingFile> pending;
+        try {
+            pending = uploads.pending(toolName, arguments);
+        } catch (FileInputs.InvalidFileException e) {
+            return new HandlerSuccessResult(toolError(e.getMessage()));
+        }
+        if (pending.isEmpty()) {
+            return null;
+        }
+        if (!capabilities.acceptsUploads()) {
+            return missingCapability(idNode, "Tool '" + toolName + "' takes a file without its"
+                    + " data only out of band; it needs the files extension's upload setting",
+                    McpFiles.uploadCapability(MAPPER));
+        }
+        try {
+            return new HandlerSuccessResult(
+                    uploads.uploadRequired(toolName, arguments, pending, principal, digest));
+        } catch (FileInputs.InvalidFileException e) {
+            return new HandlerSuccessResult(toolError(e.getMessage()));
         }
     }
 

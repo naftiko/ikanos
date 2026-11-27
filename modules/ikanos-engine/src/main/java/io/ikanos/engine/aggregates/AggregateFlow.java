@@ -60,6 +60,7 @@ public class AggregateFlow {
     private final OperationStepExecutor stepExecutor;
     private final String namespace;
     private final int maxCallDepth;
+    private final FlowUpload upload;
 
     AggregateFlow(AggregateFlowSpec spec, OperationStepExecutor stepExecutor,
             String namespace) {
@@ -72,6 +73,41 @@ public class AggregateFlow {
         this.stepExecutor = stepExecutor;
         this.namespace = namespace;
         this.maxCallDepth = maxCallDepth;
+        checkUpload(spec, namespace);
+        this.upload = spec.getUpload() != null
+                ? new FlowUpload(spec.getUpload(), stepExecutor, namespace,
+                        namespace + "." + spec.getName(), spec.getSemantics())
+                : null;
+    }
+
+    /**
+     * Refuses an {@code upload} block that cannot work: without its two calls, or on a flow that
+     * takes no file.
+     */
+    static void checkUpload(AggregateFlowSpec spec, String namespace) {
+        if (spec.getUpload() == null) {
+            return;
+        }
+        String flow = namespace + "." + spec.getName();
+        if (spec.getUpload().getPresign() == null || spec.getUpload().getPresign().getCall() == null
+                || spec.getUpload().getVerify() == null
+                || spec.getUpload().getVerify().getCall() == null) {
+            throw new IllegalArgumentException("Flow '" + flow + "' declares upload without a "
+                    + "presign and a verify call");
+        }
+        if (spec.getInputParameters() == null
+                || !FileInputs.takesFiles(spec.getInputParameters().values())) {
+            throw new IllegalArgumentException("Flow '" + flow + "' declares upload but takes no "
+                    + "file (type: file)");
+        }
+    }
+
+    /**
+     * @return how the flow's file inputs are stored out of band, through presigned URLs, or
+     *         {@code null} when the flow declares no {@code upload} (experimental)
+     */
+    public FlowUpload getUpload() {
+        return upload;
     }
 
     public String getName() {
@@ -196,6 +232,12 @@ public class AggregateFlow {
             merged = new HashMap<>(checked);
         }
 
+        // A flow that stores its files through presigned URLs stores an inline one too, so its
+        // steps always see a stored file ({{report.uploadId}}), however it arrived
+        if (upload != null) {
+            stageInlineFiles(merged);
+        }
+
         // Merge flow-level 'with' parameters
         OperationStepExecutor.mergeWithParameters(spec.getWith(), merged, namespace);
 
@@ -245,6 +287,29 @@ public class AggregateFlow {
         }
 
         return new FlowResult(found, null, null);
+    }
+
+    /** Stores each file argument that carries inline bytes through the flow's upload target. */
+    private void stageInlineFiles(Map<String, Object> arguments) throws Exception {
+        Map<String, Object> callArguments = Map.copyOf(withoutNulls(arguments));
+        for (InputParameterSpec input : getInputParameters()) {
+            if (input.isFile() && arguments.get(input.getName()) instanceof Map<?, ?> file
+                    && file.containsKey("data") && !file.containsKey(FileInputs.UPLOAD_ID)) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> checked = (Map<String, Object>) file;
+                arguments.put(input.getName(), upload.stage(callArguments, input, checked));
+            }
+        }
+    }
+
+    private static Map<String, Object> withoutNulls(Map<String, Object> arguments) {
+        Map<String, Object> kept = new HashMap<>();
+        arguments.forEach((key, value) -> {
+            if (key != null && value != null) {
+                kept.put(key, value);
+            }
+        });
+        return kept;
     }
 
 }

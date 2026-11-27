@@ -55,6 +55,9 @@ public class AggregateFlowSpec {
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private final CopyOnWriteArrayList<String> inputParameterSets = new CopyOnWriteArrayList<>();
     private final AtomicReference<SemanticsSpec> semantics = new AtomicReference<>();
+
+    /** Out-of-band uploads of the flow's file inputs through presigned URLs (experimental). */
+    private final AtomicReference<FlowUploadSpec> upload = new AtomicReference<>();
     private final AtomicReference<ServerCallSpec> call = new AtomicReference<>();
     private final AtomicReference<Map<String, Object>> with = new AtomicReference<>();
 
@@ -86,6 +89,14 @@ public class AggregateFlowSpec {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public SemanticsSpec getSemantics() { return semantics.get(); }
     public void setSemantics(SemanticsSpec semantics) { this.semantics.set(semantics); }
+
+    /**
+     * @return how the flow's file inputs are uploaded out of band, through an upstream that issues
+     *         presigned URLs, or {@code null} when they are only taken inline (experimental)
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public FlowUploadSpec getUpload() { return upload.get(); }
+    public void setUpload(FlowUploadSpec upload) { this.upload.set(upload); }
 
     /**
      * @return the names of the input parameter sets this unit uses, applied in order before its

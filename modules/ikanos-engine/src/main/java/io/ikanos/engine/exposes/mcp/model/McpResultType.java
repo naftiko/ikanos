@@ -15,7 +15,8 @@ package io.ikanos.engine.exposes.mcp.model;
 
 /**
  * The {@code resultType} of an MCP {@code 2026-07-28} result: a complete result, a request for
- * input (multi round-trip requests), or a task handle (the tasks extension, SEP-2663).
+ * input (multi round-trip requests), a task handle (the tasks extension, SEP-2663), or a request
+ * for uploads (the draft files extension).
  */
 public enum McpResultType {
 
@@ -26,7 +27,13 @@ public enum McpResultType {
     INPUT_REQUIRED("input_required"),
 
     /** The server answers with a task handle; the result comes through {@code tasks/get}. */
-    TASK("task");
+    TASK("task"),
+
+    /**
+     * The client must upload files out of band, then retry the call (the draft files extension,
+     * {@code io.modelcontextprotocol/files}).
+     */
+    UPLOAD_REQUIRED("upload_required");
 
     /** The JSON field that carries the result type. */
     public static final String FIELD = "resultType";

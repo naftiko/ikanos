@@ -157,6 +157,18 @@ public interface ConsumedResult {
     }
 
     /**
+     * A header of the answer, such as the {@code Content-Length} of a {@code HEAD}: what a check
+     * reads when the answer has no body.
+     *
+     * @param name the header name, compared without case
+     * @return its first value, or {@code null} when the answer has none or the protocol carries
+     *         no headers
+     */
+    default String header(String name) {
+        return null;
+    }
+
+    /**
      * How long the upstream says this answer stays fresh, from its caching headers. Used when an
      * exposed resource opts in with {@code ttlFromUpstream}.
      *

@@ -15,7 +15,9 @@ package io.ikanos.engine.exposes.mcp;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -54,6 +56,39 @@ public class McpRequestStateTest {
 
         assertEquals(answers(), content.answers());
         assertEquals(List.of("steps/approve"), content.pending());
+    }
+
+    @Test
+    void openShouldReturnTheSealedUploadRecord() throws Exception {
+        McpRequestState state = new McpRequestState(key(), Clock.fixed(NOW, ZoneOffset.UTC));
+        ObjectNode record = JSON.createObjectNode();
+        record.put("n", "nonce");
+        record.putArray("f").addObject().put("i", "file-1").put("u", "obj-1").put("s", 42);
+        String token = state.sealUploads("agent-7", "digest", record,
+                NOW.plus(Duration.ofMinutes(10)));
+
+        McpRequestState.Content content = state.open(token, "agent-7", "digest");
+
+        assertEquals(record, content.uploads());
+        assertTrue(content.pending().isEmpty());
+    }
+
+    @Test
+    void openShouldReturnNoUploadRecordForAnInputRound() throws Exception {
+        McpRequestState state = new McpRequestState(key(), Clock.fixed(NOW, ZoneOffset.UTC));
+        String token = state.seal("agent-7", "digest", answers(), List.of("steps/approve"));
+
+        assertNull(state.open(token, "agent-7", "digest").uploads());
+    }
+
+    @Test
+    void openShouldRejectAnUploadStateForAnotherRequest() throws Exception {
+        McpRequestState state = new McpRequestState(key(), Clock.fixed(NOW, ZoneOffset.UTC));
+        String token = state.sealUploads("agent-7", "digest", JSON.createObjectNode(),
+                NOW.plus(Duration.ofMinutes(10)));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> state.open(token, "agent-7", "other-digest"));
     }
 
     @Test

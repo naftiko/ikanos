@@ -120,7 +120,84 @@ class FileInputsTest {
 
         String message = refusal(fileInput("report", null), file, LIMIT);
 
-        assertTrue(message.contains("out-of-band"), message);
+        assertTrue(message.contains("out of band"), message);
+    }
+
+    @Test
+    void checkShouldAcceptAFileConfirmedOutOfBandWithItsUploadId() {
+        Map<String, Object> file = file("f1", "q3.csv", "text/csv", CSV);
+        file.remove("data");
+        file.put("digest", Map.of("algorithm", "sha-256", "value", "not-checked"));
+
+        Map<String, Object> checked = FileInputs.withUploads(
+                Map.of("f1", new FileInputs.Uploaded("obj-1", CSV.length)),
+                () -> FileInputs.check(List.of(fileInput("report", null)), args("report", file),
+                        0));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> report = (Map<String, Object>) checked.get("report");
+        assertEquals("obj-1", report.get(FileInputs.UPLOAD_ID));
+        assertFalse(report.containsKey("data"));
+        assertFalse(report.containsKey("digest"), "An unchecked digest is not passed on");
+    }
+
+    @Test
+    void checkShouldRefuseAConfirmedUploadOfAnotherSize() {
+        Map<String, Object> file = file("f1", "q3.csv", "text/csv", CSV);
+        file.remove("data");
+
+        assertThrows(FileInputs.InvalidFileException.class, () -> FileInputs.withUploads(
+                Map.of("f1", new FileInputs.Uploaded("obj-1", CSV.length + 1)),
+                () -> FileInputs.check(List.of(fileInput("report", null)), args("report", file),
+                        LIMIT)));
+    }
+
+    @Test
+    void checkShouldIgnoreAnUploadIdTheClientSent() {
+        Map<String, Object> file = file("f1", "q3.csv", "text/csv", CSV);
+        file.remove("data");
+        file.put(FileInputs.UPLOAD_ID, "chosen-by-client");
+
+        assertThrows(FileInputs.InvalidFileException.class, () -> FileInputs.check(
+                List.of(fileInput("report", null)), args("report", file), LIMIT));
+    }
+
+    @Test
+    void pendingShouldListTheFilesWithoutData() {
+        Map<String, Object> outOfBand = file("f1", "big.csv", "text/csv", CSV);
+        outOfBand.remove("data");
+        Map<String, Object> arguments = args("report", outOfBand);
+        arguments.put("inline", file("f2", "small.csv", "text/csv", CSV));
+
+        List<FileInputs.PendingFile> pending = FileInputs.pending(
+                List.of(fileInput("report", null), fileInput("inline", null)), arguments, LIMIT);
+
+        assertEquals(List.of(new FileInputs.PendingFile("report", "f1", "big.csv", "text/csv",
+                CSV.length)), pending);
+    }
+
+    @Test
+    void pendingShouldRefuseAFileOverMaxSizeWithoutItsBytes() {
+        Map<String, Object> file = file("f1", "big.csv", "text/csv", CSV);
+        file.remove("data");
+
+        assertThrows(FileInputs.InvalidFileException.class, () -> FileInputs.pending(
+                List.of(fileInput("report", "4B")), args("report", file), LIMIT));
+    }
+
+    @Test
+    void pendingShouldRefuseAFileOfATypeTheInputDoesNotAccept() {
+        Map<String, Object> file = file("f1", "logo.png", "image/png", CSV);
+        file.remove("data");
+
+        assertThrows(FileInputs.InvalidFileException.class, () -> FileInputs.pending(
+                List.of(fileInput("report", null, "text/csv")), args("report", file), LIMIT));
+    }
+
+    @Test
+    void pendingShouldBeEmptyWhenEveryFileIsInline() {
+        assertTrue(FileInputs.pending(List.of(fileInput("report", null)),
+                args("report", file("f1", "q3.csv", "text/csv", CSV)), LIMIT).isEmpty());
     }
 
     @Test

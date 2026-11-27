@@ -16,15 +16,18 @@ package io.ikanos.engine.util;
 import java.math.BigDecimal;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.util.IkanosMappers;
 import tools.jackson.databind.JsonNode;
@@ -35,9 +38,10 @@ import tools.jackson.databind.JsonNode;
  *
  * <p>A file argument is an object shaped like the {@code FileInput} of the draft MCP files
  * extension: {@code id}, {@code name}, {@code mimeType}, {@code size}, an optional {@code digest}
- * ({@code sha-256}, base64url without padding) and the bytes in base64 in {@code data}. Only
- * inline bytes are accepted: a non-empty file without {@code data} is refused, since out-of-band
- * uploads are not supported yet. The decoded size must equal {@code size} and stay within the
+ * ({@code sha-256}, base64url without padding) and the bytes in base64 in {@code data}. A
+ * non-empty file without {@code data} is refused, unless the MCP adapter confirmed that it was
+ * stored out of band ({@link #withUploads}): it then carries an {@code uploadId} instead of its
+ * bytes. Otherwise, the decoded size must equal {@code size} and stay within the
  * input's {@code maxSize} and, for all the files of one call, the adapter's limit; the media type
  * (or the name, for a dot-prefixed extension) must match {@code accept}; a {@code digest} is
  * checked against the bytes.</p>
@@ -52,6 +56,12 @@ public final class FileInputs {
     /** The longest {@code id}, as the draft sets it. */
     static final int MAX_ID_LENGTH = 128;
 
+    /** Member of a file stored out of band: the server-chosen name of the stored object. */
+    public static final String UPLOAD_ID = "uploadId";
+
+    /** The files of the call being run that were stored out of band and confirmed, by id. */
+    private static final ThreadLocal<Map<String, Uploaded>> UPLOADED = new ThreadLocal<>();
+
     private FileInputs() {
     }
 
@@ -60,7 +70,7 @@ public final class FileInputs {
 
         private static final long serialVersionUID = 1L;
 
-        InvalidFileException(String message) {
+        public InvalidFileException(String message) {
             super(message);
         }
     }
@@ -112,11 +122,74 @@ public final class FileInputs {
     }
 
     /**
-     * Check one file argument.
+     * The files of a call to send out of band: each non-empty file without inline {@code data},
+     * after the checks that need no bytes (id, media type, size, {@code maxSize}, {@code accept},
+     * unique ids). The other files are checked as {@link #check} does, their inline bytes within
+     * {@code maxTotalBytes}.
      *
-     * @param remaining the bytes the call may still take, for all its files
+     * @return the files to upload, in input order; empty when every file is inline or empty
+     * @throws InvalidFileException when a file argument is refused
      */
-    static CheckedFile checkOne(InputParameterSpec input, Object value, long remaining) {
+    public static List<PendingFile> pending(Collection<InputParameterSpec> inputs,
+            Map<String, Object> arguments, long maxTotalBytes) {
+        List<PendingFile> pending = new ArrayList<>();
+        if (arguments == null || !takesFiles(inputs)) {
+            return pending;
+        }
+        Set<String> ids = new HashSet<>();
+        long total = 0;
+        for (InputParameterSpec input : inputs) {
+            Object value = input != null && input.isFile() ? arguments.get(input.getName()) : null;
+            if (value == null) {
+                continue;
+            }
+            Metadata file = metadata(input, value);
+            if (!ids.add(file.id())) {
+                throw refused(input, "has the same 'id' as another file of the call");
+            }
+            if (file.data() == null && file.size() > 0) {
+                pending.add(new PendingFile(input.getName(), file.id(), file.name(),
+                        file.mimeType(), file.size()));
+            } else {
+                total += checkOne(input, value, maxTotalBytes - total).size();
+            }
+        }
+        return pending;
+    }
+
+    /**
+     * Runs {@code work} with the files of the call that were stored out of band and confirmed,
+     * by file {@code id}: {@link #check} accepts such a file without inline {@code data}, and
+     * gives it its {@code uploadId} instead. Only the MCP adapter sets them, from the sealed
+     * {@code requestState} of a call whose uploads it has just confirmed.
+     */
+    public static <T> T withUploads(Map<String, Uploaded> uploaded, Supplier<T> work) {
+        Map<String, Uploaded> previous = UPLOADED.get();
+        UPLOADED.set(Map.copyOf(uploaded));
+        try {
+            return work.get();
+        } finally {
+            if (previous == null) {
+                UPLOADED.remove();
+            } else {
+                UPLOADED.set(previous);
+            }
+        }
+    }
+
+    /** The confirmed upload of the file {@code id} of {@code size} bytes, or {@code null}. */
+    private static Uploaded uploaded(String id, long size) {
+        Map<String, Uploaded> uploaded = UPLOADED.get();
+        Uploaded file = uploaded != null ? uploaded.get(id) : null;
+        return file != null && file.size() == size ? file : null;
+    }
+
+    /**
+     * The metadata of a file argument, checked: what can be checked without its bytes.
+     *
+     * @throws InvalidFileException when the file is refused
+     */
+    static Metadata metadata(InputParameterSpec input, Object value) {
         Map<?, ?> file = asObject(input, value);
         String id = text(file.get("id"));
         if (id == null || id.isEmpty() || id.length() > MAX_ID_LENGTH) {
@@ -138,24 +211,46 @@ public final class FileInputs {
         if (size > maxSize) {
             throw refused(input, "is larger than its maxSize of " + maxSize + " bytes");
         }
-        if (size > remaining) {
-            throw refused(input, "goes over the limit of the bytes one call may send");
-        }
         if (!accepts(input, mimeType, name)) {
             throw refused(input, "is of a type it does not accept");
         }
-
         Object rawData = file.get("data");
         if (rawData != null && !(rawData instanceof String)) {
             throw refused(input, "has a 'data' that is not a base64 string");
         }
         String data = (String) rawData;
-        byte[] bytes;
-        if (data == null || data.isEmpty()) {
-            if (size > 0) {
-                throw refused(input, "has no inline 'data': out-of-band uploads are not "
-                        + "supported, so the file must be sent inline");
+        return new Metadata(id, name, mimeType, size, data == null || data.isEmpty() ? null : data,
+                file.get("digest"));
+    }
+
+    /**
+     * Check one file argument.
+     *
+     * @param remaining the bytes the call may still take, for all its files
+     */
+    static CheckedFile checkOne(InputParameterSpec input, Object value, long remaining) {
+        Metadata file = metadata(input, value);
+        String id = file.id();
+        String name = file.name();
+        String mimeType = file.mimeType();
+        long size = file.size();
+        String data = file.data();
+
+        if (data == null && size > 0) {
+            Uploaded uploaded = uploaded(id, size);
+            if (uploaded == null) {
+                throw refused(input, "has no inline 'data', and the call did not upload it "
+                        + "out of band");
             }
+            // Its bytes never passed through here: its digest is the client's word, not a
+            // checked value, so it is not passed on
+            return new CheckedFile(id, name, mimeType, size, null, null, uploaded.uploadId());
+        }
+        if (size > remaining) {
+            throw refused(input, "goes over the limit of the bytes one call may send");
+        }
+        byte[] bytes;
+        if (data == null) {
             bytes = new byte[0];
         } else {
             // Checked before decoding, so an oversized value is never decoded
@@ -171,9 +266,9 @@ public final class FileInputs {
                 throw refused(input, "has a 'size' that is not the size of its 'data'");
             }
         }
-        Map<String, Object> digest = checkDigest(input, file.get("digest"), bytes);
+        Map<String, Object> digest = checkDigest(input, file.digest(), bytes);
         return new CheckedFile(id, name, mimeType, size, digest,
-                Base64.getEncoder().encodeToString(bytes));
+                Base64.getEncoder().encodeToString(bytes), null);
     }
 
     /**
@@ -182,7 +277,7 @@ public final class FileInputs {
      * extension of the name ({@code .csv}). Parameters and case are ignored. An input without
      * {@code accept} takes any file.
      */
-    static boolean accepts(InputParameterSpec input, String mimeType, String name) {
+    public static boolean accepts(InputParameterSpec input, String mimeType, String name) {
         if (input.getAccept().isEmpty()) {
             return true;
         }
@@ -290,24 +385,65 @@ public final class FileInputs {
         return new InvalidFileException("File input '" + input.getName() + "' " + reason);
     }
 
-    /** A file argument that passed the checks, its bytes in base64 in {@code data}. */
+    /**
+     * A file argument that passed the checks: its bytes in base64 in {@code data}, or, for a file
+     * stored out of band, the {@code uploadId} of the stored object.
+     */
     record CheckedFile(String id, String name, String mimeType, long size,
-            Map<String, Object> digest, String data) {
+            Map<String, Object> digest, String data, String uploadId) {
 
         /** The file as templates and steps see it. */
         Map<String, Object> asArgument() {
-            Map<String, Object> argument = new LinkedHashMap<>();
-            argument.put("id", id);
-            if (name != null) {
-                argument.put("name", name);
-            }
-            argument.put("mimeType", mimeType);
-            argument.put("size", size);
-            if (digest != null) {
-                argument.put("digest", digest);
-            }
-            argument.put("data", data);
-            return argument;
+            return argument(id, name, mimeType, size, digest, data, uploadId);
         }
+    }
+
+    /**
+     * A file as templates and steps see it: {@code id}, {@code name}, {@code mimeType},
+     * {@code size}, {@code digest}, then {@code data} (base64) or {@code uploadId}; absent members
+     * are left out.
+     */
+    public static Map<String, Object> argument(String id, String name, String mimeType,
+            long size, Map<String, Object> digest, String data, String uploadId) {
+        Map<String, Object> argument = new LinkedHashMap<>();
+        argument.put("id", id);
+        if (name != null) {
+            argument.put("name", name);
+        }
+        argument.put("mimeType", mimeType);
+        argument.put("size", size);
+        if (digest != null) {
+            argument.put("digest", digest);
+        }
+        if (data != null) {
+            argument.put("data", data);
+        }
+        if (uploadId != null) {
+            argument.put(UPLOAD_ID, uploadId);
+        }
+        return argument;
+    }
+
+    /** What can be checked of a file without its bytes; {@code data} is {@code null} if empty. */
+    record Metadata(String id, String name, String mimeType, long size, String data,
+            Object digest) {
+    }
+
+    /**
+     * A file to send out of band.
+     *
+     * @param input the name of the file input that takes it
+     */
+    public record PendingFile(String input, String id, String name, String mimeType,
+            long size) {
+    }
+
+    /**
+     * A file stored out of band and confirmed.
+     *
+     * @param uploadId the server-chosen name of the stored object
+     * @param size its confirmed size in bytes
+     */
+    public record Uploaded(String uploadId, long size) {
     }
 }

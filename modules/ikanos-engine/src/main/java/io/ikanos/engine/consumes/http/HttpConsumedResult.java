@@ -161,6 +161,34 @@ public class HttpConsumedResult implements ConsumedResult, RestletBackedResult {
      * resident time, such as reading a body the client streams), so a caller that asks after
      * reading the body gets only what is left.
      */
+    /**
+     * {@inheritDoc}
+     *
+     * <p>{@code Content-Length} and {@code Content-Type} fall back to the size and media type of
+     * the entity, where the connector may have moved them.</p>
+     */
+    @Override
+    public String header(String name) {
+        if (response == null || name == null) {
+            return null;
+        }
+        String value = response.getHeaders().getFirstValue(name, true);
+        if (value != null) {
+            return value;
+        }
+        Representation entity = entity();
+        if (entity == null) {
+            return null;
+        }
+        if ("Content-Length".equalsIgnoreCase(name) && entity.getSize() >= 0) {
+            return Long.toString(entity.getSize());
+        }
+        if ("Content-Type".equalsIgnoreCase(name) && entity.getMediaType() != null) {
+            return entity.getMediaType().toString();
+        }
+        return null;
+    }
+
     @Override
     public Freshness freshness() {
         if (response == null) {
