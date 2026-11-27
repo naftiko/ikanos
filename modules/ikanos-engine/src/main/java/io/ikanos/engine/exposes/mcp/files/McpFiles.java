@@ -56,9 +56,10 @@ public final class McpFiles {
     public static final String UPLOADS = "uploads";
 
     /**
-     * The settings {@code server/discover} advertises: {@code download}, the inline upload limit,
-     * and {@code upload} when a tool takes files out of band. {@code upload} announces the
-     * {@code upload_required} result, so it is left out when no tool can return one: inline
+     * The settings {@code server/discover} advertises: the inline upload limit, and
+     * {@code upload} when a tool takes files out of band. {@code download} is a client setting,
+     * and advertising the extension is what lets a client declare it. {@code upload} announces
+     * the {@code upload_required} result, so it is left out when no tool can return one: inline
      * files need only {@code maxInlineBytes}.
      *
      * @param maxInlineBytes the largest total decoded size of the inline files of one request
@@ -70,7 +71,6 @@ public final class McpFiles {
         if (upload) {
             settings.putObject(UPLOAD);
         }
-        settings.putObject(DOWNLOAD);
         settings.put(MAX_INLINE_BYTES, maxInlineBytes);
         return settings;
     }
