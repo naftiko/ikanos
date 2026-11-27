@@ -491,7 +491,8 @@ rules:
     message: "{{error}}"
     description: >
       `card.authenticated: true` puts the server card behind the adapter's
-      `authentication`. Without one, it has no effect and the card stays public.
+      `authentication`, or behind the trusted peer check in `trust` mode
+      `forwarded`. Without either, it has no effect and the card stays public.
     severity: warn
     recommended: true
     given: "$"

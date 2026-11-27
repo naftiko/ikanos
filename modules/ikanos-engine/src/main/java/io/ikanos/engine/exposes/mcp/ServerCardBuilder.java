@@ -34,6 +34,7 @@ import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
 import io.ikanos.spec.consumes.http.AuthenticationSpec;
 import io.ikanos.spec.exposes.mcp.McpServerCardSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
+import io.ikanos.spec.exposes.mcp.McpTrustSpec;
 import io.ikanos.spec.util.IkanosMappers;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
@@ -154,9 +155,9 @@ public final class ServerCardBuilder {
             putIcons(json.putArray("icons"), icons);
         }
 
-        if (card.requiresAuthentication() && server.getAuthentication() == null) {
+        if (card.requiresAuthentication() && !isRestricted(server)) {
             warnings.accept(where(server) + " sets card.authenticated: true without"
-                    + " 'authentication'; the card stays public.");
+                    + " 'authentication' or 'trust: forwarded'; the card stays public.");
         }
 
         ObjectNode remote = json.putArray("remotes").addObject();
@@ -205,6 +206,17 @@ public final class ServerCardBuilder {
                     + "' is a range; a server card needs one exact version, such as '1.2.3'.");
         }
         return version;
+    }
+
+    /**
+     * Whether the card is served only to the callers the MCP endpoint admits: it sets
+     * {@code authenticated: true} and the adapter declares {@code authentication}, or trusts a
+     * gateway ({@code trust: forwarded}), whose trusted peer check then guards the card too.
+     */
+    static boolean isRestricted(McpServerSpec server) {
+        return server.getCard() != null && server.getCard().requiresAuthentication()
+                && (server.getAuthentication() != null || (server.getTrust() != null
+                        && McpTrustSpec.MODE_FORWARDED.equals(server.getTrust().getMode())));
     }
 
     static String checkTitle(McpServerSpec server, McpServerCardSpec card, String title) {

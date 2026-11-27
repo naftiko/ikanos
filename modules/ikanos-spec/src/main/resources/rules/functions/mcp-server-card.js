@@ -18,6 +18,7 @@
  *   - url:           a wildcard `address` without `card.url` advertises the machine's
  *                    host name, which clients elsewhere may not resolve
  *   - authenticated: `card.authenticated: true` has no effect without `authentication`
+ *                    or `trust.mode: forwarded`
  *   - repository:    a repository outside github.com, gitlab.com and bitbucket.org is
  *                    left off the card
  */
@@ -113,9 +114,11 @@ function scan(exposes, basePath, info, check, results) {
         return;
       }
       case "authenticated": {
-        if (card.authenticated === true && !adapter.authentication) {
-          report(ns + " sets card.authenticated: true without authentication; the card stays"
-            + " public.", at("card", "authenticated"));
+        const forwarded = adapter.trust && typeof adapter.trust === "object"
+          && adapter.trust.mode === "forwarded";
+        if (card.authenticated === true && !adapter.authentication && !forwarded) {
+          report(ns + " sets card.authenticated: true without authentication or trust mode"
+            + " forwarded; the card stays public.", at("card", "authenticated"));
         }
         return;
       }

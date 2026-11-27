@@ -739,6 +739,36 @@ public class IkanosPolychroRulesetTest {
     }
 
     @Test
+    public void mcpCardAuthenticatedRuleShouldNotFireUnderForwardedTrust() throws Exception {
+        String fixture = Files.readString(
+            projectRoot.resolve("src/test/resources/rules/polychro-mcp-card-valid.yaml"),
+            StandardCharsets.UTF_8)
+            .replace("""
+                  authentication:
+                    type: "bearer"
+                    token: "{{MCP_SERVER_TOKEN}}"
+            """, """
+                  trust:
+                    mode: "forwarded"
+                    agentIdentityHeader: "X-Agent-Id"
+                    trustedNetworks: ["10.0.0.0/8"]
+            """);
+        Path tmpFile = Files.createTempFile("ikanos-mcp-card-forwarded-", ".yml");
+        try {
+            Files.writeString(tmpFile, fixture, StandardCharsets.UTF_8);
+
+            LintResult result = lint(tmpFile.toAbsolutePath().toString(), "info");
+
+            assertTrue(fixture.contains("mode: \"forwarded\""), "the fixture must be rewritten");
+            assertFalse(result.output().contains("ikanos-mcp-card-authenticated"),
+                "Expected forwarded trust to restrict an authenticated card.\n"
+                    + result.output());
+        } finally {
+            Files.deleteIfExists(tmpFile);
+        }
+    }
+
+    @Test
     public void mcpCardVersionRuleShouldFireOnAVersionOver255Characters() throws Exception {
         String version = "1.0.0-" + "a".repeat(250);
         String fixture = Files.readString(

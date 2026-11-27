@@ -193,29 +193,34 @@ public class McpServerAdapter extends ServerAdapter {
         router.attachDefault(McpServerResource.class);
         Restlet endpoint = limitRequestsInProgress(router);
 
-        // Server card (SEP-2127): public by default, so it is routed ahead of the authentication
-        // chain; with card.authenticated, only its CORS preflight is, and GET goes through it.
+        // Server card (SEP-2127): public by default, so it is routed ahead of the trusted peer
+        // check and the authentication chain. With card.authenticated, only its CORS preflight
+        // is: GET goes through the authentication chain when the adapter declares one, else
+        // through the trusted peer check in forwarded mode, so it is restricted like the rest.
         ServerCardRestlet cardRestlet = buildServerCardRestlet(context, serverSpec);
-        boolean cardBehindAuth = cardRestlet != null
-                && serverSpec.getCard().requiresAuthentication()
-                && serverSpec.getAuthentication() != null;
+        boolean cardRestricted = cardRestlet != null
+                && ServerCardBuilder.isRestricted(serverSpec);
         Restlet limitedCard = cardRestlet != null
                 ? limitSideRequestsInProgress(CARD_REQUESTS_IN_PROGRESS, "server-card",
                         cardRestlet) : null;
-        if (cardBehindAuth) {
+        if (cardRestricted && serverSpec.getAuthentication() != null) {
             endpoint = new ServerCardRoute(context, serverSpec.getPath(), limitedCard, false,
                     endpoint);
         }
 
         Restlet chain = buildServerChain(endpoint);
         AgentIdentityResolver identityResolver = dispatcher.getIdentityResolver();
+        if (cardRestricted && serverSpec.getAuthentication() == null) {
+            // Forwarded mode without authentication: the trusted peer check is the boundary.
+            chain = new ServerCardRoute(context, serverSpec.getPath(), limitedCard, false, chain);
+        }
         if (identityResolver.isForwarded()) {
             // The gateway is the authentication boundary: refuse other peers before anything else.
             chain = new TrustedPeerFilter(context, identityResolver, chain);
         }
         if (limitedCard != null) {
             chain = new ServerCardRoute(context, serverSpec.getPath(), limitedCard,
-                    cardBehindAuth, chain);
+                    cardRestricted, chain);
         }
 
         String address = serverSpec.getAddress() != null ? serverSpec.getAddress() : "localhost";
@@ -233,8 +238,7 @@ public class McpServerAdapter extends ServerAdapter {
         ServerCard card = ServerCardBuilder.build(serverSpec,
                 getCapability().getSpec().getInfo(), ProtocolDispatcher.SUPPORTED_PROTOCOL_VERSIONS);
         this.serverCard.set(card);
-        boolean authenticated = serverSpec.getCard().requiresAuthentication()
-                && serverSpec.getAuthentication() != null;
+        boolean authenticated = ServerCardBuilder.isRestricted(serverSpec);
         return new ServerCardRestlet(context, card, authenticated,
                 credentialsHeader(serverSpec.getAuthentication()));
     }

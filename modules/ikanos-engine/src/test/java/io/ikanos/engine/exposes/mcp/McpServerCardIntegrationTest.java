@@ -108,6 +108,22 @@ class McpServerCardIntegrationTest {
                     token: "%s"
             """.formatted(TOKEN);
 
+    /** Forwarded trust whose trusted network excludes the test client (127.0.0.1). */
+    private static final String FORWARDED_ELSEWHERE = """
+                  trust:
+                    mode: "forwarded"
+                    agentIdentityHeader: "X-Agent-Id"
+                    trustedNetworks: ["10.0.0.0/8"]
+            """;
+
+    /** Forwarded trust whose trusted network includes the test client. */
+    private static final String FORWARDED_LOCAL = """
+                  trust:
+                    mode: "forwarded"
+                    agentIdentityHeader: "X-Agent-Id"
+                    trustedNetworks: ["127.0.0.0/8", "::1/128"]
+            """;
+
     private static McpServerAdapter start(String yaml) throws Exception {
         IkanosSpec spec = YAML.readValue(yaml, IkanosSpec.class);
         Capability capability = new Capability(spec);
@@ -236,6 +252,52 @@ class McpServerCardIntegrationTest {
             assertEquals(401, get(cardUrl(adapter)).statusCode());
             HttpResponse<String> response = get(cardUrl(adapter), "Authorization",
                     "Bearer " + TOKEN);
+            assertEquals(200, response.statusCode());
+            assertTrue(response.headers().firstValue("Cache-Control").orElse("")
+                    .contains("private"), response.headers().toString());
+        } finally {
+            adapter.getCapability().stop();
+        }
+    }
+
+    @Test
+    void publicCardShouldBeServedAheadOfTheTrustedPeerCheck() throws Exception {
+        McpServerAdapter adapter = start(capability(findFreePort(), FORWARDED_ELSEWHERE,
+                "      card: {}"));
+        try {
+            assertEquals(200, get(cardUrl(adapter)).statusCode());
+            assertEquals(403, get("http://127.0.0.1:" + adapter.getMcpServerSpec().getPort()
+                    + "/mcp").statusCode(), "the MCP endpoint must still refuse the peer");
+        } finally {
+            adapter.getCapability().stop();
+        }
+    }
+
+    @Test
+    void authenticatedCardShouldBeRefusedToAnUntrustedPeerInForwardedMode() throws Exception {
+        McpServerAdapter adapter = start(capability(findFreePort(), FORWARDED_ELSEWHERE,
+                "      card:\n        authenticated: true"));
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            assertEquals(403, get(cardUrl(adapter)).statusCode());
+            HttpResponse<String> preflight = client.send(HttpRequest
+                    .newBuilder(URI.create(cardUrl(adapter)))
+                    .method("OPTIONS", HttpRequest.BodyPublishers.noBody())
+                    .header("Origin", "https://agent.example.com")
+                    .header("Access-Control-Request-Method", "GET").build(),
+                    HttpResponse.BodyHandlers.ofString());
+            assertEquals(204, preflight.statusCode());
+        } finally {
+            adapter.getCapability().stop();
+        }
+    }
+
+    @Test
+    void authenticatedCardShouldBeServedPrivatelyToATrustedPeerInForwardedMode()
+            throws Exception {
+        McpServerAdapter adapter = start(capability(findFreePort(), FORWARDED_LOCAL,
+                "      card:\n        authenticated: true"));
+        try {
+            HttpResponse<String> response = get(cardUrl(adapter));
             assertEquals(200, response.statusCode());
             assertTrue(response.headers().firstValue("Cache-Control").orElse("")
                     .contains("private"), response.headers().toString());

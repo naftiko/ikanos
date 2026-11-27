@@ -40,6 +40,7 @@ import io.ikanos.spec.consumes.http.DigestAuthenticationSpec;
 import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
 import io.ikanos.spec.exposes.mcp.McpServerCardSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
+import io.ikanos.spec.exposes.mcp.McpTrustSpec;
 import io.ikanos.spec.util.IkanosMappers;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -410,6 +411,16 @@ class ServerCardBuilderTest {
         render();
         assertTrue(warnings.stream().anyMatch(w -> w.contains("card.authenticated")),
                 warnings.toString());
+    }
+
+    @Test
+    void buildShouldNotWarnWhenAuthenticatedIsSetUnderForwardedTrust() {
+        server.getCard().setAuthenticated(true);
+        server.setTrust(new McpTrustSpec(McpTrustSpec.MODE_FORWARDED));
+        render();
+        assertTrue(warnings.stream().noneMatch(w -> w.contains("card.authenticated")),
+                warnings.toString());
+        assertTrue(ServerCardBuilder.isRestricted(server));
     }
 
     @Test
