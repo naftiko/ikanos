@@ -38,6 +38,7 @@ import io.ikanos.spec.OutputParameterSpec;
 import io.ikanos.spec.aggregates.AggregateFlowSpec;
 import io.ikanos.spec.aggregates.AggregateSpec;
 import io.ikanos.spec.exposes.ServerSpec;
+import io.ikanos.spec.exposes.mcp.McpServerResourceSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
 import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
@@ -56,7 +57,7 @@ import io.ikanos.spec.util.StructureSpec;
  *   <li>On a REST adapter, {@code inputParameterSets} apply to resources (whose inputs their
  *       operations inherit) and to operations, and set entries are REST inputs ({@code in},
  *       {@code type}, {@code pattern}, {@code value}). REST inputs are flat, so its schemas are
- *       used in orchestrated outputs only: {@code schema:} on a REST input is an error.</li>
+ *       used in outputs only: {@code schema:} on a REST input is an error.</li>
  *   <li>{@code inputParameterSets: [names]} on an MCP tool or a flow applies the sets in order,
  *       then the unit's own {@code inputParameters}. An own entry replaces the set's entry with
  *       the same name whole, at the set entry's position. Two sets of one unit must not declare
@@ -71,6 +72,14 @@ import io.ikanos.spec.util.StructureSpec;
  *       {@code items} when they are objects with properties. Input-only keywords
  *       ({@code description}, {@code enum}, {@code format}, {@code minimum}, {@code maximum},
  *       {@code required}, {@code additionalProperties}) do not apply to an output.</li>
+ *   <li>In a mapped (call-mode) output, its {@code items} or a property, {@code schema:} comes
+ *       with {@code mappings} (#1036): each key a path in the schema (property names joined by
+ *       {@code .}, {@code []} for an array's items), each value the {@code mapping} that node
+ *       carries inline. The use expands to the inline mapped output, with items of any type;
+ *       beside {@code schema:} it takes only {@code mappings} and {@code mapping}, where the
+ *       whole value is read. Every scalar, array and object without properties must be
+ *       bound, and a binding the runtime never reads (object items, below nested arrays)
+ *       is rejected.</li>
  * </ul>
  *
  * <p>The result is the inline equivalent: once expanded, a unit holds no reference, so
@@ -83,7 +92,11 @@ import io.ikanos.spec.util.StructureSpec;
  * <p>Errors: an unknown reference, a reference of the wrong kind, a qualified ({@code a.b})
  * reference, a JSON Schema {@code $ref} (rejected by its presence, alone or beside
  * {@code schema:}), the same parameter from two sets of one unit, a cycle between schemas, keys
- * beside {@code schema:}, and {@code schema:} in an output that is not orchestrated. Warning: a
+ * beside {@code schema:}, {@code schema:} or {@code mappings} in a mock output or an MCP
+ * resource output, and in a mapped output a binding that leaves a scalar, array or object
+ * without properties unbound, names a path the schema does not have, binds what the runtime
+ * never reads (object items, below nested arrays, a {@code mapping} on an output object), binds
+ * a value that is not a JSONPath, or comes without {@code schema:}. Warning: a
  * definition that no unit uses. Each definition's content is checked once, as declared, without
  * expanding it. Expansion is bounded by {@link #MAX_EXPANDED_NODES} declarations emitted per
  * namespace (an inline declaration counts one, a schema use or a set entry the size of the copy
@@ -177,6 +190,10 @@ public final class DefinitionsExpander {
                 for (McpServerToolSpec tool : mcp.getTools().values()) {
                     ns.expandTool(tool);
                 }
+                for (Map.Entry<String, McpServerResourceSpec> resource
+                        : mcp.getResources().entrySet()) {
+                    ns.rejectResourceSchemas(resource.getKey(), resource.getValue());
+                }
                 ns.finish();
             } else if (server instanceof RestServerSpec rest) {
                 Namespace ns = new Namespace("REST adapter '" + rest.getNamespace() + "'",
@@ -241,7 +258,7 @@ public final class DefinitionsExpander {
         /**
          * @param inputSchemas whether the inputs of this namespace may use {@code schema:}. REST
          *                     inputs are flat ({@code in}, {@code type}, {@code pattern}), so a
-         *                     REST adapter uses its schemas in orchestrated outputs only.
+         *                     REST adapter uses its schemas in outputs only.
          */
         Namespace(String owner, String unitKind, DefinitionsSpec definitions, Set<String> errors,
                 Set<String> warnings, boolean inputSchemas) {
@@ -270,7 +287,11 @@ public final class DefinitionsExpander {
                 tool.setInputParameterSets(List.of());
             }
             boolean orchestrated = tool.getSteps() != null && !tool.getSteps().isEmpty();
+            // The map form is a mock tool's, whose outputs are static values: not mapped. A ref
+            // tool's own outputs map its flow's result whatever their form
+            // (ToolHandler.executeViaAggregate), as a call's would.
             List<OutputParameterSpec> outputs = expandOutputs(location, orchestrated,
+                    !orchestrated && (!tool.isOutputParametersKeyed() || tool.getRef() != null),
                     tool.getOutputParameters());
             if (tool.isOutputParametersKeyed()) {
                 // The map form marks a mock tool: keep it, or call inference treats the mock as
@@ -294,8 +315,9 @@ public final class DefinitionsExpander {
                 flow.setInputParameterSets(List.of());
             }
             boolean orchestrated = flow.getSteps() != null && !flow.getSteps().isEmpty();
+            // A flow with neither call nor steps is a mock, whose outputs are static values
             flow.setOutputParameters(expandOutputs(location, orchestrated,
-                    flow.getOutputParameters()));
+                    !orchestrated && flow.getCall() != null, flow.getOutputParameters()));
         }
 
         /**
@@ -338,7 +360,11 @@ public final class DefinitionsExpander {
             }
             boolean orchestrated = operation.getSteps() != null
                     && !operation.getSteps().isEmpty();
+            // An operation with neither call, ref nor steps is a mock, whose outputs are static
+            // values. A ref operation's own outputs map its flow's result
+            // (ResourceRestlet.executeViaAggregate), as a call's would.
             operation.setOutputParameters(expandOutputs(location, orchestrated,
+                    !orchestrated && (operation.getCall() != null || operation.getRef() != null),
                     operation.getOutputParameters()));
         }
 
@@ -506,29 +532,324 @@ public final class DefinitionsExpander {
         }
 
         /**
-         * Expand the schema references of the outputs of a unit. Only orchestrated outputs take
-         * {@code schema:}: mapped (call-mode) outputs keep a mapping on every leaf.
+         * Expand the schema references of the outputs of a unit. An orchestrated output takes
+         * {@code schema:} alone; a mapped (call-mode) output takes it with {@code mappings}, the
+         * mapping of each path of the schema (#1036). Mock outputs, static values, take none.
+         *
+         * @param mapped whether the outputs are mapped (call-mode) outputs
          */
         List<OutputParameterSpec> expandOutputs(String location, boolean orchestrated,
-                List<OutputParameterSpec> outputs) {
+                boolean mapped, List<OutputParameterSpec> outputs) {
             List<OutputParameterSpec> expanded = new ArrayList<>();
             if (outputs == null) {
                 return expanded;
             }
             for (OutputParameterSpec output : outputs) {
-                String where = location + ", output '" + output.getName() + "'";
+                String where = output.getName() != null
+                        ? location + ", output '" + output.getName() + "'"
+                        : location + ", output";
                 if (orchestrated) {
+                    checkNoMappings(output, where);
                     expanded.add(expandOutput(output, where));
+                } else if (mapped) {
+                    expanded.add(expandMappedOutput(output, where, Position.TOP));
                 } else {
-                    if (referencesSchema(output)) {
-                        errors.add(where + ": 'schema:' is only allowed in orchestrated (steps)"
-                                + " outputs. Mapped outputs keep a 'mapping' on every leaf.");
+                    if (referencesSchema(output) || hasMappings(output)) {
+                        errors.add(where + ": 'schema:' and 'mappings' are not allowed in a mock"
+                                + " output, which returns static values. Declare the output"
+                                + " inline.");
+                        resolveListedSchemas(output, where);
                     }
                     checkJsonSchemaRefs(output, where);
                     expanded.add(output);
                 }
             }
             return expanded;
+        }
+
+        /**
+         * Report {@code schema:} or {@code mappings} anywhere in the outputs of an MCP resource:
+         * definitions do not reach resources, so the reference would never be expanded.
+         */
+        void rejectResourceSchemas(String key, McpServerResourceSpec resource) {
+            String name = resource.getName() != null ? resource.getName() : key;
+            for (OutputParameterSpec output : resource.getOutputParameters()) {
+                if (referencesSchema(output) || hasMappings(output)) {
+                    errors.add(owner + ", resource '" + name + "': 'schema:' and 'mappings' are"
+                            + " not supported in an MCP resource output. Declare the output"
+                            + " inline.");
+                    return;
+                }
+            }
+        }
+
+        /** Report {@code mappings} anywhere in an orchestrated output: steps bind its values. */
+        private void checkNoMappings(OutputParameterSpec param, String location) {
+            if (param == null) {
+                return;
+            }
+            if (!param.getMappings().isEmpty() && param.getSchema() == null) {
+                errors.add(location + ": 'mappings' is only allowed beside 'schema:' in a mapped"
+                        + " (call-mode) output. An orchestrated output is filled by the unit's"
+                        + " step 'mappings'.");
+            }
+            checkNoMappings(param.getItems(), location + ", items");
+            for (OutputParameterSpec property : param.getProperties()) {
+                checkNoMappings(property, location + ", property '" + property.getName() + "'");
+            }
+        }
+
+        /**
+         * Where a mapped output sits, which decides how the runtime reads it
+         * ({@code Resolver.resolveOutputMappings}).
+         */
+        enum Position {
+            /** A unit's output: an object reads the response root, whatever its mapping. */
+            TOP,
+            /**
+             * The items (or map values) of an array: each element is the root; items that are
+             * objects with properties ignore their own mapping.
+             */
+            ITEMS,
+            /** A property: its mapping selects the value, or its parent's root when absent. */
+            PROPERTY,
+            /**
+             * Inside the items of an array that is itself items: the runtime passes those
+             * elements through as they are, so nothing below is read.
+             */
+            UNREAD
+        }
+
+        /**
+         * Expand the schema references of a mapped output, in place, and return it, or the
+         * mapped output a reference binds. Each inline declaration costs one unit of the
+         * expansion budget, and each reference the size of the schema it binds.
+         *
+         * @param position where the output sits
+         */
+        OutputParameterSpec expandMappedOutput(OutputParameterSpec param, String location,
+                Position position) {
+            if (param == null || overBudget) {
+                return param;
+            }
+            checkJsonSchemaRef(param, location);
+            if (param.getSchema() != null) {
+                return bindSchema(param, location, position);
+            }
+            if (!param.getMappings().isEmpty()) {
+                errors.add(location + ": 'mappings' binds a schema, so it needs 'schema:' beside"
+                        + " it. Name the schema, or declare a 'mapping' on each leaf inline.");
+            }
+            if (!withinBudget(1)) {
+                return param;
+            }
+            boolean unread = position == Position.UNREAD;
+            if (param.getItems() != null) {
+                // The items of an array that is itself items are passed through as they are
+                boolean nested = position == Position.ITEMS && "array".equals(param.getType());
+                param.setItems(expandMappedOutput(param.getItems(), location + ", items",
+                        unread || nested ? Position.UNREAD : Position.ITEMS));
+            }
+            if (param.getValues() != null) {
+                param.setValues(expandMappedOutput(param.getValues(), location + ", values",
+                        unread ? Position.UNREAD : Position.ITEMS));
+            }
+            List<OutputParameterSpec> properties = param.getProperties();
+            for (int i = 0; i < properties.size(); i++) {
+                OutputParameterSpec property = properties.get(i);
+                properties.set(i, expandMappedOutput(property,
+                        location + ", property '" + property.getName() + "'",
+                        unread ? Position.UNREAD : Position.PROPERTY));
+            }
+            return param;
+        }
+
+        /**
+         * Bind a schema reference of a mapped output: build the inline mapped output the schema
+         * gives, with each path's mapping from {@code mappings}, and report the paths left
+         * unbound, the paths the schema does not have, the bindings the runtime never reads,
+         * and the values that are not JSONPaths.
+         */
+        private OutputParameterSpec bindSchema(OutputParameterSpec use, String location,
+                Position position) {
+            checkMappedBesideSchema(use, location);
+            // Rejected children are never bound, but the schemas they name are resolved, as
+            // Polychro reads them
+            resolveListedSchemas(use.getItems(), location);
+            resolveListedSchemas(use.getValues(), location);
+            for (OutputParameterSpec property : use.getProperties()) {
+                resolveListedSchemas(property, location);
+            }
+            String name = use.getSchema();
+            if (position == Position.UNREAD) {
+                if (lookupSchema(name, location) != null) {
+                    markUsed(name);
+                }
+                errors.add(location + ": 'schema: " + name + "' sits in the items of a nested"
+                        + " array, which the runtime passes through as they are: its bindings"
+                        + " are never read. Remove it, or bind the outer items instead.");
+                return use;
+            }
+            if (!resolvable(name, location) || !withinBudget(size(name))) {
+                return use;
+            }
+            InputParameterSpec root = target(schemas.get(name));
+            boolean object = "object".equals(root.getType());
+            boolean withProperties = isObjectWithProperties(root);
+            if (position == Position.TOP && object && !withProperties) {
+                errors.add(location + ": 'schema: " + name + "' is an object without properties,"
+                        + " which as an output always returns an empty object. Use it as a"
+                        + " property, with a 'mapping'.");
+                return use;
+            }
+            Binding binding = new Binding(use.getMappings(),
+                    position == Position.ITEMS && "array".equals(root.getType()));
+            OutputParameterSpec output = binding.bind(schemas.get(name), "", false);
+            output.setName(use.getName());
+            if (use.getMappings().isEmpty() && !binding.unbound.isEmpty()) {
+                errors.add(location + ": 'schema: " + name + "' in a mapped (call-mode) output"
+                        + " needs 'mappings', the mapping of each path of the schema.");
+                return use;
+            }
+            if (use.getMapping() != null && object && position != Position.PROPERTY
+                    && (withProperties || position == Position.TOP)) {
+                // The runtime reads an output object from the response root, and object items
+                // from each element, whatever their mapping
+                errors.add(location + ": 'mapping' beside 'schema: " + name + "' has no effect:"
+                        + " " + (position == Position.TOP ? "an output object is read from the"
+                        + " response root" : "object items are read from each element")
+                        + ". Remove it, or move the object under a property.");
+            } else {
+                output.setMapping(use.getMapping());
+            }
+            // Unbound, an object with properties reads its parent's root and items each
+            // element, as inline; anything else is read through its own mapping
+            if (use.getMapping() == null && position != Position.ITEMS && !withProperties) {
+                binding.unbound.add(0, "(the output itself: set 'mapping' beside 'schema:')");
+            }
+            binding.report(location, name);
+            return output;
+        }
+
+        /**
+         * The binding of one schema reference: its {@code mappings}, which of them are used, and
+         * what is wrong with them.
+         */
+        private final class Binding {
+
+            private final Map<String, String> mappings;
+            private final Set<String> used = new HashSet<>();
+            private final List<String> paths = new ArrayList<>();
+            private final List<String> unbound = new ArrayList<>();
+            private final List<String> unaddressable = new ArrayList<>();
+            private final List<String> ineffective = new ArrayList<>();
+            private final boolean rootIsItems;
+
+            /**
+             * @param rootIsItems whether the bound schema is an array used as the items of
+             *                    another array, whose own items the runtime never shapes
+             */
+            Binding(Map<String, String> mappings, boolean rootIsItems) {
+                this.mappings = mappings;
+                this.rootIsItems = rootIsItems;
+            }
+
+            /**
+             * The mapped output a declaration gives at a path of the schema: its type
+             * ({@code integer} becomes {@code number}), the mapping bound to the path, its
+             * properties and its items, of any type. Input-only keywords are not carried.
+             *
+             * @param unread whether the runtime never reads this node: the items of an array
+             *               that is itself items, which it passes through as they are
+             */
+            OutputParameterSpec bind(InputParameterSpec declaration, String path,
+                    boolean unread) {
+                InputParameterSpec schema = target(declaration);
+                OutputParameterSpec output = new OutputParameterSpec();
+                output.setName(declaration.getName());
+                String type = schema.getType();
+                output.setType("integer".equals(type) ? "number" : type);
+                boolean withProperties = isObjectWithProperties(schema);
+                if (!path.isEmpty()) {
+                    String mapping = mappings.get(path);
+                    if (mapping != null) {
+                        used.add(path);
+                    }
+                    if (unread) {
+                        addIf(ineffective, path, mapping != null);
+                    } else if (mapping != null && path.endsWith("[]") && withProperties) {
+                        // Object items are read from each element, whatever their mapping
+                        paths.add(path);
+                        ineffective.add(path);
+                    } else {
+                        paths.add(path);
+                        output.setMapping(mapping);
+                        // Unbound, an object with properties reads its parent's root and
+                        // items each element; anything else would always be null
+                        addIf(unbound, path, mapping == null && !withProperties
+                                && !path.endsWith("[]"));
+                    }
+                }
+                if ("object".equals(type)) {
+                    for (InputParameterSpec property : schema.getProperties()) {
+                        String propertyName = property.getName();
+                        if (propertyName.contains(".") || propertyName.contains("[")
+                                || propertyName.contains("]")) {
+                            // Below nested arrays nothing is read, so nothing needs a path
+                            addIf(unaddressable, propertyName, !unread);
+                            continue;
+                        }
+                        output.getProperties().add(bind(property,
+                                path.isEmpty() ? propertyName : path + "." + propertyName,
+                                unread));
+                    }
+                } else if ("array".equals(type) && schema.getItems() != null) {
+                    boolean itemsUnread = unread || path.endsWith("[]")
+                            || (path.isEmpty() && rootIsItems);
+                    OutputParameterSpec itemsOutput = bind(schema.getItems(), path + "[]",
+                            itemsUnread);
+                    itemsOutput.setName(null);
+                    output.setItems(itemsOutput);
+                }
+                return output;
+            }
+
+            void report(String location, String schema) {
+                String prefix = location + ": 'schema: " + schema + "' ";
+                if (!unaddressable.isEmpty()) {
+                    errors.add(prefix + "has properties that a path cannot address, as their"
+                            + " name contains '.', '[' or ']': " + unaddressable + ". Declare"
+                            + " the output inline.");
+                }
+                if (!unbound.isEmpty()) {
+                    errors.add(prefix + "leaves paths unbound: " + unbound + ". Give each"
+                            + " scalar, array and object without properties a mapping in"
+                            + " 'mappings'.");
+                }
+                if (!ineffective.isEmpty()) {
+                    errors.add(prefix + "binds " + ineffective + ", which the runtime never"
+                            + " reads: object items are read from each element, and the items"
+                            + " of nested arrays are passed through as they are. Remove them.");
+                }
+                List<String> unknown = new ArrayList<>();
+                List<String> notPaths = new ArrayList<>();
+                for (Map.Entry<String, String> entry : mappings.entrySet()) {
+                    if (!used.contains(entry.getKey())) {
+                        unknown.add(entry.getKey());
+                    } else if (!entry.getValue().trim().startsWith("$")) {
+                        notPaths.add(entry.getKey());
+                    }
+                }
+                if (!unknown.isEmpty()) {
+                    errors.add(prefix + "has no path " + unknown + ". Its paths are "
+                            + (paths.isEmpty() ? "none" : String.join(", ", paths)) + ".");
+                }
+                if (!notPaths.isEmpty()) {
+                    errors.add(prefix + "binds " + notPaths + " to a value that is not a"
+                            + " JSONPath (starting with '$'). A static 'value' is declared"
+                            + " inline.");
+                }
+            }
         }
 
         OutputParameterSpec expandOutput(OutputParameterSpec param, String location) {
@@ -538,6 +859,7 @@ public final class DefinitionsExpander {
             checkJsonSchemaRef(param, location);
             if (param.getSchema() != null) {
                 checkOutputBesideSchema(param, location);
+                resolveRejectedChildren(param, location);
                 OutputParameterSpec output = resolveOutputSchema(param.getSchema(), location);
                 if (output == null) {
                     return param;
@@ -548,6 +870,9 @@ public final class DefinitionsExpander {
             if (!withinBudget(1)) {
                 return param;
             }
+            // An orchestrated output declares no values: the schemas named there are only
+            // resolved, as Polychro reads them
+            resolveListedSchemas(param.getValues(), location + ", values");
             if (param.getItems() != null) {
                 OutputParameterSpec items = param.getItems();
                 param.setItems(items.getSchema() != null
@@ -576,6 +901,7 @@ public final class DefinitionsExpander {
             }
             checkJsonSchemaRef(items, location);
             checkOutputBesideSchema(items, location);
+            resolveRejectedChildren(items, location);
             String name = items.getSchema();
             if (!resolvable(name, location)) {
                 return items;
@@ -688,6 +1014,38 @@ public final class DefinitionsExpander {
                 }
             }
             return schema;
+        }
+
+        /**
+         * Resolve the schemas an output names anywhere, where they are not expanded (a mock
+         * output, or the children rejected beside {@code schema:}): an unknown name is reported
+         * and a known one is marked used, as Polychro's references and unused checks read them.
+         */
+        private void resolveListedSchemas(OutputParameterSpec param, String location) {
+            if (param == null) {
+                return;
+            }
+            if (param.getSchema() != null && lookupSchema(param.getSchema(), location) != null) {
+                markUsed(param.getSchema());
+            }
+            resolveListedSchemas(param.getItems(), location);
+            resolveListedSchemas(param.getValues(), location);
+            for (OutputParameterSpec property : param.getProperties()) {
+                resolveListedSchemas(property, location);
+            }
+        }
+
+        /**
+         * Resolve the schemas named in the children an orchestrated output declares beside
+         * {@code schema:} ({@code items}, {@code values}, {@code properties}), which are rejected
+         * and never expanded, as Polychro reads them.
+         */
+        private void resolveRejectedChildren(OutputParameterSpec use, String location) {
+            resolveListedSchemas(use.getItems(), location);
+            resolveListedSchemas(use.getValues(), location);
+            for (OutputParameterSpec property : use.getProperties()) {
+                resolveListedSchemas(property, location);
+            }
         }
 
         /** Mark a schema used, with every schema it references, directly or not. */
@@ -1024,7 +1382,7 @@ public final class DefinitionsExpander {
             }
             errors.add(location + ": 'schema:' is not supported on a REST input, which is flat"
                     + " ('in', 'type', 'pattern'). Declare the input inline: a REST adapter uses"
-                    + " its schemas in orchestrated (steps) outputs.");
+                    + " its schemas in outputs.");
         }
 
         private void checkOutputBesideSchema(OutputParameterSpec param, String location) {
@@ -1054,6 +1412,26 @@ public final class DefinitionsExpander {
             if (!extra.isEmpty()) {
                 errors.add(location + ": 'schema: " + param.getSchema() + "' takes no other key"
                         + " in an output, found " + extra + ".");
+            }
+        }
+
+        /**
+         * Report the keys beside {@code schema:} in a mapped output other than {@code mappings}
+         * (its binding) and {@code mapping} (where the whole value is read).
+         */
+        private void checkMappedBesideSchema(OutputParameterSpec param, String location) {
+            List<String> extra = new ArrayList<>();
+            for (String key : param.getSchemaSiblings().keySet()) {
+                addIf(extra, key, !"mappings".equals(key) && !"mapping".equals(key));
+            }
+            // Keys set on the model rather than declared (a copy built in code)
+            addIf(extra, "type", param.getType() != null && !extra.contains("type"));
+            addIf(extra, "items", param.getItems() != null && !extra.contains("items"));
+            addIf(extra, "properties", !param.getProperties().isEmpty()
+                    && !extra.contains("properties"));
+            if (!extra.isEmpty()) {
+                errors.add(location + ": 'schema: " + param.getSchema() + "' takes only"
+                        + " 'mappings' and 'mapping' in a mapped output, found " + extra + ".");
             }
         }
 
@@ -1226,6 +1604,23 @@ public final class DefinitionsExpander {
         return false;
     }
 
+
+    /** Whether an output, or one of its nested declarations, declares {@code mappings}. */
+    static boolean hasMappings(OutputParameterSpec param) {
+        if (param == null) {
+            return false;
+        }
+        if (!param.getMappings().isEmpty() || hasMappings(param.getItems())
+                || hasMappings(param.getValues())) {
+            return true;
+        }
+        for (OutputParameterSpec property : param.getProperties()) {
+            if (hasMappings(property)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     /** Whether an input, or one of its nested declarations, carries a JSON Schema {@code $ref}. */
     static boolean hasJsonSchemaRef(InputParameterSpec param) {

@@ -212,13 +212,157 @@ class DefinitionsSchemaValidationTest {
     }
 
     @Test
-    void validateShouldRejectSchemaInMappedOutput() throws Exception {
+    void validateShouldAcceptSchemaWithMappingAloneInMappedOutput() throws Exception {
+        // Whether the schema has paths left to bind is the engine's and Polychro's check
+        List<Error> errors = schema.validate(mcp("""
+                definitions:
+                  schemas:
+                    imo: { type: string }
+                """, """
+                get-ship:
+                  description: "Get a ship."
+                  call: erp.get-ship
+                  outputParameters:
+                    - type: object
+                      properties:
+                        imo: { schema: imo, mapping: "$.imo_number" }
+                """));
+
+        assertTrue(errors.isEmpty(), errors.toString());
+    }
+
+    @Test
+    void validateShouldRejectSchemaInAMappedMcpResourceOutput() throws Exception {
+        String resource = """
+                ikanos: "%s"
+                capability:
+                  exposes:
+                    - type: mcp
+                      port: 3000
+                      namespace: tools
+                      resources:
+                        flagship:
+                          display: "Flagship"
+                          description: "The flagship."
+                          uri: "data://flagship"
+                          call: erp.get-ship
+                          outputParameters:
+                            - %s
+                      tools:
+                        get-ship:
+                          description: "Get a ship."
+                          call: erp.get-ship
+                """;
+        List<Error> inline = schema.validate(read(resource.formatted(IKANOS,
+                "{ type: object, properties: { imo: { type: string, mapping: \"$.imo_number\" } } }")));
+
+        assertTrue(inline.isEmpty(), inline.toString());
+        assertRejected(read(resource.formatted(IKANOS,
+                "{ schema: ship, mappings: { imo: \"$.imo_number\" } }")));
+    }
+
+    @Test
+    void validateShouldAcceptSchemaWithMappingsInEveryMappedOutputPosition() throws Exception {
+        List<Error> errors = schema.validate(mcp(DEFINITIONS, """
+                get-ship:
+                  description: "Get a ship."
+                  call: erp.get-ship
+                  outputParameters:
+                    - schema: ship
+                      mappings:
+                        imo: "$.imo_number"
+                        window.from: "$.start"
+                        window.to: "$.end"
+                list-ships:
+                  description: "List ships."
+                  call: erp.list-ships
+                  outputParameters:
+                    - type: object
+                      properties:
+                        lead:
+                          schema: ship
+                          mapping: "$.lead"
+                          mappings:
+                            imo: "$.imo"
+                            window.from: "$.from"
+                            window.to: "$.to"
+                        ships:
+                          type: array
+                          mapping: "$.ships"
+                          items:
+                            schema: ship
+                            mappings:
+                              imo: "$.imo"
+                              window.from: "$.from"
+                              window.to: "$.to"
+                """));
+
+        assertTrue(errors.isEmpty(), errors.toString());
+    }
+
+    @Test
+    void validateShouldAcceptAnItemsPathInMappings() throws Exception {
+        List<Error> errors = schema.validate(mcp("""
+                definitions:
+                  schemas:
+                    fleet:
+                      type: object
+                      properties:
+                        ships: { type: array, items: { type: object, properties: { imo: { type: string } } } }
+                        tags: { type: array, items: { type: string } }
+                """, """
+                get-fleet:
+                  description: "Get the fleet."
+                  call: erp.get-fleet
+                  outputParameters:
+                    - schema: fleet
+                      mappings:
+                        ships: "$.ships"
+                        ships[].imo: "$.imo"
+                        tags: "$.tags"
+                        tags[]: "$.label"
+                """));
+
+        assertTrue(errors.isEmpty(), errors.toString());
+    }
+
+    @Test
+    void validateShouldRejectKeysBesideSchemaAndMappingsInAMappedOutput() throws Exception {
         assertRejected(mcp(DEFINITIONS, """
                 get-ship:
                   description: "Get a ship."
                   call: erp.get-ship
                   outputParameters:
                     - schema: ship
+                      type: object
+                      mappings:
+                        imo: "$.imo_number"
+                """));
+    }
+
+    @Test
+    void validateShouldRejectAMappingsValueThatIsNotAJsonPath() throws Exception {
+        assertRejected(mcp(DEFINITIONS, """
+                get-ship:
+                  description: "Get a ship."
+                  call: erp.get-ship
+                  outputParameters:
+                    - schema: ship
+                      mappings:
+                        imo: "imo_number"
+                """));
+    }
+
+    @Test
+    void validateShouldRejectAMalformedMappingsPath() throws Exception {
+        assertRejected(mcp(DEFINITIONS, """
+                get-ship:
+                  description: "Get a ship."
+                  call: erp.get-ship
+                  outputParameters:
+                    - schema: ship
+                      mappings:
+                        window..from: "$.start"
                 """));
     }
 

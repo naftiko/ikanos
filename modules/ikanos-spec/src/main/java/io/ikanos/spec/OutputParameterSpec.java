@@ -48,6 +48,14 @@ public class OutputParameterSpec extends StructureSpec<OutputParameterSpec> {
      */
     private final Map<String, JsonNode> schemaSiblings = new LinkedHashMap<>();
 
+    /**
+     * The binding of a schema reference in a mapped (call-mode) output (#1036): each key is a
+     * path in the schema (property names joined by {@code .}, {@code []} for an array's items),
+     * each value the {@code mapping} that node carries once expanded. Empty when the output
+     * declares none.
+     */
+    private final Map<String, String> mappings = new LinkedHashMap<>();
+
     public OutputParameterSpec() {
         super();
     }
@@ -99,5 +107,13 @@ public class OutputParameterSpec extends StructureSpec<OutputParameterSpec> {
      */
     public Map<String, JsonNode> getSchemaSiblings() {
         return schemaSiblings;
+    }
+
+    /**
+     * @return the paths of a referenced schema and their mappings, in declaration order; empty
+     *         when the output declares no {@code mappings}
+     */
+    public Map<String, String> getMappings() {
+        return mappings;
     }
 }

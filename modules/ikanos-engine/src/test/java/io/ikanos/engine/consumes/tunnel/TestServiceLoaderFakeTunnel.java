@@ -15,6 +15,7 @@ package io.ikanos.engine.consumes.tunnel;
 
 import java.io.IOException;
 import java.nio.channels.AsynchronousSocketChannel;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Test-only {@link Tunnel} ServiceLoader provider so {@link TunnelBootstrap} can be exercised
@@ -25,6 +26,9 @@ import java.nio.channels.AsynchronousSocketChannel;
  * {@code src/test/resources} wires this class; it never appears in the production jar.
  */
 public class TestServiceLoaderFakeTunnel implements Tunnel {
+
+    /** How many instances were closed, for the tests that check a rejected capability closes it. */
+    public static final AtomicInteger CLOSED = new AtomicInteger();
 
     @Override
     public String type() {
@@ -43,6 +47,6 @@ public class TestServiceLoaderFakeTunnel implements Tunnel {
 
     @Override
     public void close() {
-        // no-op
+        CLOSED.incrementAndGet();
     }
 }

@@ -100,6 +100,16 @@ public class OutputParameterDeserializer extends ValueDeserializer<OutputParamet
             spec.setJsonSchemaRef(node.get("$ref").asString());
         }
 
+        // The binding of a schema reference in a mapped output (#1036). Read even without
+        // `schema`, so that the definitions expander can reject a binding with no shape.
+        if (node.has("mappings") && node.get("mappings").isObject()) {
+            for (var field : node.get("mappings").properties()) {
+                JsonNode value = field.getValue();
+                spec.getMappings().put(field.getKey(),
+                        value.isString() ? value.asString() : value.toString());
+            }
+        }
+
         // Handle nested "items" array for array types
         if (node.has("items")) {
             JsonNode itemsNode = node.get("items");

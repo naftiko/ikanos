@@ -301,6 +301,14 @@ public class ToolHandler {
         }
     }
 
+    /**
+     * @return the tool {@link #handleToolCall} runs for this name, or {@code null} when it knows
+     *         none: found by the tool's name, which is not always its key in the adapter's map
+     */
+    McpServerToolSpec toolSpec(String toolName) {
+        return toolName == null ? null : toolSpecs.get(toolName);
+    }
+
     McpSchema.CallToolResult doHandleToolCall(String toolName, Map<String, Object> arguments)
             throws Exception {
 

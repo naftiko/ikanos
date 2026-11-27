@@ -131,7 +131,8 @@ class RestDefinitionsSchemaValidationTest {
     }
 
     @Test
-    void validateShouldRejectASchemaInAMappedRestOutput() throws Exception {
+    void validateShouldRejectAKeyBesideASchemaInAMappedRestOutput() throws Exception {
+        // Whether a mapped schema reference is fully bound is checked at load and by Polychro
         assertRejected(rest(DEFINITIONS, """
                 ships:
                   path: "/ships"
@@ -141,6 +142,7 @@ class RestDefinitionsSchemaValidationTest {
                       call: registry.list-ships
                       outputParameters:
                         - schema: crew-member
+                          type: object
                 """));
     }
 

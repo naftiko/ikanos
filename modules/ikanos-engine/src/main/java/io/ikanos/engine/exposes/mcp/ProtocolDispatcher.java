@@ -58,7 +58,6 @@ import static io.ikanos.engine.util.JsonRpcResponseBuilder.buildJsonRpcError;
 import static org.restlet.Context.getCurrentLogger;
 import io.ikanos.spec.exposes.AuthorizationSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
-import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
 import io.ikanos.spec.util.IkanosMappers;
 
 /**
@@ -340,14 +339,16 @@ public class ProtocolDispatcher {
         if (serverSpec == null) {
             return null;
         }
-        McpServerToolSpec tool = null;
+        String tool = null;
         String method = request != null ? request.path("method").asString("") : "";
         if (ToolsCallHandler.METHOD_NAME.equals(method)) {
-            tool = toolNamed(request.path("params").path("name").asString(""));
+            tool = request.path("params").path("name").asString("");
         } else if (httpRequest != null && TASK_METHODS.contains(method)) {
-            tool = taskTool(request.path("params").path("taskId").asString(null), httpRequest);
+            tool = taskToolName(request.path("params").path("taskId").asString(null), httpRequest);
         }
-        return AccessControl.effective(serverSpec, tool);
+        // One lookup with the embedded check (#1126): the tool as ToolHandler registers it
+        return tool != null ? adapter.requirementFor(tool)
+                : AccessControl.effective(serverSpec, null);
     }
 
     /**
@@ -374,7 +375,7 @@ public class ProtocolDispatcher {
             requirements.add(AccessControl.effective(serverSpec, null));
         }
         for (String name : targets) {
-            requirements.add(AccessControl.effective(serverSpec, toolNamed(name)));
+            requirements.add(adapter.requirementFor(name));
         }
         return new ArrayList<>(requirements);
     }
@@ -420,8 +421,11 @@ public class ProtocolDispatcher {
         return requiredScopes;
     }
 
-    /** The tool a task of the caller runs, or {@code null} for an unknown or foreign task. */
-    private McpServerToolSpec taskTool(String taskId, Request httpRequest) {
+    /**
+     * The name of the tool a task of the caller runs, or {@code null} for an unknown or foreign
+     * task.
+     */
+    private String taskToolName(String taskId, Request httpRequest) {
         McpTaskService tasks = adapter.getTaskService();
         if (tasks == null || taskId == null) {
             return null;
@@ -431,23 +435,8 @@ public class ProtocolDispatcher {
         String prefix = "mcp:" + namespace + "/";
         return tasks.entryOf(taskId, owner)
                 .filter(entry -> entry.startsWith(prefix))
-                .map(entry -> toolNamed(entry.substring(prefix.length())))
+                .map(entry -> entry.substring(prefix.length()))
                 .orElse(null);
-    }
-
-    /**
-     * The tool a {@code tools/call} runs, found by its name as {@link ToolHandler} registers it,
-     * not by its map key: a legacy list tool without a name gets a generated key, and a tool with
-     * a {@code ref} only gets its name from the aggregate flow.
-     */
-    private McpServerToolSpec toolNamed(String name) {
-        McpServerToolSpec found = null;
-        for (McpServerToolSpec tool : serverSpec.getTools().values()) {
-            if (tool != null && name.equals(tool.getName())) {
-                found = tool; // the last one wins, as in ToolHandler's registry
-            }
-        }
-        return found;
     }
 
     /**
