@@ -19,7 +19,10 @@ import io.ikanos.engine.exposes.AccessControl;
 import io.ikanos.engine.exposes.ServerAdapter;
 import io.ikanos.engine.exposes.mcp.search.ToolSearchCatalog;
 import io.ikanos.engine.exposes.mcp.search.ToolSearchProviders;
+import io.ikanos.engine.exposes.mcp.ServerCardBuilder.ServerCard;
 import io.ikanos.spec.InputParameterSpec;
+import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
+import io.ikanos.spec.consumes.http.AuthenticationSpec;
 import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
 import io.ikanos.engine.consumes.mcp.UpstreamTasks;
 import io.ikanos.spec.exposes.AuthorizationSpec;
@@ -82,6 +85,12 @@ public class McpServerAdapter extends ServerAdapter {
 
     /** OAuth 2.1 restlet, set when the HTTP transport uses {@code oauth2} authentication. */
     private final AtomicReference<McpOAuth2Restlet> oauth2Restlet = new AtomicReference<>();
+
+    /** Server card requests served at once, apart from the MCP endpoint's own limit. */
+    static final int CARD_REQUESTS_IN_PROGRESS = 8;
+
+    /** The rendered server card (SEP-2127), set when the HTTP transport declares a card. */
+    private final AtomicReference<ServerCard> serverCard = new AtomicReference<>();
 
     private final ToolHandler toolHandler;
     private final List<McpSchema.Tool> tools;
@@ -158,6 +167,12 @@ public class McpServerAdapter extends ServerAdapter {
                                 durability.runner(), id))
                 : null;
 
+        if (serverSpec.isStdio() && serverSpec.getCard() != null) {
+            throw new IllegalArgumentException("The mcp adapter '" + serverSpec.getNamespace()
+                    + "' declares 'card' with transport stdio; server cards are served over"
+                    + " HTTP only. Remove 'card'.");
+        }
+
         if (serverSpec.isStdio()) {
             initStdioTransport();
         } else {
@@ -176,16 +191,70 @@ public class McpServerAdapter extends ServerAdapter {
 
         Router router = new Router(context);
         router.attachDefault(McpServerResource.class);
+        Restlet endpoint = limitRequestsInProgress(router);
 
-        Restlet chain = buildServerChain(limitRequestsInProgress(router));
+        // Server card (SEP-2127): public by default, so it is routed ahead of the authentication
+        // chain; with card.authenticated, only its CORS preflight is, and GET goes through it.
+        ServerCardRestlet cardRestlet = buildServerCardRestlet(context, serverSpec);
+        boolean cardBehindAuth = cardRestlet != null
+                && serverSpec.getCard().requiresAuthentication()
+                && serverSpec.getAuthentication() != null;
+        Restlet limitedCard = cardRestlet != null
+                ? limitSideRequestsInProgress(CARD_REQUESTS_IN_PROGRESS, cardRestlet) : null;
+        if (cardBehindAuth) {
+            endpoint = new ServerCardRoute(context, serverSpec.getPath(), limitedCard, false,
+                    endpoint);
+        }
+
+        Restlet chain = buildServerChain(endpoint);
         AgentIdentityResolver identityResolver = dispatcher.getIdentityResolver();
         if (identityResolver.isForwarded()) {
             // The gateway is the authentication boundary: refuse other peers before anything else.
             chain = new TrustedPeerFilter(context, identityResolver, chain);
         }
+        if (limitedCard != null) {
+            chain = new ServerCardRoute(context, serverSpec.getPath(), limitedCard,
+                    cardBehindAuth, chain);
+        }
 
         String address = serverSpec.getAddress() != null ? serverSpec.getAddress() : "localhost";
         initServer(address, serverSpec.getPort(), chain);
+    }
+
+    /**
+     * Render the server card when the spec declares one, else {@code null}. A card that cannot
+     * be built fails the load.
+     */
+    private ServerCardRestlet buildServerCardRestlet(Context context, McpServerSpec serverSpec) {
+        if (serverSpec.getCard() == null) {
+            return null;
+        }
+        ServerCard card = ServerCardBuilder.build(serverSpec,
+                getCapability().getSpec().getInfo(), ProtocolDispatcher.SUPPORTED_PROTOCOL_VERSIONS);
+        this.serverCard.set(card);
+        boolean authenticated = serverSpec.getCard().requiresAuthentication()
+                && serverSpec.getAuthentication() != null;
+        return new ServerCardRestlet(context, card, authenticated,
+                credentialsHeader(serverSpec.getAuthentication()));
+    }
+
+    /**
+     * The request header a client authenticates with, which a browser must be allowed to send in
+     * an authenticated card's CORS preflight, or {@code null} when credentials go in the query.
+     */
+    static String credentialsHeader(AuthenticationSpec authentication) {
+        if (authentication == null || authentication.getType() == null) {
+            return null;
+        }
+        if (authentication instanceof ApiKeyAuthenticationSpec apiKey) {
+            return "query".equals(apiKey.getPlacement()) ? null : apiKey.getKey();
+        }
+        return "Authorization";
+    }
+
+    /** The rendered server card, or {@code null} when the adapter publishes none. */
+    public ServerCard getServerCard() {
+        return serverCard.get();
     }
 
     @Override

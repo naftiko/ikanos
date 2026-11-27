@@ -30,6 +30,8 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import io.polychro.core.Linter;
 import io.polychro.core.LinterConfig;
@@ -706,6 +708,34 @@ public class IkanosPolychroRulesetTest {
             "rules/polychro-mcp-tool-search-violations.yaml", "info");
         assertTrue(result.output().contains(ruleId),
             "Expected lint output to reference " + ruleId + ".\n" + result.output());
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // MCP Server Card rules (SEP-2127, #1165)
+    // ────────────────────────────────────────────────────────────────
+
+    @Test
+    public void mcpCardRulesShouldNotFireOnAValidCard() {
+        LintResult result = lintFixtureAtSeverity("rules/polychro-mcp-card-valid.yaml", "info");
+        assertTrue(!result.output().contains("ikanos-mcp-card-"),
+            "Expected a valid server card not to be flagged.\n" + result.output());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ikanos-mcp-card-name", "ikanos-mcp-card-version",
+        "ikanos-mcp-card-description", "ikanos-mcp-card-url", "ikanos-mcp-card-authenticated",
+        "ikanos-mcp-card-repository"})
+    public void mcpCardRuleShouldFireOnItsViolation(String ruleId) {
+        LintResult result =
+            lintFixtureAtSeverity("rules/polychro-mcp-card-violations.yaml", "info");
+        assertTrue(result.output().contains(ruleId),
+            "Expected lint output to reference " + ruleId + ".\n" + result.output());
+    }
+
+    @Test
+    public void mcpCardNameRuleShouldReportAtTheCard() {
+        assertReportsAt("rules/polychro-mcp-card-violations.yaml", "ikanos-mcp-card-name",
+            "$.capability.exposes[0].card");
     }
 
     // ────────────────────────────────────────────────────────────────

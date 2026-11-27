@@ -52,6 +52,7 @@ functions:
   - mcp-tool-search
   - mcp-tool-description
   - sql-procedures
+  - mcp-server-card
 
 rules:
 
@@ -413,6 +414,90 @@ rules:
     then:
       field: "authentication"
       function: falsy
+
+  ikanos-mcp-card-name:
+    message: "{{error}}"
+    description: >
+      An MCP Server Card (SEP-2127) is named in reverse-DNS form with exactly one
+      slash. The engine builds it as `<info.publisher>/<namespace>` unless the card
+      sets `name`, and refuses to load a card with neither.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: mcp-server-card
+      functionOptions:
+        check: name
+
+  ikanos-mcp-card-version:
+    message: "{{error}}"
+    description: >
+      A server card publishes one exact version, from `card.version` or
+      `info.version`, also returned as `serverInfo.version`. The engine refuses to
+      load a card with no version, or with a range such as `^1.2.3`.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: mcp-server-card
+      functionOptions:
+        check: version
+
+  ikanos-mcp-card-description:
+    message: "{{error}}"
+    description: >
+      A server card description is at most 100 characters. The engine takes the
+      exposes entry's `description` unless the card sets one, and refuses to load a
+      longer one rather than truncate it.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: mcp-server-card
+      functionOptions:
+        check: description
+
+  ikanos-mcp-card-url:
+    message: "{{error}}"
+    description: >
+      An adapter listening on a wildcard address (`0.0.0.0`, `::`) advertises the
+      machine's host name on its server card, which clients elsewhere may not
+      resolve. Set `card.url` to the URL clients reach the server at, such as the
+      gateway's.
+    severity: warn
+    recommended: true
+    given: "$"
+    then:
+      function: mcp-server-card
+      functionOptions:
+        check: url
+
+  ikanos-mcp-card-authenticated:
+    message: "{{error}}"
+    description: >
+      `card.authenticated: true` puts the server card behind the adapter's
+      `authentication`. Without one, it has no effect and the card stays public.
+    severity: warn
+    recommended: true
+    given: "$"
+    then:
+      function: mcp-server-card
+      functionOptions:
+        check: authenticated
+
+  ikanos-mcp-card-repository:
+    message: "{{error}}"
+    description: >
+      A server card's `repository` needs a `source` the engine infers from the
+      host: github.com, gitlab.com or bitbucket.org. A repository elsewhere is left
+      off the card.
+    severity: warn
+    recommended: true
+    given: "$"
+    then:
+      function: mcp-server-card
+      functionOptions:
+        check: repository
 
   ikanos-oauth2-https-authserver:
     message: "OAuth2 `authorizationServerUri` must use the `https://` scheme."

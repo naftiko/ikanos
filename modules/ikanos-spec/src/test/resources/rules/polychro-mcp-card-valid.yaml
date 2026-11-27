@@ -1,0 +1,34 @@
+# Polychro fixture — no ikanos-mcp-card-* rule may fire.
+#
+# A server card named from info.publisher, versioned from info.version, with a short
+# description, a GitHub repository and an explicit public URL (issue #1165).
+ikanos: "1.0.0-beta11"
+
+info:
+  display: "Shipyard Fleet Management"
+  description: "Fixture for the MCP server card rules (issue #1165)."
+  version: "1.4.0"
+  publisher: "io.naftiko"
+  repositoryUrl: "https://github.com/example/shipyard"
+
+capability:
+  exposes:
+    - type: "mcp"
+      address: "0.0.0.0"
+      port: 3001
+      path: "/mcp"
+      namespace: "shipyard-tools"
+      description: "Shipyard MCP tools for fleet management"
+      authentication:
+        type: "bearer"
+        token: "{{MCP_SERVER_TOKEN}}"
+      card:
+        url: "https://fleet.example.com/mcp"
+        authenticated: true
+      tools:
+        ping:
+          description: "Answer with ok to check the server is up."
+          outputParameters:
+            msg:
+              type: "string"
+              value: "ok"

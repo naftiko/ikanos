@@ -72,6 +72,10 @@ public class McpServerSpec extends ServerSpec {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private final AtomicReference<McpToolSearchSpec> toolSearch = new AtomicReference<>();
 
+    /** MCP Server Card (SEP-2127): served when declared, even empty. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private final AtomicReference<McpServerCardSpec> card = new AtomicReference<>();
+
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonDeserialize(using = McpServerToolMapDeserializer.class)
     private final Map<String, McpServerToolSpec> tools =
@@ -205,6 +209,17 @@ public class McpServerSpec extends ServerSpec {
 
     public void setToolSearch(McpToolSearchSpec toolSearch) {
         this.toolSearch.set(toolSearch);
+    }
+
+    /**
+     * @return the MCP Server Card block, or {@code null} when the server publishes no card
+     */
+    public McpServerCardSpec getCard() {
+        return card.get();
+    }
+
+    public void setCard(McpServerCardSpec card) {
+        this.card.set(card);
     }
 
     /**

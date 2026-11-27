@@ -15,6 +15,7 @@ package io.ikanos.spec;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
  * Info Specification Element
@@ -34,6 +35,18 @@ public class InfoSpec {
     private volatile String version;
 
     private final List<StakeholderSpec> stakeholders;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private volatile String publisher;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private volatile String websiteUrl;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private volatile String repositoryUrl;
+
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private final List<IconSpec> icons = new CopyOnWriteArrayList<>();
 
     public InfoSpec(String display, String description, String created, String modified) {
         this.display = display;
@@ -94,6 +107,41 @@ public class InfoSpec {
 
     public List<StakeholderSpec> getStakeholders() {
         return stakeholders;
+    }
+
+    /**
+     * @return the reverse-DNS publisher prefix, such as {@code io.naftiko}, that names the
+     *         capability's MCP Server Cards {@code <publisher>/<namespace>}, or {@code null}
+     */
+    public String getPublisher() {
+        return publisher;
+    }
+
+    public void setPublisher(String publisher) {
+        this.publisher = publisher;
+    }
+
+    /** @return the capability's home page, or {@code null} */
+    public String getWebsiteUrl() {
+        return websiteUrl;
+    }
+
+    public void setWebsiteUrl(String websiteUrl) {
+        this.websiteUrl = websiteUrl;
+    }
+
+    /** @return the URL of the capability's source repository, or {@code null} */
+    public String getRepositoryUrl() {
+        return repositoryUrl;
+    }
+
+    public void setRepositoryUrl(String repositoryUrl) {
+        this.repositoryUrl = repositoryUrl;
+    }
+
+    /** @return the capability's icons; empty when none are declared */
+    public List<IconSpec> getIcons() {
+        return icons;
     }
 
 }
