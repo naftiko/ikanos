@@ -58,7 +58,7 @@ public final class StepInterpreter implements Interpreter {
                 boolean runs;
                 try {
                     runs = StepGuard.holds(node.step().getName(), node.step().getOnlyIf(),
-                            Elicitation.parameters(run));
+                            Elicitation.parameters(run), nodeRunner.guardEvaluationLimit());
                 } catch (RuntimeException e) {
                     run.fail(e);
                     return List.of(new Command.Fail(failureOf(e)));

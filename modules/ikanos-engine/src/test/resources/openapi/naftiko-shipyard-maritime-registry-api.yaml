@@ -128,6 +128,8 @@ paths:
               value: "IMO-9321483"
             "/imo_number=IMO-9456781":
               value: "IMO-9456781"
+            "/imo_number=IMO-9512345":
+              value: "IMO-9512345"
         - $ref: '#/components/parameters/RegistryVersion'
       responses:
         '200':
@@ -171,6 +173,20 @@ paths:
                     assignedCrew:
                       - "CREW-002"
                       - "CREW-004"
+                "/imo_number=IMO-9512345":
+                  summary: Arctic Tern - decommissioned vessel with no assigned crew
+                  value:
+                    imo_number: "IMO-9512345"
+                    vessel_name: "Arctic Tern"
+                    vessel_type: "cargo"
+                    flag_code: "IS"
+                    operational_status: "decommissioned"
+                    year_built: 2009
+                    gross_tonnage: 18000
+                    dimensions:
+                      length_overall: 168
+                      beam: 27
+                      draft: 9.5
         '404':
           description: Ship not found
           content:

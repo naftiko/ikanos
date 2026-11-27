@@ -3930,7 +3930,7 @@
         "onlyIf": {
           "type": "string",
           "minLength": 1,
-          "description": "Runs the step only when this condition holds; otherwise the step is skipped and has no output. A bare name such as `customer.id` holds when the value is present and is neither null nor false (an absent value skips the step). Anything else is a CEL expression that must evaluate to a boolean, such as `order.status == 'overdue'`; its variables are the inputs, `with` values and earlier step outputs, named as in templates, with `-` written `_` (`get_ship.status`)."
+          "description": "Runs the step only when this condition holds; otherwise the step is skipped and has no output, and later steps and mappings see it as absent. A bare name such as `customer.id` holds when the value is present and is neither null nor false (an absent value skips the step). Anything else is a CEL expression that must evaluate to a boolean, such as `order.status == 'overdue'`; its variables are the inputs, the `with` values of the tool, operation or flow (not the guarded step's own `with`) and earlier step outputs, named as in templates, with `-` written `_` (`get_ship.status`). An expression that reads a variable or field the run does not have does not hold, even under negation: `order.status != 'paid'` and `!(order.status == 'paid')` both skip the step when `status` is missing, so write `!has(order.status) || order.status != 'paid'` to run it then. `auth.claims...` reads the caller's validated token, and a guard that reads `auth` fails the run when the call has none. A result that is not a boolean, an evaluation error, or a guard evaluating more sub-expressions than `management.guards.evaluationLimit` on the control port (100,000 by default, counting each iteration of a macro) fails the run."
         },
         "type": {
           "type": "string",
@@ -4801,6 +4801,9 @@
         },
         "flows": {
           "$ref": "#/$defs/FlowManagementSpec"
+        },
+        "guards": {
+          "$ref": "#/$defs/GuardManagementSpec"
         }
       },
       "additionalProperties": false
@@ -4838,6 +4841,19 @@
           "minimum": 1,
           "default": 8,
           "description": "Maximum number of aggregate flows active on one call chain, counting the first one. A call that would exceed it fails with an error naming the chain."
+        }
+      },
+      "additionalProperties": false
+    },
+    "GuardManagementSpec": {
+      "type": "object",
+      "description": "Limits on step guards (`onlyIf`). A guard is evaluated on the request thread over values upstreams return, so a macro such as `exists` nested in another grows with the square of their lists.",
+      "properties": {
+        "evaluationLimit": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 100000,
+          "description": "Maximum number of sub-expressions one evaluation of a guard may evaluate, counting each iteration of a macro. A guard that exceeds it fails its step with an error naming the step. Overrides the engine default (100,000)."
         }
       },
       "additionalProperties": false

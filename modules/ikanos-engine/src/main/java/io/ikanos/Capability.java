@@ -70,6 +70,7 @@ import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.consumes.ClientSpec;
 import io.ikanos.spec.exposes.control.ControlServerSpec;
 import io.ikanos.spec.exposes.control.FlowManagementSpec;
+import io.ikanos.spec.exposes.control.GuardManagementSpec;
 import io.ikanos.spec.exposes.control.ScriptingManagementSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
@@ -106,6 +107,7 @@ public class Capability {
     /** Directory of the capability file; local contract files are resolved against it. */
     private final AtomicReference<Path> capabilityDir = new AtomicReference<>();
     private final AtomicReference<ScriptingManagementSpec> scriptingSpec = new AtomicReference<>();
+    private volatile long guardEvaluationLimit = GuardManagementSpec.DEFAULT_EVALUATION_LIMIT;
     private final AtomicReference<SecretKey> sealingKey = new AtomicReference<>();
     private final AtomicReference<String> specDigest = new AtomicReference<>();
     private final AtomicReference<Durability> durability =
@@ -193,6 +195,10 @@ public class Capability {
                 resolvedScriptingSpec = controlSpec.getManagement().getScripting();
                 if (controlSpec.getManagement().getFlows() != null) {
                     maxFlowCallDepth = controlSpec.getManagement().getFlows().getMaxCallDepth();
+                }
+                if (controlSpec.getManagement().getGuards() != null) {
+                    this.guardEvaluationLimit =
+                            controlSpec.getManagement().getGuards().getEvaluationLimit();
                 }
                 break;
             }
@@ -417,6 +423,14 @@ public class Capability {
 
     public ScriptingManagementSpec getScriptingSpec() {
         return scriptingSpec.get();
+    }
+
+    /**
+     * @return the most sub-expressions one evaluation of a step guard may evaluate, from
+     *         {@code management.guards.evaluationLimit} on the control port
+     */
+    public long getGuardEvaluationLimit() {
+        return guardEvaluationLimit;
     }
 
     public StepHandlerRegistry getStepHandlerRegistry() {

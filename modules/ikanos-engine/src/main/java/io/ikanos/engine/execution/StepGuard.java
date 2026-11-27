@@ -29,17 +29,20 @@ import dev.cel.common.CelErrorCode;
 import dev.cel.common.CelOptions;
 import dev.cel.common.CelValidationException;
 import dev.cel.common.CelValidationResult;
+import dev.cel.common.ast.CelExpr;
 import dev.cel.common.types.SimpleType;
 import dev.cel.compiler.CelCompiler;
 import dev.cel.compiler.CelCompilerBuilder;
 import dev.cel.compiler.CelCompilerFactory;
 import dev.cel.parser.CelStandardMacro;
+import dev.cel.runtime.CelEvaluationListener;
 import dev.cel.runtime.CelEvaluationException;
 import dev.cel.runtime.CelRuntime;
 import dev.cel.runtime.CelRuntimeFactory;
 import dev.cel.common.values.NullValue;
 import io.ikanos.engine.util.CallerRoot;
 import io.ikanos.engine.util.Resolver;
+import io.ikanos.spec.exposes.control.GuardManagementSpec;
 import io.ikanos.spec.util.IkanosMappers;
 import tools.jackson.databind.JsonNode;
 
@@ -88,8 +91,18 @@ public final class StepGuard {
             "break", "const", "continue", "else", "for", "function", "if", "import", "let",
             "loop", "package", "namespace", "return", "var", "void", "while");
 
+    /**
+     * The most bytes of a compiled regular expression ({@code matches}), so a pattern cannot
+     * make the matcher itself costly.
+     */
+    static final int MAX_REGEX_PROGRAM_SIZE = 1_000;
+
     private static final CelOptions OPTIONS = CelOptions.current()
             .enableHeterogeneousNumericComparisons(true)
+            // One macro over a list longer than the whole budget stops early; the budget
+            // itself, counted while evaluating, also bounds nested macros.
+            .comprehensionMaxIterations((int) GuardManagementSpec.DEFAULT_EVALUATION_LIMIT)
+            .maxRegexProgramSize(MAX_REGEX_PROGRAM_SIZE)
             .build();
     private static final CelCompiler PARSER = CelCompilerFactory.standardCelCompilerBuilder()
             .setOptions(OPTIONS)
@@ -132,10 +145,24 @@ public final class StepGuard {
      *         that has none
      */
     public static boolean holds(String step, String onlyIf, Map<String, Object> parameters) {
-        return evaluate("The onlyIf of step '" + step + "'", onlyIf, parameters);
+        return holds(step, onlyIf, parameters, GuardManagementSpec.DEFAULT_EVALUATION_LIMIT);
     }
 
-    private static boolean evaluate(String label, String onlyIf, Map<String, Object> parameters) {
+    /**
+     * Whether a step with this guard runs, evaluating at most {@code evaluationLimit}
+     * sub-expressions.
+     *
+     * @throws IllegalArgumentException as {@link #holds(String, String, Map)}, and when the
+     *         guard evaluates more than {@code evaluationLimit} sub-expressions
+     */
+    public static boolean holds(String step, String onlyIf, Map<String, Object> parameters,
+            long evaluationLimit) {
+        return evaluate("The onlyIf of step '" + step + "'", onlyIf, parameters,
+                evaluationLimit);
+    }
+
+    private static boolean evaluate(String label, String onlyIf, Map<String, Object> parameters,
+            long evaluationLimit) {
         if (onlyIf == null || onlyIf.isBlank()) {
             return true;
         }
@@ -158,8 +185,14 @@ public final class StepGuard {
         }
         Object result;
         try {
-            result = compiled.program().eval(variables);
+            result = compiled.program().trace(variables, new Budget(label, evaluationLimit));
+        } catch (BudgetExceeded e) {
+            throw e.failure();
         } catch (CelEvaluationException e) {
+            BudgetExceeded exceeded = budgetExceeded(e);
+            if (exceeded != null) {
+                throw exceeded.failure();
+            }
             if (e.getErrorCode() == CelErrorCode.ATTRIBUTE_NOT_FOUND) {
                 // A field the value does not have, such as order.missing: absent, as above.
                 return false;
@@ -172,6 +205,55 @@ public final class StepGuard {
                     + describe(result) + ".");
         }
         return value;
+    }
+
+    /**
+     * Counts the sub-expressions an evaluation evaluates, each iteration of a macro included,
+     * and stops it past the limit: CEL itself bounds one macro's iterations, not nested ones.
+     */
+    private static final class Budget implements CelEvaluationListener {
+        private final String label;
+        private final long limit;
+        private long used;
+
+        Budget(String label, long limit) {
+            this.label = label;
+            this.limit = limit;
+        }
+
+        @Override
+        public void callback(CelExpr expr, Object result) {
+            if (++used > limit) {
+                throw new BudgetExceeded(new IllegalArgumentException(label
+                        + " evaluated more than " + limit + " sub-expressions, the limit set by"
+                        + " management.guards.evaluationLimit on the control port: make it"
+                        + " cheaper, such as by not nesting a macro over long lists in another"));
+            }
+        }
+    }
+
+    /** Stops an evaluation past its budget, carrying the failure to report. */
+    private static final class BudgetExceeded extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+        private final transient IllegalArgumentException failure;
+
+        BudgetExceeded(IllegalArgumentException failure) {
+            super(failure.getMessage(), null, false, false);
+            this.failure = failure;
+        }
+
+        IllegalArgumentException failure() {
+            return failure;
+        }
+    }
+
+    private static BudgetExceeded budgetExceeded(Throwable error) {
+        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+            if (cause instanceof BudgetExceeded exceeded) {
+                return exceeded;
+            }
+        }
+        return null;
     }
 
     /**

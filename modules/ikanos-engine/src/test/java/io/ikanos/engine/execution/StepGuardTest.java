@@ -213,6 +213,30 @@ public class StepGuardTest {
                 StepGuard.subtractedNames("size(list-merged.filter(pr, pr.closed)) > 0"));
     }
 
+    /** Two lists of 30 numbers: a macro nested in another evaluates 900 pairs. */
+    private static Map<String, Object> twoLists() {
+        List<Integer> numbers = java.util.stream.IntStream.range(0, 30).boxed().toList();
+        return Map.of("prs", numbers, "issues", numbers);
+    }
+
+    @Test
+    public void holdsShouldFailAGuardThatEvaluatesMoreThanItsLimit() {
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> StepGuard.holds("publish",
+                        "!prs.exists(p, issues.exists(i, i == p + 100))", twoLists(), 1_000));
+
+        assertTrue(error.getMessage().startsWith("The onlyIf of step 'publish' evaluated more"
+                + " than 1000 sub-expressions"), error.getMessage());
+        assertTrue(error.getMessage().contains("management.guards.evaluationLimit"),
+                error.getMessage());
+    }
+
+    @Test
+    public void holdsShouldEvaluateANestedMacroWithinItsLimit() {
+        assertTrue(StepGuard.holds("publish", "!prs.exists(p, issues.exists(i, i == p + 100))",
+                twoLists(), 100_000));
+    }
+
     @Test
     public void subtractedNamesShouldReadThroughANegationAndAnIndex() {
         assertEquals(List.of(List.of("get", "ship")),

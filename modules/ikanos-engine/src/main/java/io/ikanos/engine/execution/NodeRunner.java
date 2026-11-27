@@ -13,6 +13,8 @@
  */
 package io.ikanos.engine.execution;
 
+import io.ikanos.spec.exposes.control.GuardManagementSpec;
+
 /**
  * Runs one step of a {@link StepRun}: calls, scripts and handlers as actions, lookups in place.
  * The step executor provides it, bound to the namespace of the unit that owns the steps.
@@ -22,4 +24,12 @@ public interface NodeRunner {
 
     /** Runs {@code node}, records its output in {@code run}, and returns that output. */
     Object run(StepNode node, StepRun run);
+
+    /**
+     * @return the most sub-expressions one evaluation of a step guard may evaluate; the
+     *         capability's {@code management.guards.evaluationLimit} for the step executor
+     */
+    default long guardEvaluationLimit() {
+        return GuardManagementSpec.DEFAULT_EVALUATION_LIMIT;
+    }
 }
