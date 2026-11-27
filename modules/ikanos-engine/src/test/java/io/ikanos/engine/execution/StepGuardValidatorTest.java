@@ -247,4 +247,57 @@ public class StepGuardValidatorTest {
         assertEquals(1, warnings.size(), warnings.toString());
         assertTrue(warnings.get(0).contains("reads 'later'"), warnings.get(0));
     }
+
+    @Test
+    void findWarningsShouldReportAGuardReadingTheOutcomeOfAStepThatDoesNotExist() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow("""
+                - name: find
+                  type: call
+                  what: notion.find-page
+                  successCriteria:
+                    - "outcome.find == 'success'"
+                    - "outcome.find == 'not-found'"
+                - name: create
+                  type: call
+                  what: notion.create-page
+                  onlyIf: "outcome.fnd != 'success'"
+                """));
+
+        assertEquals(1, warnings.size(), warnings.toString());
+        assertTrue(warnings.get(0).contains("reads the outcome of 'fnd', which no earlier step"
+                + " has"), warnings.get(0));
+    }
+
+    @Test
+    void findWarningsShouldReportAGuardReadingTheOutcomeOfALaterStep() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow("""
+                - name: create
+                  type: call
+                  what: notion.create-page
+                  onlyIf: "outcome['find'] == 'not-found'"
+                - name: find
+                  type: call
+                  what: notion.find-page
+                """));
+
+        assertTrue(warnings.stream().anyMatch(w -> w.contains("reads the outcome of 'find'")),
+                warnings.toString());
+    }
+
+    @Test
+    void findWarningsShouldAcceptACriterionOnItsOwnStepAndAGuardOnAnEarlierOne() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow("""
+                - name: find-page
+                  type: call
+                  what: notion.find-page
+                  successCriteria:
+                    - "outcome.find_page == 'not-found'"
+                - name: create
+                  type: call
+                  what: notion.create-page
+                  onlyIf: "outcome.find_page == 'not-found'"
+                """));
+
+        assertTrue(warnings.isEmpty(), warnings.toString());
+    }
 }

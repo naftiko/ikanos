@@ -135,6 +135,8 @@ public final class StepGuardValidator {
         List<String> warnings = new ArrayList<>();
         for (Container container : containers(spec)) {
             Set<String> visible = new HashSet<>(container.names());
+            // The steps before the current one, whose outcomes it can read
+            Set<String> ran = new HashSet<>();
             String endedBy = null;
             for (OperationStepSpec step : container.steps().values()) {
                 if (endedBy != null) {
@@ -145,15 +147,26 @@ public final class StepGuardValidator {
                 }
                 // A step's success criteria see its own outcome and output.
                 Set<String> own = new HashSet<>(visible);
+                Set<String> ranOwn = new HashSet<>(ran);
                 if (step.getName() != null) {
                     own.add(step.getName());
                     own.add(step.getName().replace('-', '_'));
+                    ranOwn.add(step.getName());
+                    ranOwn.add(step.getName().replace('-', '_'));
                 }
                 for (Guard guard : guardsOf(step, container.where())) {
                     if (StepGuard.parseError(guard.expression()) != null) {
                         continue;
                     }
                     boolean criterion = !guard.label().startsWith("The onlyIf");
+                    for (String outcomeOf : StepGuard.outcomeSteps(guard.expression())) {
+                        if (!(criterion ? ranOwn : ran).contains(outcomeOf)) {
+                            warnings.add(guard.label() + " reads the outcome of '" + outcomeOf
+                                    + "', which no earlier step has: "
+                                    + (criterion ? "it never holds." : "the step will always"
+                                            + " be skipped."));
+                        }
+                    }
                     Set<String> explained = new HashSet<>();
                     for (List<String> parts : StepGuard.subtractedNames(guard.expression())) {
                         String dashed = String.join("-", parts);
@@ -180,6 +193,8 @@ public final class StepGuardValidator {
                 if (step.getName() != null) {
                     visible.add(step.getName());
                     visible.add(step.getName().replace('-', '_'));
+                    ran.add(step.getName());
+                    ran.add(step.getName().replace('-', '_'));
                 }
             }
         }

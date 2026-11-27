@@ -323,6 +323,47 @@ final class GuardIdentifiers {
         }
     }
 
+    /**
+     * Collects the steps whose outcome an expression reads: {@code sync} for
+     * {@code outcome.sync == 'not-found'} or {@code outcome['sync'] != 'failure'}.
+     */
+    static void collectOutcomeSteps(CelAbstractSyntaxTree ast, Set<String> steps) {
+        walkOutcomeSteps(ast.getExpr(), steps);
+    }
+
+    private static void walkOutcomeSteps(CelExpr expr, Set<String> steps) {
+        switch (expr.getKind()) {
+            case SELECT -> {
+                if (isOutcomeRoot(expr.select().operand())) {
+                    steps.add(expr.select().field());
+                }
+                walkOutcomeSteps(expr.select().operand(), steps);
+            }
+            case CALL -> {
+                CelExpr.CelCall call = expr.call();
+                if ("_[_]".equals(call.function()) && call.args().size() == 2
+                        && isOutcomeRoot(call.args().get(0)) && isString(call.args().get(1))) {
+                    steps.add(call.args().get(1).constant().stringValue());
+                }
+                call.target().ifPresent(target -> walkOutcomeSteps(target, steps));
+                call.args().forEach(arg -> walkOutcomeSteps(arg, steps));
+            }
+            case LIST -> expr.list().elements().forEach(e -> walkOutcomeSteps(e, steps));
+            case MAP -> expr.map().entries().forEach(entry -> {
+                walkOutcomeSteps(entry.key(), steps);
+                walkOutcomeSteps(entry.value(), steps);
+            });
+            case COMPREHENSION -> {
+                walkOutcomeSteps(expr.comprehension().iterRange(), steps);
+                walkOutcomeSteps(expr.comprehension().loopStep(), steps);
+                walkOutcomeSteps(expr.comprehension().result(), steps);
+            }
+            default -> {
+                // nothing reads an outcome here
+            }
+        }
+    }
+
     /** {@code outcome.<step>} or {@code outcome['<step>']}. */
     private static boolean isOutcome(CelExpr expr) {
         if (expr.getKind() == CelExpr.ExprKind.Kind.SELECT) {

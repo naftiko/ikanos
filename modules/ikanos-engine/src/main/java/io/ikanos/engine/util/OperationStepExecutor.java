@@ -368,6 +368,22 @@ public class OperationStepExecutor {
                         // Bad input raised inside a called flow stays bad input (#1001)
                         throw e;
                     } catch (Exception e) {
+                        // An adapter that ends the call with an exception, such as a consumed
+                        // MCP tool reporting an error, may still say its outcome: a step with
+                        // success criteria records it and reads them before failing.
+                        String reported = StepOutcomes.reportedBy(e);
+                        List<String> criteria = callStep.getSuccessCriteria();
+                        if (reported != null && criteria != null && !criteria.isEmpty()) {
+                            StepOutcomes.put(runtimeParameters, callStep.getName(), reported);
+                            if (StepGuard.anyHolds(callStep.getName(), criteria,
+                                    StepGuard.parametersOf(run), capability != null
+                                            ? capability.getGuardEvaluationLimit()
+                                            : GuardManagementSpec.DEFAULT_EVALUATION_LIMIT)) {
+                                // Accepted, as a non-2xx answer is: no output, no content
+                                run.setLastResult(StepOutcomes.accepted());
+                                return null;
+                            }
+                        }
                         throw new IllegalStateException(
                                 "Error while handling a consumed call", e);
                     }

@@ -3968,7 +3968,7 @@
             },
             "successCriteria": {
               "type": "array",
-              "description": "Conditions under which the call's result counts as a success; any one is enough. Without them, the step succeeds on a 2xx answer only. Each is a guard, like `onlyIf`, that may read `outcome.<step>`: the protocol-neutral outcome of a call step, one of `success`, `not-found`, `throttled`, `unreachable` or `failure`. A step accepted with another outcome than `success` has no output.",
+              "description": "Conditions under which the call's result counts as a success; any one is enough. Without them, the step succeeds on a 2xx answer only. Each is a guard, like `onlyIf`, that may read `outcome.<step>`: the protocol-neutral outcome of a call step, one of `success`, `not-found`, `throttled`, `unreachable` or `failure`. An HTTP call's outcome follows its status: `success` for 2xx, `not-found` for 404 and 410, `throttled` for 429, `unreachable` when no answer came, `failure` otherwise. A SQL call reports `unreachable` for a timeout or a lost connection. A consumed MCP call reports `failure` when its tool answers `isError`, `not-found` for the JSON-RPC resource-not-found error, and the HTTP mapping above when the server answers with an error status. A flow called by `what:` reports the outcome its own result maps to. A step accepted with another outcome than `success` has no output. A guard or criterion reading `outcome.<step>` of a step that does not exist or has not run yet never holds, and validation warns about it.",
               "items": {
                 "type": "string",
                 "minLength": 1

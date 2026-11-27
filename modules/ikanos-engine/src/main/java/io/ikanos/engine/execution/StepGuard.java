@@ -224,6 +224,36 @@ public final class StepGuard {
         return unknown;
     }
 
+    /**
+     * The steps whose outcome a guard reads: {@code sync} for {@code outcome.sync == 'not-found'},
+     * {@code outcome['sync']} or the bare name {@code outcome.sync}.
+     *
+     * @return the step names as written, or an empty set when the guard cannot be parsed
+     */
+    public static Set<String> outcomeSteps(String guard) {
+        Set<String> steps = new TreeSet<>();
+        if (guard == null || guard.isBlank()) {
+            return steps;
+        }
+        if (isBareName(guard)) {
+            String[] segments = guard.strip().split("\\.");
+            if (segments.length > 1 && StepOutcomes.ROOT.equals(segments[0])) {
+                steps.add(segments[1]);
+            }
+            return steps;
+        }
+        CelValidationResult parsed = PARSER.parse(guard);
+        if (parsed.hasError()) {
+            return steps;
+        }
+        try {
+            GuardIdentifiers.collectOutcomeSteps(parsed.getAst(), steps);
+        } catch (CelValidationException e) {
+            return new TreeSet<>();
+        }
+        return steps;
+    }
+
     private static boolean evaluate(String label, String onlyIf, Map<String, Object> parameters,
             long evaluationLimit) {
         if (onlyIf == null || onlyIf.isBlank()) {

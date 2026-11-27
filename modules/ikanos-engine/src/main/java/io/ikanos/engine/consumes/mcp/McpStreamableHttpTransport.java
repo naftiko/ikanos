@@ -38,6 +38,7 @@ import io.ikanos.engine.util.BinarySize;
 import io.ikanos.spec.consumes.http.AuthenticationSpec;
 import io.opentelemetry.context.propagation.TextMapSetter;
 import io.ikanos.spec.util.IkanosMappers;
+import io.ikanos.engine.execution.StepOutcomes;
 import tools.jackson.core.JacksonException;
 
 /**
@@ -162,6 +163,21 @@ public class McpStreamableHttpTransport {
         return unwrap(method, id, response);
     }
 
+    /**
+     * The outcome of a JSON-RPC error: what its HTTP status says when that is more than a
+     * failure, else {@code not-found} for MCP's resource-not-found code, else {@code failure}.
+     */
+    static String outcomeOf(boolean httpOk, int httpStatus, int code) {
+        String byStatus = httpOk ? StepOutcomes.SUCCESS : StepOutcomes.of(httpStatus);
+        if (!StepOutcomes.SUCCESS.equals(byStatus) && !StepOutcomes.FAILURE.equals(byStatus)) {
+            return byStatus;
+        }
+        return code == RESOURCE_NOT_FOUND ? StepOutcomes.NOT_FOUND : StepOutcomes.FAILURE;
+    }
+
+    /** MCP's JSON-RPC error code for a resource that does not exist. */
+    static final int RESOURCE_NOT_FOUND = -32002;
+
     /** Extract the JSON-RPC result, or throw with a precise message. Package-private for tests. */
     JsonNode unwrap(String method, long id, Response response) {
         int httpStatus = response.getStatus() != null ? response.getStatus().getCode() : 0;
@@ -205,11 +221,11 @@ public class McpStreamableHttpTransport {
                         + "). Only stateless upstreams are supported.");
             }
             throw new McpClientException("Upstream MCP " + method + " failed: " + code + " "
-                    + message);
+                    + message, outcomeOf(httpOk, httpStatus, code));
         }
         if (!httpOk) {
             throw new McpClientException("Upstream MCP server returned HTTP " + httpStatus
-                    + " for " + method + excerpt(body));
+                    + " for " + method + excerpt(body), StepOutcomes.of(httpStatus));
         }
         if (rpc == null || !rpc.has("result")) {
             throw new McpClientException("Upstream MCP " + method

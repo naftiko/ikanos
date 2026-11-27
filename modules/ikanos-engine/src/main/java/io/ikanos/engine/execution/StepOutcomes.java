@@ -66,6 +66,29 @@ public final class StepOutcomes {
                 : of(result.status());
     }
 
+    /**
+     * A failure that knows the outcome of the call it ended, such as a consumed MCP call whose
+     * tool reported an error: a call step with success criteria records it and reads them
+     * instead of failing at once.
+     */
+    public interface Reported {
+        /** @return the outcome, one of {@link #VOCABULARY} */
+        String stepOutcome();
+    }
+
+    /**
+     * The outcome a failure reports, found in its cause chain, or {@code null} when none does.
+     */
+    public static String reportedBy(Throwable failure) {
+        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (cause instanceof Reported reported && reported.stepOutcome() != null
+                    && VOCABULARY.contains(reported.stepOutcome())) {
+                return reported.stepOutcome();
+            }
+        }
+        return null;
+    }
+
     /** The outcome of a call that answered with {@code status}. */
     public static String of(int status) {
         if (ConsumedResult.noResponseReceived(status)) {
