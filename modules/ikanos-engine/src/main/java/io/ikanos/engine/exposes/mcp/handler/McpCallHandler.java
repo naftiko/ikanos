@@ -304,6 +304,9 @@ public abstract class McpCallHandler {
         // A key asked again, as by an upstream that rejected its answer, is open again: its old
         // answer is dropped, so a retry without a new one never replays it for the new question.
         answers.remove(pending);
+        // A URL mode step asked again keeps only its latest answer, so the state does not grow
+        // with each round.
+        answers.remove(e.droppedAnswers());
         // State a replay needs, such as an upstream's requestState, travels apart from the
         // answers: an upstream question keyed like it never overwrites it.
         e.carry().forEach(carried::set);

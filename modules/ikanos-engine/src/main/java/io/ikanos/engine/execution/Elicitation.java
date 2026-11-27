@@ -64,6 +64,12 @@ public final class Elicitation {
     /** Key prefix, in the state a replay carries, of the output of a finished URL mode step. */
     static final String DONE_PREFIX = "elicitation-done/";
 
+    /**
+     * Key prefix, in the state a replay carries, of how many first visits of a URL mode step
+     * asked again no longer carry their answer: only the latest answered visit is kept.
+     */
+    static final String DROPPED_PREFIX = "elicitation-dropped/";
+
     private static final int NONCE_BYTES = 16;
     private static final int ID_LENGTH = 32;
     private static final SecureRandom RANDOM = new SecureRandom();
@@ -188,6 +194,54 @@ public final class Elicitation {
         Object done = ExecutionInputs.carried()
                 .get(new NodePath(DONE_PREFIX + ExecutionInputs.qualify(node.path()).value()));
         return done instanceof JsonNode json && json.isObject() ? json : null;
+    }
+
+    /**
+     * How many first visits of the URL mode step at {@code node} a replay no longer carries the
+     * answer of: the step's visits are counted from there. 0 in a journaled call, whose journal
+     * keeps every visit, and until the step is asked a third time.
+     */
+    static int droppedVisits(StepNode node) {
+        if (DurableScope.current() != null) {
+            return 0;
+        }
+        Object dropped = ExecutionInputs.carried()
+                .get(new NodePath(DROPPED_PREFIX + ExecutionInputs.qualify(node.path()).value()));
+        if (dropped instanceof JsonNode json && json.isIntegralNumber()) {
+            return json.asInt();
+        }
+        return dropped instanceof Number number ? number.intValue() : 0;
+    }
+
+    /**
+     * Notes in {@code carry}, for a replay that asks the URL mode step at {@code node} again
+     * under its visit {@code visit}, that the answers of every visit before the latest answered
+     * one, {@code visit - 1}, are dropped: the state then carries one answer and one count,
+     * whatever the number of rounds, instead of growing with each one.
+     */
+    static void dropEarlierVisits(StepNode node, int visit, Map<String, JsonNode> carry) {
+        if (visit > 2 && DurableScope.current() == null) {
+            carry.put(DROPPED_PREFIX + ExecutionInputs.qualify(node.path()).value(),
+                    JSON.getNodeFactory().numberNode(visit - 2));
+        }
+    }
+
+    /**
+     * The keys of the answers a replay no longer needs, from the counts
+     * {@link #dropEarlierVisits} put in {@code carry}: for each URL mode step asked again, its
+     * visits before the latest answered one.
+     */
+    static List<String> droppedAnswers(Map<String, JsonNode> carry) {
+        List<String> keys = new java.util.ArrayList<>();
+        carry.forEach((key, value) -> {
+            if (key.startsWith(DROPPED_PREFIX) && value != null && value.isIntegralNumber()) {
+                NodePath first = new NodePath(key.substring(DROPPED_PREFIX.length()));
+                for (int visit = 1; visit <= value.asInt(); visit++) {
+                    keys.add(first.visit(visit).value());
+                }
+            }
+        });
+        return keys;
     }
 
     /**

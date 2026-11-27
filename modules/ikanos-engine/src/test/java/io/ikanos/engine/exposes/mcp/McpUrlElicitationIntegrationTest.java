@@ -223,6 +223,32 @@ class McpUrlElicitationIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"none", "memory"})
+    void requestStateShouldNotGrowWhileTheCheckStaysPending(String mode) throws Exception {
+        McpServerAdapter adapter = load(mode);
+        JsonNode asked = urlCall(adapter, CALL);
+        String key = KEY;
+        int third = 0;
+        for (int visit = 2; visit <= 12; visit++) {
+            asked = urlCall(adapter, accept(asked, key));
+            key = KEY + "@" + visit;
+            assertTrue(asked.path("inputRequests").has(key), asked.toString());
+            if (visit == 3) {
+                third = asked.path("requestState").asString().length();
+            }
+        }
+        // Only the latest visit's answer is carried: a few more digits in the key at most.
+        assertTrue(asked.path("requestState").asString().length() <= third + 8,
+                third + " then " + asked.path("requestState").asString().length());
+        setupStatus(DONE);
+
+        JsonNode done = urlCall(adapter, accept(asked, key));
+
+        assertEquals("complete", done.path("resultType").asString("complete"), done.toString());
+        assertTrue(done.toString().contains("pm_123"), done.toString());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"none", "memory"})
     void checkShouldReceiveTheIdTheUrlCarries(String mode) throws Exception {
         McpServerAdapter adapter = load(mode);
         JsonNode first = urlCall(adapter, CALL);

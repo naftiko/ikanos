@@ -182,4 +182,32 @@ class RestUrlElicitationIntegrationTest {
         assertEquals("url", body(again).path("inputRequests").path(KEY + "@2").path("params")
                 .path("mode").asString(), String.valueOf(body(again)));
     }
+
+    @org.junit.jupiter.api.Test
+    void theHandleShouldNotGrowWhileTheCheckStaysPendingUnderNone() throws Exception {
+        Capability capability = load("none");
+        RestServerAdapter adapter = rest(capability);
+        Response asked = send(adapter, "/payment-methods", null);
+        String key = KEY;
+        int third = 0;
+        for (int visit = 2; visit <= 12; visit++) {
+            asked = send(adapter, asked.getLocationRef().getPath(),
+                    "{\"inputResponses\":{\"" + key + "\":{\"action\":\"accept\"}}}");
+            key = KEY + "@" + visit;
+            assertEquals(Status.SUCCESS_ACCEPTED, asked.getStatus(), "visit " + visit);
+            if (visit == 3) {
+                third = asked.getLocationRef().getPath().length();
+            }
+        }
+        // Only the latest visit's answer is carried: a few more digits in the key at most.
+        assertTrue(asked.getLocationRef().getPath().length() <= third + 8,
+                third + " then " + asked.getLocationRef().getPath().length());
+        setupStatus(capability, "{\"status\":\"done\",\"paymentMethodId\":\"pm_123\"}");
+
+        Response done = send(adapter, asked.getLocationRef().getPath(),
+                "{\"inputResponses\":{\"" + key + "\":{\"action\":\"accept\"}}}");
+
+        assertEquals(Status.SUCCESS_OK, done.getStatus(), String.valueOf(done.getEntity()));
+        assertEquals("pm_123", body(done).path("paymentMethodId").asString());
+    }
 }

@@ -112,6 +112,14 @@ public class InputRequiredException extends RuntimeException {
         return questions;
     }
 
+    /**
+     * The keys of earlier answers a replay no longer needs and should not carry: those of the
+     * visits of a URL mode step asked again before its latest answered one.
+     */
+    public List<String> droppedAnswers() {
+        return carry == null ? List.of() : Elicitation.droppedAnswers(carry);
+    }
+
     /** The elicitation modes the questions are asked in, in the order they first appear. */
     public java.util.Set<String> modes() {
         java.util.Set<String> modes = new java.util.LinkedHashSet<>();

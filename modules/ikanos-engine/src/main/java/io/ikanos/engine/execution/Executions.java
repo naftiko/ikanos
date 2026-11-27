@@ -144,6 +144,8 @@ public final class Executions {
                             parameters = Elicitation.urlParameters(run, id);
                             url = new InputRequiredException.UrlRequest(
                                     Elicitation.url(step, parameters));
+                            Elicitation.dropEarlierVisits(node, visitOf(await.path(), node),
+                                    carry);
                         }
                         return new InputRequiredException.Question(
                                 ExecutionInputs.qualify(await.path()).value(), step, null,
@@ -152,6 +154,13 @@ public final class Executions {
                     .toList(), carry);
         }
         throw rethrowable(run, result);
+    }
+
+    /** The visit of {@code node} that {@code awaited} names: 1 for the node's own path. */
+    private static int visitOf(NodePath awaited, StepNode node) {
+        String first = node.path().value();
+        return awaited.value().equals(first) ? 1
+                : Integer.parseInt(awaited.value().substring(first.length() + 1));
     }
 
     /**

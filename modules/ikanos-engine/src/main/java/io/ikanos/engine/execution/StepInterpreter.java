@@ -50,9 +50,12 @@ public final class StepInterpreter implements Interpreter {
                 if (!run.isEvaluated(node.path())) {
                     // A URL mode step is asked again, under its next visit, each time its check
                     // says the interaction is not done: the latest answer decides.
-                    int visit = answeredVisits(view, node);
-                    if (visit == 0) {
-                        return List.of(new Command.AwaitUpdate(node.path(), node));
+                    // Under none, the visits before the latest answered one are no longer carried.
+                    int dropped = Elicitation.droppedVisits(node);
+                    int visit = answeredVisits(view, node, dropped);
+                    if (visit == dropped) {
+                        return List.of(new Command.AwaitUpdate(node.path().visit(dropped + 1),
+                                node));
                     }
                     run.setAnswer(node.path(), view.update(node.path().visit(visit)).get());
                     try {
@@ -98,12 +101,13 @@ public final class StepInterpreter implements Interpreter {
     }
 
     /**
-     * How many visits of an {@code elicit} step have an answer: 0 when the caller has not
-     * answered it yet. A form step has at most one visit; a URL mode step one more each time
-     * its check found the interaction not done.
+     * How many visits of an {@code elicit} step have an answer, counting from {@code dropped}
+     * visits whose answers are no longer carried: {@code dropped} when the caller has not
+     * answered the next one yet. A form step has at most one visit; a URL mode step one more
+     * each time its check found the interaction not done.
      */
-    static int answeredVisits(ExecutionView view, StepNode node) {
-        int visits = 0;
+    static int answeredVisits(ExecutionView view, StepNode node, int dropped) {
+        int visits = dropped;
         while (view.update(node.path().visit(visits + 1)).isPresent()) {
             visits++;
         }
