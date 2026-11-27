@@ -308,8 +308,8 @@ class McpCallerClaimsCacheScopeTest {
         Exception error = assertThrows(Exception.class,
                 () -> loadGuarded("auth.claims.role == 'admin'", "true"));
 
-        assertTrue(messages(error).contains("MCP resource 'catalogue': cacheScope public"),
-                messages(error));
+        assertTrue(messages(error).contains("MCP resource 'catalogue': cacheScope public")
+                && messages(error).contains("or a step guard that reads auth"), messages(error));
     }
 
     @Test

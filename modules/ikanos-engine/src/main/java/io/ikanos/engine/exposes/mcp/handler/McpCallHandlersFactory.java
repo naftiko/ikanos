@@ -99,8 +99,9 @@ public class McpCallHandlersFactory {
                 // The content depends on the caller, which the request does not show, so a
                 // shared cache would hand one caller's content to another (#998)
                 throw new IllegalArgumentException("MCP resource '" + resource.getName()
-                        + "': cacheScope public, but its call reads the caller's claims ({{"
-                        + Resolver.CALLER_CLAIMS + "...}}), so its content depends on the caller."
+                        + "': cacheScope public, but its call reads the caller's claims (a {{"
+                        + Resolver.CALLER_CLAIMS + "...}} template, or a step guard that reads "
+                        + Resolver.CALLER_ROOT + "), so its content depends on the caller."
                         + " Declare cacheScope private");
             }
             logger.fine(() -> describe(spec.getNamespace() + " resource " + resource.getName(),
