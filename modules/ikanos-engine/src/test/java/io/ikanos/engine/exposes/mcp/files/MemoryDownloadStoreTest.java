@@ -122,4 +122,17 @@ class MemoryDownloadStoreTest {
         assertEquals(MemoryDownloadStore.maxBytesFor(Runtime.getRuntime().maxMemory()),
                 store.maxBytes());
     }
+
+    @Test
+    void dropIfShouldDropTheFilesOfAStoppedAdapterAndFreeTheirBytes() {
+        MemoryDownloadStore store = new MemoryDownloadStore(10, 100, 100);
+        store.put("a", file("[\"docs\",\"sub\",\"alice\"]", 60, NOW.plusSeconds(60)), NOW);
+        store.put("b", file("[\"other\",\"sub\",\"alice\"]", 10, NOW.plusSeconds(60)), NOW);
+
+        store.dropIf(principal -> principal.startsWith("[\"docs\","));
+
+        assertEquals(1, store.size());
+        assertTrue(store.put("c", file("[\"other\",\"sub\",\"bob\"]", 90, NOW.plusSeconds(60)),
+                NOW), "The dropped file's bytes are free again");
+    }
 }

@@ -583,6 +583,9 @@ public class McpServerAdapter extends ServerAdapter {
         if (fileUploads != null) {
             fileUploads.stop();
         }
+        if (fileDownloads != null) {
+            fileDownloads.dropLinksOf(getMcpServerSpec().getNamespace());
+        }
         if (getMcpServerSpec().isStdio()) {
             StdioJsonRpcHandler handler = stdioHandler.get();
             if (handler != null) {

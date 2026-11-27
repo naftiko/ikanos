@@ -119,6 +119,17 @@ public final class MemoryDownloadStore implements DownloadStore {
         return Optional.of(download);
     }
 
+    @Override
+    public synchronized void dropIf(java.util.function.Predicate<String> issuedTo) {
+        files.entrySet().removeIf(entry -> {
+            boolean dropped = issuedTo.test(entry.getValue().principal());
+            if (dropped) {
+                release(entry.getValue());
+            }
+            return dropped;
+        });
+    }
+
     /** Drops the files expired at {@code now}, as the scheduled sweep does. */
     synchronized void sweep(Instant now) {
         dropExpired(now);

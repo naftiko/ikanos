@@ -13,9 +13,6 @@
  */
 package io.ikanos.engine.util;
 
-import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
-import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
@@ -23,8 +20,9 @@ import java.util.Locale;
  * Whether a file's bytes look like its declared media type, from their first bytes (experimental,
  * files extension). Only a few common types are recognized: PDF, PNG, JPEG, GIF, WebP, ZIP and
  * the formats built on it (OOXML, ODF, EPUB, JAR), gzip, and text ({@code text/*}, JSON, XML,
- * YAML, CSV), which must be UTF-8 without NUL. Any other type is {@link Verdict#UNKNOWN}: its
- * bytes are not checked.
+ * YAML, CSV). Text is checked leniently, in any charset: its first {@value #TEXT_PREFIX} bytes
+ * must hold no NUL and not start as one of the binary formats above. Any other type is
+ * {@link Verdict#UNKNOWN}: its bytes are not checked. Only a bounded prefix is ever read.
  */
 public final class FileSignatures {
 
@@ -48,6 +46,9 @@ public final class FileSignatures {
     private static final byte[] ZIP = {'P', 'K', 0x03, 0x04};
     private static final byte[] EMPTY_ZIP = {'P', 'K', 0x05, 0x06};
     private static final byte[] GZIP = {0x1F, (byte) 0x8B};
+
+    /** How many leading bytes the text check reads. */
+    static final int TEXT_PREFIX = 8192;
 
     private FileSignatures() {
     }
@@ -90,22 +91,35 @@ public final class FileSignatures {
                 || type.startsWith("application/vnd.oasis.opendocument.");
     }
 
-    /** Whether {@code bytes} are UTF-8 without NUL: text, as far as the bytes can tell. */
+    /**
+     * Whether {@code bytes} may be text, in any charset: no NUL in their first
+     * {@value #TEXT_PREFIX} bytes, and no start of a binary format. UTF-16 text, which holds
+     * NULs, is accepted with its byte order mark.
+     */
     private static boolean isText(byte[] bytes) {
-        for (byte b : bytes) {
-            if (b == 0) {
+        if (startsWith(bytes, 0, UTF16_LE_BOM) || startsWith(bytes, 0, UTF16_BE_BOM)) {
+            return true;
+        }
+        for (byte[] binary : BINARY) {
+            if (startsWith(bytes, 0, binary)) {
                 return false;
             }
         }
-        try {
-            StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
-                    .onUnmappableCharacter(CodingErrorAction.REPORT)
-                    .decode(ByteBuffer.wrap(bytes));
-            return true;
-        } catch (CharacterCodingException e) {
-            return false;
+        int end = Math.min(bytes.length, TEXT_PREFIX);
+        for (int i = 0; i < end; i++) {
+            if (bytes[i] == 0) {
+                return false;
+            }
         }
+        return true;
     }
+
+    private static final byte[] UTF16_LE_BOM = {(byte) 0xFF, (byte) 0xFE};
+    private static final byte[] UTF16_BE_BOM = {(byte) 0xFE, (byte) 0xFF};
+
+    /** Starts of binary formats that text never has. */
+    private static final byte[][] BINARY = {PDF, PNG, JPEG, GIF87, GIF89, ZIP, EMPTY_ZIP, GZIP,
+        {0x7F, 'E', 'L', 'F'}};
 
     private static Verdict verdict(boolean matches) {
         return matches ? Verdict.MATCHES : Verdict.MISMATCH;

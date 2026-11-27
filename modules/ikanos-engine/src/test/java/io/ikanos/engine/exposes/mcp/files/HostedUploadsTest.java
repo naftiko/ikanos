@@ -358,4 +358,45 @@ class HostedUploadsTest {
         assertTrue(HostedUploads.of(query, clock) != null);
         assertTrue(HostedUploads.of(bearer, clock) != null);
     }
+
+    @Test
+    void stopShouldDropTheSlotsAndGiveTheBudgetBack() {
+        FileMemoryBudget budget = new FileMemoryBudget(1000, 1000);
+        HostedUploads hosted = new HostedUploads(new MemoryUploadStore(1000, 10, budget, null),
+                Duration.ofMinutes(5), clock, "docs");
+        String token = hosted.issue(JSON, List.of(pending("f1", "application/pdf", PDF.length)),
+                "alice", "s1", STATE_EXPIRES).get(0).token();
+        hosted.start();
+
+        hosted.stop();
+
+        assertEquals(0, budget.used());
+        assertEquals(Received.NOT_FOUND,
+                put(hosted, token, "alice", "application/pdf", PDF.length, PDF));
+    }
+
+    @Test
+    void aWriteThatEndsAfterItsSlotWasDroppedShouldNotBeAcknowledged() {
+        MemoryUploadStore store = new MemoryUploadStore(1000);
+        HostedUploads hosted = new HostedUploads(store, Duration.ofMinutes(5), clock, "docs");
+        String token = hosted.issue(JSON, List.of(pending("f1", "application/pdf", PDF.length)),
+                "alice", "s1", STATE_EXPIRES).get(0).token();
+        // The body arrives slowly: the slot is purged while it is being read
+        java.io.InputStream slow = new ByteArrayInputStream(PDF) {
+            @Override
+            public synchronized int read(byte[] b, int off, int len) {
+                store.clear();
+                return super.read(b, off, len);
+            }
+
+            @Override
+            public int readNBytes(byte[] b, int off, int len) {
+                store.clear();
+                return super.readNBytes(b, off, len);
+            }
+        };
+
+        assertEquals(Received.NOT_FOUND,
+                hosted.receive(token, "alice", "application/pdf", PDF.length, slow));
+    }
 }

@@ -35,8 +35,11 @@
 #   - a link or upload target is served only by the replica that issued it: give replicas
 #     session affinity for the whole call, retry included;
 #   - downloads and uploads wait in memory and share one bound per process (at most 1/8 of the
-#     heap and 256 MiB, a quarter of it per caller); a result that does not fit is returned
-#     inline, and an upload that does not fit (or goes over `uploads.quota`) is an error result;
+#     heap and 256 MiB); a result that does not fit is returned inline, and an upload that does
+#     not fit (or goes over `uploads.quota`) is an error result. `quota: 64MiB` fits that bound
+#     from a 512 MiB heap, and takes one 50 MiB report at a time. A caller the adapter can tell
+#     apart (oauth2, trust: forwarded) holds at most a quarter of the bound; this adapter has no
+#     caller identity, so its callers share the bound and the quota;
 #   - a client resends only the `Authorization` header and the query string of the MCP address,
 #     so they work with no authentication, bearer, basic, oauth2 or a query apikey; behind a
 #     header apikey, digest or awsSigV4, binary results stay inline and `uploads.hosted: true`
@@ -217,7 +220,7 @@ capability:
         uploads:
           maxInlineBytes: "1MiB"
           hosted: true
-          quota: "500MiB"
+          quota: "64MiB"
           ttl: "PT5M"
       tools:
         get-photo:

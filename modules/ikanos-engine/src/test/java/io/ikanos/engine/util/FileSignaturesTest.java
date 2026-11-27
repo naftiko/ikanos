@@ -55,15 +55,13 @@ class FileSignaturesTest {
     }
 
     @Test
-    void textShouldBeUtf8WithoutNul() {
+    void textShouldHaveNoNul() {
         assertEquals(Verdict.MATCHES, FileSignatures.check("text/csv; charset=utf-8",
                 "id,name\n1,Zo\u00eb\n".getBytes(StandardCharsets.UTF_8)));
         assertEquals(Verdict.MATCHES, FileSignatures.check("application/json",
                 ascii("{\"a\":1}")));
         assertEquals(Verdict.MISMATCH, FileSignatures.check("text/plain",
                 new byte[] {'a', 0, 'b'}));
-        assertEquals(Verdict.MISMATCH, FileSignatures.check("text/plain",
-                new byte[] {(byte) 0xC3, (byte) 0x28}));
     }
 
     @Test
@@ -72,5 +70,27 @@ class FileSignaturesTest {
         assertEquals(Verdict.UNKNOWN, FileSignatures.check("application/octet-stream",
                 new byte[] {1, 2, 3}));
         assertEquals(Verdict.UNKNOWN, FileSignatures.check(null, new byte[0]));
+    }
+
+    @Test
+    void textShouldBeAcceptedInAnyCharset() {
+        // "cafe;5 euro" in Windows-1252, with e-acute and the euro sign: not valid UTF-8
+        byte[] cp1252 = {'c', 'a', 'f', (byte) 0xE9, ';', '5', (byte) 0x80, '\n'};
+        assertEquals(Verdict.MATCHES, FileSignatures.check("text/csv", cp1252));
+        assertEquals(Verdict.MATCHES, FileSignatures.check("text/plain; charset=utf-16",
+                new byte[] {(byte) 0xFF, (byte) 0xFE, 'a', 0}));
+        assertEquals(Verdict.MISMATCH, FileSignatures.check("text/csv", ascii("%PDF-1.7")));
+        assertEquals(Verdict.MISMATCH, FileSignatures.check("text/csv",
+                new byte[] {0x1F, (byte) 0x8B, 8, 0}));
+    }
+
+    @Test
+    void textShouldBeCheckedOnABoundedPrefixOnly() {
+        byte[] large = new byte[FileSignatures.TEXT_PREFIX + 10];
+        java.util.Arrays.fill(large, (byte) 'a');
+        large[FileSignatures.TEXT_PREFIX + 5] = 0;
+        assertEquals(Verdict.MATCHES, FileSignatures.check("text/plain", large));
+        large[FileSignatures.TEXT_PREFIX - 1] = 0;
+        assertEquals(Verdict.MISMATCH, FileSignatures.check("text/plain", large));
     }
 }

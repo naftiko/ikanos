@@ -341,7 +341,7 @@ public final class McpFileUploads {
         }
     }
 
-    /** Stops the purge schedule. */
+    /** Stops the purge schedule and drops the hosted uploads still kept. */
     public void stop() {
         if (hosted != null) {
             hosted.stop();

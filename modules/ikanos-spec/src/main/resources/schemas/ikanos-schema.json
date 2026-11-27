@@ -1707,7 +1707,7 @@
         "quota": {
           "$ref": "#/$defs/BinarySize",
           "default": "100MiB",
-          "description": "The most bytes the adapter keeps for hosted uploads at once, counted from the moment a target is issued, at the file's declared size, until the bytes are deleted or expire. They also come out of the process-wide memory budget that hosted download links share (1/8 of the maximum heap, at most 256 MiB, a quarter of it per caller), whatever this quota says. A call whose files do not fit either gets an error result, before any target is issued. Default: `100MiB`."
+          "description": "The most bytes the adapter keeps for hosted uploads at once, counted from the moment a target is issued, at the file's declared size, until the bytes are deleted or expire. They also come out of the process-wide memory budget that hosted download links share (1/8 of the maximum heap, at most 256 MiB), whatever this quota says: a quota above that budget logs a warning at load. A caller the adapter can tell apart (`oauth2`, or a `trust: forwarded` identity) holds at most a quarter of the budget; without caller identity (no authentication, `bearer`, `basic`, `apikey`), every request is the same caller, so only the budget's total and this quota apply. A call whose files do not fit gets an error result, before any target is issued. Default: `100MiB`."
         },
         "ttl": {
           "$ref": "#/$defs/IsoDuration",

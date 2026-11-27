@@ -39,4 +39,10 @@ public interface DownloadStore {
      * {@code principal} and has not expired. A file asked for by another principal stays.
      */
     Optional<StoredDownload> take(String token, String principal, Instant now);
+
+    /**
+     * Drops the files issued to the principals {@code issuedTo} accepts, as the adapter that
+     * issued them stops: its links cannot be served any more.
+     */
+    void dropIf(java.util.function.Predicate<String> issuedTo);
 }

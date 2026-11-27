@@ -77,8 +77,13 @@ public interface UploadStore {
      */
     Started beginWrite(String token, String principal, Instant now);
 
-    /** Completes a write started by {@link #beginWrite}: the slot now holds {@code bytes}. */
-    void completeWrite(String token, byte[] bytes);
+    /**
+     * Completes a write started by {@link #beginWrite}: the slot now holds {@code bytes}.
+     *
+     * @return {@code false} when the slot was dropped meanwhile (expired, deleted or cleared):
+     *         the bytes are not kept
+     */
+    boolean completeWrite(String token, byte[] bytes);
 
     /**
      * Aborts a write started by {@link #beginWrite}: the slot takes a new write, as a client may
@@ -99,6 +104,9 @@ public interface UploadStore {
      * @return how many slots were dropped
      */
     int purge(Instant now);
+
+    /** Drops every slot, as the adapter that owns the store stops. */
+    void clear();
 
     /** A written slot. */
     record Stored(Slot slot, byte[] bytes) {

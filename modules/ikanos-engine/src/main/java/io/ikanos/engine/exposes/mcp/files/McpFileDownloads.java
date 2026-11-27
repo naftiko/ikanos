@@ -257,6 +257,17 @@ public final class McpFileDownloads {
     }
 
     /**
+     * Drops the hosted links the adapter {@code namespace} issued, as it stops, so the
+     * process-wide store does not keep their bytes until they expire. A link's principal is
+     * scoped to the adapter that issued it ({@code ["<namespace>", ...]}).
+     */
+    public void dropLinksOf(String namespace) {
+        String array = JSON.createArrayNode().add(namespace).toString();
+        String prefix = array.substring(0, array.length() - 1) + ",";
+        store.dropIf(principal -> principal != null && principal.startsWith(prefix));
+    }
+
+    /**
      * Takes the file of a hosted link: once, by the principal it was issued to, before it
      * expires.
      */

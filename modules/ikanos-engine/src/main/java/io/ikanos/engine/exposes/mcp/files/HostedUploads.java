@@ -30,6 +30,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
+import java.util.logging.Level;
+import org.restlet.Context;
+import io.ikanos.engine.exposes.mcp.AgentIdentityResolver;
 import io.ikanos.engine.util.BinarySize;
 import io.ikanos.engine.util.FileInputs;
 import io.ikanos.engine.util.FileSignatures;
@@ -154,8 +157,18 @@ public final class HostedUploads {
             throw new IllegalArgumentException(where + ": ttl must be positive: "
                     + uploads.ttlOrDefault());
         }
+        FileMemoryBudget budget = FileMemoryBudget.shared();
+        if (quota > budget.maxBytes()) {
+            Context.getCurrentLogger().log(Level.WARNING, where + ": quota " + quota + " bytes is"
+                    + " more than the " + budget.maxBytes() + " bytes this process keeps for the"
+                    + " files extension (1/8 of the maximum heap, at most 256 MiB): uploads are"
+                    + " refused once that budget is used");
+        }
+        // Without caller identity (no authentication, bearer, basic, apikey) every request has
+        // the adapter's anonymous principal: a per-caller share would cap all callers together
         return new HostedUploads(new MemoryUploadStore(quota, MemoryUploadStore.DEFAULT_MAX_SLOTS,
-                FileMemoryBudget.shared()), ttl, clock, spec.getNamespace());
+                budget, AgentIdentityResolver.anonymousOwner(spec.getNamespace())), ttl, clock,
+                spec.getNamespace());
     }
 
     /**
@@ -237,7 +250,10 @@ public final class HostedUploads {
             if (body != null && body.read() != -1) {
                 return Received.TOO_LARGE;
             }
-            store.completeWrite(token, bytes);
+            if (!store.completeWrite(token, bytes)) {
+                // The slot expired or was dropped while the body arrived: nothing is kept
+                return Received.NOT_FOUND;
+            }
             stored = true;
             return Received.STORED;
         } catch (IOException | ArithmeticException e) {
@@ -298,12 +314,16 @@ public final class HostedUploads {
         }
     }
 
-    /** Stops the purge schedule. */
+    /**
+     * Stops the purge schedule and drops every slot, so the adapter gives its share of the
+     * process-wide budget back: its targets cannot be used once it stops.
+     */
     public synchronized void stop() {
         if (purger != null) {
             purger.shutdownNow();
             purger = null;
         }
+        store.clear();
     }
 
     /** Purges the expired slots now. */

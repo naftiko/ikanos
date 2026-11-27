@@ -137,7 +137,7 @@ class MemoryUploadStoreTest {
     @Test
     void reserveShouldDrawFromTheProcessBudgetSharedWithDownloads() {
         FileMemoryBudget budget = new FileMemoryBudget(100, 60);
-        MemoryUploadStore store = new MemoryUploadStore(1000, 10, budget);
+        MemoryUploadStore store = new MemoryUploadStore(1000, 10, budget, null);
         MemoryDownloadStore downloads = new MemoryDownloadStore(10, budget);
 
         assertTrue(downloads.put("link", new DownloadStore.StoredDownload("bob", "a.bin",
@@ -155,12 +155,56 @@ class MemoryUploadStoreTest {
     @Test
     void reserveShouldRespectTheCallerShareOfTheBudget() {
         FileMemoryBudget budget = new FileMemoryBudget(100, 30);
-        MemoryUploadStore store = new MemoryUploadStore(1000, 10, budget);
+        MemoryUploadStore store = new MemoryUploadStore(1000, 10, budget, null);
 
         assertFalse(store.reserve(Map.of("a", slot("alice", 31)), NOW));
         assertTrue(store.reserve(Map.of("a", slot("alice", 30)), NOW));
         assertTrue(store.reserve(Map.of("b", slot("bob", 30)), NOW));
         store.purge(NOW.plusSeconds(300));
         assertEquals(0, budget.used(), "Purged slots give their bytes back");
+    }
+
+    @Test
+    void reserveShouldRefuseDeclaredSizesWhoseSumOverflows() {
+        FileMemoryBudget budget = new FileMemoryBudget(100, 100);
+        MemoryUploadStore store = new MemoryUploadStore(Long.MAX_VALUE, 10, budget, null);
+        Map<String, Slot> slots = new LinkedHashMap<>();
+        slots.put("a", slot("alice", Long.MAX_VALUE / 2 + 1));
+        slots.put("b", slot("alice", Long.MAX_VALUE / 2 + 1));
+
+        assertFalse(store.reserve(slots, NOW));
+        assertEquals(0, store.size());
+        assertEquals(0, budget.used());
+        assertTrue(store.reserve(Map.of("c", slot("alice", 100)), NOW),
+                "Nothing was corrupted by the refused sum");
+    }
+
+    @Test
+    void slotsOfTheSharedPrincipalShouldNotBeHeldToACallerShare() {
+        FileMemoryBudget budget = new FileMemoryBudget(100, 25);
+        MemoryUploadStore store = new MemoryUploadStore(1000, 10, budget, "anonymous");
+
+        assertTrue(store.reserve(Map.of("a", slot("anonymous", 60)), NOW),
+                "Callers the adapter cannot tell apart share the total, not one quarter");
+        assertFalse(store.reserve(Map.of("b", slot("anonymous", 41)), NOW), "Over the total");
+        assertFalse(store.reserve(Map.of("c", slot("alice", 26)), NOW), "Alice keeps her share");
+        assertTrue(store.reserve(Map.of("c", slot("alice", 25)), NOW));
+
+        store.delete("a");
+        assertEquals(25, budget.used());
+    }
+
+    @Test
+    void clearShouldDropEverySlotAndGiveTheBudgetBack() {
+        FileMemoryBudget budget = new FileMemoryBudget(100, 100);
+        MemoryUploadStore store = new MemoryUploadStore(1000, 10, budget, null);
+        store.reserve(Map.of("a", slot("alice", 30), "b", slot("bob", 20)), NOW);
+        store.beginWrite("a", "alice", NOW);
+
+        store.clear();
+
+        assertEquals(0, store.size());
+        assertEquals(0, budget.used());
+        assertFalse(store.completeWrite("a", new byte[30]), "A write in flight keeps nothing");
     }
 }

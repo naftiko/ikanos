@@ -78,23 +78,32 @@ public final class FileMemoryBudget {
      * Takes {@code size} bytes for {@code caller}, when both the total and the caller's share
      * have room.
      *
+     * @param caller the caller, or {@code null} when the adapter cannot tell its callers apart:
+     *        only the total applies then, since one share would cap every caller together
      * @return {@code false}, taking nothing, when either has no room
      */
     public synchronized boolean acquire(String caller, long size) {
-        long held = bytesByCaller.getOrDefault(caller, 0L);
-        if (size < 0 || bytes + size > maxBytes || held + size > maxBytesPerCaller) {
+        if (size < 0 || size > maxBytes - bytes) {
             return false;
         }
+        if (caller != null) {
+            long held = bytesByCaller.getOrDefault(caller, 0L);
+            if (size > maxBytesPerCaller - held) {
+                return false;
+            }
+            bytesByCaller.merge(caller, size, Long::sum);
+        }
         bytes += size;
-        bytesByCaller.merge(caller, size, Long::sum);
         return true;
     }
 
-    /** Gives back {@code size} bytes {@code caller} acquired. */
+    /** Gives back {@code size} bytes {@code caller} ({@code null} as for acquire) acquired. */
     public synchronized void release(String caller, long size) {
         bytes -= size;
-        bytesByCaller.computeIfPresent(caller,
-                (key, held) -> held - size > 0 ? held - size : null);
+        if (caller != null) {
+            bytesByCaller.computeIfPresent(caller,
+                    (key, held) -> held - size > 0 ? held - size : null);
+        }
     }
 
     /** @return the bound on the bytes held */
