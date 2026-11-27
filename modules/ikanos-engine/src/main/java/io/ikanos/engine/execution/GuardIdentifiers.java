@@ -34,6 +34,11 @@ final class GuardIdentifiers {
     private static final String NOT = "!_";
     private static final String NEGATE = "-_";
     private static final String INDEX = "_[_]";
+    /**
+     * Operators that bind at least as tightly as the minus, so that {@code 'p' + get-ship.name}
+     * parses as {@code ('p' + get) - ship.name}: the name before the minus is their right operand.
+     */
+    private static final Set<String> TIGHTER = Set.of("_+_", "_*_", "_/_", "_%_");
 
     private GuardIdentifiers() {
     }
@@ -112,7 +117,8 @@ final class GuardIdentifiers {
     /**
      * {@code a} gives {@code [a]}, {@code a - b} gives {@code [a, b]}, and a negation reads
      * through: {@code !get-ship.active} parses as {@code (!get) - ship.active}, so {@code !a}
-     * and {@code -a} give {@code [a]}; anything else null.
+     * and {@code -a} give {@code [a]}; so does the right operand of an operator that binds as
+     * tightly as the minus: {@code 'p' + a} gives {@code [a]}. Anything else gives null.
      */
     private static List<String> dashedParts(CelExpr expr) {
         if (expr.getKind() == CelExpr.ExprKind.Kind.IDENT) {
@@ -123,6 +129,10 @@ final class GuardIdentifiers {
                 && (NOT.equals(expr.call().function())
                         || NEGATE.equals(expr.call().function()))) {
             return dashedParts(expr.call().args().get(0));
+        }
+        if (expr.getKind() == CelExpr.ExprKind.Kind.CALL && expr.call().target().isEmpty()
+                && expr.call().args().size() == 2 && TIGHTER.contains(expr.call().function())) {
+            return dashedParts(expr.call().args().get(1));
         }
         if (expr.getKind() == CelExpr.ExprKind.Kind.CALL && isSubtraction(expr)
                 && expr.call().args().get(1).getKind() == CelExpr.ExprKind.Kind.IDENT) {

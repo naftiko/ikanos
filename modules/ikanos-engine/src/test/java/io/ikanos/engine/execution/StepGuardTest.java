@@ -243,6 +243,28 @@ public class StepGuardTest {
     }
 
     @Test
+    public void subtractedNamesShouldReadTheNameBeforeTheMinusThroughAConcatenation() {
+        assertEquals(List.of(List.of("get", "ship")),
+                StepGuard.subtractedNames("'p' + get-ship.name == 'x'"));
+    }
+
+    @Test
+    public void parseErrorShouldHintAtADashedNameAfterAConcatenation() {
+        String error = StepGuard.parseError("count - offset > 0 && 'p' + get-ship.name == 'x'");
+
+        assertNotNull(error);
+        assertTrue(error.endsWith("if 'get-ship' is a name, write it 'get_ship'"), error);
+    }
+
+    @Test
+    public void parseErrorShouldNotHintWhenTheRefusedSubtractionIsNotOfNames() {
+        String error = StepGuard.parseError("count - offset > 0 && 'p' - 1 > 0");
+
+        assertNotNull(error);
+        assertFalse(error.contains("is minus in CEL"), error);
+    }
+
+    @Test
     public void parseErrorShouldHintAtADashedNameInHas() {
         String error = StepGuard.parseError("has(get-ship.status)");
 

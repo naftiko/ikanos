@@ -252,7 +252,8 @@ public final class StepGuard {
                 return hint(subtraction.parts());
             }
         }
-        return hint(subtractions.get(0).parts());
+        // CEL refused a subtraction that is not of names: naming another one would mislead
+        return "";
     }
 
     private static String hint(List<String> parts) {
