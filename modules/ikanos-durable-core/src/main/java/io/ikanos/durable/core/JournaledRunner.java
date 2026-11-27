@@ -236,6 +236,15 @@ public final class JournaledRunner implements Runner {
         return stores.index().listUnleased(status, key, clock.instant(), limit);
     }
 
+    /**
+     * Like {@link #listUnowned}, keeping the executions with updates waiting in the inbox,
+     * filtered by the store before the limit where it can see its inbox.
+     */
+    public List<ExecutionRecord> listUnownedWithUpdates(ExecutionStatus status, String key,
+            int limit) {
+        return stores.index().listUnleasedWithUpdates(status, key, clock.instant(), limit);
+    }
+
     /** Up to {@code limit} executions with {@code status}, oldest first. */
     public List<ExecutionRecord> list(ExecutionStatus status, int limit) {
         return stores.index().list(status, limit);

@@ -150,6 +150,21 @@ class PostgresStoresTest extends StoreConformanceTest {
     }
 
     @Test
+    void indexShouldListOnlyTheUnleasedExecutionsWithUpdatesWaiting() {
+        stores.index().create(record(ID, NOW));
+        stores.index().create(record(OTHER, NOW.plusSeconds(1)));
+        stores.inbox().deliver(OTHER, PATH, new byte[] {1});
+
+        assertEquals(List.of(OTHER), stores.index().listUnleasedWithUpdates(
+                io.ikanos.durable.store.ExecutionStatus.RUNNING, "taskId", NOW, 1).stream()
+                .map(io.ikanos.durable.store.ExecutionRecord::executionId).toList(),
+                "An execution without updates never takes the place of one with updates");
+        stores.inbox().acknowledge(OTHER, PATH);
+        assertTrue(stores.index().listUnleasedWithUpdates(
+                io.ikanos.durable.store.ExecutionStatus.RUNNING, "taskId", NOW, 10).isEmpty());
+    }
+
+    @Test
     void acquireShouldGrantOneLeaseWhenReplicasRaceForAnExecution() throws Exception {
         Stores other = replica();
         AtomicInteger turn = new AtomicInteger();

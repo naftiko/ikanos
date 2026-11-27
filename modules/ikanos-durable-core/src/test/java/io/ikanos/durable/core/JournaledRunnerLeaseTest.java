@@ -296,6 +296,40 @@ class JournaledRunnerLeaseTest {
     }
 
     @Test
+    void runShouldRecordNoOutcomeForAnActionEndingWithAnError() {
+        ActionExecutor superseded = request -> {
+            throw new AssertionError("superseded");
+        };
+
+        assertThrows(AssertionError.class,
+                () -> podA.run(ExecutionRequest.of(ID, null), CLEARANCE, superseded));
+
+        assertTrue(podA.view(ID).outcome(SCREEN).isEmpty());
+        assertTrue(stores.queue().acquire(ID, "pod-b", LEASE).isPresent(),
+                "The lease is released all the same");
+    }
+
+    @Test
+    void runShouldRecordNoOutcomeForAParallelActionEndingWithAnError() {
+        NodePath other = new NodePath("steps/weigh");
+        Interpreter both = view -> view.outcome(SCREEN).isEmpty()
+                ? List.of(new Command.ScheduleAction(SCREEN, "screen", null),
+                        new Command.ScheduleAction(other, "weigh", null))
+                : List.of(new Command.Complete("done"));
+        ActionExecutor superseded = request -> {
+            if (request.path().equals(other)) {
+                throw new AssertionError("superseded");
+            }
+            return "screened";
+        };
+
+        assertThrows(AssertionError.class,
+                () -> podA.run(ExecutionRequest.of(ID, null), both, superseded));
+
+        assertTrue(podA.view(ID).outcome(other).isEmpty());
+    }
+
+    @Test
     void runShouldTakeNoLeaseOnAStoreOfOneProcess() {
         JournaledRunner single = new JournaledRunner(memory, STRINGS, clock, "sha256:tree");
         memory.queue().acquire(ID, "pod-b", LEASE).orElseThrow();

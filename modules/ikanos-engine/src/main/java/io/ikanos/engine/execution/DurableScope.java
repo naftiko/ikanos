@@ -63,6 +63,20 @@ public final class DurableScope {
         }
     }
 
+    /**
+     * Thrown when a nested run finds that another replica owns its execution now, as when that
+     * replica took the task over while this one stalled: an {@link Error}, like {@link Stopped},
+     * so no action failure is journaled on the enclosing executions, which the other replica
+     * carries on.
+     */
+    public static final class Superseded extends Error {
+        private static final long serialVersionUID = 1L;
+
+        public Superseded(RuntimeException cause) {
+            super("Another replica runs this execution now", cause, false, false);
+        }
+    }
+
     private final JournaledRunner runner;
     private final ExecutionId root;
     private final ExecutionId next;

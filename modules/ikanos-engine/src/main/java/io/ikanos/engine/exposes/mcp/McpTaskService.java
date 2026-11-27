@@ -266,8 +266,10 @@ public final class McpTaskService {
         // never take the place of one no replica runs.
         List<ExecutionRecord> unowned = new ArrayList<>(
                 runner.listUnowned(ExecutionStatus.RUNNING, TASK_ID, RESUME_LIMIT));
-        for (ExecutionRecord waiting : runner.listUnowned(ExecutionStatus.SUSPENDED, TASK_ID,
-                RESUME_LIMIT)) {
+        // Waiting tasks hold no lease: only those with answers in the inbox, filtered before the
+        // limit, so tasks waiting on a person, however many, never hide one an answer moves on.
+        for (ExecutionRecord waiting : runner.listUnownedWithUpdates(ExecutionStatus.SUSPENDED,
+                TASK_ID, RESUME_LIMIT)) {
             if (runner.hasPendingUpdates(waiting.executionId())) {
                 unowned.add(waiting);
             }
@@ -358,8 +360,9 @@ public final class McpTaskService {
             try {
                 runner.run(request, InputRounds.interpreter(),
                         InputRounds.executor(runner, executionId, draining::get, clock, work));
-            } catch (ExecutionBusyException e) {
-                // Another replica runs it: nothing changed here.
+            } catch (ExecutionBusyException | DurableScope.Superseded e) {
+                // Another replica runs it, or took it over while this one ran it: nothing is
+                // left to record here.
                 ran = false;
             } finally {
                 if (ran) {
