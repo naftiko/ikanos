@@ -32,6 +32,7 @@ import io.ikanos.engine.aggregates.AggregateFlow;
 import io.ikanos.engine.aggregates.FlowResult;
 import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.engine.consumes.Outcome;
+import io.ikanos.engine.exposes.mcp.files.McpFileDownloads;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.engine.util.CallerClaimMissingException;
 import io.ikanos.engine.util.InputDefaults;
@@ -91,6 +92,12 @@ public class ToolHandler {
      */
     private final Map<String, List<InputParameterSpec>> inputParameters;
 
+    /**
+     * The download side of the MCP files extension, or {@code null} when the adapter does not
+     * declare {@code files}: large binary results and presigned URLs become download targets.
+     */
+    private final McpFileDownloads fileDownloads;
+
     public ToolHandler(Capability capability, Map<String, McpServerToolSpec> tools) {
         this(capability, tools, null);
     }
@@ -102,6 +109,12 @@ public class ToolHandler {
 
     public ToolHandler(Capability capability, Map<String, McpServerToolSpec> tools,
             String exposeNamespace, String maxBinarySize) {
+        this(capability, tools, exposeNamespace, maxBinarySize, null);
+    }
+
+    public ToolHandler(Capability capability, Map<String, McpServerToolSpec> tools,
+            String exposeNamespace, String maxBinarySize, McpFileDownloads fileDownloads) {
+        this.fileDownloads = fileDownloads;
         this.capability = capability;
         this.toolSpecs = new ConcurrentHashMap<>();
         this.outputContracts = new ConcurrentHashMap<>();
@@ -173,6 +186,15 @@ public class ToolHandler {
      */
     McpSchema.CallToolResult mappedResult(String toolName, String mapped, boolean isError,
             McpToolOutputSchema.Source source) {
+        // Files extension: a tool whose output names a file its API serves returns it as a
+        // download target to a client that accepts them
+        McpServerToolSpec toolSpec = toolName != null ? toolSpecs.get(toolName) : null;
+        if (!isError && fileDownloads != null && toolSpec != null) {
+            McpSchema.CallToolResult download = fileDownloads.passThrough(toolSpec, mapped);
+            if (download != null) {
+                return download;
+            }
+        }
         Object structured = isError ? null : structuredContentFor(toolName, mapped, source);
         return new McpSchema.CallToolResult(List.of(textContent(mapped)), isError, structured,
                 null);
@@ -588,6 +610,15 @@ public class ToolHandler {
         String mediaType = found.mediaType() != null
                 ? found.mediaType()
                 : "application/octet-stream";
+        // Files extension: a result above the inline threshold is served from a short-lived link
+        // instead, to a client that accepts download targets
+        if (!isError && fileDownloads != null) {
+            McpSchema.CallToolResult download = fileDownloads.hosted(toolSpec.getName(), bytes,
+                    mediaType, McpCallContext.principal());
+            if (download != null) {
+                return download;
+            }
+        }
         McpSchema.Content content = buildBinaryContent(toolSpec.getName(), bytes, mediaType);
         return new McpSchema.CallToolResult(List.of(content), isError, null, null);
     }

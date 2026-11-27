@@ -19,15 +19,20 @@ import tools.jackson.databind.node.ObjectNode;
 import io.ikanos.engine.exposes.AccessControl;
 import io.ikanos.engine.exposes.CallerClaims;
 import io.ikanos.engine.exposes.mcp.handler.LegacyInitializeHandler;
+import io.ikanos.engine.exposes.mcp.files.DownloadStore;
+import io.ikanos.engine.exposes.mcp.files.McpFileDownloads;
 import io.ikanos.engine.exposes.mcp.handler.McpCallHandler;
 import io.ikanos.engine.exposes.mcp.model.DispatchResult;
 import io.ikanos.engine.exposes.mcp.model.JsonRpcCodeMapper;
 import io.ikanos.engine.exposes.mcp.model.JsonRpcError;
 import io.ikanos.engine.exposes.mcp.model.McpHeader;
 import io.ikanos.spec.exposes.AuthorizationSpec;
+import org.restlet.data.CacheDirective;
+import org.restlet.data.Disposition;
 import org.restlet.data.Header;
 import org.restlet.data.MediaType;
 import org.restlet.data.Status;
+import org.restlet.representation.ByteArrayRepresentation;
 import org.restlet.representation.Representation;
 import org.restlet.representation.StringRepresentation;
 import org.restlet.resource.Delete;
@@ -36,6 +41,7 @@ import org.restlet.resource.Post;
 import org.restlet.resource.ServerResource;
 import org.restlet.util.Series;
 import tools.jackson.core.JacksonException;
+import java.util.List;
 import java.util.Optional;
 import java.util.logging.Level;
 
@@ -52,7 +58,8 @@ import static io.ikanos.engine.util.JsonRpcResponseBuilder.buildJsonRpcError;
  * <li>POST: JSON-RPC requests (tools/list, tools/call, server/discover, …). A legacy
  * {@code initialize} is answered with an {@code UnsupportedProtocolVersionError} naming the
  * supported versions.</li>
- * <li>GET: SSE stream for server-initiated messages (returns 405 - not supported)</li>
+ * <li>GET: the hosted download links of the files extension ({@code <address>/files/<token>});
+ * any other GET, such as an SSE stream for server-initiated messages, gets 405</li>
  * <li>DELETE: returns 405 - not supported, kept for backwards compatibility</li>
  * </ul>
  *
@@ -209,8 +216,39 @@ public class McpServerResource extends ServerResource {
 
     @Get
     public Representation handleGet() {
-        setStatus(Status.CLIENT_ERROR_METHOD_NOT_ALLOWED);
-        return new StringRepresentation("GET not supported", MediaType.TEXT_PLAIN);
+        ProtocolDispatcher dispatcher = getDispatcher();
+        McpFileDownloads downloads = dispatcher.getAdapter().getFileDownloads();
+        String token = downloads != null
+                ? McpFileDownloads.tokenOf(getReference().getPath()) : null;
+        if (token == null) {
+            setStatus(Status.CLIENT_ERROR_METHOD_NOT_ALLOWED);
+            return new StringRepresentation("GET not supported", MediaType.TEXT_PLAIN);
+        }
+        return download(downloads, token, dispatcher.ownerOf(getRequest()));
+    }
+
+    /**
+     * Serves a hosted download link: once, to the principal the tool call that issued it ran
+     * for, before it expires. The authentication chain in front has already checked the
+     * credential, as for any MCP request. An unknown, used, expired or foreign link gets the same
+     * 404, so a link cannot be probed.
+     */
+    private Representation download(McpFileDownloads downloads, String token, String owner) {
+        Optional<DownloadStore.StoredDownload> file = downloads.take(token, owner);
+        if (file.isEmpty()) {
+            setStatus(Status.CLIENT_ERROR_NOT_FOUND);
+            return new StringRepresentation("Download not found or expired",
+                    MediaType.TEXT_PLAIN);
+        }
+        DownloadStore.StoredDownload stored = file.get();
+        ByteArrayRepresentation body = new ByteArrayRepresentation(stored.bytes(),
+                MediaType.valueOf(stored.mediaType()));
+        Disposition disposition = new Disposition(Disposition.TYPE_ATTACHMENT);
+        disposition.setFilename(stored.name());
+        body.setDisposition(disposition);
+        getResponse().setCacheDirectives(List.of(CacheDirective.noStore()));
+        setStatus(Status.SUCCESS_OK);
+        return body;
     }
 
     private ProtocolDispatcher getDispatcher() {

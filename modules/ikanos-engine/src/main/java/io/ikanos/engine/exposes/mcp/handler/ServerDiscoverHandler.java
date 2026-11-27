@@ -19,6 +19,7 @@ import io.ikanos.engine.exposes.mcp.McpAppsMetadata;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.mcp.SkillHandler;
 import io.ikanos.engine.exposes.mcp.SkillManifest;
+import io.ikanos.engine.exposes.mcp.files.McpFiles;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.engine.exposes.mcp.model.HandlerSuccessResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerResult;
@@ -78,6 +79,10 @@ public class ServerDiscoverHandler extends McpCallHandler {
         // Tasks (SEP-2663): only when executions are kept and at least one tool may become a task
         if (adapter.servesTasks()) {
             extensions.putObject(RequestClientCapabilities.TASKS_EXTENSION);
+        }
+        // Files (experimental draft): only when the adapter opts in with a files block
+        if (spec.getFiles() != null) {
+            extensions.set(McpFiles.EXTENSION_ID, McpFiles.serverSettings(MAPPER));
         }
         if (!extensions.isEmpty()) {
             capabilities.set("extensions", extensions);

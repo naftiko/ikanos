@@ -57,6 +57,34 @@ public class McpRequestModelTest {
     }
 
     @Test
+    void capabilitiesShouldReadTheDownloadSettingOfTheFilesExtension() {
+        RequestClientCapabilities capabilities = RequestClientCapabilities.from(JSON.readTree("""
+                {"_meta": {"io.modelcontextprotocol/clientCapabilities": {
+                  "extensions": {"io.modelcontextprotocol/files": {"download": {}}}
+                }}}"""));
+
+        assertTrue(capabilities.acceptsDownloads());
+        assertFalse(capabilities.acceptsUploads());
+    }
+
+    @Test
+    void capabilitiesShouldNotAcceptDownloadsDeclaredFalse() {
+        RequestClientCapabilities capabilities = RequestClientCapabilities.from(JSON.readTree("""
+                {"_meta": {"io.modelcontextprotocol/clientCapabilities": {
+                  "extensions": {"io.modelcontextprotocol/files": {"download": false,
+                                                                   "upload": true}}
+                }}}"""));
+
+        assertFalse(capabilities.acceptsDownloads());
+        assertTrue(capabilities.acceptsUploads());
+    }
+
+    @Test
+    void capabilitiesShouldNotAcceptDownloadsWithoutTheFilesExtension() {
+        assertFalse(RequestClientCapabilities.from(JSON.readTree("{}")).acceptsDownloads());
+    }
+
+    @Test
     void capabilitiesShouldBeEmptyWhenTheRequestDeclaresNone() {
         assertFalse(RequestClientCapabilities.from(null).supportsTasks());
         assertFalse(RequestClientCapabilities.from(JSON.readTree("{}")).supportsTasks());

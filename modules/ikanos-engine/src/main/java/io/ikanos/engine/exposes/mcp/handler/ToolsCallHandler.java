@@ -54,6 +54,7 @@ import static io.ikanos.engine.util.JsonRpcResponseBuilder.buildJsonRpcError;
 import io.ikanos.engine.exposes.mcp.model.RequestClientCapabilities;
 import io.ikanos.engine.execution.InputRequiredException;
 import io.ikanos.engine.exposes.mcp.McpCallContext;
+import io.ikanos.engine.exposes.mcp.files.McpFiles;
 
 /**
  * The tools/call handler.
@@ -150,8 +151,12 @@ public class ToolsCallHandler extends McpCallHandler {
                 }
             }
 
+            // Files extension: only a call answered here may return download targets, never a
+            // task, whose result may be read long after its link has expired
+            boolean downloads = capabilities.acceptsDownloads();
             return inRounds(idNode, params, "Tool '" + toolName + "'", toolName,
-                    argumentsNode, () -> callTool(toolName, arguments));
+                    argumentsNode, () -> McpFiles.withDownloads(downloads,
+                            () -> callTool(toolName, arguments)));
         } catch (IllegalArgumentException e) {
             Context.getCurrentLogger().log(Level.SEVERE, "Error handling tools call", e);
             return new HandlerFailureResult(INVALID_PARAMS, buildJsonRpcError(idNode, INVALID_PARAMS.getCode(), "Invalid params: " + e.getMessage()));

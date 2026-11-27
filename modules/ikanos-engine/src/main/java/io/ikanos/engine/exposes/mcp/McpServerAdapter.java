@@ -43,6 +43,7 @@ import java.time.Clock;
 import io.ikanos.engine.execution.Durability;
 import io.ikanos.engine.exposes.CallerClaims;
 import io.ikanos.engine.exposes.mcp.handler.ToolsCallHandler;
+import io.ikanos.engine.exposes.mcp.files.McpFileDownloads;
 import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.engine.consumes.sql.SqlWriteExposure;
 import io.ikanos.engine.execution.Elicitation;
@@ -92,6 +93,7 @@ public class McpServerAdapter extends ServerAdapter {
     private final SkillHandler skillHandler;
     private final McpTaskService taskService;
     private final McpRequestState requestState;
+    private final McpFileDownloads fileDownloads;
 
     public McpServerAdapter(Capability capability, McpServerSpec serverSpec) {
         super(capability, serverSpec);
@@ -100,10 +102,13 @@ public class McpServerAdapter extends ServerAdapter {
         AccessControl.checkAtStartup(serverSpec, serverSpec.isStdio(),
                 AccessControl.declaredIn(serverSpec));
 
+        // Files extension (experimental): only when the exposes block declares files
+        this.fileDownloads = McpFileDownloads.of(serverSpec, Clock.systemUTC());
+
         // Create the tool handler first (transport-agnostic): it owns each tool's output
         // contract, which buildMcpTool() advertises as the MCP outputSchema.
         this.toolHandler = new ToolHandler(capability, serverSpec.getTools(),
-                serverSpec.getNamespace(), serverSpec.getMaxBinarySize());
+                serverSpec.getNamespace(), serverSpec.getMaxBinarySize(), fileDownloads);
 
         // Build MCP Tool definitions from the spec
         this.tools = new ArrayList<>();
@@ -400,6 +405,14 @@ public class McpServerAdapter extends ServerAdapter {
 
     public ToolHandler getToolHandler() {
         return toolHandler;
+    }
+
+    /**
+     * @return the download side of the MCP files extension, or {@code null} when the exposes
+     *         block declares no {@code files}
+     */
+    public McpFileDownloads getFileDownloads() {
+        return fileDownloads;
     }
 
     public ResourceHandler getResourceHandler() {
