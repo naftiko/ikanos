@@ -72,6 +72,12 @@ public final class StepInterpreter implements Interpreter {
                     continue;
                 }
             }
+            if (node.kind() == StepNode.Kind.END) {
+                // An early end: the run completes as a success, and the output is built from
+                // what the steps before it gathered.
+                run.markEvaluated(node.path());
+                return List.of(new Command.Complete(null));
+            }
             if (node.kind() == StepNode.Kind.ELICIT) {
                 Optional<Object> answer = view.update(node.path());
                 if (answer.isEmpty()) {

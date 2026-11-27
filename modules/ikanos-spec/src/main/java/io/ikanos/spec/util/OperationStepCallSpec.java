@@ -13,6 +13,7 @@
  */
 package io.ikanos.spec.util;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -33,6 +34,7 @@ public class OperationStepCallSpec extends OperationStepSpec {
 
     private final AtomicReference<String> call = new AtomicReference<>();
     private final AtomicReference<Map<String, Object>> with = new AtomicReference<>();
+    private final AtomicReference<List<String>> successCriteria = new AtomicReference<>();
 
     public OperationStepCallSpec() {
         this(null, null, null, null);
@@ -64,6 +66,22 @@ public class OperationStepCallSpec extends OperationStepSpec {
     @JsonProperty("what")
     public void setCall(String call) {
         this.call.set(call);
+    }
+
+    /**
+     * @return the conditions under which the call's result counts as a success
+     *         ({@code successCriteria:}), any one of which is enough; {@code null} when the step
+     *         succeeds on a {@code 2xx} answer only
+     */
+    @JsonProperty("successCriteria")
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    public List<String> getSuccessCriteria() {
+        return successCriteria.get();
+    }
+
+    @JsonProperty("successCriteria")
+    public void setSuccessCriteria(List<String> successCriteria) {
+        this.successCriteria.set(successCriteria != null ? List.copyOf(successCriteria) : null);
     }
 
     /**

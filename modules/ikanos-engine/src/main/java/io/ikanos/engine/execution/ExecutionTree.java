@@ -23,6 +23,7 @@ import io.ikanos.spec.util.OperationStepCallSpec;
 import io.ikanos.spec.util.OperationStepLookupSpec;
 import io.ikanos.spec.util.OperationStepSpec;
 import io.ikanos.spec.util.OperationStepElicitSpec;
+import io.ikanos.spec.util.OperationStepEndSpec;
 
 /**
  * A compiled sequence of steps, walked by a {@link StepInterpreter}.
@@ -79,6 +80,7 @@ public final class ExecutionTree {
             case OperationStepLookupSpec lookup -> StepNode.Kind.LOOKUP;
             case OperationStepScriptSpec script -> StepNode.Kind.SCRIPT;
             case OperationStepElicitSpec elicit -> StepNode.Kind.ELICIT;
+            case OperationStepEndSpec end -> StepNode.Kind.END;
             case null, default -> StepNode.Kind.SKIP;
         };
     }

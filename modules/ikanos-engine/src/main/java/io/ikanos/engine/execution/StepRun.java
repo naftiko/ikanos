@@ -97,6 +97,8 @@ public final class StepRun {
             JsonNode outcome = journaled instanceof JsonNode json ? json : null;
             lastResult = RestoredResult.responseOf(outcome);
             output = RestoredResult.outputOf(outcome);
+            // The outcome follows from the journaled status, so a replay reads the same one.
+            StepOutcomes.put(runtimeParameters, stepName, StepOutcomes.of(lastResult));
         }
         if (stepName == null || !(output instanceof JsonNode json) || json.isNull()
                 || json.isMissingNode()) {

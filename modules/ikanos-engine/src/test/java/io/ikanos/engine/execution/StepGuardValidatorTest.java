@@ -76,6 +76,62 @@ public class StepGuardValidatorTest {
     }
 
     @Test
+    void findErrorsShouldReportASuccessCriterionThatDoesNotParse() {
+        List<String> errors = StepGuardValidator.findErrors(flow("""
+                - name: find
+                  type: call
+                  what: notion.find
+                  successCriteria:
+                    - "outcome.find =="
+                """));
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).startsWith("A success criterion of step 'find'"),
+                errors.get(0));
+    }
+
+    @Test
+    void findErrorsShouldReportAnOutcomeThatIsNotInTheVocabulary() {
+        List<String> errors = StepGuardValidator.findErrors(flow("""
+                - name: find
+                  type: call
+                  what: notion.find
+                  successCriteria:
+                    - "outcome.find == 'success' || outcome['find'] == 'gone'"
+                """));
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).contains("'gone', which is not one"), errors.get(0));
+    }
+
+    @Test
+    void findWarningsShouldLetASuccessCriterionReadItsOwnStep() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow("""
+                - name: find
+                  type: call
+                  what: notion.find
+                  successCriteria:
+                    - "outcome.find == 'not-found' || find.id != ''"
+                """));
+
+        assertTrue(warnings.isEmpty(), warnings.toString());
+    }
+
+    @Test
+    void findWarningsShouldReportStepsAnUnguardedEndMakesUnreachable() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow("""
+                - name: done
+                  type: end
+                - name: never
+                  type: call
+                  what: notion.find
+                """));
+
+        assertEquals(1, warnings.size(), warnings.toString());
+        assertTrue(warnings.get(0).contains("Step 'never'"), warnings.get(0));
+    }
+
+    @Test
     void validateShouldRefuseACapabilityWithAGuardThatDoesNotParse() {
         IkanosSpec spec = flow("""
                 - name: alert

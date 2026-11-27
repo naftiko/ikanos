@@ -3938,7 +3938,8 @@
             "call",
             "lookup",
             "script",
-            "elicit"
+            "elicit",
+            "end"
           ]
         }
       },
@@ -3964,6 +3965,15 @@
             },
             "with": {
               "$ref": "#/$defs/WithInjector"
+            },
+            "successCriteria": {
+              "type": "array",
+              "description": "Conditions under which the call's result counts as a success; any one is enough. Without them, the step succeeds on a 2xx answer only. Each is a guard, like `onlyIf`, that may read `outcome.<step>`: the protocol-neutral outcome of a call step, one of `success`, `not-found`, `throttled`, `unreachable` or `failure`. A step accepted with another outcome than `success` has no output.",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "minItems": 1
             }
           },
           "required": [
@@ -4077,8 +4087,27 @@
         },
         {
           "$ref": "#/$defs/OperationStepElicit"
+        },
+        {
+          "$ref": "#/$defs/OperationStepEnd"
         }
       ]
+    },
+    "OperationStepEnd": {
+      "description": "Ends the flow early, as a success: the steps after it do not run, and the output is built from what the steps before it gathered. Usually guarded with `onlyIf`.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/OperationStepBase"
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "end"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
     },
     "OperationStepElicit": {
       "description": "Asks the caller of the current invocation for input and continues with the answer as the step's output. Over MCP it becomes an `elicitation/create` input request. Under the `none` durability mode the flow is replayed from the start with the answers, so every step before it must be read-only.",

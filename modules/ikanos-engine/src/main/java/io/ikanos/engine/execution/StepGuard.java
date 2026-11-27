@@ -164,6 +164,66 @@ public final class StepGuard {
                 evaluationLimit);
     }
 
+    /**
+     * Whether any of a call step's success criteria holds. Each is a guard, read like
+     * {@code onlyIf}.
+     *
+     * @param step the step name, for the error message
+     * @param criteria the criteria; none holds when it is empty
+     * @param parameters the values the run holds, the step's outcome included
+     */
+    public static boolean anyHolds(String step, List<String> criteria,
+            Map<String, Object> parameters) {
+        return anyHolds(step, criteria, parameters, GuardManagementSpec.DEFAULT_EVALUATION_LIMIT);
+    }
+
+    /**
+     * Whether any of a call step's success criteria holds, each evaluating at most
+     * {@code evaluationLimit} sub-expressions.
+     */
+    public static boolean anyHolds(String step, List<String> criteria,
+            Map<String, Object> parameters, long evaluationLimit) {
+        for (String criterion : criteria) {
+            if (evaluate("A success criterion of step '" + step + "'", criterion, parameters,
+                    evaluationLimit)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The values a guard of {@code run} reads: its parameters, and the step outputs kept only in
+     * its step context, such as a lookup step's.
+     */
+    public static Map<String, Object> parametersOf(StepRun run) {
+        return Elicitation.parameters(run);
+    }
+
+    /**
+     * The strings a guard compares an outcome with ({@code outcome.sync == 'not-found'}) that
+     * are not outcomes of {@link StepOutcomes#VOCABULARY}.
+     *
+     * @return the unknown outcomes, or an empty set when the guard cannot be parsed
+     */
+    public static Set<String> unknownOutcomes(String guard) {
+        Set<String> unknown = new TreeSet<>();
+        if (guard == null || guard.isBlank() || isBareName(guard)) {
+            return unknown;
+        }
+        CelValidationResult parsed = PARSER.parse(guard);
+        if (parsed.hasError()) {
+            return unknown;
+        }
+        try {
+            GuardIdentifiers.collectOutcomeLiterals(parsed.getAst(), unknown);
+        } catch (CelValidationException e) {
+            return new TreeSet<>();
+        }
+        unknown.removeAll(StepOutcomes.VOCABULARY);
+        return unknown;
+    }
+
     private static boolean evaluate(String label, String onlyIf, Map<String, Object> parameters,
             long evaluationLimit) {
         if (onlyIf == null || onlyIf.isBlank()) {
