@@ -32,6 +32,7 @@ import io.ikanos.spec.openapi.OasExportBuilder;
 import io.ikanos.spec.openapi.OasExportResult;
 import io.ikanos.spec.openapi.OasYamlWriter;
 import io.ikanos.spec.util.IkanosMappers;
+import io.ikanos.spec.util.VersionHelper;
 import io.ikanos.spec.util.YamlAliases;
 import io.swagger.v3.oas.models.SpecVersion;
 
@@ -42,6 +43,7 @@ import io.swagger.v3.oas.models.SpecVersion;
  */
 class RestDefinitionsIntegrationTest {
 
+    private static final String IKANOS = VersionHelper.getSchemaVersion();
     private static final Path TUTORIAL_DIR =
             Paths.get("src", "test", "resources", "tutorial").toAbsolutePath().normalize();
 
@@ -66,6 +68,116 @@ class RestDefinitionsIntegrationTest {
         assertFalse(openApi.contains("inputParameterSets"), openApi);
         assertFalse(openApi.contains("crew-member"), openApi);
         assertTrue(openApi.contains("\"fullName\""), "The crew items keep their shape");
+    }
+
+    private static final String MAPPED_HEADER = """
+            ikanos: "%s"
+            info:
+              display: "Fleet"
+              description: "Mapped REST outputs"
+            capability:
+              consumes:
+                - type: http
+                  namespace: registry
+                  baseUri: "http://localhost:1"
+                  resources:
+                    ships:
+                      path: "/ships"
+                      operations:
+                        list-ships:
+                          method: GET
+              exposes:
+                - type: rest
+                  port: 0
+                  namespace: fleet-api
+            """.formatted(IKANOS);
+
+    private static final String MAPPED_WITH_DEFINITIONS = MAPPED_HEADER + """
+                  definitions:
+                    schemas:
+                      ship:
+                        type: object
+                        properties:
+                          imo: { type: string }
+                          tonnage: { type: number }
+                          crew:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                fullName: { type: string }
+                          tags: { type: array, items: { type: string } }
+                  resources:
+                    ships:
+                      path: "/ships"
+                      operations:
+                        list-ships:
+                          method: GET
+                          call: registry.list-ships
+                          outputParameters:
+                            - type: array
+                              mapping: "$.ships"
+                              items:
+                                schema: ship
+                                mappings:
+                                  imo: "$.imo_number"
+                                  tonnage: "$.gross_tonnage"
+                                  crew: "$.crew"
+                                  crew[].fullName: "$.name"
+                                  tags: "$.labels"
+            """;
+
+    private static final String MAPPED_INLINE = MAPPED_HEADER + """
+                  resources:
+                    ships:
+                      path: "/ships"
+                      operations:
+                        list-ships:
+                          method: GET
+                          call: registry.list-ships
+                          outputParameters:
+                            - type: array
+                              mapping: "$.ships"
+                              items:
+                                type: object
+                                properties:
+                                  imo: { type: string, mapping: "$.imo_number" }
+                                  tonnage: { type: number, mapping: "$.gross_tonnage" }
+                                  crew:
+                                    type: array
+                                    mapping: "$.crew"
+                                    items:
+                                      type: object
+                                      properties:
+                                        fullName: { type: string, mapping: "$.name" }
+                                  tags:
+                                    type: array
+                                    mapping: "$.labels"
+                                    items: { type: string }
+            """;
+
+    @Test
+    void mappedOutputOpenApiShouldBeByteForByteItsInlineVersion() throws Exception {
+        String withDefinitions = openApi(load(MAPPED_WITH_DEFINITIONS), "fleet-api",
+                "mapped.json");
+        String inline = openApi(load(MAPPED_INLINE), "fleet-api", "mapped-inline.json");
+
+        assertEquals(inline, withDefinitions);
+        assertFalse(withDefinitions.contains("mappings"), withDefinitions);
+        assertTrue(withDefinitions.contains("\"fullName\""), "The crew items keep their shape");
+    }
+
+    @Test
+    void capabilityShouldFailToLoadWhenAMappedRestOutputLeavesALeafUnbound() {
+        String yaml = MAPPED_WITH_DEFINITIONS.replaceFirst(
+                "\\n +tonnage: \"\\$\\.gross_tonnage\"", "");
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> load(yaml));
+
+        assertTrue(error.getMessage().contains("REST adapter 'fleet-api', resource 'ships',"
+                + " operation 'list-ships', output, items: 'schema: ship' leaves paths unbound:"
+                + " [tonnage]."), error.getMessage());
     }
 
     @Test
@@ -105,8 +217,12 @@ class RestDefinitionsIntegrationTest {
 
     /** The OpenAPI document of the tutorial's REST adapter, as {@code ikanos export} writes it. */
     private String openApi(IkanosSpec spec, String file) throws Exception {
-        OasExportResult result = new OasExportBuilder().build(spec, "shipyard-api",
-                SpecVersion.V30);
+        return openApi(spec, "shipyard-api", file);
+    }
+
+    /** The OpenAPI document of one REST adapter, as {@code ikanos export} writes it. */
+    private String openApi(IkanosSpec spec, String namespace, String file) throws Exception {
+        OasExportResult result = new OasExportBuilder().build(spec, namespace, SpecVersion.V30);
         Path path = tempDir.resolve(file);
         new OasYamlWriter().writeJson(result.getOpenApi(), path);
         return Files.readString(path);

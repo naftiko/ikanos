@@ -201,7 +201,11 @@ rules:
     description: >
       `ref` derives the exposed unit's description, MCP hints, and input and
       output schemas from the flow. A `call:` to a flow would bypass all of
-      that, so the engine rejects it at startup.
+      that, so the engine rejects it at startup. This covers the unit's own
+      `call:` only: a `call` step may name a flow, which is how an MCP
+      resource (it has no `ref`) reaches one, and
+      `ikanos-flow-call-semantics-conservative` checks the hints of an MCP
+      tool whose steps do.
     severity: error
     recommended: true
     given: "$"
@@ -225,7 +229,7 @@ rules:
       function: mcp-tool-inferred-call
 
   ikanos-flow-call-semantics-conservative:
-    message: "A flow's semantics must not be less conservative than the targets it calls."
+    message: "A flow's semantics, or an MCP tool's hints, must not be less conservative than the targets it calls."
     description: >
       A flow that declares `safe: true` or `idempotent: true` must only call
       targets that are too: other flows (by their effective semantics),
@@ -233,7 +237,10 @@ rules:
       (by their method, per RFC 9110). Otherwise the flow would publish
       read-only or idempotent MCP hints that do not hold. Calls into an
       imported consumes namespace are not checked: the imported document is
-      out of reach of a single-document lint.
+      out of reach of a single-document lint. The same holds for an exposed
+      MCP tool whose `call` steps reach flows: if its hints resolve to
+      `readOnly: true` (its own, or its server's), every such flow must be
+      effectively safe; if they resolve to `idempotent: true`, idempotent.
     severity: error
     recommended: true
     given: "$"
@@ -247,8 +254,8 @@ rules:
     description: >
       `inputParameterSets: [name]` on an MCP tool, a REST resource or operation,
       or an aggregate flow must name an input parameter set, and `schema: name`
-      (on an input, inside a schema, or in an orchestrated output) must name a
-      schema, declared in the `definitions` of the same MCP adapter, REST
+      (on an input, inside a schema, or in an orchestrated or mapped output)
+      must name a schema, declared in the `definitions` of the same MCP adapter, REST
       adapter or aggregate. Definitions are local: a tool or an operation cannot
       use an aggregate's definitions (it reaches a flow through `ref`). The
       engine rejects the capability at startup otherwise.
@@ -308,7 +315,8 @@ rules:
     description: >
       A schema used in an orchestrated (steps) output gives the output only its
       `type` (`integer` becomes `number`), its `properties`, and its `items`
-      when they are objects with properties. Its input-only keywords
+      when they are objects with properties; in a mapped (call-mode) output, its
+      `type`, `properties` and `items` of any type. Its input-only keywords
       (`description`, `enum`, `format`, `minimum`, `maximum`, `required`,
       `additionalProperties`) are not carried: this note flags them where the
       schema is used, so that the drop is never silent.
@@ -319,6 +327,28 @@ rules:
       function: definitions
       functionOptions:
         check: outputKeywords
+
+  ikanos-definitions-mappings:
+    message: "{{error}}"
+    description: >
+      `schema: name` in a mapped (call-mode) output must be bound by `mappings`:
+      a path in the schema (property names joined by `.`, `[]` for an array's
+      items) for every scalar, array and object without properties, each to a
+      JSONPath, which is the `mapping` that node carries once expanded. A path
+      the schema does not have, a binding the runtime never reads (object
+      items, below nested arrays, a `mapping` beside `schema:` on an output
+      object), a key beside `schema:` other than `mappings` and `mapping`, a
+      property name containing `.`, `[` or `]`, `mappings` without
+      `schema:`, and `schema:` or `mappings` in a mock output or an MCP
+      resource output are
+      errors too. The engine rejects the capability at startup otherwise.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: definitions
+      functionOptions:
+        check: mappings
 
   ikanos-task-mode-requires-durability:
     message: "A flow in task mode needs a durability mode on the control port."

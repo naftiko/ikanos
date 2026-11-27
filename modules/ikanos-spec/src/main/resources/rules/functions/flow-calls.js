@@ -8,7 +8,9 @@
  *   - "targets":   a call names an aggregate namespace but no flow of that name;
  *   - "cycles":    flows call each other in a cycle;
  *   - "exposes":   an exposed MCP tool or resource, or REST operation, uses
- *                  `call:` to reach a flow. Exposed units use `ref:`;
+ *                  `call:` to reach a flow. Exposed units use `ref:`. A `call`
+ *                  step may name a flow: an MCP resource has no `ref:`, and
+ *                  the "semantics" check covers a tool's hints (#828);
  *   - "semantics": a flow declares `safe: true` or `idempotent: true` but calls
  *                  a target that is not. A flow's effective semantics is the
  *                  conjunction of its own declaration and those of every target
@@ -19,6 +21,12 @@
  *                  imported consumes namespace (`import:` / `as:`) is skipped:
  *                  its operations live in another document, out of reach of a
  *                  single-document lint.
+ *                  An exposed MCP tool whose `call` steps reach flows is held
+ *                  to the same rule by its hints (#828): resolved
+ *                  `readOnly: true` needs every flow it calls to be
+ *                  effectively safe, resolved `idempotent: true` (without
+ *                  `readOnly`) idempotent. The hints resolve as the engine
+ *                  does for a tool without `ref`: its own, then the server's.
  *
  * Call targets are split on the first dot: consumed MCP tools are keyed by
  * their upstream name, which may contain dots.
@@ -54,7 +62,7 @@ export default function flowCalls(targetVal, options) {
     return checkExposes(capability, model);
   }
   if (check === "semantics") {
-    return checkSemantics(model);
+    return checkSemantics(model, capability);
   }
   return;
 }
@@ -252,7 +260,7 @@ function checkExposes(capability, model) {
   return results;
 }
 
-function checkSemantics(model) {
+function checkSemantics(model, capability) {
   const memo = new Map();
 
   function declared(flow, field) {
@@ -324,5 +332,83 @@ function checkSemantics(model) {
       }
     }
   }
+  checkToolHints(capability, model, effectiveTarget, results);
   return results;
+}
+
+/**
+ * An exposed MCP tool whose resolved hints say read-only or idempotent, while a flow one of its
+ * `call` steps reaches is not (#828). A `ref` tool takes its hints from the flow instead, and
+ * its own `call:` may not name a flow ("exposes" check).
+ */
+function checkToolHints(capability, model, effectiveTarget, results) {
+  for (const a of entries(capability.exposes)) {
+    const adapter = a.value;
+    if (!adapter || adapter.type !== "mcp") {
+      continue;
+    }
+    const serverHints = adapter.hints && typeof adapter.hints === "object" ? adapter.hints : {};
+    for (const t of entries(adapter.tools)) {
+      const tool = t.value;
+      if (!tool || typeof tool !== "object") {
+        continue;
+      }
+      const toolPath = ["capability", "exposes", ...a.locator, "tools", ...t.locator];
+      const flowsCalled = flowSteps(tool).filter((ref) => model.flows.has(ref));
+      if (flowsCalled.length === 0) {
+        continue;
+      }
+      const own = tool.hints && typeof tool.hints === "object" ? tool.hints : {};
+      const readOnly = resolveHint(own, serverHints, "readOnly", toolPath);
+      const idempotent = resolveHint(own, serverHints, "idempotent", toolPath);
+      const field = readOnly.value === true ? "safe"
+        : idempotent.value === true ? "idempotent" : null;
+      if (!field) {
+        continue;
+      }
+      const hint = field === "safe" ? readOnly : idempotent;
+      for (const target of flowsCalled) {
+        if (!effectiveTarget(target, field, new Set())) {
+          results.push({
+            message: "MCP tool '" + t.key + "' " + hint.declared + " but calls '" + target
+              + "', which is not " + field + ". A tool's hints cannot be less conservative"
+              + " than its targets'.",
+            path: hint.path,
+          });
+        }
+      }
+    }
+  }
+}
+
+/** A hint as the engine resolves it for a tool without `ref`: the tool's own, then the server's. */
+function resolveHint(own, serverHints, name, toolPath) {
+  const label = name === "readOnly" ? "hints.readOnly" : "hints.idempotent";
+  if (typeof own[name] === "boolean") {
+    return { value: own[name], declared: "declares " + label + "=" + own[name],
+      path: toolPath.concat("hints", name) };
+  }
+  if (name === "readOnly" && own.destructive === true) {
+    return { value: false };
+  }
+  if (typeof serverHints[name] === "boolean") {
+    return { value: serverHints[name],
+      declared: "gets " + label + "=" + serverHints[name] + " from its server",
+      path: toolPath };
+  }
+  return { value: undefined };
+}
+
+function flowSteps(tool) {
+  const targets = [];
+  if (typeof tool.ref === "string") {
+    return targets; // the flow provides the execution and the hints
+  }
+  for (const s of entries(tool.steps)) {
+    const step = s.value;
+    if (step && step.type === "call" && typeof step.call === "string") {
+      targets.push(step.call);
+    }
+  }
+  return targets;
 }

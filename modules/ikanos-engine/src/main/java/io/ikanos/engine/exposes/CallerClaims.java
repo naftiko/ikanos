@@ -34,8 +34,8 @@ import io.ikanos.engine.util.Resolver;
  * a client value can never stand in for the claims ({@link Resolver#requireCallerValues}).</p>
  *
  * <p>Each claim value is reduced to text a consumed API can receive in a header, a query or a
- * body: a string, number or boolean as is; a date ({@code exp}, {@code iat}) as seconds since the
- * epoch; an array of them joined with commas; an object as a
+ * body: a string, number or boolean as is; a date ({@code exp}, {@code iat}), as a {@code Date} or
+ * an {@code Instant}, as seconds since the epoch; an array of them joined with commas; an object as a
  * nested map, so {@code {{auth.claims.realm_access.roles}}} works. A claim whose name holds dots,
  * such as {@code tenant.id} or {@code https://example.com/roles}, is also placed at that path, so
  * a template reads it as an identity header does ({@link #claim}): the claim of that exact name
@@ -68,7 +68,23 @@ public final class CallerClaims {
         if (!(claims instanceof JWTClaimsSet validated)) {
             return null;
         }
-        return new CallerRoot(Map.of(CLAIMS, view(validated.getClaims())));
+        return of(validated.getClaims());
+    }
+
+    /**
+     * The caller root of claims an application that embeds the engine has validated itself, such
+     * as the claims of the JWT a Spring Security resource server accepted, for a call it makes
+     * directly to a handler with no exposed server in between (#1126). Built with the same rules
+     * as {@link #of(Request)}; bind it to the call with {@link #runAs}.
+     *
+     * <p>The engine does not validate these claims: passing them asserts that the caller holds
+     * them.</p>
+     *
+     * @param claims the validated claims, by claim name, or {@code null}
+     * @return the caller root ({@code {claims: {...}}}), or {@code null} for {@code null} claims
+     */
+    public static Map<String, Object> of(Map<String, Object> claims) {
+        return claims == null ? null : new CallerRoot(Map.of(CLAIMS, view(claims)));
     }
 
     /**
@@ -220,6 +236,10 @@ public final class CallerClaims {
         if (value instanceof java.util.Date date) {
             // exp, iat, nbf and auth_time: seconds since the epoch, as in the token
             return String.valueOf(date.getTime() / 1000);
+        }
+        if (value instanceof java.time.Instant instant) {
+            // the same claims as an embedding application holds them (Spring Security's Jwt)
+            return String.valueOf(instant.getEpochSecond());
         }
         if (value instanceof Boolean) {
             // kept a boolean, so a section over a false claim does not render

@@ -384,7 +384,7 @@ class McpToolInputSchemaValidationTest {
     void schemaShouldDeclareStringAsDefaultToolInputType() throws Exception {
         try (InputStream in = McpToolInputSchemaValidationTest.class.getClassLoader()
                 .getResourceAsStream("schemas/ikanos-schema.json")) {
-            JsonNode parameter = JSON.readTree(in).path("$defs").path("McpToolInputParameter");
+            JsonNode parameter = JSON.readTree(in).path("$defs").path("McpToolInputParameterBase");
             assertEquals("string", parameter.path("properties").path("type").path("default")
                     .asString());
         }

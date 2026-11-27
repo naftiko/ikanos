@@ -1,0 +1,66 @@
+# Smithy client example (#839).
+#
+# A capability reads customer items from DynamoDB (`consumes: type: smithy`).
+# smithy-java's dynamic client loads the local Smithy model and calls the service
+# in its own protocol (awsJson1.0 here), signed with AWS Signature Version 4. An
+# input fills the member its `wireName` names in the input structure; the output
+# structure is read as JSON by `outputParameters`.
+# Requires the ikanos-client-smithy module at runtime.
+ikanos: "1.0.0-beta11"
+
+info:
+  display: "Customers — Smithy client example"
+  description: "Read customer items from DynamoDB, re-exposed as an MCP tool."
+
+capability:
+  binds:
+    - namespace: "aws"
+      description: "AWS credentials."
+      location: "file:///./shared/secrets.yaml"
+      keys:
+        AWS_ACCESS_KEY_ID: "aws-access-key-id"
+        AWS_SECRET_ACCESS_KEY: "aws-secret-access-key"
+  consumes:
+    - type: "smithy"
+      namespace: "dynamo"
+      description: "Customer table on DynamoDB."
+      baseUri: "https://dynamodb.eu-west-1.amazonaws.com"
+      model: "./contracts/dynamodb-2012-08-10.json"
+      service: "com.amazonaws.dynamodb#DynamoDB_20120810"
+      authentication:
+        type: "awsSigV4"
+        accessKeyId: "{{AWS_ACCESS_KEY_ID}}"
+        secretAccessKey: "{{AWS_SECRET_ACCESS_KEY}}"
+        region: "eu-west-1"
+        service: "dynamodb"
+      operations:
+        get-customer:
+          description: "One customer item by id."
+          operation: "GetItem"
+          inputParameters:
+            table:
+              type: "string"
+              default: "customers"
+              description: "Table name."
+              wireName: "TableName"
+            customer-id:
+              type: "string"
+              required: true
+              description: "Customer id."
+              wireName: "Key.id.S"
+          outputParameters:
+            name: { type: "string", value: "$.Item.name.S" }
+            tier: { type: "string", value: "$.Item.tier.S" }
+
+  exposes:
+    - type: "mcp"
+      namespace: "customers-mcp"
+      port: 3001
+      tools:
+        get-customer:
+          description: "One customer with name and tier."
+          call: "dynamo.get-customer"
+          inputParameters:
+            customer-id: { type: "string", required: true, description: "Customer id." }
+          with:
+            customer-id: "{{customer-id}}"

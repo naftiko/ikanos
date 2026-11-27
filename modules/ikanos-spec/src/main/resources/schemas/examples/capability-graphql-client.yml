@@ -1,0 +1,78 @@
+# GraphQL client example (#887).
+#
+# A capability reads and saves issues of a GraphQL API (`consumes: type: graphql`).
+# Documents are block scalars, written once and never rendered: the step's values
+# travel as variables. An input fills a variable of the same name, or the field its
+# `wireName` names (`input.title` is the `title` field of the `$input` variable).
+# An absent optional input is left out. `select` runs the `update` document when
+# `id` is given and `create` otherwise. With `schema`, every document is checked
+# against the SDL file when the capability loads.
+# Requires the ikanos-client-graphql module at runtime.
+ikanos: "1.0.0-beta11"
+
+info:
+  display: "Issues — GraphQL client example"
+  description: "Read and save issues of a GraphQL API, re-exposed as MCP tools."
+
+capability:
+  binds:
+    - namespace: "tracker-secrets"
+      description: "Issue tracker API key."
+      location: "file:///./shared/secrets.yaml"
+      keys:
+        TRACKER_API_KEY: "tracker-api-key"
+  consumes:
+    - type: "graphql"
+      namespace: "tracker"
+      description: "Issue tracker GraphQL API."
+      endpoint: "https://api.tracker.example/graphql"
+      schema: "./contracts/tracker.graphql"
+      authentication:
+        type: "apikey"
+        key: "Authorization"
+        value: "{{TRACKER_API_KEY}}"
+        placement: "header"
+      operations:
+        get-issue:
+          description: "One issue by id."
+          document: |
+            query Issue($id: String!) {
+              issue(id: $id) { id title state { name } }
+            }
+          inputParameters:
+            id: { type: "string", required: true, description: "Issue id." }
+          outputParameters:
+            title: { type: "string", value: "$.issue.title" }
+            state: { type: "string", value: "$.issue.state.name" }
+        save-issue:
+          description: "Create an issue, or update it when id is given."
+          select: { when: "id", then: "update", else: "create" }
+          documents:
+            create: |
+              mutation ($input: IssueCreateInput!) {
+                issueCreate(input: $input) { issue { id url } }
+              }
+            update: |
+              mutation ($id: String!, $input: IssueUpdateInput!) {
+                issueUpdate(id: $id, input: $input) { issue { id url } }
+              }
+          inputParameters:
+            id: { type: "string", description: "Issue to update; absent to create one." }
+            team-id: { type: "string", description: "Team of a new issue.", wireName: "input.teamId" }
+            title: { type: "string", description: "Issue title.", wireName: "input.title" }
+          outputParameters:
+            issue-id: { type: "string", value: "$..issue.id" }
+            url: { type: "string", value: "$..issue.url" }
+
+  exposes:
+    - type: "mcp"
+      namespace: "tracker-mcp"
+      port: 3001
+      tools:
+        get-issue:
+          description: "One issue with its title and state."
+          call: "tracker.get-issue"
+          inputParameters:
+            id: { type: "string", required: true, description: "Issue id." }
+          with:
+            id: "{{id}}"
