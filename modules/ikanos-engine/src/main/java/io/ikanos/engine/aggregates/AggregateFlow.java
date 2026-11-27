@@ -127,24 +127,6 @@ public class AggregateFlow {
     }
 
     /**
-     * Execute this aggregate flow with the given parameters.
-     *
-     * <p>Supports three modes:
-     * <ol>
-     *   <li><b>Mock</b> — no call, no steps: builds output from {@code outputParameters} values</li>
-     *   <li><b>Orchestrated</b> — steps defined: runs step sequence + optional mappings</li>
-     *   <li><b>Simple call</b> — call defined: one consumed operation, or another flow</li>
-     * </ol>
-     *
-     * <p>A flow may be called by another flow ({@code call: namespace.flow-name}). The flows
-     * active on the current thread form a call chain; when it would exceed
-     * {@link #getMaxCallDepth()}, a {@link FlowCallDepthExceededException} naming the chain is
-     * thrown before this flow runs.</p>
-     *
-     * @param parameters resolved input parameters (merged with adapter-level 'with')
-     * @return a transport-neutral {@link FlowResult}
-     */
-    /**
      * The flows active on this thread, outermost first: a step run on a thread of its own, such
      * as a track of a {@code parallel} step, carries them over, so a chain of flow calls through
      * it still counts toward {@code maxCallDepth}.
@@ -176,6 +158,24 @@ public class AggregateFlow {
         }
     }
 
+    /**
+     * Execute this aggregate flow with the given parameters.
+     *
+     * <p>Supports three modes:
+     * <ol>
+     *   <li><b>Mock</b> — no call, no steps: builds output from {@code outputParameters} values</li>
+     *   <li><b>Orchestrated</b> — steps defined: runs step sequence + optional mappings</li>
+     *   <li><b>Simple call</b> — call defined: one consumed operation, or another flow</li>
+     * </ol>
+     *
+     * <p>A flow may be called by another flow ({@code call: namespace.flow-name}). The flows
+     * active on the current thread form a call chain; when it would exceed
+     * {@link #getMaxCallDepth()}, a {@link FlowCallDepthExceededException} naming the chain is
+     * thrown before this flow runs.</p>
+     *
+     * @param parameters resolved input parameters (merged with adapter-level 'with')
+     * @return a transport-neutral {@link FlowResult}
+     */
     public FlowResult execute(Map<String, Object> parameters) throws Exception {
         String ref = getRef();
         Deque<String> chain = CALL_CHAIN.get();
