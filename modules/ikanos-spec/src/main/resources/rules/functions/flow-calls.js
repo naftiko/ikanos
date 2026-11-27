@@ -427,7 +427,8 @@ function flowSteps(tool) {
   if (typeof tool.ref === "string") {
     return targets; // the flow provides the execution and the hints
   }
-  for (const s of entries(tool.steps)) {
+  // Every call step, those of tracks and sequences included
+  for (const s of allSteps(tool.steps)) {
     const step = s.value;
     if (step && step.type === "call" && typeof step.what === "string") {
       targets.push(step.what);
