@@ -34,7 +34,10 @@ import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
 import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.util.OperationStepCallSpec;
+import io.ikanos.spec.util.OperationStepElicitSpec;
 import io.ikanos.spec.util.OperationStepEndSpec;
+import io.ikanos.spec.util.OperationStepParallelSpec;
+import io.ikanos.spec.util.OperationStepSequenceSpec;
 import io.ikanos.spec.util.OperationStepSpec;
 
 /**
@@ -96,112 +99,205 @@ public final class StepGuardValidator {
         return guards;
     }
 
-    /**
-     * The guards that do not parse, and those that compare an outcome with a word that is not
-     * one, each with where it is.
-     */
-    public static List<String> findErrors(IkanosSpec spec) {
-        List<String> errors = new ArrayList<>();
-        for (Container container : containers(spec)) {
-            if (container.declaresOutcome()) {
-                errors.add(reserved("An input or a 'with' key", container.where()));
-            }
-            for (OperationStepSpec step : container.steps().values()) {
-                if (StepOutcomes.ROOT.equals(step.getName())) {
-                    errors.add(reserved("A step", container.where()));
-                }
-                for (Guard guard : guardsOf(step, container.where())) {
-                    String error = StepGuard.parseError(guard.expression());
-                    if (error != null) {
-                        errors.add(guard.label() + " is not a valid CEL expression: " + error);
-                        continue;
-                    }
-                    for (String unknown : StepGuard.unknownOutcomes(guard.expression())) {
-                        errors.add(guard.label() + " compares an outcome with '" + unknown
-                                + "', which is not one: use "
-                                + String.join(", ", StepOutcomes.VOCABULARY) + ".");
-                    }
-                }
-            }
-        }
-        return errors;
+    /** The deepest nesting of tracks and sequences before a warning: memo decision, 3 levels. */
+    static final int MAX_NESTING = 3;
+
+    /** What a walk of the steps finds. */
+    private record Findings(List<String> errors, List<String> warnings) {
     }
 
     /**
-     * The guards that name a variable their step cannot see, and the steps an unguarded
-     * {@code end} makes unreachable.
+     * The guards that do not parse, those that compare an outcome with a word that is not one,
+     * the reserved name {@code outcome}, and the misuses of tracks and sequences, each with where
+     * it is.
+     */
+    public static List<String> findErrors(IkanosSpec spec) {
+        return walk(spec).errors();
+    }
+
+    /**
+     * The guards that name a variable their step cannot see, the steps an unguarded
+     * {@code end} makes unreachable, and steps nested deeper than {@link #MAX_NESTING} levels.
      */
     public static List<String> findWarnings(IkanosSpec spec) {
-        List<String> warnings = new ArrayList<>();
+        return walk(spec).warnings();
+    }
+
+    private static Findings walk(IkanosSpec spec) {
+        Findings findings = new Findings(new ArrayList<>(), new ArrayList<>());
         for (Container container : containers(spec)) {
-            Set<String> visible = new HashSet<>(container.names());
-            // The steps before the current one, whose outcomes it can read
-            Set<String> ran = new HashSet<>();
-            String endedBy = null;
-            for (OperationStepSpec step : container.steps().values()) {
-                if (endedBy != null) {
-                    warnings.add("Step '" + step.getName() + "' in " + container.where()
-                            + " never runs: step '" + endedBy + "' before it always ends the"
-                            + " flow. Guard that step with onlyIf.");
-                    break;
+            if (container.declaresOutcome()) {
+                findings.errors().add(reserved("An input or a 'with' key", container.where()));
+            }
+            visit(container.steps(), new HashSet<>(container.names()), container.where(), 0,
+                    Set.of(), findings);
+        }
+        return findings;
+    }
+
+    /**
+     * Checks a step list.
+     *
+     * @param visible what its first step can read: inputs, {@code with} values, earlier steps
+     * @param depth how many tracks and sequences hold this list
+     * @param siblings in a track, the names of the other tracks of its group; empty otherwise
+     */
+    private static void visit(Map<String, OperationStepSpec> steps, Set<String> visible,
+            String where, int depth, Set<String> siblings, Findings findings) {
+        List<String> errors = findings.errors();
+        List<String> warnings = findings.warnings();
+        String endedBy = null;
+        for (OperationStepSpec step : List.copyOf(steps.values())) {
+            if (endedBy != null) {
+                warnings.add("Step '" + step.getName() + "' in " + where + " never runs: step '"
+                        + endedBy + "' before it always ends the flow. Guard that step with"
+                        + " onlyIf.");
+                break;
+            }
+            if (StepOutcomes.ROOT.equals(step.getName())) {
+                errors.add(reserved("A step", where));
+            }
+            if (step instanceof OperationStepSequenceSpec && depth == 0) {
+                errors.add("Step '" + step.getName() + "' in " + where + " is a sequence, which"
+                        + " is only allowed as a track of a parallel step.");
+            }
+            if (step instanceof OperationStepElicitSpec && !siblings.isEmpty()) {
+                errors.add("Step '" + step.getName() + "' in " + where + " asks the caller from"
+                        + " inside a parallel track, where questions are not supported. Ask"
+                        + " before the parallel step.");
+            }
+            checkGuards(step, visible, where, siblings, findings);
+            if (step instanceof OperationStepParallelSpec parallel) {
+                visitTracks(parallel, steps.keySet(), visible, where, depth, findings);
+            }
+            if (step instanceof OperationStepEndSpec && step.getOnlyIf() == null) {
+                endedBy = step.getName();
+            }
+            addName(visible, step.getName());
+        }
+    }
+
+    private static void visitTracks(OperationStepParallelSpec parallel, Set<String> stepNames,
+            Set<String> visible, String where, int depth, Findings findings) {
+        Map<String, OperationStepSpec> tracks = parallel.getTracks();
+        String inner = where + ", parallel step '" + parallel.getName() + "'";
+        for (Map.Entry<String, OperationStepSpec> track : tracks.entrySet()) {
+            String name = track.getKey();
+            if (stepNames.contains(name)) {
+                findings.errors().add("Track '" + name + "' of " + inner + " has the name of a"
+                        + " step of the same list: the steps after it read the track's output"
+                        + " under its name. Rename one.");
+            }
+            Set<String> others = new HashSet<>(tracks.keySet());
+            others.remove(name);
+            Set<String> trackVisible = new HashSet<>(visible);
+            int trackDepth = depth + (track.getValue() instanceof OperationStepSequenceSpec ? 2 : 1);
+            if (trackDepth > MAX_NESTING) {
+                findings.warnings().add("Track '" + name + "' of " + inner + " is nested more"
+                        + " than " + MAX_NESTING + " levels deep (parallel steps and sequences),"
+                        + " which makes the flow hard to read and to trace.");
+            }
+            if (track.getValue() instanceof OperationStepSequenceSpec sequence) {
+                visit(sequence.getSteps(), trackVisible, inner + ", track '" + name + "'",
+                        depth + 2, others, findings);
+            } else {
+                Map<String, OperationStepSpec> one = new java.util.LinkedHashMap<>();
+                one.put(name, track.getValue());
+                visit(one, trackVisible, inner, depth + 1, others, findings);
+            }
+        }
+        // The steps after the group read each track under its name.
+        tracks.keySet().forEach(name -> addName(visible, name));
+    }
+
+    private static void checkGuards(OperationStepSpec step, Set<String> visible, String where,
+            Set<String> siblings, Findings findings) {
+        // A step's success criteria see its own outcome and output.
+        Set<String> own = new HashSet<>(visible);
+        addName(own, step.getName());
+        for (Guard guard : guardsOf(step, where)) {
+            String error = StepGuard.parseError(guard.expression());
+            if (error != null) {
+                findings.errors().add(guard.label() + " is not a valid CEL expression: " + error);
+                continue;
+            }
+            for (String unknown : StepGuard.unknownOutcomes(guard.expression())) {
+                findings.errors().add(guard.label() + " compares an outcome with '" + unknown
+                        + "', which is not one: use "
+                        + String.join(", ", StepOutcomes.VOCABULARY) + ".");
+            }
+            boolean criterion = !guard.label().startsWith("The onlyIf");
+            for (String outcomeOf : StepGuard.outcomeSteps(guard.expression())) {
+                if (readsSibling(outcomeOf, siblings)) {
+                    findings.errors().add(guard.label() + " reads the outcome of track '"
+                            + outcomeOf + "', which runs at the same time: a track sees only the"
+                            + " steps before its parallel step.");
+                } else if (!(criterion ? own : visible).contains(outcomeOf)) {
+                    findings.warnings().add(guard.label() + " reads the outcome of '" + outcomeOf
+                            + "', which no earlier step has: "
+                            + (criterion ? "it never holds." : "the step will always be"
+                                    + " skipped."));
                 }
-                // A step's success criteria see its own outcome and output.
-                Set<String> own = new HashSet<>(visible);
-                Set<String> ranOwn = new HashSet<>(ran);
-                if (step.getName() != null) {
-                    own.add(step.getName());
-                    own.add(step.getName().replace('-', '_'));
-                    ranOwn.add(step.getName());
-                    ranOwn.add(step.getName().replace('-', '_'));
+            }
+            Set<String> explained = new HashSet<>();
+            for (List<String> parts : StepGuard.subtractedNames(guard.expression())) {
+                String dashed = String.join("-", parts);
+                if ((criterion ? own : visible).contains(dashed)) {
+                    findings.warnings().add(guard.label() + " reads '" + String.join(" - ", parts)
+                            + "', a subtraction: CEL reads '-' as minus. To read '"
+                            + dashed + "', write '" + String.join("_", parts) + "'.");
+                    explained.addAll(parts);
                 }
-                for (Guard guard : guardsOf(step, container.where())) {
-                    if (StepGuard.parseError(guard.expression()) != null) {
-                        continue;
-                    }
-                    boolean criterion = !guard.label().startsWith("The onlyIf");
-                    for (String outcomeOf : StepGuard.outcomeSteps(guard.expression())) {
-                        if (!(criterion ? ranOwn : ran).contains(outcomeOf)) {
-                            warnings.add(guard.label() + " reads the outcome of '" + outcomeOf
-                                    + "', which no earlier step has: "
-                                    + (criterion ? "it never holds." : "the step will always"
-                                            + " be skipped."));
-                        }
-                    }
-                    Set<String> explained = new HashSet<>();
-                    for (List<String> parts : StepGuard.subtractedNames(guard.expression())) {
-                        String dashed = String.join("-", parts);
-                        if ((criterion ? own : visible).contains(dashed)) {
-                            warnings.add(guard.label() + " reads '" + String.join(" - ", parts)
-                                    + "', a subtraction: CEL reads '-' as minus. To read '"
-                                    + dashed + "', write '" + String.join("_", parts) + "'.");
-                            explained.addAll(parts);
-                        }
-                    }
-                    for (String name : StepGuard.referencedNames(guard.expression())) {
-                        if (!(criterion ? own : visible).contains(name)
-                                && !explained.contains(name)) {
-                            warnings.add(guard.label() + " reads '" + name + "', which no input,"
-                                    + " 'with' value or earlier step provides: "
-                                    + (criterion ? "it never holds." : "the step will always"
-                                            + " be skipped."));
-                        }
-                    }
+            }
+            for (String name : StepGuard.referencedNames(guard.expression())) {
+                if (readsSibling(name, siblings)) {
+                    findings.errors().add(guard.label() + " reads track '" + name
+                            + "', which runs at the same time: a track sees only the steps"
+                            + " before its parallel step.");
+                } else if (!(criterion ? own : visible).contains(name)
+                        && !explained.contains(name)) {
+                    findings.warnings().add(guard.label() + " reads '" + name + "', which no"
+                            + " input, 'with' value or earlier step provides: "
+                            + (criterion ? "it never holds." : "the step will always be"
+                                    + " skipped."));
                 }
-                if (step instanceof OperationStepEndSpec && step.getOnlyIf() == null) {
-                    endedBy = step.getName();
-                }
-                if (step.getName() != null) {
-                    visible.add(step.getName());
-                    visible.add(step.getName().replace('-', '_'));
-                    // Only a call step records an outcome
-                    if (step instanceof OperationStepCallSpec) {
-                        ran.add(step.getName());
-                        ran.add(step.getName().replace('-', '_'));
+            }
+        }
+        if (step instanceof OperationStepCallSpec call && call.getWith() != null) {
+            for (Object value : call.getWith().values()) {
+                for (String sibling : siblings) {
+                    if (value instanceof String text && readsName(text, sibling)) {
+                        findings.errors().add("Step '" + step.getName() + "' in " + where
+                                + " reads track '" + sibling + "' in its 'with', which runs at"
+                                + " the same time: a track sees only the steps before its"
+                                + " parallel step.");
                     }
                 }
             }
         }
-        return warnings;
+    }
+
+    private static boolean readsSibling(String name, Set<String> siblings) {
+        for (String sibling : siblings) {
+            if (sibling.equals(name) || sibling.replace('-', '_').equals(name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Whether a {@code with} value reads {@code name}: {@code {{name...}}} or {@code name.x}. */
+    static boolean readsName(String value, String name) {
+        java.util.regex.Pattern reference = java.util.regex.Pattern.compile(
+                "(\\{\\{[#^&{]?\\s*|^)" + java.util.regex.Pattern.quote(name) + "(\\.|\\s*\\}|$)");
+        return reference.matcher(value.strip()).find();
+    }
+
+    private static void addName(Set<String> names, String name) {
+        if (name != null) {
+            names.add(name);
+            names.add(name.replace('-', '_'));
+        }
     }
 
     private static List<Container> containers(IkanosSpec spec) {

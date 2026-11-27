@@ -25,6 +25,7 @@ import io.ikanos.spec.aggregates.AggregateFlowSpec;
 import io.ikanos.spec.aggregates.AggregateSpec;
 import io.ikanos.spec.consumes.ClientSpec;
 import io.ikanos.spec.util.OperationStepCallSpec;
+import io.ikanos.spec.util.NestedSteps;
 import io.ikanos.spec.util.OperationStepSpec;
 import io.ikanos.engine.exposes.mcp.McpServerAdapter;
 import io.ikanos.engine.exposes.mcp.processor.CacheDataAppender;
@@ -185,7 +186,7 @@ public class McpCallHandlersFactory {
         if (resource.getCall() != null && resource.getCall().getOperation() != null) {
             pending.add(resource.getCall().getOperation());
         }
-        for (OperationStepSpec step : resource.getSteps().values()) {
+        for (OperationStepSpec step : NestedSteps.all(resource.getSteps())) {
             if (step instanceof OperationStepCallSpec call && call.getCall() != null) {
                 pending.add(call.getCall());
             }

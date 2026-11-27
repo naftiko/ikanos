@@ -24,6 +24,7 @@ import io.ikanos.spec.util.OperationStepLookupSpec;
 import io.ikanos.spec.util.OperationStepSpec;
 import io.ikanos.spec.util.OperationStepElicitSpec;
 import io.ikanos.spec.util.OperationStepEndSpec;
+import io.ikanos.spec.util.OperationStepParallelSpec;
 
 /**
  * A compiled sequence of steps, walked by a {@link StepInterpreter}.
@@ -81,6 +82,7 @@ public final class ExecutionTree {
             case OperationStepScriptSpec script -> StepNode.Kind.SCRIPT;
             case OperationStepElicitSpec elicit -> StepNode.Kind.ELICIT;
             case OperationStepEndSpec end -> StepNode.Kind.END;
+            case OperationStepParallelSpec parallel -> StepNode.Kind.PARALLEL;
             case null, default -> StepNode.Kind.SKIP;
         };
     }

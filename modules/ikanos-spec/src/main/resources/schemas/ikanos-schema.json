@@ -3939,7 +3939,9 @@
             "lookup",
             "script",
             "elicit",
-            "end"
+            "end",
+            "parallel",
+            "sequence"
           ]
         }
       },
@@ -4090,8 +4092,68 @@
         },
         {
           "$ref": "#/$defs/OperationStepEnd"
+        },
+        {
+          "$ref": "#/$defs/OperationStepParallel"
+        },
+        {
+          "$ref": "#/$defs/OperationStepSequence"
         }
       ]
+    },
+    "OperationStepParallel": {
+      "description": "Runs its tracks at the same time and continues once every track has finished. Each track sees the outputs of the steps before this one, never another track's; the steps after it read each track's output under the track's name. If one track fails, this step fails.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/OperationStepBase"
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "parallel"
+            },
+            "tracks": {
+              "type": "array",
+              "description": "The tracks, each a named step, or a `sequence` of steps. Track names are unique within the list, and unique among the steps of the enclosing list.",
+              "items": {
+                "$ref": "#/$defs/OperationStep"
+              },
+              "minItems": 2
+            }
+          },
+          "required": [
+            "tracks"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "OperationStepSequence": {
+      "description": "A short list of steps that run in order where one step is expected, such as a track of a `parallel` step. Its output is the output of the last of its steps that has one.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/OperationStepBase"
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "sequence"
+            },
+            "steps": {
+              "type": "array",
+              "description": "The steps, run in the order they are listed.",
+              "items": {
+                "$ref": "#/$defs/OperationStep"
+              },
+              "minItems": 1
+            }
+          },
+          "required": [
+            "steps"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
     },
     "OperationStepEnd": {
       "description": "Ends the flow early, as a success: the steps after it do not run, and the output is built from what the steps before it gathered. Usually guarded with `onlyIf`.",

@@ -7,7 +7,8 @@
  * at lint time, on the second step that uses the name.
  *
  * Every `steps` list of the document is checked: those of MCP tools and
- * resources, REST operations and aggregate flows. A list is recognised by its
+ * resources, REST operations and aggregate flows, the `tracks` of a `parallel`
+ * step and the `steps` of a `sequence`. A list is recognised by its
  * items, objects that declare a `type`, so a `steps` key inside a `with` map is
  * left alone.
  */
@@ -48,8 +49,8 @@ function walk(node, path, results) {
   }
   for (const key of Object.keys(node)) {
     const value = node[key];
-    if (key === "steps" && isStepList(value)) {
-      check(value, path.concat("steps"), results);
+    if ((key === "steps" || key === "tracks") && isStepList(value)) {
+      check(value, path.concat(key), results);
     }
     walk(value, path.concat(key), results);
   }

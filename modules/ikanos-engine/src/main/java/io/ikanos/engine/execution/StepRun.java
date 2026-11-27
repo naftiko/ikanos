@@ -114,6 +114,15 @@ public final class StepRun {
         runtimeParameters.put(stepName, MAPPER.convertValue(json, Object.class));
     }
 
+    /** Records {@code output} as the output of {@code stepName}, for templates and lookups. */
+    void putOutput(String stepName, JsonNode output) {
+        if (stepName == null || output == null || output.isNull() || output.isMissingNode()) {
+            return;
+        }
+        stepContext.storeStepOutput(stepName, output);
+        runtimeParameters.put(stepName, MAPPER.convertValue(output, Object.class));
+    }
+
     boolean isEvaluated(NodePath path) {
         return evaluated.contains(path);
     }
