@@ -230,6 +230,27 @@ public final class StepGuard {
         return names;
     }
 
+    /**
+     * The subtractions of names in a CEL guard that could be a dashed name written with its dash,
+     * each as the list of names subtracted ({@code [get, ship]} for {@code get-ship.count > 0}).
+     *
+     * @return the subtractions, or an empty list for a bare name or a guard that does not parse
+     */
+    public static List<List<String>> subtractedNames(String onlyIf) {
+        if (onlyIf == null || onlyIf.isBlank() || isBareName(onlyIf)) {
+            return List.of();
+        }
+        CelValidationResult parsed = PARSER.parse(onlyIf);
+        if (parsed.hasError()) {
+            return List.of();
+        }
+        try {
+            return GuardIdentifiers.subtractions(parsed.getAst());
+        } catch (CelValidationException e) {
+            return List.of();
+        }
+    }
+
     private static String firstSegment(String name) {
         int dot = name.indexOf('.');
         return dot < 0 ? name : name.substring(0, dot);

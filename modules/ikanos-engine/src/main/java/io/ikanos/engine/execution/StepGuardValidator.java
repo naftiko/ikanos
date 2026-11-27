@@ -46,6 +46,9 @@ import io.ikanos.spec.util.OperationStepSpec;
  * absent at run time, so the step is always skipped, which is usually a typo. A step sees the
  * inputs and {@code with} values of its unit, the outputs of the steps before it, and the
  * caller root ({@code auth}).</li>
+ * <li>A CEL guard that subtracts names which, joined by {@code -}, name something the step can
+ * see ({@code get-ship.count > 0} when a step is named {@code get-ship}) is a <b>warning</b>: CEL
+ * reads the dash as minus, and the name is written {@code get_ship}.</li>
  * </ul>
  */
 public final class StepGuardValidator {
@@ -92,8 +95,19 @@ public final class StepGuardValidator {
             Set<String> visible = new HashSet<>(container.names());
             for (OperationStepSpec step : container.steps().values()) {
                 if (step.getOnlyIf() != null && StepGuard.parseError(step.getOnlyIf()) == null) {
+                    Set<String> explained = new HashSet<>();
+                    for (List<String> parts : StepGuard.subtractedNames(step.getOnlyIf())) {
+                        String dashed = String.join("-", parts);
+                        if (visible.contains(dashed)) {
+                            warnings.add("The onlyIf of step '" + step.getName() + "' in "
+                                    + container.where() + " reads '" + String.join(" - ", parts)
+                                    + "', a subtraction: CEL reads '-' as minus. To read '"
+                                    + dashed + "', write '" + String.join("_", parts) + "'.");
+                            explained.addAll(parts);
+                        }
+                    }
                     for (String name : StepGuard.referencedNames(step.getOnlyIf())) {
-                        if (!visible.contains(name)) {
+                        if (!visible.contains(name) && !explained.contains(name)) {
                             warnings.add("The onlyIf of step '" + step.getName() + "' in "
                                     + container.where() + " reads '" + name + "', which no input,"
                                     + " 'with' value or earlier step provides: the step will"

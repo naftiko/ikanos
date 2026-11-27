@@ -120,6 +120,35 @@ public class StepGuardValidatorTest {
     }
 
     @Test
+    void findWarningsShouldReportADashedNameReadAsASubtraction() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow("""
+                - name: get-ship
+                  type: call
+                  what: fleet.get-ship
+                - name: alert
+                  type: call
+                  what: notify.send
+                  onlyIf: "get-ship.crew > 0"
+                """));
+
+        assertEquals(1, warnings.size(), warnings.toString());
+        assertTrue(warnings.get(0).contains("reads 'get - ship', a subtraction")
+                && warnings.get(0).contains("write 'get_ship'"), warnings.get(0));
+    }
+
+    @Test
+    void findWarningsShouldAcceptASubtractionOfNamesThatNameNothingDashed() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow("""
+                - name: alert
+                  type: call
+                  what: notify.send
+                  onlyIf: "order.total - order.paid > 0"
+                """));
+
+        assertTrue(warnings.isEmpty(), warnings.toString());
+    }
+
+    @Test
     void findWarningsShouldReportAStepReadBeforeItRuns() {
         List<String> warnings = StepGuardValidator.findWarnings(flow("""
                 - name: alert

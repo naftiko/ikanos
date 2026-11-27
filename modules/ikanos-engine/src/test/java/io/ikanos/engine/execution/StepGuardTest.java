@@ -188,4 +188,20 @@ public class StepGuardTest {
         assertEquals(Set.of("items", "limit"),
                 StepGuard.referencedNames("items.all(x, x < limit)"));
     }
+
+    @Test
+    public void subtractedNamesShouldListNamesJoinedByMinus() {
+        assertEquals(List.of(List.of("get", "ship")),
+                StepGuard.subtractedNames("get-ship.count > 0"));
+        assertEquals(List.of(List.of("a", "b", "c"), List.of("a", "b")),
+                StepGuard.subtractedNames("a-b-c == 1"));
+    }
+
+    @Test
+    public void subtractedNamesShouldIgnoreBareNamesAndOtherSubtractions() {
+        assertTrue(StepGuard.subtractedNames("get-ship.count").isEmpty(),
+                "a bare name reads the dashed name");
+        assertTrue(StepGuard.subtractedNames("total - 1 > 0").isEmpty());
+        assertTrue(StepGuard.subtractedNames("a.b - c > 0").isEmpty());
+    }
 }

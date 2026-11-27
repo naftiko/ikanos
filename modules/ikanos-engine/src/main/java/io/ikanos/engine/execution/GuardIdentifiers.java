@@ -13,7 +13,9 @@
  */
 package io.ikanos.engine.execution;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import dev.cel.common.CelAbstractSyntaxTree;
 import dev.cel.common.ast.CelExpr;
@@ -25,11 +27,91 @@ import dev.cel.common.ast.CelExpr;
  */
 final class GuardIdentifiers {
 
+    /** CEL's name for the binary minus operator. */
+    private static final String SUBTRACT = "_-_";
+
     private GuardIdentifiers() {
     }
 
     static void collect(CelAbstractSyntaxTree ast, Set<String> names) {
         walk(ast.getExpr(), Set.of(), names);
+    }
+
+    /**
+     * The subtractions of names that could be a dashed name written with its dash: {@code
+     * get-ship.count} parses as {@code get - ship.count} and gives {@code [get, ship]}, {@code
+     * a-b-c} gives {@code [a, b, c]} (and {@code [a, b]} for its inner subtraction). Each list is
+     * the names in order, the right one cut at its first dot.
+     */
+    static List<List<String>> subtractions(CelAbstractSyntaxTree ast) {
+        List<List<String>> found = new ArrayList<>();
+        subtractions(ast.getExpr(), found);
+        return found;
+    }
+
+    private static void subtractions(CelExpr expr, List<List<String>> found) {
+        switch (expr.getKind()) {
+            case CALL -> {
+                if (isSubtraction(expr)) {
+                    List<String> left = dashedParts(expr.call().args().get(0));
+                    String right = headName(expr.call().args().get(1));
+                    if (left != null && right != null) {
+                        List<String> parts = new ArrayList<>(left);
+                        parts.add(right);
+                        found.add(List.copyOf(parts));
+                    }
+                }
+                expr.call().target().ifPresent(target -> subtractions(target, found));
+                expr.call().args().forEach(arg -> subtractions(arg, found));
+            }
+            case SELECT -> subtractions(expr.select().operand(), found);
+            case LIST -> expr.list().elements().forEach(e -> subtractions(e, found));
+            case MAP -> expr.map().entries().forEach(entry -> {
+                subtractions(entry.key(), found);
+                subtractions(entry.value(), found);
+            });
+            case STRUCT -> expr.struct().entries().forEach(e -> subtractions(e.value(), found));
+            case COMPREHENSION -> {
+                CelExpr.CelComprehension loop = expr.comprehension();
+                subtractions(loop.iterRange(), found);
+                subtractions(loop.loopStep(), found);
+                subtractions(loop.result(), found);
+            }
+            default -> {
+                // constants and identifiers hold no subtraction
+            }
+        }
+    }
+
+    private static boolean isSubtraction(CelExpr expr) {
+        return SUBTRACT.equals(expr.call().function()) && expr.call().target().isEmpty()
+                && expr.call().args().size() == 2;
+    }
+
+    /** {@code a} gives {@code [a]}, {@code a - b} gives {@code [a, b]}; anything else null. */
+    private static List<String> dashedParts(CelExpr expr) {
+        if (expr.getKind() == CelExpr.ExprKind.Kind.IDENT) {
+            return List.of(expr.ident().name());
+        }
+        if (expr.getKind() == CelExpr.ExprKind.Kind.CALL && isSubtraction(expr)
+                && expr.call().args().get(1).getKind() == CelExpr.ExprKind.Kind.IDENT) {
+            List<String> left = dashedParts(expr.call().args().get(0));
+            if (left != null) {
+                List<String> parts = new ArrayList<>(left);
+                parts.add(expr.call().args().get(1).ident().name());
+                return parts;
+            }
+        }
+        return null;
+    }
+
+    /** The name a path starts with: {@code ship} for {@code ship.count}; null if none. */
+    private static String headName(CelExpr expr) {
+        CelExpr current = expr;
+        while (current.getKind() == CelExpr.ExprKind.Kind.SELECT) {
+            current = current.select().operand();
+        }
+        return current.getKind() == CelExpr.ExprKind.Kind.IDENT ? current.ident().name() : null;
     }
 
     private static void walk(CelExpr expr, Set<String> bound, Set<String> names) {
