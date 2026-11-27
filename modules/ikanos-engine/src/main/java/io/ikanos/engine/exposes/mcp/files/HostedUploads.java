@@ -34,11 +34,6 @@ import io.ikanos.engine.util.BinarySize;
 import io.ikanos.engine.util.FileInputs;
 import io.ikanos.engine.util.FileSignatures;
 import io.ikanos.spec.InputParameterSpec;
-import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
-import io.ikanos.spec.consumes.http.AuthenticationSpec;
-import io.ikanos.spec.consumes.http.BasicAuthenticationSpec;
-import io.ikanos.spec.consumes.http.BearerAuthenticationSpec;
-import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
 import io.ikanos.spec.exposes.mcp.McpFileUploadsSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import tools.jackson.databind.ObjectMapper;
@@ -141,7 +136,7 @@ public final class HostedUploads {
             throw new IllegalArgumentException(where + " declares hosted: true, but stdio has no"
                     + " address to receive uploads on");
         }
-        if (!resendsAuthorization(spec.getAuthentication())) {
+        if (!McpFileDownloads.resendsCredential(spec.getAuthentication())) {
             throw new IllegalArgumentException(where + " declares hosted: true, but its"
                     + " authentication (" + spec.getAuthentication().getType() + ") is not one a"
                     + " client resends on an include target; use none, bearer, basic, oauth2 or"
@@ -159,23 +154,8 @@ public final class HostedUploads {
             throw new IllegalArgumentException(where + ": ttl must be positive: "
                     + uploads.ttlOrDefault());
         }
-        return new HostedUploads(new MemoryUploadStore(quota), ttl, clock, spec.getNamespace());
-    }
-
-    /**
-     * Whether a client of the draft can authenticate an {@code include} target as it does its
-     * MCP requests: it resends the {@code Authorization} credential (none, bearer, basic,
-     * oauth2) and keeps the query string of the MCP address (an {@code apikey} in the query).
-     * A header {@code apikey}, {@code digest} or {@code awsSigV4} is not resent.
-     */
-    static boolean resendsAuthorization(AuthenticationSpec authentication) {
-        if (authentication == null || authentication instanceof BearerAuthenticationSpec
-                || authentication instanceof BasicAuthenticationSpec
-                || authentication instanceof OAuth2AuthenticationSpec) {
-            return true;
-        }
-        return authentication instanceof ApiKeyAuthenticationSpec apiKey
-                && "query".equalsIgnoreCase(apiKey.getPlacement());
+        return new HostedUploads(new MemoryUploadStore(quota, MemoryUploadStore.DEFAULT_MAX_SLOTS,
+                FileMemoryBudget.shared()), ttl, clock, spec.getNamespace());
     }
 
     /**

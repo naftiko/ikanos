@@ -31,13 +31,16 @@
 #     the server-chosen name of the stored object, never its bytes; an inline file is stored the
 #     same way first. The flow is not idempotent, so each `requestState` runs it at most once.
 #
-# Limits of hosted links:
-#   - a link is served only by the replica that issued it: give replicas session affinity;
-#   - files wait in one bounded in-memory store per process (at most 1/8 of the heap and
-#     256 MiB, a quarter of it per caller); a result that does not fit is returned inline;
+# Limits of hosted links and hosted uploads:
+#   - a link or upload target is served only by the replica that issued it: give replicas
+#     session affinity for the whole call, retry included;
+#   - downloads and uploads wait in memory and share one bound per process (at most 1/8 of the
+#     heap and 256 MiB, a quarter of it per caller); a result that does not fit is returned
+#     inline, and an upload that does not fit (or goes over `uploads.quota`) is an error result;
 #   - a client resends only the `Authorization` header and the query string of the MCP address,
-#     so links work with no authentication, bearer, basic, oauth2 or a query apikey; behind a
-#     header apikey, digest or awsSigV4, binary results stay inline.
+#     so they work with no authentication, bearer, basic, oauth2 or a query apikey; behind a
+#     header apikey, digest or awsSigV4, binary results stay inline and `uploads.hosted: true`
+#     fails the load.
 ikanos: "1.0.0-beta11"
 
 info:

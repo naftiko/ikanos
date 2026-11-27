@@ -133,4 +133,34 @@ class MemoryUploadStoreTest {
 
         assertTrue(store.reserve(Map.of("new", slot("alice", 10)), NOW.plusSeconds(300)));
     }
+
+    @Test
+    void reserveShouldDrawFromTheProcessBudgetSharedWithDownloads() {
+        FileMemoryBudget budget = new FileMemoryBudget(100, 60);
+        MemoryUploadStore store = new MemoryUploadStore(1000, 10, budget);
+        MemoryDownloadStore downloads = new MemoryDownloadStore(10, budget);
+
+        assertTrue(downloads.put("link", new DownloadStore.StoredDownload("bob", "a.bin",
+                "application/octet-stream", new byte[50], NOW.plusSeconds(60)), NOW));
+        assertFalse(store.reserve(Map.of("a", slot("alice", 51)), NOW),
+                "The adapter quota has room, the process budget has not");
+        assertEquals(50, budget.used(), "A refused reservation takes nothing");
+        assertTrue(store.reserve(Map.of("a", slot("alice", 50)), NOW));
+        assertEquals(100, budget.used());
+
+        store.delete("a");
+        assertEquals(50, budget.used());
+    }
+
+    @Test
+    void reserveShouldRespectTheCallerShareOfTheBudget() {
+        FileMemoryBudget budget = new FileMemoryBudget(100, 30);
+        MemoryUploadStore store = new MemoryUploadStore(1000, 10, budget);
+
+        assertFalse(store.reserve(Map.of("a", slot("alice", 31)), NOW));
+        assertTrue(store.reserve(Map.of("a", slot("alice", 30)), NOW));
+        assertTrue(store.reserve(Map.of("b", slot("bob", 30)), NOW));
+        store.purge(NOW.plusSeconds(300));
+        assertEquals(0, budget.used(), "Purged slots give their bytes back");
+    }
 }

@@ -20,9 +20,11 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * An {@link UploadStore} in memory, bounded by a quota of bytes and a number of slots. Each slot
- * counts at its declared size from its reservation, so the bytes of a {@code PUT} always fit.
- * Slots are per process: a target is served by the replica that issued it.
+ * An {@link UploadStore} in memory, bounded by the adapter's quota of bytes, a number of slots,
+ * and a {@link FileMemoryBudget}: the process-wide {@link FileMemoryBudget#shared()} that hosted
+ * download links draw from too, in total and per caller. Each slot counts at its declared size
+ * from its reservation, so the bytes of a {@code PUT} always fit. Slots are per process: a target
+ * is served by the replica that issued it.
  */
 public final class MemoryUploadStore implements UploadStore {
 
@@ -41,16 +43,28 @@ public final class MemoryUploadStore implements UploadStore {
 
     private final long quota;
     private final int maxSlots;
+    private final FileMemoryBudget budget;
     private final Map<String, Entry> entries = new HashMap<>();
     private long reserved;
 
+    /** A store bounded by {@code quota} alone, for tests. */
     public MemoryUploadStore(long quota) {
         this(quota, DEFAULT_MAX_SLOTS);
     }
 
+    /** A store bounded by {@code quota} and {@code maxSlots} alone, for tests. */
     public MemoryUploadStore(long quota, int maxSlots) {
+        this(quota, maxSlots, new FileMemoryBudget(Long.MAX_VALUE, Long.MAX_VALUE));
+    }
+
+    /**
+     * @param quota the adapter's quota: the most bytes its slots reserve at once
+     * @param budget the process-wide budget the slots also draw from
+     */
+    public MemoryUploadStore(long quota, int maxSlots, FileMemoryBudget budget) {
         this.quota = quota;
         this.maxSlots = maxSlots;
+        this.budget = budget;
     }
 
     @Override
@@ -62,6 +76,17 @@ public final class MemoryUploadStore implements UploadStore {
         }
         if (entries.size() + slots.size() > maxSlots || size > quota - reserved) {
             return false;
+        }
+        // Taken from the process-wide budget per caller, all or none
+        Map<String, Long> byCaller = new HashMap<>();
+        slots.values().forEach(slot -> byCaller.merge(slot.principal(), slot.size(), Long::sum));
+        Map<String, Long> taken = new HashMap<>();
+        for (Map.Entry<String, Long> caller : byCaller.entrySet()) {
+            if (!budget.acquire(caller.getKey(), caller.getValue())) {
+                taken.forEach(budget::release);
+                return false;
+            }
+            taken.put(caller.getKey(), caller.getValue());
         }
         slots.forEach((token, slot) -> entries.put(token, new Entry(slot)));
         reserved += size;
@@ -112,7 +137,7 @@ public final class MemoryUploadStore implements UploadStore {
     public synchronized void delete(String token) {
         Entry entry = entries.remove(token);
         if (entry != null) {
-            reserved -= entry.slot.size();
+            free(entry);
         }
     }
 
@@ -125,11 +150,16 @@ public final class MemoryUploadStore implements UploadStore {
                     && !now.isBefore(entry.slot.writableUntil());
             if (unwritten || !now.isBefore(entry.slot.expiresAt())) {
                 it.remove();
-                reserved -= entry.slot.size();
+                free(entry);
                 dropped++;
             }
         }
         return dropped;
+    }
+
+    private void free(Entry entry) {
+        reserved -= entry.slot.size();
+        budget.release(entry.slot.principal(), entry.slot.size());
     }
 
     /** @return the bytes reserved by the slots kept */

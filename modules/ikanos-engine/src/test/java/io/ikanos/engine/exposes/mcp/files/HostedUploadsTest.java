@@ -37,7 +37,6 @@ import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.consumes.http.ApiKeyAuthenticationSpec;
 import io.ikanos.spec.consumes.http.BearerAuthenticationSpec;
 import io.ikanos.spec.consumes.http.DigestAuthenticationSpec;
-import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.spec.util.VersionHelper;
@@ -340,17 +339,23 @@ class HostedUploadsTest {
     }
 
     @Test
-    void hostedTargetsShouldNeedAnAuthenticationTheClientResends() {
-        ApiKeyAuthenticationSpec header = new ApiKeyAuthenticationSpec();
-        header.setPlacement("header");
-        ApiKeyAuthenticationSpec query = new ApiKeyAuthenticationSpec();
-        query.setPlacement("query");
+    void ofShouldRefuseAnAuthenticationTheClientDoesNotResend() throws Exception {
+        McpServerSpec header = server("hosted: true", false);
+        ApiKeyAuthenticationSpec apiKey = new ApiKeyAuthenticationSpec();
+        apiKey.setPlacement("header");
+        header.setAuthentication(apiKey);
+        McpServerSpec digest = server("hosted: true", false);
+        digest.setAuthentication(new DigestAuthenticationSpec());
+        McpServerSpec query = server("hosted: true", false);
+        ApiKeyAuthenticationSpec queryKey = new ApiKeyAuthenticationSpec();
+        queryKey.setPlacement("query");
+        query.setAuthentication(queryKey);
+        McpServerSpec bearer = server("hosted: true", false);
+        bearer.setAuthentication(new BearerAuthenticationSpec());
 
-        assertTrue(HostedUploads.resendsAuthorization(null));
-        assertTrue(HostedUploads.resendsAuthorization(new BearerAuthenticationSpec()));
-        assertTrue(HostedUploads.resendsAuthorization(new OAuth2AuthenticationSpec()));
-        assertTrue(HostedUploads.resendsAuthorization(query));
-        assertFalse(HostedUploads.resendsAuthorization(header));
-        assertFalse(HostedUploads.resendsAuthorization(new DigestAuthenticationSpec()));
+        assertThrows(IllegalArgumentException.class, () -> HostedUploads.of(header, clock));
+        assertThrows(IllegalArgumentException.class, () -> HostedUploads.of(digest, clock));
+        assertTrue(HostedUploads.of(query, clock) != null);
+        assertTrue(HostedUploads.of(bearer, clock) != null);
     }
 }
