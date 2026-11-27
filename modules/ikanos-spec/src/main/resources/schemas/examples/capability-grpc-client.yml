@@ -14,7 +14,7 @@
 ikanos: "1.0.0-beta11"
 
 info:
-  display: "Orders — gRPC client example"
+  title: "Orders — gRPC client example"
   description: "Read and cancel orders of a gRPC service, re-exposed as MCP tools."
 
 capability:

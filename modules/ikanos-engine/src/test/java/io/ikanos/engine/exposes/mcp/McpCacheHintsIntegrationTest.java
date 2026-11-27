@@ -165,7 +165,7 @@ class McpCacheHintsIntegrationTest {
                             value: "hi"
                     resources:
                       guide:
-                        display: "Guide"
+                        title: "Guide"
                         uri: "docs://guide"
                         description: "Static guide"
                         location: "%s"
@@ -267,25 +267,25 @@ class McpCacheHintsIntegrationTest {
                             value: "hi"
                     resources:
                       guide:
-                        display: "Guide"
+                        title: "Guide"
                         uri: "docs://guide"
                         description: "Static guide"
                         location: "%s"
                       notes:
-                        display: "Notes"
+                        title: "Notes"
                         uri: "notes://team"
                         description: "Team notes"
                         location: "%s"
                         ttlMs: 5000
                         cacheScope: private
                       news:
-                        display: "News"
+                        title: "News"
                         uri: "news://feed"
                         description: "News feed"
                         location: "%s"
                         ttlMs: 1000
                       user:
-                        display: "User"
+                        title: "User"
                         uri: "data://users/{userId}"
                         description: "A user by id"
                         call: upstream.get-user

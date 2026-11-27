@@ -146,12 +146,12 @@ public class ResourceHandler {
      *
      * @param uri         the concrete resource URI (expanded per file for static directories)
      * @param name        the resource name (its key in the capability)
-     * @param display     the human-readable title (falls back to {@code name})
+     * @param title       the human-readable title (falls back to {@code name})
      * @param description the resource description
      * @param mimeType    the declared or probed MIME type, or {@code null}
      * @param meta        the entry {@code _meta} (for example MCP Apps {@code ui}), or {@code null}
      */
-    public record ResourceDescriptor(String uri, String name, String display, String description,
+    public record ResourceDescriptor(String uri, String name, String title, String description,
             String mimeType, Map<String, Object> meta) {
     }
 
@@ -216,7 +216,7 @@ public class ResourceHandler {
     private static ResourceDescriptor descriptor(McpServerResourceSpec spec, String uri,
             String mimeType) {
         return new ResourceDescriptor(uri, spec.getName(),
-                spec.getDisplay() != null ? spec.getDisplay() : spec.getName(),
+                spec.getTitle() != null ? spec.getTitle() : spec.getName(),
                 spec.getDescription(), mimeType, McpAppsMetadata.resourceMeta(spec.getUi()));
     }
 

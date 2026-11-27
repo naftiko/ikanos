@@ -61,12 +61,12 @@ class RefExecutionFieldsSchemaValidationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  display: "Ref"
+                  title: "Ref"
                   description: "Fields next to ref"
                 capability:
                   aggregates:
                     - namespace: "things"
-                      display: "Things"
+                      title: "Things"
                       flows:
                         list:
                           description: "List things."

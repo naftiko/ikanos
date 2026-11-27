@@ -47,8 +47,8 @@ public class PromptsListHandler extends McpCallHandler {
         for (McpServerPromptSpec spec : adapter.getPromptHandler().listAll()) {
             ObjectNode promptNode = MAPPER.createObjectNode();
             promptNode.put("name", spec.getName());
-            if (spec.getDisplay() != null) {
-                promptNode.put("title", spec.getDisplay());
+            if (spec.getTitle() != null) {
+                promptNode.put("title", spec.getTitle());
             }
             if (spec.getDescription() != null) {
                 promptNode.put("description", spec.getDescription());
@@ -58,8 +58,8 @@ public class PromptsListHandler extends McpCallHandler {
                 for (McpPromptArgumentSpec arg : spec.getArguments().values()) {
                     ObjectNode argNode = MAPPER.createObjectNode();
                     argNode.put("name", arg.getName());
-                    if (arg.getDisplay() != null) {
-                        argNode.put("title", arg.getDisplay());
+                    if (arg.getTitle() != null) {
+                        argNode.put("title", arg.getTitle());
                     }
                     if (arg.getDescription() != null) {
                         argNode.put("description", arg.getDescription());

@@ -8,7 +8,7 @@
 # MUST NOT FIRE on the flow `settle`, which is not declared safe.
 ikanos: "1.0.0-beta11"
 info:
-  display: "Consumed SQL rules — writes reached indirectly"
+  title: "Consumed SQL rules — writes reached indirectly"
   description: "Fixture where SQL writes are reached through steps, ref, resources and flows."
 capability:
   consumes:

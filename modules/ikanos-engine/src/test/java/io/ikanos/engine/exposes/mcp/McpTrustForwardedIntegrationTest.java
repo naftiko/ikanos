@@ -178,7 +178,7 @@ class McpTrustForwardedIntegrationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  display: "Trust Forwarded Test"
+                  title: "Trust Forwarded Test"
                 capability:
                   exposes:
                     - type: "mcp"

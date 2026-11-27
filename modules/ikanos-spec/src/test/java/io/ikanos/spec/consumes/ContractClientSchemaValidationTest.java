@@ -71,7 +71,7 @@ class ContractClientSchemaValidationTest {
         return """
                 ikanos: "%s"
                 info:
-                  display: "Contract clients"
+                  title: "Contract clients"
                   description: "Contract client schema test"
                 capability:
                   consumes:

@@ -1,6 +1,6 @@
 ikanos: 1.0.0-beta11
 info:
-  display: Sealing key unbound
+  title: Sealing key unbound
   description: Negative fixture referencing a sealing key that no binding declares
 capability:
   binds:
@@ -9,7 +9,7 @@ capability:
     keys:
       OTHER_KEY: other-key
   aggregates:
-  - display: departure flows
+  - title: departure flows
     namespace: departure
     flows:
       get-voyage:

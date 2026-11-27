@@ -1,6 +1,6 @@
 ikanos: "1.0.0-beta11"
 info:
-  display: Package Regression — HTTP Connector
+  title: Package Regression — HTTP Connector
   description: >
     Minimal REST capability used by the package regression guards in
     publish-cli-packages.yml: `validate` checks it, and the control port guard
@@ -22,12 +22,12 @@ capability:
     resources:
       ping:
         path: /ping
-        display: Ping
+        title: Ping
         description: Trivial endpoint that exists only to wire up the HTTP connector
         operations:
           get-ping:
             method: GET
-            display: Get Ping
+            title: Get Ping
             call: ping-backend.get
   - type: mcp
     address: localhost
@@ -59,4 +59,4 @@ capability:
         operations:
           get:
             method: GET
-            display: Get Ping
+            title: Get Ping

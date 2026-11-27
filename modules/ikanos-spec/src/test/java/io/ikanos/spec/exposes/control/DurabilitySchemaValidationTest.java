@@ -61,11 +61,11 @@ class DurabilitySchemaValidationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  display: "Durability"
+                  title: "Durability"
                   description: "durability schema test"
                 capability:
                   aggregates:
-                  - display: departure flows
+                  - title: departure flows
                     namespace: departure
                     flows:
                       get-voyage:

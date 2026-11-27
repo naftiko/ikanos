@@ -48,7 +48,7 @@ public class ResourcesListHandler extends McpCallHandler {
             ObjectNode node = MAPPER.createObjectNode();
             node.put("uri", entry.uri());
             node.put("name", entry.name());
-            String title = entry.display();
+            String title = entry.title();
             if (title != null) {
                 node.put("title", title);
             }

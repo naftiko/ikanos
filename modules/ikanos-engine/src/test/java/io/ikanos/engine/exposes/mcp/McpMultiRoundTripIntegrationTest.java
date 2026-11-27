@@ -42,7 +42,7 @@ class McpMultiRoundTripIntegrationTest {
         return """
                 ikanos: "%s"
                 info:
-                  display: "Departure confirmation"
+                  title: "Departure confirmation"
                   description: "Multi round-trip integration test"
                 capability:
                   aggregates:
@@ -344,7 +344,7 @@ class McpMultiRoundTripIntegrationTest {
     private static final String NESTED = """
             ikanos: "%s"
             info:
-              display: "Departure clearance"
+              title: "Departure clearance"
               description: "Nested elicit integration test"
             capability:
               aggregates:
@@ -436,7 +436,7 @@ class McpMultiRoundTripIntegrationTest {
         return """
                 ikanos: "%s"
                 info:
-                  display: "Departure confirmation"
+                  title: "Departure confirmation"
                   description: "Templated elicit message integration test"
                 capability:
                   aggregates:

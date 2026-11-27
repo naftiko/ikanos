@@ -1,6 +1,6 @@
 ikanos: 1.0.0-beta11
 info:
-  display: Flow composition violations
+  title: Flow composition violations
   description: Negative fixture for the flow-call rules and cross-section namespace uniqueness
 capability:
   consumes:
@@ -15,7 +15,7 @@ capability:
           create-invoice:
             method: POST
   aggregates:
-  - display: billing flows
+  - title: billing flows
     namespace: billing
     flows:
       collide:
@@ -24,7 +24,7 @@ capability:
           id:
             type: string
             value: x
-  - display: payments flows
+  - title: payments flows
     namespace: payments
     flows:
       checkout:
@@ -38,7 +38,7 @@ capability:
           missing:
             type: call
             call: loop.nope
-  - display: loop flows
+  - title: loop flows
     namespace: loop
     flows:
       ping:

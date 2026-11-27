@@ -1,6 +1,6 @@
 ikanos: "1.0.0-beta11"
 info:
-  display: "Mapped definitions violations"
+  title: "Mapped definitions violations"
   description: "Mistakes binding schemas in mapped (call-mode) outputs (#1036)."
   tags:
     - Test
@@ -230,7 +230,7 @@ capability:
               mapping: "$.tags"
       resources:
         flagship:
-          display: "Flagship"
+          title: "Flagship"
           description: "The flagship."
           uri: "data://flagship"
           call: registry.get-ship
@@ -276,7 +276,7 @@ capability:
                 cargo:
                   schema: cargo
   aggregates:
-    - display: "Cargo"
+    - title: "Cargo"
       namespace: cargo
       definitions:
         schemas:

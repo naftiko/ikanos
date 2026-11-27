@@ -1,6 +1,6 @@
 ikanos: 1.0.0-beta11
 info:
-  display: MCP Output Schema and UI Capability
+  title: MCP Output Schema and UI Capability
   description: >-
     Golden fixture for tools/list: tools whose definitions carry an outputSchema with nested
     objects and arrays, and a tool-level _meta with MCP Apps UI metadata.
@@ -12,7 +12,7 @@ capability:
     namespace: ships
     resources:
       ship-view:
-        display: Ship view
+        title: Ship view
         description: Interactive ship card.
         uri: ui://ships/card
         # The golden test replaces file:///@VIEWS_DIR@/ with the file URI of src/test/resources/mcp/views/.

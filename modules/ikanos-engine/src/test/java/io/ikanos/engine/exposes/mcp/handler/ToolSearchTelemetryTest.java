@@ -224,7 +224,7 @@ class ToolSearchTelemetryTest {
     private static final String MOCK_TOOLS = """
             ikanos: "%s"
             info:
-              display: "Mock tools"
+              title: "Mock tools"
               description: "Tools that answer from static values"
             capability:
               exposes:

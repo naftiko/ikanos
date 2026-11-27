@@ -1,6 +1,6 @@
 ikanos: 1.0.0-beta11
 info:
-  display: Imported alias namespace collision
+  title: Imported alias namespace collision
   description: Negative fixture - an imported consumes alias reuses an aggregate namespace
 capability:
   consumes:
@@ -8,7 +8,7 @@ capability:
     import: weather-api
     as: forecast
   aggregates:
-  - display: forecast flows
+  - title: forecast flows
     namespace: forecast
     flows:
       get:

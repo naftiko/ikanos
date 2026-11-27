@@ -44,7 +44,7 @@ class AggregateFlowDeserializationTest {
               consumes: []
               aggregates:
                 forecast:
-                  display: "Forecast"
+                  title: "Forecast"
                   flows:
                     get-forecast:
                       description: "Retrieve forecast for a location"

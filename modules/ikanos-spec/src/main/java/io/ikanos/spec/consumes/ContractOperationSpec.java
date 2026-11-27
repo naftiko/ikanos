@@ -24,7 +24,7 @@ import io.ikanos.spec.OperationSpec;
  * One operation of a contract-described consumed adapter ({@code grpc} procedure,
  * {@code graphql} or {@code smithy} operation).
  *
- * <p>Besides the fields of {@link OperationSpec} ({@code display}, {@code tags},
+ * <p>Besides the fields of {@link OperationSpec} ({@code title}, {@code tags},
  * {@code description}, typed {@code inputParameters} whose {@code wireName} is a dotted path into
  * the request, {@code outputParameters}), it carries {@code readOnly}, derived from the contract
  * when absent, and {@code timeoutMs}.</p>

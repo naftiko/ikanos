@@ -9,7 +9,7 @@
 ikanos: "1.0.0-beta11"
 
 info:
-  display: "Authorization — violations"
+  title: "Authorization — violations"
   description: "Negative fixture: authorization blocks that cannot be enforced."
 
 binds:
@@ -21,7 +21,7 @@ binds:
 capability:
   aggregates:
     - namespace: "records"
-      display: "Records"
+      title: "Records"
       flows:
         update-record:
           description: "Updates a record."

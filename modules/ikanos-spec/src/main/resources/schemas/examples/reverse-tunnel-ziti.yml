@@ -11,7 +11,7 @@
 ikanos: "1.0.0-beta11"
 
 info:
-  display: "CRM reverse-tunnel example"
+  title: "CRM reverse-tunnel example"
   description: "Reach an internal CRM API over an OpenZiti reverse tunnel."
 
 capability:

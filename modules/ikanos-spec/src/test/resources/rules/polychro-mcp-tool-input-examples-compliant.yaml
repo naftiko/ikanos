@@ -5,7 +5,7 @@
 #   beside a default.
 ikanos: "1.0.0-beta11"
 info:
-  display: "MCP tool input examples — compliant"
+  title: "MCP tool input examples — compliant"
   description: "Fixture whose MCP tool input examples are valid values of their inputs."
 capability:
   consumes:

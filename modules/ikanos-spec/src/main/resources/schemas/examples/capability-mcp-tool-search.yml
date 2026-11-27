@@ -1,6 +1,6 @@
 ikanos: "1.0.0-beta11"
 info:
-  display: "Operations tools with tool search"
+  title: "Operations tools with tool search"
   description: >
     Shows the `toolSearch` block of an MCP adapter. The endpoint lists every tool by default;
     a client without tool search of its own adds `?toolSearch=deferred` to the endpoint URL and

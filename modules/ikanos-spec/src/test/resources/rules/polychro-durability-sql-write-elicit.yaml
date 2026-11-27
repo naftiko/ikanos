@@ -1,6 +1,6 @@
 ikanos: 1.0.0-beta11
 info:
-  display: Question after a SQL write under none
+  title: Question after a SQL write under none
   description: >-
     Negative fixture: under the none mode, one flow marks an order shipped
     with a SQL write procedure, then asks for a confirmation. The answer
@@ -30,7 +30,7 @@ capability:
         inputParameters:
           id: { type: string }
   aggregates:
-  - display: order flows
+  - title: order flows
     namespace: orders
     flows:
       ship-then-confirm:

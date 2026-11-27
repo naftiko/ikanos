@@ -6,7 +6,7 @@
 ikanos: "1.0.0-beta11"
 
 info:
-  display: "Shared listener — same path"
+  title: "Shared listener — same path"
   description: "Negative fixture: two adapters at the root of one port."
 
 capability:

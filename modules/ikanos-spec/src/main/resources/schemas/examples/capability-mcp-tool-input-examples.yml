@@ -1,6 +1,6 @@
 ikanos: "1.0.0-beta11"
 info:
-  display: "Incident tools with input examples"
+  title: "Incident tools with input examples"
   description: >
     Shows `examples` on MCP tool inputs. The engine advertises them as JSON Schema
     `examples` in each tool's inputSchema, typed like the input, so models see what a

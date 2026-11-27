@@ -84,7 +84,7 @@ class ObservabilityMcpStdioIntegrationTest {
         return """
                 ikanos: "%s"
                 info:
-                  display: "weather-stdio-capability"
+                  title: "weather-stdio-capability"
                 capability:
                   exposes:
                     - type: "mcp"

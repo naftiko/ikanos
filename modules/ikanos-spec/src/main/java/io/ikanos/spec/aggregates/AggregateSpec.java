@@ -46,7 +46,7 @@ import io.ikanos.spec.DefinitionsSpec;
 @JsonDeserialize(using = AggregateSpecDeserializer.class)
 public class AggregateSpec {
 
-    private final AtomicReference<String> display = new AtomicReference<>();
+    private final AtomicReference<String> title = new AtomicReference<>();
     private final AtomicReference<String> namespace = new AtomicReference<>();
 
     /** Shared input parameter sets and schemas, visible to this namespace only (#910). */
@@ -57,12 +57,12 @@ public class AggregateSpec {
     private final Map<String, AggregateFlowSpec> flows =
             Collections.synchronizedMap(new LinkedHashMap<>());
 
-    public String getDisplay() {
-        return display.get();
+    public String getTitle() {
+        return title.get();
     }
 
-    public void setDisplay(String display) {
-        this.display.set(display);
+    public void setTitle(String title) {
+        this.title.set(title);
     }
 
     public String getNamespace() {

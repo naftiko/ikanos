@@ -5,7 +5,7 @@
 ikanos: "1.0.0-beta11"
 
 info:
-  display: "MCP trust — every IPv6 address trusted"
+  title: "MCP trust — every IPv6 address trusted"
   description: "Fixture for the MCP trust network rules (issue #483)."
 
 capability:

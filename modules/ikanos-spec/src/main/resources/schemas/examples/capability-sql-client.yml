@@ -13,7 +13,7 @@
 ikanos: "1.0.0-beta11"
 
 info:
-  display: "Customer 360 — SQL client example"
+  title: "Customer 360 — SQL client example"
   description: "Join ERP customer rows with CRM ownership and re-expose the result."
 
 capability:
@@ -75,7 +75,7 @@ capability:
                 owner: { type: "string", value: "$.owner" }
 
   aggregates:
-    - display: "Customer 360"
+    - title: "Customer 360"
       namespace: "customer"
       flows:
         customer-overview:

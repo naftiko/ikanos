@@ -7,7 +7,7 @@
 ikanos: "1.0.0-beta11"
 
 info:
-  display: "Reverse tunnel — bound identity reference"
+  title: "Reverse tunnel — bound identity reference"
   description: "Positive fixture: identity correctly references a declared binding."
 
 capability:

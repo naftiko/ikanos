@@ -19,7 +19,7 @@
 ikanos: "1.0.0-beta11"
 
 info:
-  display: "Collections — MCP client example"
+  title: "Collections — MCP client example"
   description: "Compose a vendor MCP tool with an internal CRM API and re-expose the result."
 
 capability:
@@ -91,7 +91,7 @@ capability:
               description: "Retrieve one account."
 
   aggregates:
-    - display: "Collections"
+    - title: "Collections"
       namespace: "collections"
       flows:
         account-exposure:

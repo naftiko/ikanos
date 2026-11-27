@@ -55,7 +55,7 @@ import io.ikanos.spec.util.StepOrder;
 public class McpServerToolSpec {
 
     private final AtomicReference<String> name = new AtomicReference<>();
-    private final AtomicReference<String> display = new AtomicReference<>();
+    private final AtomicReference<String> title = new AtomicReference<>();
     private final AtomicReference<String> description = new AtomicReference<>();
     private final AtomicReference<String> ref = new AtomicReference<>();
     private final AtomicReference<ServerCallSpec> call = new AtomicReference<>();
@@ -91,9 +91,9 @@ public class McpServerToolSpec {
 
     public McpServerToolSpec() { this(null, null, null); }
 
-    public McpServerToolSpec(String name, String display, String description) {
+    public McpServerToolSpec(String name, String title, String description) {
         this.name.set(name);
-        this.display.set(display);
+        this.title.set(title);
         this.description.set(description);
     }
 
@@ -101,8 +101,8 @@ public class McpServerToolSpec {
     public void setName(String name) { this.name.set(name); }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public String getDisplay() { return display.get(); }
-    public void setDisplay(String display) { this.display.set(display); }
+    public String getTitle() { return title.get(); }
+    public void setTitle(String title) { this.title.set(title); }
 
     public String getDescription() { return description.get(); }
     public void setDescription(String description) { this.description.set(description); }

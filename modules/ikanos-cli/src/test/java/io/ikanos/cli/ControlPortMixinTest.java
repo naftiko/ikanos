@@ -90,7 +90,7 @@ public class ControlPortMixinTest {
         Files.writeString(yaml, """
                 ikanos: "%s"
                 info:
-                  display: Test
+                  title: Test
                 capability:
                   exposes:
                     - type: control
@@ -142,7 +142,7 @@ public class ControlPortMixinTest {
         Files.writeString(yaml, """
                 ikanos: "%s"
                 info:
-                  display: Test
+                  title: Test
                 capability:
                   exposes:
                     - type: control
@@ -174,7 +174,7 @@ public class ControlPortMixinTest {
         Files.writeString(yaml, """
                 ikanos: "%s"
                 info:
-                  display: Test
+                  title: Test
                 capability:
                   exposes:
                     - type: rest
@@ -198,7 +198,7 @@ public class ControlPortMixinTest {
         Files.writeString(yaml1, """
                 ikanos: "%s"
                 info:
-                  display: Test A
+                  title: Test A
                 capability:
                   exposes:
                     - type: rest
@@ -209,7 +209,7 @@ public class ControlPortMixinTest {
         Files.writeString(yaml2, """
                 ikanos: "%s"
                 info:
-                  display: Test B
+                  title: Test B
                 capability:
                   exposes:
                     - type: control
@@ -234,7 +234,7 @@ public class ControlPortMixinTest {
         Files.writeString(yaml, """
                 ikanos: "%s"
                 info:
-                  display: Test
+                  title: Test
                 capability: {}
                 """.formatted(IKANOS));
 

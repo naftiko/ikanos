@@ -21,7 +21,7 @@ capability:
       from: ./shared/legacy-consumes.yaml
 
   aggregates:
-  - display: "Crew Resolver"
+  - title: "Crew Resolver"
     namespace: crew-resolver
     flows:
       resolve-crew-for-ship:

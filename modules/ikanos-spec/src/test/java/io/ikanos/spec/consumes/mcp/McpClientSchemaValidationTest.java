@@ -63,7 +63,7 @@ class McpClientSchemaValidationTest {
         return """
                 ikanos: "%s"
                 info:
-                  display: "MCP client"
+                  title: "MCP client"
                   description: "MCP client schema test"
                 capability:
                   consumes:

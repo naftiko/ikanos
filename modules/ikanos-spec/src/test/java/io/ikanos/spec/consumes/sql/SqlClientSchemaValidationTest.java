@@ -62,7 +62,7 @@ class SqlClientSchemaValidationTest {
         return """
                 ikanos: "%s"
                 info:
-                  display: "SQL client"
+                  title: "SQL client"
                   description: "SQL client schema test"
                 capability:
                   consumes:

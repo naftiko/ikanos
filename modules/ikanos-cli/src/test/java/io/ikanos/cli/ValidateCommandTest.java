@@ -745,7 +745,7 @@ public class ValidateCommandTest {
         assertDoesNotThrow(() -> Files.writeString(yaml, """
                 ikanos: "%s"
                 info:
-                  display: "Legacy skills"
+                  title: "Legacy skills"
                   description: "Still declares the removed skill adapter"
                 capability:
                   exposes:
@@ -785,7 +785,7 @@ public class ValidateCommandTest {
         assertDoesNotThrow(() -> Files.writeString(yaml, """
                 ikanos: "%s"
                 info:
-                  display: "Forward proxy"
+                  title: "Forward proxy"
                   description: "Forwards to an upstream and trusts a header it can't send"
                 capability:
                   consumes:
@@ -819,7 +819,7 @@ public class ValidateCommandTest {
         assertDoesNotThrow(() -> Files.writeString(yaml, """
                 ikanos: "%s"
                 info:
-                  display: "Conditional writes"
+                  title: "Conditional writes"
                   description: "Sends a fixed precondition that isn't a valid entity tag"
                 capability:
                   consumes:
@@ -867,7 +867,7 @@ public class ValidateCommandTest {
         assertDoesNotThrow(() -> Files.writeString(yaml, """
                 ikanos: "%s"
                 info:
-                  display: "Conditional writes"
+                  title: "Conditional writes"
                   description: "Sends an If-Match only when the caller gives one"
                 capability:
                   consumes:
@@ -910,7 +910,7 @@ public class ValidateCommandTest {
         assertDoesNotThrow(() -> Files.writeString(yaml, """
                 ikanos: "%s"
                 info:
-                  display: "OAuth2 upstream"
+                  title: "OAuth2 upstream"
                   description: "Consumes an API with oauth2, which the engine can't send"
                 capability:
                   consumes:
@@ -954,7 +954,7 @@ public class ValidateCommandTest {
         assertDoesNotThrow(() -> Files.writeString(yaml, """
                 ikanos: "%s"
                 info:
-                  display: "Apikey upstream"
+                  title: "Apikey upstream"
                   description: "Consumes an API with an apikey that has no value"
                 capability:
                   consumes:
@@ -996,7 +996,7 @@ public class ValidateCommandTest {
         assertDoesNotThrow(() -> Files.writeString(yaml, """
                 ikanos: "%s"
                 info:
-                  display: "Root binds"
+                  title: "Root binds"
                   description: "Declares its bindings at the root"
                 binds:
                   - namespace: "env"

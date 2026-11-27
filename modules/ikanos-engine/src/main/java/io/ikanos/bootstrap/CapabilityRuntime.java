@@ -65,8 +65,8 @@ public class CapabilityRuntime {
                 IkanosSpec.class);
 
         String serviceName = "ikanos";
-        if (spec.getInfo() != null && spec.getInfo().getDisplay() != null) {
-            serviceName = "ikanos-" + spec.getInfo().getDisplay();
+        if (spec.getInfo() != null && spec.getInfo().getTitle() != null) {
+            serviceName = "ikanos-" + spec.getInfo().getTitle();
         }
         TelemetryBootstrap.init(serviceName, resolveObservabilitySpec(spec));
 

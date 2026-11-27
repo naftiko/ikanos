@@ -4,7 +4,7 @@
 #   - ikanos-mcp-ui-connect-domains-empty (view declares connectDomains)
 ikanos: "1.0.0-beta11"
 info:
-  display: "MCP Apps rules — violations"
+  title: "MCP Apps rules — violations"
   description: "Fixture that violates each MCP Apps Polychro rule."
 capability:
   consumes:
@@ -24,7 +24,7 @@ capability:
       port: 3001
       resources:
         forecast-view:
-          display: Forecast view
+          title: Forecast view
           description: Interactive forecast chart.
           uri: ui://weather/forecast
           location: file:///opt/capabilities/weather/ui/forecast

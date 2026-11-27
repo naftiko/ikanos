@@ -46,7 +46,7 @@ class McpElicitMessageIntegrationTest {
         return """
                 ikanos: "%s"
                 info:
-                  display: "Post deletion"
+                  title: "Post deletion"
                   description: "Templated elicit message integration test"
                 capability:
                   consumes:

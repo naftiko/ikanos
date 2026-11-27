@@ -122,8 +122,8 @@ public class McpServerAdapter extends ServerAdapter {
 
             checkReadOnlyHint(capability, serverSpec, toolSpec);
             this.tools.add(buildMcpTool(toolSpec));
-            if (toolSpec.getDisplay() != null) {
-                this.toolLabels.put(toolSpec.getName(), toolSpec.getDisplay());
+            if (toolSpec.getTitle() != null) {
+                this.toolLabels.put(toolSpec.getName(), toolSpec.getTitle());
             }
             this.toolTags.put(toolSpec.getName(), List.copyOf(toolSpec.getTags()));
         }
@@ -245,13 +245,13 @@ public class McpServerAdapter extends ServerAdapter {
      */
     McpSchema.ToolAnnotations buildToolAnnotations(McpServerToolSpec toolSpec) {
         McpToolHintsSpec hints = getMcpServerSpec().resolveToolHints(toolSpec);
-        String display = toolSpec.getDisplay();
+        String title = toolSpec.getTitle();
 
-        if (hints == null && display == null) {
+        if (hints == null && title == null) {
             return null;
         }
 
-        return new McpSchema.ToolAnnotations(display,
+        return new McpSchema.ToolAnnotations(title,
                 hints != null ? hints.getReadOnly() : null,
                 hints != null ? hints.getDestructive() : null,
                 hints != null ? hints.getIdempotent() : null,

@@ -40,7 +40,7 @@ public class ExportOpenApiCommandTest {
         Files.writeString(capFile, """
                 ikanos: "%s"
                 info:
-                  display: "Test API"
+                  title: "Test API"
                   description: "A test capability"
                 capability:
                   exposes:
@@ -78,7 +78,7 @@ public class ExportOpenApiCommandTest {
         Files.writeString(capFile, """
                 ikanos: "%s"
                 info:
-                  display: "JSON Test"
+                  title: "JSON Test"
                 capability:
                   exposes:
                     - type: rest
@@ -115,7 +115,7 @@ public class ExportOpenApiCommandTest {
         Files.writeString(capFile, """
                 ikanos: "%s"
                 info:
-                  display: "Fleet"
+                  title: "Fleet"
                 capability:
                   aggregates:
                     - namespace: fleet
@@ -170,7 +170,7 @@ public class ExportOpenApiCommandTest {
         Files.writeString(capFile, """
                 ikanos: "%s"
                 info:
-                  display: "Spec Version Test"
+                  title: "Spec Version Test"
                 capability:
                   exposes:
                     - type: rest
@@ -197,7 +197,7 @@ public class ExportOpenApiCommandTest {
         Files.writeString(capFile, """
                 ikanos: "%s"
                 info:
-                  display: "OpenAPI 3.1 Test"
+                  title: "OpenAPI 3.1 Test"
                 capability:
                   exposes:
                     - type: rest
@@ -227,7 +227,7 @@ public class ExportOpenApiCommandTest {
         Files.writeString(capFile, """
                 ikanos: "%s"
                 info:
-                  display: "Typed 3.1 Test"
+                  title: "Typed 3.1 Test"
                 capability:
                   exposes:
                     - type: rest
@@ -277,7 +277,7 @@ public class ExportOpenApiCommandTest {
         Files.writeString(capFile, """
                 ikanos: "%s"
                 info:
-                  display: "Default Output Test"
+                  title: "Default Output Test"
                 capability:
                   exposes:
                     - type: rest
@@ -309,7 +309,7 @@ public class ExportOpenApiCommandTest {
         Files.writeString(capFile, """
                 ikanos: "%s"
                 info:
-                  display: "JSON Default Output Test"
+                  title: "JSON Default Output Test"
                 capability:
                   exposes:
                     - type: rest
@@ -341,7 +341,7 @@ public class ExportOpenApiCommandTest {
         Files.writeString(capFile, """
                 ikanos: "%s"
                 info:
-                  display: "Definitions"
+                  title: "Definitions"
                 capability:
                   exposes:
                     - type: rest
@@ -379,7 +379,7 @@ public class ExportOpenApiCommandTest {
         Files.writeString(capFile, """
                 ikanos: "%s"
                 info:
-                  display: "Definitions"
+                  title: "Definitions"
                 capability:
                   exposes:
                     - type: rest
@@ -419,7 +419,7 @@ public class ExportOpenApiCommandTest {
         Files.writeString(capFile, """
                 ikanos: "%s"
                 info:
-                  display: "Definitions"
+                  title: "Definitions"
                 capability:
                   exposes:
                     - type: rest
@@ -465,7 +465,7 @@ public class ExportOpenApiCommandTest {
         Files.writeString(capFile, """
                 ikanos: "%s"
                 info:
-                  display: "Definitions"
+                  title: "Definitions"
                 capability:
                   exposes:
                     - type: rest

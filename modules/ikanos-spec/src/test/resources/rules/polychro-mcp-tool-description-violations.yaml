@@ -11,7 +11,7 @@
 #     as `list-open-incidents`.
 ikanos: "1.0.0-beta11"
 info:
-  display: "MCP tool description rules — violations"
+  title: "MCP tool description rules — violations"
   description: "Fixture that breaks every MCP tool description Polychro rule."
 capability:
   consumes:

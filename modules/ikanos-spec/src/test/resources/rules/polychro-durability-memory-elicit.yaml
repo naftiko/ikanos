@@ -1,6 +1,6 @@
 ikanos: 1.0.0-beta11
 info:
-  display: Question after a write under memory
+  title: Question after a write under memory
   description: >-
     Positive fixture: under the memory mode, an inline tool asks for input after
     a write. The answer resumes the journal, so the booking is not made again.
@@ -17,7 +17,7 @@ capability:
           book-departure-slot:
             method: POST
   aggregates:
-  - display: departure flows
+  - title: departure flows
     namespace: departure
     flows:
       book-then-confirm:

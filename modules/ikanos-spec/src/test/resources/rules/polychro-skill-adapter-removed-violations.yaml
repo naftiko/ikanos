@@ -2,7 +2,7 @@
 #   a capability still declares the removed `type: skill` adapter.
 ikanos: "1.0.0-beta11"
 info:
-  display: "Removed skill adapter — violation"
+  title: "Removed skill adapter — violation"
   description: "Fixture that still declares the standalone skill adapter removed in Beta 9."
 capability:
   consumes:

@@ -1,6 +1,6 @@
 ikanos: "1.0.0-beta11"
 info:
-  display: Package Regression — Outbound HTTPS Call
+  title: Package Regression — Outbound HTTPS Call
   description: >
     Minimal REST capability whose single operation forwards to a `consumes: http`
     backend reachable only over HTTPS (a real, always-on public endpoint —
@@ -29,7 +29,7 @@ capability:
         operations:
           get-robots:
             method: GET
-            display: Get Robots
+            title: Get Robots
   exposes:
     - type: rest
       address: localhost
@@ -38,10 +38,10 @@ capability:
       resources:
         status:
           path: /status
-          display: Status
+          title: Status
           description: Forwards to a real HTTPS backend to exercise outbound TLS.
           operations:
             get-status:
               method: GET
-              display: Get Status
+              title: Get Status
               call: iana.get-robots

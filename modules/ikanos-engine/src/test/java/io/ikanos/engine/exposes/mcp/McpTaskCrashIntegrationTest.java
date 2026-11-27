@@ -133,7 +133,7 @@ public class McpTaskCrashIntegrationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  display: "Departure clearance"
+                  title: "Departure clearance"
                   description: "Crash integration test"
                 capability:
                   consumes:

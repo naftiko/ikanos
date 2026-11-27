@@ -58,7 +58,7 @@ class McpAppsSchemaValidationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  display: "MCP Apps"
+                  title: "MCP Apps"
                   description: "MCP Apps schema test"
                 capability:
                   consumes:
@@ -77,7 +77,7 @@ class McpAppsSchemaValidationTest {
                       port: 3001
                       resources:
                         forecast-view:
-                          display: "Forecast view"
+                          title: "Forecast view"
                           description: "Interactive forecast chart."
                           uri: "ui://weather/forecast"
                           location: "file:///opt/weather/ui"

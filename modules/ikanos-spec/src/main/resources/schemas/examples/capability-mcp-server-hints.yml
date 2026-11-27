@@ -14,7 +14,7 @@
 ikanos: "1.0.0-beta11"
 
 info:
-  display: "Gong — MCP server default hints example"
+  title: "Gong — MCP server default hints example"
   description: "Declare read-only hints once on the server and override them on the write tools only."
 
 capability:
@@ -63,7 +63,7 @@ capability:
                   in: "path"
 
   aggregates:
-    - display: "Tasks"
+    - title: "Tasks"
       namespace: "tasks"
       flows:
         delete-task:

@@ -6,7 +6,7 @@
 ikanos: "1.0.0-beta11"
 
 info:
-  display: "MCP trust — loopback on a 127-prefixed hostname"
+  title: "MCP trust — loopback on a 127-prefixed hostname"
   description: "Fixture for the MCP trust network rules (issue #483)."
 
 capability:

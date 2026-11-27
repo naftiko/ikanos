@@ -38,7 +38,7 @@ public class McpServerPromptSpec {
     private volatile String name;
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    private volatile String display;
+    private volatile String title;
 
     private volatile String description;
 
@@ -60,8 +60,8 @@ public class McpServerPromptSpec {
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
 
-    public String getDisplay() { return display; }
-    public void setDisplay(String display) { this.display = display; }
+    public String getTitle() { return title; }
+    public void setTitle(String title) { this.title = title; }
 
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }

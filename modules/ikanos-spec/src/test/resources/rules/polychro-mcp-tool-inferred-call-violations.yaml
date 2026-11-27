@@ -1,6 +1,6 @@
 ikanos: 1.0.0-beta11
 info:
-  display: Inferred MCP tool calls violations
+  title: Inferred MCP tool calls violations
   description: Negative fixture for the inferred MCP tool call rule
   tags:
   - test

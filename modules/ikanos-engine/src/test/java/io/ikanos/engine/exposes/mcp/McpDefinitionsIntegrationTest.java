@@ -51,7 +51,7 @@ class McpDefinitionsIntegrationTest {
     private static final String HEADER = """
             ikanos: "%s"
             info:
-              display: "Fleet"
+              title: "Fleet"
               description: "Shared definitions"
             capability:
               consumes:
@@ -70,7 +70,7 @@ class McpDefinitionsIntegrationTest {
 
     private static final String WITH_DEFINITIONS = HEADER + """
               aggregates:
-                - display: "Fleet"
+                - title: "Fleet"
                   namespace: fleet
                   definitions:
                     inputParameterSets:
@@ -153,7 +153,7 @@ class McpDefinitionsIntegrationTest {
 
     private static final String INLINE = HEADER + """
               aggregates:
-                - display: "Fleet"
+                - title: "Fleet"
                   namespace: fleet
                   flows:
                     list-ships:

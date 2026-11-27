@@ -122,7 +122,7 @@ public class DurableTaskKillIntegrationTest {
         Files.writeString(capability, """
                 ikanos: "%s"
                 info:
-                  display: "Departure clearance"
+                  title: "Departure clearance"
                   description: "Kill -9 exit gate of the local durability mode"
                 capability:
                   consumes:

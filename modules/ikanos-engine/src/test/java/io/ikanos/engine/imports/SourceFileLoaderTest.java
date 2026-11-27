@@ -84,7 +84,7 @@ class SourceFileLoaderTest {
                 ikanos: "%s"
                 aggregates:
                   - namespace: "agg"
-                    display: "Test"
+                    title: "Test"
                     flows: []
                 """.formatted(schemaVersion);
         Path file = tempDir.resolve("agg.aggregates.yml");
@@ -103,7 +103,7 @@ class SourceFileLoaderTest {
                 ikanos: "%s"
                 aggregates:
                   - namespace: "agg"
-                    display: "Test"
+                    title: "Test"
                     flows:
                       search:
                         description: "Search"

@@ -1,6 +1,6 @@
 ikanos: 1.0.0-beta11
 info:
-  display: Question in a called flow after a write under none
+  title: Question in a called flow after a write under none
   description: >-
     Negative fixture: under the none mode, a flow books a slot, then calls a
     flow that calls a consumed MCP tool that may ask. The answer replays the
@@ -26,7 +26,7 @@ capability:
         description: File an export declaration
         mayElicit: true
   aggregates:
-  - display: departure flows
+  - title: departure flows
     namespace: departure
     flows:
       declare:

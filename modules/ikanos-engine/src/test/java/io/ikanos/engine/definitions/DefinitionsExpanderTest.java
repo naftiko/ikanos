@@ -337,7 +337,7 @@ class DefinitionsExpanderTest {
                 ikanos: "%s"
                 capability:
                   aggregates:
-                    - display: "Domain"
+                    - title: "Domain"
                       namespace: domain
                       definitions:
                         inputParameterSets:
@@ -371,7 +371,7 @@ class DefinitionsExpanderTest {
                 ikanos: "%s"
                 capability:
                   aggregates:
-                    - display: "Domain"
+                    - title: "Domain"
                       namespace: domain
                       definitions:
                         inputParameterSets:

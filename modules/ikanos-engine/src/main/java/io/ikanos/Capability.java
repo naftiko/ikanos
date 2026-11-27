@@ -507,15 +507,15 @@ public class Capability {
         }
 
         IkanosSpec currentSpec = spec.get();
-        String capabilityName = currentSpec.getInfo() != null && currentSpec.getInfo().getDisplay() != null
-                ? currentSpec.getInfo().getDisplay() : "unknown";
+        String capabilityName = currentSpec.getInfo() != null && currentSpec.getInfo().getTitle() != null
+                ? currentSpec.getInfo().getTitle() : "unknown";
         TelemetryBootstrap.get().getMetrics().capabilityStarted(capabilityName);
     }
 
     public void stop() throws Exception {
         IkanosSpec currentSpec = spec.get();
-        String capabilityName = currentSpec.getInfo() != null && currentSpec.getInfo().getDisplay() != null
-                ? currentSpec.getInfo().getDisplay() : "unknown";
+        String capabilityName = currentSpec.getInfo() != null && currentSpec.getInfo().getTitle() != null
+                ? currentSpec.getInfo().getTitle() : "unknown";
         TelemetryBootstrap.get().getMetrics().capabilityStopped(capabilityName);
 
         for (ServerAdapter adapter : getServerAdapters()) {
@@ -625,8 +625,8 @@ public class Capability {
             try {
                 if (telemetryEnabled) {
                     String serviceName = "ikanos";
-                    if (spec.getInfo() != null && spec.getInfo().getDisplay() != null) {
-                        serviceName = "ikanos-" + spec.getInfo().getDisplay();
+                    if (spec.getInfo() != null && spec.getInfo().getTitle() != null) {
+                        serviceName = "ikanos-" + spec.getInfo().getTitle();
                     }
                     TelemetryBootstrap.init(serviceName);
                 }

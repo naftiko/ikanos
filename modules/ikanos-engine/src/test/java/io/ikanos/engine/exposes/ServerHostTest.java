@@ -218,7 +218,7 @@ class ServerHostTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  display: "Server Host Test"
+                  title: "Server Host Test"
                 capability:
                   exposes:
                 %s""".formatted(VersionHelper.getSchemaVersion(), exposes);

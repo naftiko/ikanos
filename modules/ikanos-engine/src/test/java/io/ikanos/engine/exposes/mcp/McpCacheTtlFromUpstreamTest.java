@@ -180,57 +180,57 @@ class McpCacheTtlFromUpstreamTest {
                             value: "hi"
                     resources:
                       fresh:
-                        display: "Fresh"
+                        title: "Fresh"
                         uri: "data://fresh"
                         description: "max-age=300"
                         call: api.fresh
                         ttlFromUpstream: true
                       personal:
-                        display: "Personal"
+                        title: "Personal"
                         uri: "data://personal"
                         description: "private, max-age=60"
                         call: api.personal
                         ttlFromUpstream: true
                       volatile:
-                        display: "Volatile"
+                        title: "Volatile"
                         uri: "data://volatile"
                         description: "no-store"
                         call: api.volatile
                         ttlFromUpstream: true
                       expiring:
-                        display: "Expiring"
+                        title: "Expiring"
                         uri: "data://expiring"
                         description: "Expires in ten minutes"
                         call: api.expiring
                         ttlFromUpstream: true
                       aged:
-                        display: "Aged"
+                        title: "Aged"
                         uri: "data://aged"
                         description: "max-age=300, Age 290"
                         call: api.aged
                         ttlFromUpstream: true
                       slow:
-                        display: "Slow"
+                        title: "Slow"
                         uri: "data://slow"
                         description: "max-age=300, Age 299, body sent after 1.5 s"
                         call: slowapi.slow
                         ttlFromUpstream: true
                       plain:
-                        display: "Plain"
+                        title: "Plain"
                         uri: "data://plain"
                         description: "No caching headers"
                         call: api.plain
                         ttlFromUpstream: true
                         ttlMs: 5000
                       failing:
-                        display: "Failing"
+                        title: "Failing"
                         uri: "data://failing"
                         description: "503 with no-store"
                         call: api.failing
                         ttlFromUpstream: true
                         ttlMs: 5000
                       opted-out:
-                        display: "Opted out"
+                        title: "Opted out"
                         uri: "data://opted-out"
                         description: "max-age=300, but ttlFromUpstream is off"
                         call: api.fresh

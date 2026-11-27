@@ -81,16 +81,16 @@ public class HttpClientOperationSpec extends OperationSpec {
         this(null, null, null, null, null, null, null);
     }
 
-    public HttpClientOperationSpec(HttpClientResourceSpec parentResource, String method, String name, String display) {
-        this(parentResource, method, name, display, null, null, null);
+    public HttpClientOperationSpec(HttpClientResourceSpec parentResource, String method, String name, String title) {
+        this(parentResource, method, name, title, null, null, null);
     }
 
-    public HttpClientOperationSpec(HttpClientResourceSpec parentResource, String method, String name, String display, String description, Object body, String outputRawFormat) {
-        this(parentResource, method, name, display, description, body, outputRawFormat, null);
+    public HttpClientOperationSpec(HttpClientResourceSpec parentResource, String method, String name, String title, String description, Object body, String outputRawFormat) {
+        this(parentResource, method, name, title, description, body, outputRawFormat, null);
     }
 
-    public HttpClientOperationSpec(HttpClientResourceSpec parentResource, String method, String name, String display, String description, Object body, String outputRawFormat, String outputSchema) {
-        super(parentResource, method, name, display, description, outputRawFormat, outputSchema);
+    public HttpClientOperationSpec(HttpClientResourceSpec parentResource, String method, String name, String title, String description, Object body, String outputRawFormat, String outputSchema) {
+        super(parentResource, method, name, title, description, outputRawFormat, outputSchema);
         this.body.set(body);
     }
 

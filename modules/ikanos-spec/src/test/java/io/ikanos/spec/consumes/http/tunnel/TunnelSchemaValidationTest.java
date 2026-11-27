@@ -87,7 +87,7 @@ class TunnelSchemaValidationTest {
         String yaml = """
             ikanos: "%s"
             info:
-              display: "demo"
+              title: "demo"
               description: "demo"
             capability:
               binds:
@@ -122,7 +122,7 @@ class TunnelSchemaValidationTest {
         String yaml = """
             ikanos: "%s"
             info:
-              display: "demo"
+              title: "demo"
               description: "demo"
             capability:
               consumes:
@@ -150,7 +150,7 @@ class TunnelSchemaValidationTest {
         String yaml = """
             ikanos: "%s"
             info:
-              display: "demo"
+              title: "demo"
               description: "demo"
             capability:
               consumes:
@@ -184,7 +184,7 @@ class TunnelSchemaValidationTest {
         String yaml = """
             ikanos: "%s"
             info:
-              display: "demo"
+              title: "demo"
               description: "demo"
             capability:
               consumes:
@@ -213,7 +213,7 @@ class TunnelSchemaValidationTest {
         String yaml = """
             ikanos: "%s"
             info:
-              display: "demo"
+              title: "demo"
               description: "demo"
             capability:
               consumes:
@@ -243,7 +243,7 @@ class TunnelSchemaValidationTest {
         String yaml = """
             ikanos: "%s"
             info:
-              display: "demo"
+              title: "demo"
               description: "demo"
             capability:
               consumes:
@@ -271,7 +271,7 @@ class TunnelSchemaValidationTest {
         String yaml = """
             ikanos: "%s"
             info:
-              display: "demo"
+              title: "demo"
               description: "demo"
             capability:
               consumes:
@@ -299,7 +299,7 @@ class TunnelSchemaValidationTest {
         String yaml = """
             ikanos: "%s"
             info:
-              display: "demo"
+              title: "demo"
               description: "demo"
             capability:
               consumes:

@@ -68,11 +68,11 @@ class McpToolNestedInputSchemaIntegrationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  display: "Nested inputs"
+                  title: "Nested inputs"
                   description: "Nested MCP tool input schemas"
                 capability:
                   aggregates:
-                    - display: "Billing"
+                    - title: "Billing"
                       namespace: "billing-domain"
                       flows:
                         create-invoice:

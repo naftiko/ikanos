@@ -1,7 +1,7 @@
 ikanos: 1.0.0-beta11
 capability:
   aggregates:
-  - display: Weather Service
+  - title: Weather Service
     namespace: weather
     flows:
       get-forecast:

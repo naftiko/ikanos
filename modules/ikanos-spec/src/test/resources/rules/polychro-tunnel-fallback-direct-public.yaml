@@ -6,7 +6,7 @@
 ikanos: "1.0.0-beta11"
 
 info:
-  display: "Reverse tunnel — direct fallback on non-loopback baseUri"
+  title: "Reverse tunnel — direct fallback on non-loopback baseUri"
   description: "Negative fixture: fallback direct on a non-loopback host."
 
 capability:

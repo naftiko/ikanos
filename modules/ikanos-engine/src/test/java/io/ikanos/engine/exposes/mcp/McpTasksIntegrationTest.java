@@ -55,7 +55,7 @@ class McpTasksIntegrationTest {
         return """
                 ikanos: "%s"
                 info:
-                  display: "Departure clearance"
+                  title: "Departure clearance"
                   description: "Tasks integration test"
                 capability:
                   aggregates:

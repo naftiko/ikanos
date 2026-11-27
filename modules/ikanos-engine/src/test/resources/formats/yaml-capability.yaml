@@ -1,6 +1,6 @@
 ikanos: 1.0.0-beta11
 info:
-  display: YAML Test Capability
+  title: YAML Test Capability
   description: Test capability for YAML parsing from API responses
   tags:
   - Test
@@ -16,7 +16,7 @@ capability:
     resources:
       users:
         path: /yaml/users
-        display: YAML Users Resource
+        title: YAML Users Resource
         description: Test resource that parses YAML responses
         operations:
           get-users:
@@ -48,9 +48,9 @@ capability:
     resources:
       users:
         path: api/users
-        display: Mock Users API
+        title: Mock Users API
         operations:
           get-users:
             method: GET
-            display: Get Users
+            title: Get Users
             outputRawFormat: yaml

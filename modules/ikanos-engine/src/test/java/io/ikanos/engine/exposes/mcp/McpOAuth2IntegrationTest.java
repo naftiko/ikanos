@@ -546,7 +546,7 @@ class McpOAuth2IntegrationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  display: "OAuth2 MCP Test"
+                  title: "OAuth2 MCP Test"
                   description: "Caller identity integration test"
                 capability:
                   exposes:
@@ -622,7 +622,7 @@ class McpOAuth2IntegrationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  display: "OAuth2 MCP Test"
+                  title: "OAuth2 MCP Test"
                   description: "OAuth2 integration test"
                 capability:
                   exposes:
@@ -896,7 +896,7 @@ class McpOAuth2IntegrationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  display: "OAuth2 MCP Test"
+                  title: "OAuth2 MCP Test"
                   description: "OAuth2 trust integration test"
                 capability:
                   exposes:
@@ -929,7 +929,7 @@ class McpOAuth2IntegrationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  display: "OAuth2 MCP Test"
+                  title: "OAuth2 MCP Test"
                   description: "OAuth2 scope integration test"
                 capability:
                   exposes:
@@ -969,7 +969,7 @@ class McpOAuth2IntegrationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  display: "OAuth2 MCP Test"
+                  title: "OAuth2 MCP Test"
                   description: "OAuth2 authorization integration test"
                 capability:
                   exposes:

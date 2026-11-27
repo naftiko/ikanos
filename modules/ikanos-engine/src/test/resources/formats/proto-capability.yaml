@@ -1,6 +1,6 @@
 ikanos: 1.0.0-beta11
 info:
-  display: Protobuf Test Capability
+  title: Protobuf Test Capability
   description: Test capability for Protobuf message decoding from API responses
   tags:
   - Test
@@ -16,7 +16,7 @@ capability:
     resources:
       records:
         path: /proto/records
-        display: Protobuf Records Resource
+        title: Protobuf Records Resource
         description: Test resource that parses Protobuf messages
         operations:
           get-records:
@@ -48,9 +48,9 @@ capability:
     resources:
       records:
         path: api/records
-        display: Mock Records API
+        title: Mock Records API
         operations:
           get-records:
             method: GET
-            display: Get Records
+            title: Get Records
             outputRawFormat: protobuf

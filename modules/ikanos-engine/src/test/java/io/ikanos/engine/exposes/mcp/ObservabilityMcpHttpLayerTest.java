@@ -83,7 +83,7 @@ class ObservabilityMcpHttpLayerTest {
         return """
                 ikanos: "%s"
                 info:
-                  display: "weather-capability"
+                  title: "weather-capability"
                 capability:
                   exposes:
                     - type: "mcp"

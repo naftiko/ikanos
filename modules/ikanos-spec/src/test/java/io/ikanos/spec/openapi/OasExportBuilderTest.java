@@ -154,7 +154,7 @@ public class OasExportBuilderTest {
 
         assertEquals("ikanos Capability", result.getOpenApi().getInfo().getTitle());
         assertTrue(result.getWarnings().stream()
-                .anyMatch(w -> w.contains("No info.display")));
+                .anyMatch(w -> w.contains("No info.title")));
     }
 
     // ── Server mapping ──
@@ -439,7 +439,7 @@ public class OasExportBuilderTest {
         IkanosSpec spec = io.ikanos.spec.util.IkanosMappers.yaml().readValue("""
                 ikanos: "%s"
                 info:
-                  display: Test
+                  title: Test
                   description: Consumed MCP questions over REST
                 capability:
                   consumes:
@@ -998,7 +998,7 @@ public class OasExportBuilderTest {
 
         assertEquals("ikanos Capability", result.getOpenApi().getInfo().getTitle());
         assertTrue(result.getWarnings().stream()
-                .anyMatch(w -> w.contains("No info.display")));
+                .anyMatch(w -> w.contains("No info.title")));
     }
 
     @Test
@@ -1712,11 +1712,11 @@ public class OasExportBuilderTest {
 
     // ── Utility methods ──
 
-    private IkanosSpec minimalSpec(String display, String description) {
+    private IkanosSpec minimalSpec(String title, String description) {
         IkanosSpec spec = new IkanosSpec();
         spec.setIkanos("1.0.0-alpha1");
-        if (display != null || description != null) {
-            spec.setInfo(new InfoSpec(display, description, null, null));
+        if (title != null || description != null) {
+            spec.setInfo(new InfoSpec(title, description, null, null));
         }
         CapabilitySpec capability = new CapabilitySpec();
         RestServerSpec rest = new RestServerSpec("localhost", 8080, null);

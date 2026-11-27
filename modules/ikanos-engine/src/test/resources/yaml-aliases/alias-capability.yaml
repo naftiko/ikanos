@@ -1,6 +1,6 @@
 ikanos: "1.0.0-beta11"
 info:
-  display: "Probe"
+  title: "Probe"
   description: "YAML alias."
 capability:
   consumes:

@@ -96,7 +96,7 @@ public class NamedMapDeserializer<T> extends ValueDeserializer<Map<String, T>> {
                 } catch (JacksonException e) {
                     throw new IllegalStateException(
                             "Failed to deserialize list item of '"
-                                    + type.getSimpleName() + "'", e);
+                                    + type.getSimpleName() + "': " + e.getOriginalMessage(), e);
                 }
             }
             return result;
@@ -110,7 +110,8 @@ public class NamedMapDeserializer<T> extends ValueDeserializer<Map<String, T>> {
                 result.put(key, value);
             } catch (JacksonException e) {
                 throw new IllegalStateException(
-                        "Failed to deserialize '" + type.getSimpleName() + "' entry '" + key + "'", e);
+                        "Failed to deserialize '" + type.getSimpleName() + "' entry '" + key + "': "
+                                + e.getOriginalMessage(), e);
             }
         });
         return result;

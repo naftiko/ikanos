@@ -1,6 +1,6 @@
 ikanos: "1.0.0-beta11"
 info:
-  display: Package Regression — Minimal REST Mock
+  title: Package Regression — Minimal REST Mock
   description: >
     The smallest possible capability that exposes a single REST endpoint and
     nothing else: one `type: rest` adapter, one mock resource returning a static
@@ -23,12 +23,12 @@ capability:
     resources:
       greet:
         path: /greet
-        display: Greet
+        title: Greet
         description: Mock endpoint returning a static greeting, no backend.
         operations:
           get-greeting:
             method: GET
-            display: Get Greeting
+            title: Get Greeting
             description: Returns a fixed greeting without any upstream call.
             outputParameters:
               message:

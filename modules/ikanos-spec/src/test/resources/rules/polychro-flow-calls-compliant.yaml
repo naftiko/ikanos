@@ -1,6 +1,6 @@
 ikanos: 1.0.0-beta11
 info:
-  display: Flow composition compliant
+  title: Flow composition compliant
   description: Positive fixture for the flow-call rules
 capability:
   consumes:
@@ -17,7 +17,7 @@ capability:
   - from: ./shared/registry.consumes.yml
     import: registry
   aggregates:
-  - display: vendor flows
+  - title: vendor flows
     namespace: vendor
     flows:
       ship:
@@ -39,7 +39,7 @@ capability:
             summary:
               type: string
               mapping: $.summary
-  - display: weather flows
+  - title: weather flows
     namespace: weather
     flows:
       get-forecast:

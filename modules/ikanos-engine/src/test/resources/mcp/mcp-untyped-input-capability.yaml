@@ -1,6 +1,6 @@
 ikanos: 1.0.0-beta11
 info:
-  display: MCP Untyped Input Test Capability
+  title: MCP Untyped Input Test Capability
   description: MCP tool and aggregate flow inputs without type, which default to string (#986)
   tags:
   - Test
@@ -9,7 +9,7 @@ info:
   modified: '2026-11-11'
 capability:
   aggregates:
-  - display: Greeting
+  - title: Greeting
     namespace: greeting
     flows:
       hello:

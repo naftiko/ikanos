@@ -1,6 +1,6 @@
 ikanos: 1.0.0-beta11
 info:
-  display: Embedding Test
+  title: Embedding Test
   description: Test capability for step handler registry integration
   tags:
   - Test

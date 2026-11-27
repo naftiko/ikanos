@@ -1,6 +1,6 @@
 ikanos: "1.0.0-beta11"
 info:
-  display: "HTML Test Capability"
+  title: "HTML Test Capability"
   description: "Test capability for HTML table parsing"
   tags:
   - Test

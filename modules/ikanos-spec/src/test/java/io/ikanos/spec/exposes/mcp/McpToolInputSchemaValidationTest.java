@@ -60,7 +60,7 @@ class McpToolInputSchemaValidationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  display: "Nested inputs"
+                  title: "Nested inputs"
                   description: "Nested MCP tool input schema test"
                 capability:
                   consumes:
@@ -330,11 +330,11 @@ class McpToolInputSchemaValidationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  display: "Nested inputs"
+                  title: "Nested inputs"
                   description: "Nested inputs on an aggregate flow"
                 capability:
                   aggregates:
-                    - display: "Billing"
+                    - title: "Billing"
                       namespace: "billing-domain"
                       flows:
                         create-invoice:
@@ -416,11 +416,11 @@ class McpToolInputSchemaValidationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  display: "Untyped inputs"
+                  title: "Untyped inputs"
                   description: "Inputs without type on a flow and a consumed MCP tool"
                 capability:
                   aggregates:
-                    - display: "Search"
+                    - title: "Search"
                       namespace: "search-domain"
                       flows:
                         search:

@@ -1,6 +1,6 @@
 ikanos: 1.0.0-beta11
 info:
-  display: Inferred MCP tool calls compliant
+  title: Inferred MCP tool calls compliant
   description: Positive fixture for the inferred MCP tool call rule
   tags:
   - test

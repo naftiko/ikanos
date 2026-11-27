@@ -309,7 +309,7 @@ class McpSkillsIntegrationTest {
         return """
                 ikanos: "%s"
                 info:
-                  display: "Fleet"
+                  title: "Fleet"
                   description: "Skills integration test"
                 capability:
                   exposes:
@@ -339,7 +339,7 @@ class McpSkillsIntegrationTest {
         return """
                 ikanos: "%s"
                 info:
-                  display: "Guides"
+                  title: "Guides"
                   description: "Skills-only server"
                 capability:
                   exposes:
@@ -358,7 +358,7 @@ class McpSkillsIntegrationTest {
         return """
                 ikanos: "%s"
                 info:
-                  display: "Plain"
+                  title: "Plain"
                   description: "No skills"
                 capability:
                   exposes:
@@ -380,7 +380,7 @@ class McpSkillsIntegrationTest {
         return """
                 ikanos: "%s"
                 info:
-                  display: "Apps and skills"
+                  title: "Apps and skills"
                   description: "Both extensions"
                 capability:
                   exposes:

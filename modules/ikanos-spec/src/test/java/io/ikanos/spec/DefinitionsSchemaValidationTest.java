@@ -112,7 +112,7 @@ class DefinitionsSchemaValidationTest {
                 ikanos: "%s"
                 capability:
                   aggregates:
-                    - display: "Orders"
+                    - title: "Orders"
                       namespace: orders
                       definitions:
                         inputParameterSets:
@@ -242,7 +242,7 @@ class DefinitionsSchemaValidationTest {
                       namespace: tools
                       resources:
                         flagship:
-                          display: "Flagship"
+                          title: "Flagship"
                           description: "The flagship."
                           uri: "data://flagship"
                           call: erp.get-ship
@@ -473,7 +473,7 @@ class DefinitionsSchemaValidationTest {
                       namespace: tools
                       resources:
                         fleet:
-                          display: "Fleet"
+                          title: "Fleet"
                           description: "The fleet."
                           uri: "data://fleet"
                           steps:

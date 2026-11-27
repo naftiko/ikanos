@@ -54,7 +54,7 @@ import io.ikanos.utils.TestUtils;
 class ControlPortHttpIntegrationTest {
 
     private static final ObjectMapper JSON = new ObjectMapper();
-    private static final String DISPLAY = "Control Port HTTP Test";
+    private static final String TITLE = "Control Port HTTP Test";
 
     private final HttpClient client =
             HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
@@ -132,7 +132,7 @@ class ControlPortHttpIntegrationTest {
         assertEquals(200, response.statusCode(), response.body());
         assertJson(response);
         JsonNode body = JSON.readTree(response.body());
-        assertEquals(DISPLAY, body.path("capability").path("display").asString());
+        assertEquals(TITLE, body.path("capability").path("title").asString());
         assertEquals(VersionHelper.getSchemaVersion(),
                 body.path("capability").path("specVersion").asString());
         assertFalse(body.path("engine").path("version").asString().isEmpty(), response.body());
@@ -172,7 +172,7 @@ class ControlPortHttpIntegrationTest {
     @Test
     void metricsShouldExposePrometheusTextForRealTrafficWhenTelemetryIsActive()
             throws Exception {
-        TelemetryBootstrap.init("ikanos-" + DISPLAY);
+        TelemetryBootstrap.init("ikanos-" + TITLE);
         start(new Setup().withRest());
         assertEquals(200, callRest().statusCode());
 
@@ -190,7 +190,7 @@ class ControlPortHttpIntegrationTest {
 
     @Test
     void tracesShouldListAndDetailARealRequestWhenTelemetryIsActive() throws Exception {
-        TelemetryBootstrap.init("ikanos-" + DISPLAY);
+        TelemetryBootstrap.init("ikanos-" + TITLE);
         start(new Setup().withRest());
         assertEquals(200, callRest().statusCode());
 
@@ -272,7 +272,7 @@ class ControlPortHttpIntegrationTest {
         StringBuilder yaml = new StringBuilder("""
                 ikanos: "%s"
                 info:
-                  display: "%s"
+                  title: "%s"
                 capability:
                   exposes:
                     - type: "control"
@@ -281,7 +281,7 @@ class ControlPortHttpIntegrationTest {
                       management:
                         health: %b
                         info: %b
-                """.formatted(VersionHelper.getSchemaVersion(), DISPLAY, controlPort,
+                """.formatted(VersionHelper.getSchemaVersion(), TITLE, controlPort,
                 setup.health, setup.info));
         if (setup.observabilityDisabled) {
             yaml.append("""

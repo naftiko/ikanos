@@ -57,7 +57,7 @@ class McpCallerClaimsCacheScopeTest {
                             value: "hi"
                     resources:
                       profile:
-                        display: "Profile"
+                        title: "Profile"
                         uri: "data://profile"
                         description: "The caller's profile"
                         call: shop.get-profile
@@ -152,7 +152,7 @@ class McpCallerClaimsCacheScopeTest {
                             value: "hi"
                     resources:
                       catalogue:
-                        display: "Catalogue"
+                        title: "Catalogue"
                         uri: "data://catalogue"
                         description: "The catalogue"
                         cacheScope: public

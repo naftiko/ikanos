@@ -58,7 +58,7 @@ class McpToolSearchSpecTest {
         return """
                 ikanos: "%s"
                 info:
-                  display: "Tool search"
+                  title: "Tool search"
                   description: "Tool search block test"
                 capability:
                   consumes:

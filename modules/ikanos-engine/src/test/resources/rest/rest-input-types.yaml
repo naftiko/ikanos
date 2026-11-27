@@ -1,6 +1,6 @@
 ikanos: 1.0.0-beta11
 info:
-  display: REST input types
+  title: REST input types
   description: REST inputs read as their declared type, and hyphenated path placeholders
   tags:
   - Test

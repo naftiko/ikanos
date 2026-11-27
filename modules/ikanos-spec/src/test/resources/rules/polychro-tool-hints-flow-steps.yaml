@@ -1,6 +1,6 @@
 ikanos: 1.0.0-beta11
 info:
-  display: Tool hints over flow steps
+  title: Tool hints over flow steps
   description: Fixture for ikanos-flow-call-semantics-conservative on MCP tools whose call steps reach flows (#828)
 capability:
   consumes:
@@ -20,7 +20,7 @@ capability:
           get-quote:
             method: GET
   aggregates:
-  - display: payments flows
+  - title: payments flows
     namespace: payments
     flows:
       checkout:
@@ -71,7 +71,7 @@ capability:
             call: payments.checkout
     resources:
       receipt:
-        display: Receipt
+        title: Receipt
         uri: shop://receipt
         description: A resource has no ref, so a call step is how it reaches a flow
         steps:

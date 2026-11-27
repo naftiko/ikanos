@@ -60,7 +60,7 @@ class McpTemplatedResourceCacheScopeTest {
                             value: "hi"
                     resources:
                       user:
-                        display: "User"
+                        title: "User"
                         uri: "data://users/{userId}"
                         description: "A user by id"
                         call: upstream.get-user

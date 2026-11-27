@@ -9,7 +9,7 @@
 # MUST NOT FIRE on the tool that calls the read procedure.
 ikanos: "1.0.0-beta11"
 info:
-  display: "Consumed SQL rules — writes inheriting readOnly"
+  title: "Consumed SQL rules — writes inheriting readOnly"
   description: "Fixture where SQL write tools inherit readOnly true from the MCP exposes block."
 capability:
   consumes:
@@ -37,7 +37,7 @@ capability:
           outputParameters:
             updated: { type: number, value: "$.rowCount" }
   aggregates:
-    - display: Orders
+    - title: Orders
       namespace: orders
       flows:
         settle:

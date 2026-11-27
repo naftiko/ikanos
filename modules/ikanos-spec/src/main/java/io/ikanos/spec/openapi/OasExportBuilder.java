@@ -160,8 +160,8 @@ public class OasExportBuilder {
     Info buildInfo(IkanosSpec IkanosSpec, List<String> warnings) {
         Info info = new Info();
         if (IkanosSpec.getInfo() != null) {
-            if (IkanosSpec.getInfo().getDisplay() != null) {
-                info.setTitle(IkanosSpec.getInfo().getDisplay());
+            if (IkanosSpec.getInfo().getTitle() != null) {
+                info.setTitle(IkanosSpec.getInfo().getTitle());
             }
             if (IkanosSpec.getInfo().getDescription() != null) {
                 info.setDescription(IkanosSpec.getInfo().getDescription());
@@ -169,7 +169,7 @@ public class OasExportBuilder {
         }
         if (info.getTitle() == null) {
             info.setTitle("ikanos Capability");
-            warnings.add("No info.display found; using default title");
+            warnings.add("No info.title found; using default title");
         }
         info.setVersion("1.0.0");
         return info;

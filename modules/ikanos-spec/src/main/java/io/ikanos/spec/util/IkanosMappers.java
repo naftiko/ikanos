@@ -27,6 +27,9 @@ import tools.jackson.dataformat.yaml.YAMLMapper;
  * starts from {@code configureForJackson2()} so that parsing and serialization keep the behavior
  * Ikanos had on Jackson 2. Callers then only state their own deviations, such as
  * {@link #lenientYaml()}.</p>
+ *
+ * <p>Every mapper also rejects the {@code display} key on spec elements, even when unknown
+ * properties are otherwise ignored, because it was renamed to {@code title} (#1164).</p>
  */
 public final class IkanosMappers {
 
@@ -37,14 +40,14 @@ public final class IkanosMappers {
      * @return a JSON mapper builder preconfigured with the Jackson 2 defaults
      */
     public static JsonMapper.Builder jsonBuilder() {
-        return JsonMapper.builder().configureForJackson2();
+        return JsonMapper.builder().configureForJackson2().addHandler(new RemovedDisplayKeyHandler());
     }
 
     /**
      * @return a YAML mapper builder preconfigured with the Jackson 2 defaults
      */
     public static YAMLMapper.Builder yamlBuilder() {
-        return YAMLMapper.builder().configureForJackson2();
+        return YAMLMapper.builder().configureForJackson2().addHandler(new RemovedDisplayKeyHandler());
     }
 
     /**

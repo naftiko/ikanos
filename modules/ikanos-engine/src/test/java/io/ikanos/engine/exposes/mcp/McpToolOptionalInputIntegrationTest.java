@@ -67,11 +67,11 @@ class McpToolOptionalInputIntegrationTest {
         String yaml = """
                 ikanos: "%s"
                 info:
-                  display: "Optional inputs"
+                  title: "Optional inputs"
                   description: "MCP tool inputs are optional unless they say otherwise"
                 capability:
                   aggregates:
-                    - display: "Issues"
+                    - title: "Issues"
                       namespace: "issues-domain"
                       flows:
                         get-issue:

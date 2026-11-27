@@ -62,7 +62,7 @@ class McpServerHintsSchemaValidationTest {
         return """
                 ikanos: "%s"
                 info:
-                  display: "Server hints"
+                  title: "Server hints"
                   description: "Server-level default tool hints"
                 capability:
                   consumes:

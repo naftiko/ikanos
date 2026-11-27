@@ -9,7 +9,7 @@
 #       semantics.safe: false, which resolves to readOnly: false
 ikanos: "1.0.0-beta11"
 info:
-  display: "Consumed SQL rules — writes overriding inherited readOnly"
+  title: "Consumed SQL rules — writes overriding inherited readOnly"
   description: "Fixture where SQL write tools override the readOnly default of the MCP exposes block."
 capability:
   consumes:
@@ -45,7 +45,7 @@ capability:
           outputParameters:
             deleted: { type: number, value: "$.rowCount" }
   aggregates:
-    - display: Orders
+    - title: Orders
       namespace: orders
       flows:
         settle:
