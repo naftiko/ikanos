@@ -113,11 +113,12 @@ public final class Executions {
         } catch (Asked asked) {
             // A flow called by one of these steps asks: its keys already carry their prefix.
             // The URL steps this run finished travel with its questions.
-            if (run.finished().isEmpty()) {
+            Map<String, JsonNode> done = finished(run);
+            if (done.isEmpty()) {
                 throw asked.question;
             }
             Map<String, JsonNode> carry = new LinkedHashMap<>(asked.question.carry());
-            run.finished().forEach(carry::putIfAbsent);
+            done.forEach(carry::putIfAbsent);
             throw new InputRequiredException(asked.question.questions(), carry);
         }
         if (result instanceof ExecutionResult.Completed) {
@@ -130,7 +131,7 @@ public final class Executions {
             // rendered too, with the id of its question, the same on every visit.
             // The URL steps already found done travel with the questions, so a later round
             // restores them instead of deciding again.
-            Map<String, JsonNode> carry = new LinkedHashMap<>(run.finished());
+            Map<String, JsonNode> carry = finished(run);
             throw new InputRequiredException(suspended.awaiting().stream()
                     .map(await -> {
                         StepNode node = (StepNode) await.request();
@@ -151,6 +152,16 @@ public final class Executions {
                     .toList(), carry);
         }
         throw rethrowable(run, result);
+    }
+
+    /**
+     * The outputs of the URL mode steps found done, to carry with the questions that leave
+     * {@code run}: its own, and those of every run of the request, such as a called flow's.
+     */
+    private static Map<String, JsonNode> finished(StepRun run) {
+        Map<String, JsonNode> done = new LinkedHashMap<>(ExecutionInputs.finished());
+        done.putAll(run.finished());
+        return done;
     }
 
     /**

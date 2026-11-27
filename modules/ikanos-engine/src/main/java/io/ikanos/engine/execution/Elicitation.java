@@ -195,7 +195,11 @@ public final class Elicitation {
      * the state the call carries to its next round.
      */
     public static void recordFinished(StepNode node, StepRun run, JsonNode output) {
-        run.recordFinished(DONE_PREFIX + ExecutionInputs.qualify(node.path()).value(), output);
+        String key = DONE_PREFIX + ExecutionInputs.qualify(node.path()).value();
+        run.recordFinished(key, output);
+        // Kept for the whole request too: a step of a called flow is done before its caller
+        // asks, and that flow's run is gone by then.
+        ExecutionInputs.recordFinished(key, output);
     }
 
     /**

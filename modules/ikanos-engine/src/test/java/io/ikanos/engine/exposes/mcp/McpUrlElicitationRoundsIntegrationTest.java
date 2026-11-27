@@ -104,6 +104,45 @@ class McpUrlElicitationRoundsIntegrationTest {
                             call: payments.create-project
                             with:
                               paymentMethodId: "{{payment.paymentMethodId}}"
+                      pay-only:
+                        description: Add a payment method on the payment page.
+                        steps:
+                          payment:
+                            type: elicit
+                            mode: url
+                            message: Add a payment method.
+                            url: "https://billing.example.com/setup?ref={{elicitation.id}}"
+                            check:
+                              type: call
+                              call: payments.get-setup-status
+                              with:
+                                ref: "{{elicitation.id}}"
+                            outputParameters:
+                              paymentMethodId:
+                                type: string
+                        mappings:
+                        - target: paymentMethodId
+                          value: $.payment.paymentMethodId
+                        outputParameters:
+                          paymentMethodId:
+                            type: string
+                      call-pay-then-confirm:
+                        description: Pay through the flow that asks, confirm, then create.
+                        steps:
+                          pay:
+                            type: call
+                            call: billing.pay-only
+                          confirm:
+                            type: elicit
+                            message: Create the paid project?
+                            fields:
+                              confirmed:
+                                type: boolean
+                          create:
+                            type: call
+                            call: payments.create-project
+                            with:
+                              paymentMethodId: "{{pay.paymentMethodId}}"
                       pay-then-confirm-task:
                         description: The same, as a task.
                         semantics:
@@ -144,6 +183,9 @@ class McpUrlElicitationRoundsIntegrationTest {
                       pay-then-confirm:
                         description: Create a paid project, once paid and confirmed.
                         ref: billing.pay-then-confirm
+                      call-pay-then-confirm:
+                        description: Create a paid project through a flow that asks for payment.
+                        ref: billing.call-pay-then-confirm
                       pay-then-confirm-task:
                         description: Create a paid project as a task, once paid and confirmed.
                         ref: billing.pay-then-confirm-task
@@ -202,8 +244,12 @@ class McpUrlElicitationRoundsIntegrationTest {
 
     /** A retry of the inline call, answering {@code key} with {@code answer}. */
     private String retry(JsonNode asked, String key, String answer) {
+        return retry("pay-then-confirm", asked, key, answer);
+    }
+
+    private String retry(String tool, JsonNode asked, String key, String answer) {
         ObjectNode retry = jsonMapper.createObjectNode();
-        retry.put("name", "pay-then-confirm");
+        retry.put("name", tool);
         retry.putObject("arguments");
         retry.put("requestState", asked.path("requestState").asString());
         retry.putObject("inputResponses").set(key, jsonMapper.readTree(answer));
@@ -227,6 +273,26 @@ class McpUrlElicitationRoundsIntegrationTest {
         setupStatus(PENDING);
 
         JsonNode done = inline(adapter, retry(confirm, CONFIRM, CONFIRMED));
+
+        assertEquals("complete", done.path("resultType").asString("complete"), done.toString());
+        assertTrue(done.toString().contains("pm_123"), done.toString());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"none", "memory"})
+    void aFinishedUrlStepOfACalledFlowShouldBeRestoredWhenItsCheckChangesItsAnswer(String mode)
+            throws Exception {
+        String tool = "call-pay-then-confirm";
+        String payment = "steps/pay/steps/payment";
+        McpServerAdapter adapter = load(mode);
+        JsonNode asked = inline(adapter, "{\"name\":\"" + tool + "\",\"arguments\":{}}");
+        assertTrue(asked.path("inputRequests").has(payment), asked.toString());
+        setupStatus(DONE);
+        JsonNode confirm = inline(adapter, retry(tool, asked, payment, ACCEPT));
+        assertTrue(confirm.path("inputRequests").has(CONFIRM), confirm.toString());
+        setupStatus(PENDING);
+
+        JsonNode done = inline(adapter, retry(tool, confirm, CONFIRM, CONFIRMED));
 
         assertEquals("complete", done.path("resultType").asString("complete"), done.toString());
         assertTrue(done.toString().contains("pm_123"), done.toString());
