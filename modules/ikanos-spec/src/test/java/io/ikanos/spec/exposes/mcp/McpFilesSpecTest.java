@@ -163,6 +163,86 @@ class McpFilesSpecTest {
     }
 
     @Test
+    void schemaShouldAcceptHostedUploads() throws Exception {
+        List<Error> errors = validate("""
+                files:
+                  uploads:
+                    hosted: true
+                    quota: 500MiB
+                    ttl: PT2M
+                """, "");
+        assertTrue(errors.isEmpty(), "Expected no errors, got: " + errors);
+    }
+
+    @Test
+    void schemaShouldRejectAHostedQuotaWithoutUnit() throws Exception {
+        assertFalse(validate("""
+                files:
+                  uploads:
+                    hosted: true
+                    quota: "500"
+                """, "").isEmpty());
+    }
+
+    @Test
+    void schemaShouldRejectAHostedTtlThatIsNotAnIsoDuration() throws Exception {
+        assertFalse(validate("""
+                files:
+                  uploads:
+                    hosted: true
+                    ttl: 10m
+                """, "").isEmpty());
+    }
+
+    @Test
+    void schemaShouldRejectAHostedFlagThatIsNotABoolean() throws Exception {
+        assertFalse(validate("""
+                files:
+                  uploads:
+                    hosted: "yes"
+                """, "").isEmpty());
+    }
+
+    @Test
+    void specShouldReadHostedUploadsAndApplyDefaults() throws Exception {
+        IkanosSpec declared = YAML.readValue(capability("""
+                files:
+                  uploads:
+                    hosted: true
+                    quota: 500MiB
+                    ttl: PT2M
+                """, ""), IkanosSpec.class);
+        McpFileUploadsSpec uploads = ((McpServerSpec) declared.getCapability().getExposes()
+                .get(0)).getFiles().uploadsOrDefault();
+        assertTrue(uploads.isHosted());
+        assertEquals("500MiB", uploads.quotaOrDefault());
+        assertEquals("PT2M", uploads.ttlOrDefault());
+
+        IkanosSpec defaults = YAML.readValue(capability("files: {}", ""), IkanosSpec.class);
+        McpFileUploadsSpec none = ((McpServerSpec) defaults.getCapability().getExposes().get(0))
+                .getFiles().uploadsOrDefault();
+        assertFalse(none.isHosted());
+        assertNull(none.getHosted());
+        assertEquals("100MiB", none.quotaOrDefault());
+        assertEquals("PT5M", none.ttlOrDefault());
+    }
+
+    @Test
+    void specShouldWriteHostedUploadsBack() throws Exception {
+        IkanosSpec spec = YAML.readValue(capability("""
+                files:
+                  uploads:
+                    hosted: true
+                    quota: 64MiB
+                """, ""), IkanosSpec.class);
+
+        String written = YAML.writeValueAsString(spec);
+        assertTrue(written.contains("hosted: true"), written);
+        assertTrue(written.contains("64MiB"), written);
+        assertFalse(written.contains("ttl"), written);
+    }
+
+    @Test
     void schemaShouldRejectADownloadWithoutSize() throws Exception {
         assertFalse(validate("files: {}", """
                 download:

@@ -1692,12 +1692,27 @@
     },
     "McpFileUploads": {
       "type": "object",
-      "description": "**Experimental.** File inputs (`type: file`) of `tools/call`. `server/discover` advertises `maxInlineBytes`, and a tool argument carries the file's bytes in base64 in its `data`. A tool whose flow declares `upload` also takes files out of band, through presigned URLs (`upload_required`): `server/discover` then advertises `upload`. For any other tool, a non-empty file without `data` is refused with an error result.",
+      "description": "**Experimental.** File inputs (`type: file`) of `tools/call`. `server/discover` advertises `maxInlineBytes`, and a tool argument carries the file's bytes in base64 in its `data`. A tool whose flow declares `upload` also takes files out of band, through presigned URLs (`upload_required`). With `hosted: true`, every other tool that takes a file takes it out of band too, on the adapter itself. `server/discover` advertises `upload` when at least one tool takes files out of band. For any other tool, a non-empty file without `data` is refused with an error result.",
       "properties": {
         "maxInlineBytes": {
           "$ref": "#/$defs/BinarySize",
           "default": "1MiB",
           "description": "The largest total decoded size of the inline files of one `tools/call` request, advertised in bytes as `maxInlineBytes`. A request over it is answered with an error result, without running the tool. Each file is also bounded by its input's `maxSize`. Default: `1MiB`."
+        },
+        "hosted": {
+          "type": "boolean",
+          "default": false,
+          "description": "Host out-of-band uploads on the adapter. A tool that takes a file, and whose flow declares no `upload`, answers a file sent without `data` with an `upload_required` target on the adapter's own origin: `path: /files/<token>` under the MCP address, `method: PUT`, `credentials: include`, so the client authenticates the upload as it does its MCP requests. Only the caller of the tool may send the bytes, once, with the declared `Content-Type` and exactly the declared size. On the retry, the size, the type (from the bytes, for the types Ikanos recognizes, when the input sets `accept`) and the `digest`, when given, are checked; the tool then sees the file as if it had been sent inline (`{{report.data}}`). The bytes are deleted once the call completes, and a retry runs the tool once only. Kept in memory, on the replica that issued the target. Not available on stdio. Default: `false`."
+        },
+        "quota": {
+          "$ref": "#/$defs/BinarySize",
+          "default": "100MiB",
+          "description": "The most bytes the adapter keeps for hosted uploads at once, counted from the moment a target is issued, at the file's declared size, until the bytes are deleted or expire. A call whose files do not fit gets an error result, before any target is issued. Default: `100MiB`."
+        },
+        "ttl": {
+          "$ref": "#/$defs/IsoDuration",
+          "default": "PT5M",
+          "description": "How long a hosted upload target accepts its `PUT`, as an ISO 8601 duration, sent as the target's `expiresAt`. It never goes past the expiry of the `requestState` (10 minutes); the bytes are kept until then for the retry, and purged afterwards. Default: `PT5M`."
         }
       },
       "additionalProperties": false

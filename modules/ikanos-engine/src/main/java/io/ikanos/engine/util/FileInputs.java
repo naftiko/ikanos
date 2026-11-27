@@ -41,7 +41,7 @@ import tools.jackson.databind.JsonNode;
  * ({@code sha-256}, base64url without padding) and the bytes in base64 in {@code data}. A
  * non-empty file without {@code data} is refused, unless the MCP adapter confirmed that it was
  * stored out of band ({@link #withUploads}): it then carries an {@code uploadId} instead of its
- * bytes. Otherwise, the decoded size must equal {@code size} and stay within the
+ * bytes, or, when the adapter hosted the upload, the bytes it received, as if sent inline. Otherwise, the decoded size must equal {@code size} and stay within the
  * input's {@code maxSize} and, for all the files of one call, the adapter's limit; the media type
  * (or the name, for a dot-prefixed extension) must match {@code accept}; a {@code digest} is
  * checked against the bytes.</p>
@@ -115,7 +115,9 @@ public final class FileInputs {
             if (!ids.add(file.id())) {
                 throw refused(input, "has the same 'id' as another file of the call");
             }
-            total += file.size();
+            if (file.inline()) {
+                total += file.size();
+            }
             checked.put(input.getName(), file.asArgument());
         }
         return checked;
@@ -242,9 +244,19 @@ public final class FileInputs {
                 throw refused(input, "has no inline 'data', and the call did not upload it "
                         + "out of band");
             }
+            if (uploaded.bytes() != null) {
+                // Hosted on the adapter: the bytes are here, so the file is passed on as if it
+                // had been sent inline, its digest checked. The adapter bounded it already
+                // (maxSize, quota), so it does not count against the inline limit
+                byte[] hosted = uploaded.bytes();
+                Map<String, Object> digest = checkDigest(input, file.digest(), hosted);
+                return new CheckedFile(id, name, mimeType, size, digest,
+                        Base64.getEncoder().encodeToString(hosted), null, false);
+            }
             // Its bytes never passed through here: its digest is the client's word, not a
             // checked value, so it is not passed on
-            return new CheckedFile(id, name, mimeType, size, null, null, uploaded.uploadId());
+            return new CheckedFile(id, name, mimeType, size, null, null, uploaded.uploadId(),
+                    false);
         }
         if (size > remaining) {
             throw refused(input, "goes over the limit of the bytes one call may send");
@@ -268,7 +280,7 @@ public final class FileInputs {
         }
         Map<String, Object> digest = checkDigest(input, file.digest(), bytes);
         return new CheckedFile(id, name, mimeType, size, digest,
-                Base64.getEncoder().encodeToString(bytes), null);
+                Base64.getEncoder().encodeToString(bytes), null, true);
     }
 
     /**
@@ -312,9 +324,11 @@ public final class FileInputs {
      * Check a {@code digest}, when the file has one: a SHA-256 over the bytes, in base64url
      * without padding. A file without one is accepted.
      *
+     * @param raw the {@code digest} member of the file argument, or {@code null}
      * @return the digest to keep, or {@code null}
+     * @throws InvalidFileException when the digest is malformed or does not match
      */
-    private static Map<String, Object> checkDigest(InputParameterSpec input, Object raw,
+    public static Map<String, Object> checkDigest(InputParameterSpec input, Object raw,
             byte[] bytes) {
         if (raw == null) {
             return null;
@@ -388,9 +402,12 @@ public final class FileInputs {
     /**
      * A file argument that passed the checks: its bytes in base64 in {@code data}, or, for a file
      * stored out of band, the {@code uploadId} of the stored object.
+     *
+     * @param inline whether its bytes came in the call: only those count against the call's
+     *        inline limit
      */
     record CheckedFile(String id, String name, String mimeType, long size,
-            Map<String, Object> digest, String data, String uploadId) {
+            Map<String, Object> digest, String data, String uploadId, boolean inline) {
 
         /** The file as templates and steps see it. */
         Map<String, Object> asArgument() {
@@ -439,11 +456,23 @@ public final class FileInputs {
     }
 
     /**
-     * A file stored out of band and confirmed.
+     * A file stored out of band and confirmed: in the upstream's storage, named by its
+     * {@code uploadId}, or hosted on the adapter, with its {@code bytes}.
      *
-     * @param uploadId the server-chosen name of the stored object
+     * @param uploadId the server-chosen name of the stored object, or {@code null} when hosted
      * @param size its confirmed size in bytes
+     * @param bytes its bytes, when the adapter hosted the upload, or {@code null}
      */
-    public record Uploaded(String uploadId, long size) {
+    public record Uploaded(String uploadId, long size, byte[] bytes) {
+
+        /** A file stored by the upstream, named by {@code uploadId}. */
+        public Uploaded(String uploadId, long size) {
+            this(uploadId, size, null);
+        }
+
+        /** A file hosted on the adapter: the flow sees it as if sent inline. */
+        public static Uploaded hosted(byte[] bytes) {
+            return new Uploaded(null, bytes.length, bytes);
+        }
     }
 }

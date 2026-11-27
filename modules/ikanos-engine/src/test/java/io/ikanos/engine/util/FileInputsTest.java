@@ -142,6 +142,41 @@ class FileInputsTest {
     }
 
     @Test
+    void checkShouldPassAHostedUploadOnWithItsBytesOutsideTheInlineLimit() {
+        Map<String, Object> hosted = file("f1", "q3.csv", "text/csv", CSV);
+        hosted.remove("data");
+        hosted.put("digest", Map.of("algorithm", "sha-256", "value", FileInputs.digestOf(CSV)));
+        byte[] other = "x,y;".getBytes(StandardCharsets.UTF_8);
+        Map<String, Object> arguments = args("report", hosted);
+        arguments.put("extra", file("f2", "small.csv", "text/csv", other));
+
+        // The call's inline limit only fits the inline file: the hosted one is not counted
+        Map<String, Object> checked = FileInputs.withUploads(
+                Map.of("f1", FileInputs.Uploaded.hosted(CSV)),
+                () -> FileInputs.check(List.of(fileInput("report", null),
+                        fileInput("extra", null)), arguments, other.length));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> report = (Map<String, Object>) checked.get("report");
+        assertEquals(Base64.getEncoder().encodeToString(CSV), report.get("data"));
+        assertFalse(report.containsKey(FileInputs.UPLOAD_ID));
+        assertTrue(report.containsKey("digest"), "A checked digest is passed on");
+    }
+
+    @Test
+    void checkShouldRefuseAHostedUploadThatDoesNotMatchItsDigest() {
+        Map<String, Object> hosted = file("f1", "q3.csv", "text/csv", CSV);
+        hosted.remove("data");
+        hosted.put("digest", Map.of("algorithm", "sha-256",
+                "value", FileInputs.digestOf("other".getBytes(StandardCharsets.UTF_8))));
+
+        assertThrows(FileInputs.InvalidFileException.class, () -> FileInputs.withUploads(
+                Map.of("f1", FileInputs.Uploaded.hosted(CSV)),
+                () -> FileInputs.check(List.of(fileInput("report", null)),
+                        args("report", hosted), LIMIT)));
+    }
+
+    @Test
     void checkShouldRefuseAConfirmedUploadOfAnotherSize() {
         Map<String, Object> file = file("f1", "q3.csv", "text/csv", CSV);
         file.remove("data");

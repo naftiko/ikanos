@@ -203,18 +203,29 @@ public class ToolsCallHandler extends McpCallHandler {
             if (state.uploads() == null) {
                 return null;
             }
-            Map<String, FileInputs.Uploaded> confirmed;
+            // Hosted bytes are deleted once this retry is answered, whatever its outcome: a
+            // hosted upload runs the tool once only, and a refused one needs a new call
             try {
-                confirmed = uploads.confirm(toolName, state.uploads(), arguments);
-            } catch (FileInputs.InvalidFileException e) {
-                return new HandlerSuccessResult(toolError(e.getMessage()));
+                // A consumed state fails verification (the draft's step 1)
+                if (uploads.singleUse(toolName) && uploads.claimed(state.uploads())) {
+                    throw new IllegalArgumentException("requestState was already used");
+                }
+                Map<String, FileInputs.Uploaded> confirmed;
+                try {
+                    confirmed = uploads.confirm(toolName, state.uploads(), arguments, principal);
+                } catch (FileInputs.InvalidFileException e) {
+                    return new HandlerSuccessResult(toolError(e.getMessage()));
+                }
+                if (uploads.singleUse(toolName) && !uploads.claim(state.uploads())) {
+                    throw new IllegalArgumentException("requestState was already used");
+                }
+                boolean downloads = capabilities.acceptsDownloads();
+                return new HandlerSuccessResult(FileInputs.withUploads(confirmed,
+                        () -> McpFiles.withDownloads(downloads,
+                                () -> callTool(toolName, arguments))));
+            } finally {
+                uploads.release(toolName, state.uploads());
             }
-            if (uploads.singleUse(toolName) && !uploads.claim(state.uploads())) {
-                throw new IllegalArgumentException("requestState was already used");
-            }
-            boolean downloads = capabilities.acceptsDownloads();
-            return new HandlerSuccessResult(FileInputs.withUploads(confirmed,
-                    () -> McpFiles.withDownloads(downloads, () -> callTool(toolName, arguments))));
         }
         List<FileInputs.PendingFile> pending;
         try {

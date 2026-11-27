@@ -20,7 +20,9 @@ import io.ikanos.engine.exposes.AccessControl;
 import io.ikanos.engine.exposes.CallerClaims;
 import io.ikanos.engine.exposes.mcp.handler.LegacyInitializeHandler;
 import io.ikanos.engine.exposes.mcp.files.DownloadStore;
+import io.ikanos.engine.exposes.mcp.files.HostedUploads;
 import io.ikanos.engine.exposes.mcp.files.McpFileDownloads;
+import io.ikanos.engine.exposes.mcp.files.McpFileUploads;
 import io.ikanos.engine.exposes.mcp.handler.McpCallHandler;
 import io.ikanos.engine.exposes.mcp.model.DispatchResult;
 import io.ikanos.engine.exposes.mcp.model.JsonRpcCodeMapper;
@@ -39,6 +41,7 @@ import org.restlet.representation.StringRepresentation;
 import org.restlet.resource.Delete;
 import org.restlet.resource.Get;
 import org.restlet.resource.Post;
+import org.restlet.resource.Put;
 import org.restlet.resource.ServerResource;
 import org.restlet.util.Series;
 import tools.jackson.core.JacksonException;
@@ -61,6 +64,8 @@ import static io.ikanos.engine.util.JsonRpcResponseBuilder.buildJsonRpcError;
  * supported versions.</li>
  * <li>GET: the hosted download links of the files extension ({@code <address>/files/<token>});
  * any other GET, such as an SSE stream for server-initiated messages, gets 405</li>
+ * <li>PUT: the hosted upload targets of the files extension ({@code <address>/files/<token>});
+ * any other PUT gets 405</li>
  * <li>DELETE: returns 405 - not supported, kept for backwards compatibility</li>
  * </ul>
  *
@@ -258,6 +263,82 @@ public class McpServerResource extends ServerResource {
         setStatus(Status.SUCCESS_OK);
         return body;
     }
+
+    @Put
+    public Representation handlePut(Representation entity) {
+        ProtocolDispatcher dispatcher = getDispatcher();
+        McpFileUploads uploads = dispatcher.getAdapter().getFileUploads();
+        HostedUploads hosted = uploads != null ? uploads.hosted() : null;
+        String token = hosted != null ? McpFileDownloads.tokenOf(getReference().getPath()) : null;
+        if (token == null) {
+            setStatus(Status.CLIENT_ERROR_METHOD_NOT_ALLOWED);
+            return new StringRepresentation("PUT not supported", MediaType.TEXT_PLAIN);
+        }
+        return upload(hosted, token, dispatcher.ownerOf(getRequest()), entity);
+    }
+
+    /**
+     * Receives the bytes of a hosted upload target: once, from the principal the tool call that
+     * issued it ran for, before it expires, with the declared {@code Content-Type} and exactly
+     * the declared size. The authentication chain in front has already checked the credential,
+     * as for any MCP request. The body is read up to the declared size and no further. An
+     * unknown, expired or foreign target gets the same 404, so a target cannot be probed.
+     */
+    private Representation upload(HostedUploads hosted, String token, String owner,
+            Representation entity) {
+        String contentType = getRequest().getHeaders().getFirstValue("Content-Type", true);
+        long length = entity != null ? entity.getSize() : 0;
+        HostedUploads.Received received;
+        java.io.InputStream body = null;
+        try {
+            body = entity != null ? entity.getStream() : null;
+            received = hosted.receive(token, owner, contentType,
+                    entity != null && length == Representation.UNKNOWN_SIZE ? -1 : length, body);
+        } catch (java.io.IOException e) {
+            received = HostedUploads.Received.TOO_SHORT;
+        }
+        if (received != HostedUploads.Received.STORED) {
+            discard(body);
+        }
+        getResponse().setCacheDirectives(List.of(CacheDirective.noStore()));
+        setStatus(Status.valueOf(received.status()));
+        if (received == HostedUploads.Received.STORED) {
+            return null;
+        }
+        return new StringRepresentation(switch (received) {
+            case NOT_FOUND -> "Upload target not found or expired";
+            case ALREADY_WRITTEN -> "Upload target already received its file";
+            case LENGTH_REQUIRED -> "Content-Length is required";
+            case WRONG_TYPE -> "Content-Type must be the one the upload target lists";
+            case TOO_LARGE -> "Body is larger than the declared file size";
+            default -> "Body is shorter than the declared file size";
+        }, MediaType.TEXT_PLAIN);
+    }
+
+    /**
+     * Reads and drops what is left of a refused upload's body, up to {@link #DISCARD_LIMIT}, so
+     * the connector can send the answer on a connection whose request it has read. A larger body
+     * is left unread: the connection then breaks instead of the server reading it.
+     */
+    private static void discard(java.io.InputStream body) {
+        if (body == null) {
+            return;
+        }
+        try {
+            byte[] buffer = new byte[8192];
+            long left = DISCARD_LIMIT;
+            int read;
+            while (left > 0 && (read = body.read(buffer, 0,
+                    (int) Math.min(buffer.length, left))) != -1) {
+                left -= read;
+            }
+        } catch (java.io.IOException e) {
+            // The answer is sent anyway
+        }
+    }
+
+    /** The most bytes of a refused upload's body read and dropped: 1 MiB. */
+    private static final long DISCARD_LIMIT = 1024L * 1024;
 
     private ProtocolDispatcher getDispatcher() {
         return (ProtocolDispatcher) getContext().getAttributes().get("dispatcher");

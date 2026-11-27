@@ -98,6 +98,25 @@ public final class McpFiles {
     }
 
     /**
+     * An upload target hosted on the adapter: a {@code path} under the MCP address, sent to
+     * with {@code PUT} (the default method, so left out) and {@code credentials: include}, so
+     * the client authenticates it as it does its MCP requests.
+     *
+     * @param path the target path, {@code /files/<token>}
+     * @param mimeType the declared media type, listed as the {@code Content-Type} to send
+     */
+    public static ObjectNode hostedUploadTarget(ObjectMapper mapper, String fileId, String path,
+            String mimeType, java.time.Instant expiresAt) {
+        ObjectNode target = mapper.createObjectNode();
+        target.put("fileId", fileId);
+        target.put("path", path);
+        target.putObject("headers").put("Content-Type", mimeType);
+        target.put("credentials", "include");
+        target.put("expiresAt", expiresAt.toString());
+        return target;
+    }
+
+    /**
      * The {@code requiredCapabilities} of a {@code -32021} error for a call that sends a file
      * out of band without declaring {@code upload}.
      */

@@ -129,8 +129,8 @@ public class McpServerAdapter extends ServerAdapter {
                 serverSpec.getNamespace(), serverSpec.getMaxBinarySize(), fileDownloads,
                 maxInlineBytes);
         this.fileTools = fileTools(capability, serverSpec, toolHandler);
-        this.fileUploads = McpFileUploads.of(capability, serverSpec, requestState,
-                maxInlineBytes);
+        this.fileUploads = McpFileUploads.of(capability, serverSpec,
+                toolHandler::getInputParameters, requestState, maxInlineBytes);
 
         // Build MCP Tool definitions from the spec
         this.tools = new ArrayList<>();
@@ -185,12 +185,14 @@ public class McpServerAdapter extends ServerAdapter {
                 : null;
 
         // An upload retry runs the tool directly: a state that answers an upload request cannot
-        // also carry answers to questions
+        // also carry answers to questions. On an adapter that hosts uploads, that is every tool
+        // that takes a file
         if (fileUploads != null) {
             for (String tool : fileUploads.tools()) {
                 if (mayElicit(tool)) {
                     throw new IllegalArgumentException("MCP tool '" + tool + "' takes files out of"
-                            + " band (upload) and may ask for input (elicit): it cannot do both");
+                            + " band (upload, or files.uploads.hosted) and may ask for input"
+                            + " (elicit): it cannot do both");
                 }
             }
         }
@@ -476,7 +478,9 @@ public class McpServerAdapter extends ServerAdapter {
 
     /**
      * @return the out-of-band upload side of the MCP files extension, or {@code null} when no
-     *         exposed tool's flow declares {@code upload} (or the block declares no {@code files})
+     *         exposed tool takes files out of band: none whose flow declares {@code upload}, and
+     *         none that takes a file on an adapter that hosts uploads (or the block declares no
+     *         {@code files})
      */
     public McpFileUploads getFileUploads() {
         return fileUploads;
@@ -534,6 +538,9 @@ public class McpServerAdapter extends ServerAdapter {
 
     @Override
     public void start() throws Exception {
+        if (fileUploads != null) {
+            fileUploads.start();
+        }
         // Unfinished tasks kept by a durable store run again before new calls are served.
         int resumed = resumeTasks();
         if (resumed > 0) {
@@ -572,6 +579,9 @@ public class McpServerAdapter extends ServerAdapter {
                         + "running after " + DRAIN_TIMEOUT.toSeconds() + " s; the next start "
                         + "resumes them (namespace: " + getMcpServerSpec().getNamespace() + ")");
             }
+        }
+        if (fileUploads != null) {
+            fileUploads.stop();
         }
         if (getMcpServerSpec().isStdio()) {
             StdioJsonRpcHandler handler = stdioHandler.get();

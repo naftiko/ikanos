@@ -15,6 +15,13 @@
 #     to `uploads.maxInlineBytes` per call), and is listed only to clients that declare the
 #     extension. Over REST, the operation takes a `multipart/form-data` body. Either way, the flow
 #     sends the file on as a `multipartForm` part, from `{{report.data}}` in base64.
+#     The adapter also hosts uploads (`uploads.hosted: true`), so a report larger than
+#     `maxInlineBytes` can be sent out of band: a client that declares `upload` calls the tool
+#     with the file's metadata and no `data`, gets an `upload_required` result whose target is a
+#     path on this adapter (`/files/<token>` under the MCP address, `credentials: include`),
+#     `PUT`s the bytes there with its MCP credential, and retries the call. Ikanos keeps the bytes
+#     (within `quota`, the target open for `ttl`), checks their size, type and digest on the
+#     retry, runs the flow with them as if they had been sent inline, then deletes them.
 #   - import-scan: the `documents.import-scan` flow declares `upload`: its file is stored in an
 #     object store that issues presigned URLs, so large scans never pass through Ikanos. A client
 #     that declares `upload` calls the tool with the file's metadata and no `data`, gets an
@@ -198,6 +205,9 @@ capability:
           ttl: "PT5M"
         uploads:
           maxInlineBytes: "1MiB"
+          hosted: true
+          quota: "500MiB"
+          ttl: "PT5M"
       tools:
         get-photo:
           description: "Download the original-resolution bytes of a photo by id."
@@ -243,7 +253,7 @@ capability:
             name: "file-name"
             expiresAt: "expires-at"
         import-report:
-          description: "Import a lab report into the records system."
+          description: "Import a lab report into the records system, uploaded to this server when large."
           ref: "documents.import-report"
         import-scan:
           description: "Import a scanned document, uploaded out of band to the object store."
