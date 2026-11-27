@@ -38,10 +38,12 @@ import io.ikanos.engine.consumes.ConsumedInvocation;
 import io.ikanos.engine.consumes.ConsumedOperationView;
 import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.engine.consumes.http.StandardRequestHeaders;
+import io.ikanos.engine.execution.Elicitation;
 import io.ikanos.engine.execution.ExecutionTree;
 import io.ikanos.engine.execution.Executions;
 import io.ikanos.engine.execution.InputDeclinedException;
 import io.ikanos.engine.execution.InputRequiredException;
+import io.ikanos.engine.execution.InteractionPendingException;
 import io.ikanos.engine.execution.StepNode;
 import io.ikanos.engine.execution.StepRun;
 import io.ikanos.engine.observability.TelemetryBootstrap;
@@ -495,6 +497,10 @@ public class OperationStepExecutor {
                 }
             }
             case OperationStepElicitSpec elicitStep -> {
+                if (elicitStep.isUrlMode()) {
+                    return applyUrlAnswer(elicitStep, run.answer(node.path()), node, run,
+                            namespace);
+                }
                 return applyAnswer(elicitStep, run.answer(node.path()), run);
             }
             default -> {
@@ -509,6 +515,112 @@ public class OperationStepExecutor {
      * becomes the step output; a declined or cancelled one fails the step.
      */
     JsonNode applyAnswer(OperationStepElicitSpec step, Object answer, StepRun run) {
+        JsonNode result = requireAccepted(step, answer);
+        JsonNode content = result.path("content").isObject() ? result.get("content")
+                : mapper.createObjectNode();
+        return storeAnswer(step, content, run);
+    }
+
+    /**
+     * Apply the caller's answer to a URL mode {@code elicit} step. The caller's {@code accept}
+     * only means consent: the step's {@code check} runs, with the question's
+     * {@code elicitation.id}, and the step is done when the check's output has a value for every
+     * declared output parameter, which then make up the step output. A declined or cancelled
+     * answer fails the step, as in form mode.
+     *
+     * @throws InteractionPendingException when the check says the interaction is not done yet:
+     *         the caller is asked again, with the same URL
+     */
+    JsonNode applyUrlAnswer(OperationStepElicitSpec step, Object answer, StepNode node,
+            StepRun run, String namespace) {
+        requireAccepted(step, answer);
+        OperationStepCallSpec check = step.getCheck();
+        if (check == null || check.getCall() == null) {
+            throw new IllegalStateException(
+                    "Step '" + step.getName() + "': a URL mode elicit step needs a check");
+        }
+        if (step.getOutputParameters() == null || step.getOutputParameters().isEmpty()) {
+            throw new IllegalStateException("Step '" + step.getName()
+                    + "': a URL mode elicit step needs outputParameters");
+        }
+        TelemetryBootstrap telemetry = TelemetryBootstrap.get();
+        Span span = telemetry.startStepCallSpan(node.index(), check.getCall(), namespace);
+        long startNanos = System.nanoTime();
+        try (Scope scope = span.makeCurrent()) {
+            JsonNode output = checkOutput(step, check,
+                    Elicitation.checkParameters(node, run), namespace);
+            ObjectNode content = mapper.createObjectNode();
+            List<String> missing = new java.util.ArrayList<>();
+            for (String name : step.getOutputParameters().keySet()) {
+                JsonNode value = output != null && output.isObject() ? output.get(name) : null;
+                if (value == null || value.isNull()) {
+                    missing.add(name);
+                } else {
+                    content.set(name, value);
+                }
+            }
+            if (!missing.isEmpty()) {
+                throw new InteractionPendingException("Step '" + step.getName()
+                        + "': the check has no value yet for " + String.join(", ", missing));
+            }
+            return storeAnswer(step, content, run);
+        } catch (InteractionPendingException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            TelemetryBootstrap.recordError(span, e);
+            throw e;
+        } finally {
+            telemetry.getMetrics().recordStep("call", namespace,
+                    (System.nanoTime() - startNanos) / 1_000_000_000.0);
+            TelemetryBootstrap.endSpan(span);
+        }
+    }
+
+    /**
+     * Runs a URL mode step's check and returns its JSON output, or {@code null} when it has
+     * none. A check that fails fails the step; one that asks its caller for input is refused.
+     */
+    private JsonNode checkOutput(OperationStepElicitSpec step, OperationStepCallSpec check,
+            Map<String, Object> parameters, String namespace) {
+        ConsumedInvocation invocation = executeCallStep(check, parameters, namespace);
+        if (invocation == null) {
+            throw new IllegalArgumentException("Invalid call format: " + check.getCall());
+        }
+        ConsumedResult result;
+        try {
+            result = invocation.invoke();
+        } catch (StepFailedException e) {
+            throw e.calledFrom(step.getName(), check.getCall());
+        } catch (InputRequiredException | InputDeclinedException e) {
+            throw new IllegalStateException("Step '" + step.getName() + "': its check "
+                    + check.getCall() + " asks its caller for input, which a check must not do");
+        } catch (FlowCallDepthExceededException
+                | StandardRequestHeaders.InvalidPreconditionException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException("Error while handling a consumed call", e);
+        }
+        try {
+            failIfUnsuccessful(step.getName(), result);
+            if (!result.hasBody() || result.operation().isBinary()) {
+                return null;
+            }
+            JsonNode raw = stepDocument(result);
+            return raw != null ? resolveStepOutput(result.operation(), raw) : null;
+        } catch (JacksonException | IOException e) {
+            throw new IllegalStateException("Step '" + step.getName() + "': the output of its "
+                    + "check " + check.getCall() + " is not JSON", e);
+        } finally {
+            result.release();
+        }
+    }
+
+    /**
+     * Fails the step unless the caller accepted it.
+     *
+     * @return the answer as a tree
+     */
+    private JsonNode requireAccepted(OperationStepElicitSpec step, Object answer) {
         JsonNode result = answer instanceof JsonNode node ? node : mapper.valueToTree(answer);
         String action = result != null ? result.path("action").asString("") : "";
         if (!"accept".equals(action)) {
@@ -516,8 +628,10 @@ public class OperationStepExecutor {
                     + "': the caller did not accept the request (" + (action.isEmpty()
                             ? "no answer" : action) + ")");
         }
-        JsonNode content = result.path("content").isObject() ? result.get("content")
-                : mapper.createObjectNode();
+        return result;
+    }
+
+    private JsonNode storeAnswer(OperationStepElicitSpec step, JsonNode content, StepRun run) {
         run.stepContext().storeStepOutput(step.getName(), content);
         addStepOutputToParameters(run.runtimeParameters(), step.getName(), content);
         return content;

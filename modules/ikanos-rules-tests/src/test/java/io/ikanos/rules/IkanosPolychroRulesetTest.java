@@ -1394,6 +1394,36 @@ public class IkanosPolychroRulesetTest {
             "Expected no durability findings on the memory mode.\n" + output);
     }
 
+    // URL mode elicitation (#1151)
+
+    @Test
+    public void elicitUrlHttpsRuleShouldFireOnAPlainHttpUrl() {
+        LintResult result = lintFixture("rules/polychro-elicit-url-violations.yaml");
+        assertEquals(1, findings(result, "ikanos-elicit-url-https"),
+            "Expected one finding, on the http URL.\n" + result.output());
+    }
+
+    @Test
+    public void elicitUrlSensitiveRuleShouldFireOnAUrlThatReadsClaimsOrBindings() {
+        LintResult result = lintFixture("rules/polychro-elicit-url-violations.yaml");
+        assertEquals(2, findings(result, "ikanos-elicit-url-no-sensitive"),
+            "Expected one finding for the claim and one for the binding.\n" + result.output());
+    }
+
+    @Test
+    public void elicitFormSecretsRuleShouldWarnOnAnApiKeyField() {
+        assertWarnsOn("rules/polychro-elicit-url-violations.yaml",
+            "ikanos-elicit-form-no-secrets", "'apiKey'");
+    }
+
+    @Test
+    public void elicitUrlRulesShouldNotFireOnACompliantUrlModeStep() {
+        LintResult result = lintFixtureAtSeverity("rules/polychro-elicit-url-compliant.yaml",
+            "warn");
+        assertTrue(!result.output().contains("ikanos-elicit-"),
+            "Expected no elicit finding.\n" + result.output());
+    }
+
     @Test
     public void sealingKeyRuleShouldWarnOnAKeyWrittenIntoTheCapability() {
         assertWarnsOn("rules/polychro-durability-warnings.yaml",

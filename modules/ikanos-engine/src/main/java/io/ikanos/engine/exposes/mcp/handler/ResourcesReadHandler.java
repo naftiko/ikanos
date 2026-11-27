@@ -171,6 +171,11 @@ public class ResourcesReadHandler extends McpCallHandler {
     }
 
     @Override
+    protected java.util.Set<String> askModes(String uri) {
+        return adapter.resourceElicitationModes(uri);
+    }
+
+    @Override
     public String getMethodName() {
         return METHOD_NAME;
     }

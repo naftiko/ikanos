@@ -52,6 +52,7 @@ functions:
   - mcp-tool-search
   - mcp-tool-description
   - sql-procedures
+  - elicit-url
 
 rules:
 
@@ -1148,6 +1149,51 @@ rules:
       function: pattern
       functionOptions:
         notMatch: "example\\.com"
+
+  ikanos-elicit-url-https:
+    message: "{{error}}"
+    description: >
+      A URL mode `elicit` step sends the caller to a page to complete a step out
+      of band, such as connecting an account or entering a payment method. The
+      page must be served over `https://`; the engine refuses any other URL,
+      except `http://localhost` in development.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: elicit-url
+      functionOptions:
+        check: https
+
+  ikanos-elicit-url-no-sensitive:
+    message: "{{error}}"
+    description: >
+      The URL of a URL mode `elicit` step is shown to the user, logged and may be
+      shared, so it must not carry credentials, personal data or a
+      pre-authenticated token. Do not read the caller's claims (`{{auth...}}`)
+      or a binding in it: carry `{{elicitation.id}}` instead, and let the page
+      identify the user itself and check that it is the caller who was asked.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: elicit-url
+      functionOptions:
+        check: no-sensitive
+
+  ikanos-elicit-form-no-secrets:
+    message: "{{error}}"
+    description: >
+      The MCP specification forbids form mode elicitation for passwords, API
+      keys, tokens and payment credentials. Ask for them on a page with
+      `mode: url`, whose `check` reads the result once the user is done.
+    severity: warn
+    recommended: true
+    given: "$"
+    then:
+      function: elicit-url
+      functionOptions:
+        check: form-secrets
 
   ikanos-mcp-trust-network-too-broad:
     message: "{{error}}"

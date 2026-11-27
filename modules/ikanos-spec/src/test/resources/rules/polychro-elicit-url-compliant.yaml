@@ -1,0 +1,48 @@
+ikanos: 1.0.0-beta11
+info:
+  display: URL mode question
+  description: >-
+    Positive fixture: a URL mode elicit step sends the caller to an https page that
+    carries only the question's id, and a check reads the result.
+capability:
+  consumes:
+  - type: http
+    namespace: payments
+    description: Payments API
+    baseUri: https://payments.example.com
+    resources:
+      setups:
+        path: /setups/{{ref}}
+        operations:
+          get-setup-status:
+            method: GET
+  aggregates:
+  - display: billing flows
+    namespace: billing
+    flows:
+      add-payment-method:
+        description: Ask the customer to add a payment method on the payment page
+        steps:
+          payment:
+            type: elicit
+            mode: url
+            message: Add a payment method to create a paid project.
+            url: "https://billing.example.com/setup?ref={{elicitation.id}}"
+            check:
+              type: call
+              call: payments.get-setup-status
+              with:
+                ref: "{{elicitation.id}}"
+            outputParameters:
+              paymentMethodId:
+                type: string
+  exposes:
+  - type: mcp
+    address: localhost
+    port: 9317
+    namespace: billing-mcp
+    description: Billing tools
+    tools:
+      add-payment-method:
+        description: Ask the customer to add a payment method on the payment page
+        ref: billing.add-payment-method

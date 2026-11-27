@@ -21,8 +21,9 @@ import tools.jackson.databind.node.ObjectNode;
 
 /**
  * The {@code inputRequests} map an MCP server sends when a run stops at {@code elicit} steps: one
- * {@code elicitation/create} form request per question, keyed by the question's key. Multi
- * round-trip requests and tasks that ask send the same map.
+ * {@code elicitation/create} request per question, keyed by the question's key: in form mode
+ * with a {@code requestedSchema}, or in URL mode with the page's {@code url}. Multi round-trip
+ * requests, tasks and REST operations that ask send the same map.
  */
 public final class InputRequests {
 
@@ -43,6 +44,16 @@ public final class InputRequests {
             ObjectNode request = requests.putObject(question.key());
             request.put("method", "elicitation/create");
             ObjectNode requestParams = request.putObject("params");
+            if (question.url() != null) {
+                // URL mode: the caller completes a step out of band, on the page. Its accept only
+                // means consent; the step's check decides on the retry.
+                requestParams.put("mode", "url");
+                requestParams.put("url", question.url().url());
+                requestParams.put("elicitationId", question.url().elicitationId());
+                requestParams.put("message", question.message() != null ? question.message()
+                        : question.step().getName());
+                continue;
+            }
             requestParams.put("mode", "form");
             // Never the step's message as written: a template would reach the caller unrendered.
             requestParams.put("message", question.message() != null ? question.message()

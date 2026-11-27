@@ -13,13 +13,24 @@
  */
 package io.ikanos.engine.execution;
 
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
-import tools.jackson.databind.ObjectMapper;
-import io.ikanos.spec.util.IkanosMappers;
 import java.util.Set;
+import java.util.TreeSet;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import io.ikanos.durable.NodePath;
+import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.Capability;
 import io.ikanos.engine.aggregates.AggregateFlow;
 import io.ikanos.engine.util.Resolver;
@@ -36,11 +47,23 @@ import io.ikanos.spec.util.OperationStepSpec;
  * the target of its singleton {@code call:}, hold an {@code elicit} step, or call a consumed MCP
  * tool declared {@code mayElicit: true}, whose questions pass through, directly or through flows
  * they call, at any depth. Only such an entry needs the machinery of input requests; one that
- * cannot ask runs as before. Also renders the message an {@code elicit} step asks with.
+ * cannot ask runs as before. Also renders the message an {@code elicit} step asks with and,
+ * in URL mode, the URL it sends its caller to, with the question's id.
  */
 public final class Elicitation {
 
     private static final ObjectMapper JSON = IkanosMappers.json();
+
+    /** The variable a URL mode step's {@code url} and {@code check} read the question's id in. */
+    static final String ELICITATION = "elicitation";
+
+    /** Key prefix, in the state a replay carries, of the value a URL question's id derives from. */
+    static final String CARRY_PREFIX = "elicitation/";
+
+    private static final int NONCE_BYTES = 16;
+    private static final int ID_LENGTH = 32;
+    private static final SecureRandom RANDOM = new SecureRandom();
+    private static final Set<String> LOCAL_HOSTS = Set.of("localhost", "127.0.0.1", "[::1]");
 
     private Elicitation() {
     }
@@ -66,14 +89,7 @@ public final class Elicitation {
         if (template == null) {
             return step.getName();
         }
-        Resolver.requireCallerValues(template, parameters);
-        List<String> unresolved = Resolver.unresolvedVariables(template, parameters);
-        if (!unresolved.isEmpty()) {
-            throw new IllegalStateException("Step '" + step.getName() + "': the message reads "
-                    + String.join(", ", unresolved)
-                    + ", which no input or earlier step provides");
-        }
-        return Resolver.resolveMustacheTemplate(template, parameters);
+        return render(step, template, "message", parameters);
     }
 
     /**
@@ -92,6 +108,115 @@ public final class Elicitation {
     }
 
     /**
+     * The {@code {{elicitation.id}}} of the URL mode question asked under {@code key}, the full
+     * key of its first visit: an opaque value, the same on every retry of the call, that the
+     * page behind the URL and the step's {@code check} use to correlate the interaction.
+     *
+     * <p>In a journaled call it is derived from the call's execution, which is bound to its
+     * caller. In a call that replays, it is derived from a random value generated when the
+     * question is first asked and carried in the caller's sealed {@code requestState}, which
+     * binds it to the principal, the request and an expiry.</p>
+     *
+     * @param newCarry where to put a value generated for the sealed state, when asking;
+     *        {@code null} when answering, where the value must already be carried
+     * @throws IllegalStateException when answering a call whose state carries no value
+     */
+    static String id(String key, Map<String, JsonNode> newCarry) {
+        DurableScope scope = DurableScope.current();
+        String base;
+        if (scope != null) {
+            base = "execution:" + scope.root().value();
+        } else {
+            String carryKey = CARRY_PREFIX + key;
+            Object carried = ExecutionInputs.carried().get(new NodePath(carryKey));
+            if (carried instanceof JsonNode node && node.isString()) {
+                base = node.asString();
+            } else if (carried instanceof String text) {
+                base = text;
+            } else if (newCarry != null) {
+                byte[] nonce = new byte[NONCE_BYTES];
+                RANDOM.nextBytes(nonce);
+                base = Base64.getUrlEncoder().withoutPadding().encodeToString(nonce);
+                newCarry.put(carryKey, JSON.getNodeFactory().stringNode(base));
+            } else {
+                throw new IllegalStateException("The URL question '" + key
+                        + "' was answered without the state it was asked with; call again");
+            }
+        }
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest((base + "\n" + key).getBytes(StandardCharsets.UTF_8));
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(digest)
+                    .substring(0, ID_LENGTH);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is required of every Java platform", e);
+        }
+    }
+
+    /**
+     * What a URL mode step's {@code url} and {@code check} render against: the run's parameters
+     * ({@link #parameters(StepRun)}), plus {@code elicitation.id}.
+     */
+    static Map<String, Object> urlParameters(StepRun run, String id) {
+        Map<String, Object> parameters = parameters(run);
+        parameters.put(ELICITATION, Map.of("id", id));
+        return parameters;
+    }
+
+    /**
+     * What the {@code check} of the URL mode step at {@code node} renders against when the
+     * caller answered it: the run's parameters, plus the {@code elicitation.id} its question was
+     * asked with.
+     *
+     * @throws IllegalStateException when the call's state no longer carries the question's id
+     */
+    public static Map<String, Object> checkParameters(StepNode node, StepRun run) {
+        return urlParameters(run, id(ExecutionInputs.qualify(node.path()).value(), null));
+    }
+
+    /**
+     * The URL a URL mode step sends its caller to: its {@code url} rendered as a Mustache
+     * template against {@code parameters}, as the message is.
+     *
+     * @throws IllegalStateException naming the variables nothing provides, or when the URL is
+     *         not an absolute {@code https} URL; plain {@code http} is only accepted for a local
+     *         host, in development
+     */
+    static String url(OperationStepElicitSpec step, Map<String, Object> parameters) {
+        String url = render(step, step.getUrl(), "URL", parameters);
+        URI uri;
+        try {
+            uri = new URI(url);
+        } catch (URISyntaxException e) {
+            throw new IllegalStateException("Step '" + step.getName()
+                    + "': the URL is not a valid URI");
+        }
+        String scheme = uri.getScheme() != null ? uri.getScheme().toLowerCase(Locale.ROOT) : "";
+        boolean secure = "https".equals(scheme) && uri.getHost() != null;
+        boolean local = "http".equals(scheme) && uri.getHost() != null
+                && LOCAL_HOSTS.contains(uri.getHost().toLowerCase(Locale.ROOT));
+        if (!secure && !local) {
+            throw new IllegalStateException("Step '" + step.getName()
+                    + "': the URL must be an absolute https:// URL");
+        }
+        return url;
+    }
+
+    private static String render(OperationStepElicitSpec step, String template, String what,
+            Map<String, Object> parameters) {
+        Resolver.requireCallerValues(template, parameters);
+        List<String> unresolved = Resolver.unresolvedVariables(template, parameters);
+        if (!unresolved.isEmpty()) {
+            throw new IllegalStateException("Step '" + step.getName() + "': the " + what
+                    + " reads " + String.join(", ", unresolved)
+                    + ", which no input or earlier step provides");
+        }
+        return Resolver.resolveMustacheTemplate(template, parameters);
+    }
+
+    /**
+     * Whether an exposed entry may ask its caller for input.
+     *
      * @param ref the flow the entry references with {@code ref:}, or {@code null}
      * @param call the entry's singleton {@code call:}, used when it references no flow; may be
      *        {@code null}
@@ -99,50 +224,71 @@ public final class Elicitation {
      */
     public static boolean mayAsk(Capability capability, String ref, ServerCallSpec call,
             Map<String, OperationStepSpec> steps) {
+        return !modes(capability, ref, call, steps).isEmpty();
+    }
+
+    /**
+     * The elicitation modes an exposed entry may ask its caller in, {@code form} and
+     * {@code url}: those of its {@code elicit} steps, and form for a consumed MCP tool declared
+     * {@code mayElicit: true}, whose questions pass through in form mode only. Empty when the
+     * entry cannot ask.
+     *
+     * @param ref the flow the entry references with {@code ref:}, or {@code null}
+     * @param call the entry's singleton {@code call:}, used when it references no flow; may be
+     *        {@code null}
+     * @param steps the entry's own steps, used when it references no flow; may be {@code null}
+     */
+    public static Set<String> modes(Capability capability, String ref, ServerCallSpec call,
+            Map<String, OperationStepSpec> steps) {
         Set<AggregateFlow> seen = new HashSet<>();
+        Set<String> modes = new TreeSet<>();
         if (ref != null) {
-            return mayAsk(capability, findFlow(capability, ref), seen);
+            collect(capability, findFlow(capability, ref), seen, modes);
+        } else {
+            collectCall(capability, call, seen, modes);
+            collect(capability, steps, seen, modes);
         }
-        return callAsks(capability, call, seen) || mayAsk(capability, steps, seen);
+        return modes;
     }
 
-    private static boolean mayAsk(Capability capability, AggregateFlow flow,
-            Set<AggregateFlow> seen) {
+    private static void collect(Capability capability, AggregateFlow flow,
+            Set<AggregateFlow> seen, Set<String> modes) {
         if (flow == null || !seen.add(flow)) {
-            return false;
+            return;
         }
-        return callAsks(capability, flow.getCall(), seen)
-                || mayAsk(capability, flow.getSteps(), seen);
+        collectCall(capability, flow.getCall(), seen, modes);
+        collect(capability, flow.getSteps(), seen, modes);
     }
 
-    /** Whether a singleton {@code call:} targets a tool or a flow that may ask. */
-    private static boolean callAsks(Capability capability, ServerCallSpec call,
-            Set<AggregateFlow> seen) {
-        return call != null && call.getOperation() != null
-                && targetAsks(capability, call.getOperation(), seen);
+    /** The modes of a singleton {@code call:} to a tool or a flow that may ask. */
+    private static void collectCall(Capability capability, ServerCallSpec call,
+            Set<AggregateFlow> seen, Set<String> modes) {
+        if (call != null && call.getOperation() != null) {
+            collectTarget(capability, call.getOperation(), seen, modes);
+        }
     }
 
-    private static boolean targetAsks(Capability capability, String target,
-            Set<AggregateFlow> seen) {
-        return consumedToolAsks(capability, target)
-                || mayAsk(capability, findFlow(capability, target), seen);
+    private static void collectTarget(Capability capability, String target,
+            Set<AggregateFlow> seen, Set<String> modes) {
+        if (consumedToolAsks(capability, target)) {
+            modes.add(OperationStepElicitSpec.FORM);
+        }
+        collect(capability, findFlow(capability, target), seen, modes);
     }
 
-    private static boolean mayAsk(Capability capability, Map<String, OperationStepSpec> steps,
-            Set<AggregateFlow> seen) {
+    private static void collect(Capability capability, Map<String, OperationStepSpec> steps,
+            Set<AggregateFlow> seen, Set<String> modes) {
         if (steps == null) {
-            return false;
+            return;
         }
         for (OperationStepSpec step : steps.values()) {
-            if (step instanceof OperationStepElicitSpec) {
-                return true;
-            }
-            if (step instanceof OperationStepCallSpec call && call.getCall() != null
-                    && targetAsks(capability, call.getCall(), seen)) {
-                return true;
+            if (step instanceof OperationStepElicitSpec elicit) {
+                modes.add(elicit.isUrlMode() ? OperationStepElicitSpec.URL
+                        : OperationStepElicitSpec.FORM);
+            } else if (step instanceof OperationStepCallSpec call && call.getCall() != null) {
+                collectTarget(capability, call.getCall(), seen, modes);
             }
         }
-        return false;
     }
 
     /** Whether {@code call} names a consumed MCP tool declared {@code mayElicit: true}. */

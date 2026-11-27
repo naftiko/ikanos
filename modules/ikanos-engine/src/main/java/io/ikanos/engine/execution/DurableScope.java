@@ -152,6 +152,11 @@ public final class DurableScope {
         return runner;
     }
 
+    /** The execution the scope's step runs belong to, the same on every round of a call. */
+    ExecutionId root() {
+        return root;
+    }
+
     /**
      * The execution ID of the next step run in this scope. A second run started by the same
      * action, which a replay re-runs as a whole, gets a numbered ID, in the same order.

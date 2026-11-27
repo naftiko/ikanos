@@ -13,7 +13,9 @@
  */
 package io.ikanos.engine.execution;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import io.ikanos.durable.ActionFailedException;
 import io.ikanos.durable.ActionOutcome;
@@ -118,16 +120,27 @@ public final class Executions {
         if (result instanceof ExecutionResult.Suspended suspended) {
             // Only elicit steps await an update: the caller must answer them, under the full
             // path of the steps that called this run. Each message is rendered now, from the
-            // inputs and the outputs of the steps that ran before it.
+            // inputs and the outputs of the steps that ran before it. A URL mode step's URL is
+            // rendered too, with the id of its question, the same on every visit.
+            Map<String, JsonNode> carry = new LinkedHashMap<>();
             throw new InputRequiredException(suspended.awaiting().stream()
                     .map(await -> {
-                        OperationStepElicitSpec step =
-                                (OperationStepElicitSpec) ((StepNode) await.request()).step();
+                        StepNode node = (StepNode) await.request();
+                        OperationStepElicitSpec step = (OperationStepElicitSpec) node.step();
+                        Map<String, Object> parameters = Elicitation.parameters(run);
+                        InputRequiredException.UrlRequest url = null;
+                        if (step.isUrlMode()) {
+                            String id = Elicitation.id(
+                                    ExecutionInputs.qualify(node.path()).value(), carry);
+                            parameters = Elicitation.urlParameters(run, id);
+                            url = new InputRequiredException.UrlRequest(
+                                    Elicitation.url(step, parameters), id);
+                        }
                         return new InputRequiredException.Question(
                                 ExecutionInputs.qualify(await.path()).value(), step, null,
-                                Elicitation.message(step, Elicitation.parameters(run)));
+                                Elicitation.message(step, parameters), url);
                     })
-                    .toList());
+                    .toList(), carry);
         }
         throw rethrowable(run, result);
     }

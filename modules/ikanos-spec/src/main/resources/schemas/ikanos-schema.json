@@ -4083,7 +4083,7 @@
       ]
     },
     "OperationStepElicit": {
-      "description": "Asks the caller of the current invocation for input and continues with the answer as the step's output. Over MCP it becomes an `elicitation/create` input request. Under the `none` durability mode the flow is replayed from the start with the answers, so every step before it must be read-only.",
+      "description": "Asks the caller of the current invocation for input and continues with the answer as the step's output. Over MCP it becomes an `elicitation/create` input request. Under the `none` durability mode the flow is replayed from the start with the answers, so every step before it must be read-only. In `form` mode (the default) the caller answers `fields`; in `url` mode the caller is sent to a page to complete a step out of band, such as connecting an account or entering a payment method or an API key, which form mode must never ask for.",
       "allOf": [
         {
           "$ref": "#/$defs/OperationStepBase"
@@ -4092,6 +4092,39 @@
           "properties": {
             "type": {
               "const": "elicit"
+            },
+            "mode": {
+              "type": "string",
+              "enum": ["form", "url"],
+              "default": "form",
+              "description": "How the caller is asked. `form` asks for `fields` inside the client. `url` sends the caller to `url` to complete a step out of band; the client's `accept` only means the user consented, so `check` decides on each retry whether the step is done. A request only gets a mode its client declares in its `elicitation` capability (an empty `elicitation: {}` means form only); otherwise it is answered with `-32021`."
+            },
+            "url": {
+              "type": "string",
+              "description": "URL mode only. The page the caller opens: a Mustache template, rendered like `message`, that may also read `{{elicitation.id}}`, an opaque id of this question that stays the same on every retry and is bound to the caller, so the page and `check` can correlate the interaction. It must use `https://` outside development. Never put credentials, personal data or a pre-authenticated token in it; the page must verify that the user who opens it is the caller who was asked."
+            },
+            "check": {
+              "$ref": "#/$defs/OperationStepCall",
+              "description": "URL mode only. The call that decides, on each retry after the caller accepted, whether the out-of-band step is done. Its `with` may read `{{elicitation.id}}`. It runs again on every retry, so it must be read-only. The step is done when the call's output has a non-null value for every `outputParameters` entry; otherwise the caller is asked again with the same URL."
+            },
+            "outputParameters": {
+              "type": "object",
+              "description": "URL mode only. The values the step outputs, by name, read from the top level of `check`'s output once every one of them has a value.",
+              "minProperties": 1,
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": ["string", "number", "integer", "boolean", "object", "array"]
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                },
+                "required": ["type"],
+                "additionalProperties": false
+              }
             },
             "message": {
               "type": "string",
@@ -4153,10 +4186,39 @@
                 ]
               }
             }
+          }
+        },
+        {
+          "if": {
+            "required": ["mode"],
+            "properties": {
+              "mode": {
+                "const": "url"
+              }
+            }
           },
-          "required": [
-            "fields"
-          ]
+          "then": {
+            "required": ["url", "check", "outputParameters"],
+            "not": {
+              "required": ["fields"]
+            }
+          },
+          "else": {
+            "required": ["fields"],
+            "not": {
+              "anyOf": [
+                {
+                  "required": ["url"]
+                },
+                {
+                  "required": ["check"]
+                },
+                {
+                  "required": ["outputParameters"]
+                }
+              ]
+            }
+          }
         }
       ],
       "unevaluatedProperties": false
