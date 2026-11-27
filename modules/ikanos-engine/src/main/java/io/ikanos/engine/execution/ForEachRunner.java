@@ -71,9 +71,9 @@ public final class ForEachRunner {
         Integer limit = limitOf(step, StepGuard.parametersOf(run));
         if (limit != null && items.size() > limit) {
             // As SQL's LIMIT: the first items run, the rest are skipped and the call goes on.
-            Context.getCurrentLogger().log(Level.WARNING, "Step ''{0}'' ran its first {1} items"
-                    + " and skipped {2}: its limit is {1}", new Object[] {step.getName(), limit,
-                            items.size() - limit});
+            Context.getCurrentLogger().log(Level.WARNING, "Step '" + step.getName()
+                    + "' ran its first " + limit + " items and skipped " + (items.size() - limit)
+                    + ": its limit is " + limit);
             items = items.subList(0, limit);
         }
         // One step, or the steps of a sequence
@@ -97,16 +97,19 @@ public final class ForEachRunner {
                     itemRun.runtimeParameters().putIfAbsent(alias, items.get(i));
                 }
                 // The guard of a sequence do, for this item: a single step's runs with it.
-                if (step.getDo() instanceof io.ikanos.spec.util.OperationStepSequenceSpec sequence
-                        && !StepGuard.holds(step.getDo().getName(), sequence.getOnlyIf(),
-                                StepGuard.parametersOf(itemRun))) {
-                    TelemetryBootstrap.get().recordStepSkipped(i, step.getDo().getName());
-                    results.add(NullNode.getInstance());
-                    continue;
-                }
                 DurableScope itemScope = scope != null ? scope.track(position) : null;
                 Span itemSpan = TelemetryBootstrap.get().startStepItemSpan(i);
                 try (Scope itemOtel = itemSpan.makeCurrent()) {
+                    if (step.getDo() instanceof io.ikanos.spec.util.OperationStepSequenceSpec seq
+                            && !StepGuard.holds(step.getDo().getName(), seq.getOnlyIf(),
+                                    StepGuard.parametersOf(itemRun))) {
+                        // Skipped for this item: a step.skip span under the item's, and no
+                        // output.
+                        TelemetryBootstrap.get().recordStepSkipped(stepIndex,
+                                step.getDo().getName());
+                        results.add(NullNode.getInstance());
+                        continue;
+                    }
                     Callable<StepRun> steps = () -> Executions.runSteps(
                             ExecutionTree.compile(body, registry), itemRun, nodeRunner);
                     ExecutionInputs.within(inputs, NodePath.of(position),
@@ -125,7 +128,7 @@ public final class ForEachRunner {
                         itemRun.setLastResult(null);
                     }
                 }
-                JsonNode output = lastOutput(body, itemRun);
+                JsonNode output = ParallelTracks.outputOf(body, itemRun);
                 results.add(output != null ? output : NullNode.getInstance());
             }
         } catch (RuntimeException e) {
@@ -193,15 +196,4 @@ public final class ForEachRunner {
         return (int) Math.min(number.longValue(), Integer.MAX_VALUE);
     }
 
-    /** The output of an item: that of the last step of {@code do} that has one. */
-    private static JsonNode lastOutput(Map<String, OperationStepSpec> body, StepRun run) {
-        List<String> names = new ArrayList<>(body.keySet());
-        for (int i = names.size() - 1; i >= 0; i--) {
-            JsonNode output = run.stepContext().getStepOutput(names.get(i));
-            if (output != null && !output.isNull() && !output.isMissingNode()) {
-                return output;
-            }
-        }
-        return null;
-    }
 }

@@ -200,8 +200,11 @@ public final class ParallelTracks {
         return one;
     }
 
-    /** The output of a track: that of its last step that has one, or {@code null}. */
-    private static JsonNode outputOf(Map<String, OperationStepSpec> steps, StepRun run) {
+    /**
+     * The output of a track, an item of a {@code forEach} or a path of a step: that of its last
+     * step that has one, or {@code null}.
+     */
+    static JsonNode outputOf(Map<String, OperationStepSpec> steps, StepRun run) {
         List<String> names = new ArrayList<>(steps.keySet());
         for (int i = names.size() - 1; i >= 0; i--) {
             JsonNode output = run.stepContext().getStepOutput(names.get(i));

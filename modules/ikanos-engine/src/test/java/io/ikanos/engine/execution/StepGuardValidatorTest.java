@@ -212,6 +212,50 @@ public class StepGuardValidatorTest {
     }
 
     @Test
+    void findWarningsShouldReportAForEachOverATrackWithNoLimit() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow("""
+                - name: gather
+                  type: parallel
+                  tracks:
+                    - name: merged
+                      type: call
+                      what: github.list-merged
+                    - name: other
+                      type: call
+                      what: github.list-other
+                - name: issues
+                  type: forEach
+                  items: merged
+                  do:
+                    type: call
+                    what: github.get-issue
+                """));
+
+        assertEquals(1, warnings.size(), warnings.toString());
+        assertTrue(warnings.get(0).contains("with no limit"), warnings.get(0));
+    }
+
+    @Test
+    void findErrorsShouldReportAReservedItemNameAndALimitThatDoesNotParse() {
+        List<String> errors = StepGuardValidator.findErrors(flow("""
+                - name: lines
+                  type: forEach
+                  items: order.lines
+                  as: outcome
+                  limit: "max +"
+                  do:
+                    type: call
+                    what: shop.check-line
+                """));
+
+        assertEquals(2, errors.size(), errors.toString());
+        assertTrue(errors.stream().anyMatch(e -> e.startsWith("The limit of step 'lines'")),
+                errors.toString());
+        assertTrue(errors.stream().anyMatch(e -> e.contains("item 'outcome'")),
+                errors.toString());
+    }
+
+    @Test
     void findWarningsShouldNotAskForALimitOverAnInput() {
         List<String> warnings = StepGuardValidator.findWarnings(flow("""
                 - name: lines

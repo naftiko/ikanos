@@ -15,6 +15,7 @@ package io.ikanos.engine.execution;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -27,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.junit.jupiter.api.Test;
 import io.ikanos.durable.ExecutionId;
+import io.ikanos.engine.LogCapture;
 import io.ikanos.durable.core.JournaledRunner;
 import io.ikanos.durable.store.memory.MemoryStoreProvider;
 import io.ikanos.engine.observability.OtelTestFixtures;
@@ -226,17 +228,46 @@ public class ForEachRunnerTest {
         }
     }
 
-    @Test
-    void limitOfShouldReadANumberOrAnInputAndRefuseAnythingElse() {
+    private static OperationStepForEachSpec limited(Object limit) {
         OperationStepForEachSpec step = forEach("prs",
                 new OperationStepCallSpec(null, "github.get-issue"));
-        step.setLimit(2);
-        assertEquals(2, ForEachRunner.limitOf(step, Map.of()));
-        step.setLimit("max");
-        assertEquals(5, ForEachRunner.limitOf(step, Map.of("max", 5L)));
-        assertEquals(null, ForEachRunner.limitOf(step, Map.of()));
-        step.setLimit("max");
+        step.setLimit(limit);
+        return step;
+    }
+
+    @Test
+    void limitOfShouldReadANumber() {
+        assertEquals(2, ForEachRunner.limitOf(limited(2), Map.of()));
+    }
+
+    @Test
+    void limitOfShouldReadTheInputItNames() {
+        assertEquals(5, ForEachRunner.limitOf(limited("max"), Map.of("max", 5L)));
+    }
+
+    @Test
+    void limitOfShouldGiveNoLimitWhenTheInputItNamesIsAbsent() {
+        assertNull(ForEachRunner.limitOf(limited("max"), Map.of()));
+    }
+
+    @Test
+    void limitOfShouldRefuseALimitBelowOne() {
         assertThrows(IllegalArgumentException.class,
-                () -> ForEachRunner.limitOf(step, Map.of("max", 0)));
+                () -> ForEachRunner.limitOf(limited("max"), Map.of("max", 0)));
+    }
+
+    @Test
+    void aLimitShouldLogAWarningNamingTheStepAndTheSkippedItems() {
+        OperationStepForEachSpec step = limited(2);
+        Nodes nodes = new Nodes();
+
+        try (LogCapture logs = new LogCapture()) {
+            Executions.runSteps(tree(step), new StepRun(Map.of("prs", List.of(1, 2, 3, 4, 5))),
+                    nodes);
+
+            assertEquals(List.of("do:1", "do:2"), nodes.invoked);
+            assertTrue(logs.messages().stream().anyMatch(message -> message.contains("issues")
+                    && message.contains("skipped 3")), logs.messages().toString());
+        }
     }
 }

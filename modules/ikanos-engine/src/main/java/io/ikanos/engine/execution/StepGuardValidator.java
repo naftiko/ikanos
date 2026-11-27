@@ -104,7 +104,7 @@ public final class StepGuardValidator {
     static final int MAX_NESTING = 3;
 
     /** What a walk of the steps finds. */
-    private record Findings(List<String> errors, List<String> warnings) {
+    private record Findings(List<String> errors, List<String> warnings, Set<String> declared) {
     }
 
     /**
@@ -125,8 +125,11 @@ public final class StepGuardValidator {
     }
 
     private static Findings walk(IkanosSpec spec) {
-        Findings findings = new Findings(new ArrayList<>(), new ArrayList<>());
+        Findings findings = new Findings(new ArrayList<>(), new ArrayList<>(), new HashSet<>());
         for (Container container : containers(spec)) {
+            // The names no step produces: inputs, 'with' values, the roots, the items of loops
+            findings.declared().clear();
+            findings.declared().addAll(container.names());
             if (container.declaresOutcome()) {
                 findings.errors().add(reserved("An input or a 'with' key", container.where()));
             }
@@ -152,7 +155,6 @@ public final class StepGuardValidator {
         // The tracks of the parallel steps of this list, by name: each must be unique, as the
         // steps after the groups read every track under its name
         Map<String, String> trackOwners = new java.util.HashMap<>();
-        Set<String> earlierSteps = new HashSet<>();
         for (OperationStepSpec step : List.copyOf(steps.values())) {
             if (endedBy != null) {
                 warnings.add("Step '" + step.getName() + "' in " + where + " never runs: step '"
@@ -195,14 +197,12 @@ public final class StepGuardValidator {
                 visitTracks(parallel, steps.keySet(), visible, where, depth, findings);
             }
             if (step instanceof OperationStepForEachSpec forEach) {
-                visitForEach(forEach, visible, earlierSteps, where, depth, siblings, inTrack,
-                        findings);
+                visitForEach(forEach, visible, where, depth, siblings, inTrack, findings);
             }
             if (step instanceof OperationStepEndSpec && step.getOnlyIf() == null) {
                 endedBy = step.getName();
             }
             addName(visible, step.getName());
-            addName(earlierSteps, step.getName());
         }
     }
 
@@ -211,8 +211,8 @@ public final class StepGuardValidator {
      * and its {@code do} sees the steps before it and the current item.
      */
     private static void visitForEach(OperationStepForEachSpec forEach, Set<String> visible,
-            Set<String> earlierSteps, String where, int depth, Set<String> siblings,
-            boolean inTrack, Findings findings) {
+            String where, int depth, Set<String> siblings, boolean inTrack,
+            Findings findings) {
         String label = "The items of step '" + forEach.getName() + "' in " + where;
         String error = StepGuard.parseError(forEach.getItems());
         if (error != null) {
@@ -229,8 +229,11 @@ public final class StepGuardValidator {
                             + " item.");
                 }
             }
+            // A step's output, at any level: an earlier step, a track, a step of an enclosing
+            // list; not an input, a 'with' value or a loop's item.
             boolean overAStep = StepGuard.referencedNames(forEach.getItems()).stream()
-                    .anyMatch(earlierSteps::contains);
+                    .anyMatch(name -> visible.contains(name)
+                            && !findings.declared().contains(name));
             if (overAStep && forEach.getLimit() == null) {
                 findings.warnings().add("Step '" + forEach.getName() + "' in " + where
                         + " runs over the result of a step with no limit: a long list makes the"
@@ -238,8 +241,17 @@ public final class StepGuardValidator {
             }
         }
         if (forEach.getLimit() instanceof String limit && !limit.isBlank()) {
+            String limitLabel = "The limit of step '" + forEach.getName() + "' in " + where;
+            String limitError = StepGuard.parseError(limit);
+            if (limitError != null) {
+                findings.errors().add(limitLabel + " is not a valid CEL expression: " + limitError);
+            }
             for (String name : StepGuard.referencedNames(limit)) {
-                if (!visible.contains(name)) {
+                if (readsSibling(name, siblings)) {
+                    findings.errors().add(limitLabel + " reads track '" + name + "', which runs"
+                            + " at the same time: a track sees only the steps before its parallel"
+                            + " step.");
+                } else if (!visible.contains(name)) {
                     findings.warnings().add("The limit of step '" + forEach.getName() + "' in "
                             + where + " reads '" + name + "', which no input, 'with' value or"
                             + " earlier step provides: every item runs.");
@@ -258,8 +270,16 @@ public final class StepGuardValidator {
                     + " is nested more than " + MAX_NESTING + " levels deep (parallel and"
                     + " forEach steps), which makes the flow hard to read and to trace.");
         }
+        String item = forEach.itemName();
+        if (StepOutcomes.ROOT.equals(item) || Resolver.CALLER_ROOT.equals(item)) {
+            findings.errors().add("Step '" + forEach.getName() + "' in " + where + " names its"
+                    + " item '" + item + "', which is reserved (" + StepOutcomes.ROOT
+                    + ".<step> for the outcomes, " + Resolver.CALLER_ROOT + " for the caller's"
+                    + " claims). Choose another 'as'.");
+        }
         Set<String> bodyVisible = new HashSet<>(visible);
-        addName(bodyVisible, forEach.itemName());
+        addName(bodyVisible, item);
+        addName(findings.declared(), item);
         if (body instanceof OperationStepSequenceSpec) {
             // The sequence's own guard, evaluated for each item before its steps run
             checkGuards(body, bodyVisible, inner, siblings, findings);
