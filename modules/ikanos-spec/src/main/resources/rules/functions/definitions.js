@@ -14,8 +14,19 @@
  *   - "cycles":     schemas reference each other in a cycle;
  *   - "unused":     a set or schema that no unit of the namespace uses,
  *                   directly or through another definition;
- *   - "outputKeywords": a schema used in an orchestrated output declares
- *                   keywords that an output does not carry (informational).
+ *   - "outputKeywords": a schema used in an orchestrated or mapped output
+ *                   declares keywords that an output does not carry
+ *                   (informational);
+ *   - "mappings":   a schema used in a mapped (call-mode) output is not bound
+ *                   by its `mappings` (#1036): a scalar, array or object
+ *                   without properties left unbound, a path the schema does
+ *                   not have, a binding the runtime never reads (object
+ *                   items, below nested arrays, a `mapping` on an output
+ *                   object), a value that is not a JSONPath, a property name
+ *                   a path cannot address, a key beside `schema:` other than
+ *                   `mappings` and `mapping`, `mappings` without `schema:`, or
+ *                   `schema:` / `mappings` in a mock output or an MCP resource
+ *                   output.
  *
  * Covers MCP adapters, REST adapters and aggregates in a capability and at the
  * root of a standalone file. The engine and `ikanos validate` run the same checks when
@@ -40,6 +51,8 @@ export default function definitions(targetVal, options) {
       checkUnused(model, results);
     } else if (check === "outputKeywords") {
       checkOutputKeywords(model, results);
+    } else if (check === "mappings") {
+      checkMappings(model, results);
     }
   }
   return results;
@@ -150,6 +163,27 @@ function walkInput(node, path, refs) {
   }
 }
 
+/**
+ * The items of an output as the engine's deserializer reads them
+ * (`OutputParameterDeserializer`): the first entry of a list, and a non-empty
+ * map whose entries are all objects, without a string `type`, as named
+ * declarations (the properties of an object); anything else as one
+ * declaration. Each comes with its path in the document.
+ */
+function itemsOf(node, path) {
+  const items = node.items;
+  if (Array.isArray(items)) {
+    return items.length > 0 ? [{ value: items[0], path: path.concat("items", 0) }] : [];
+  }
+  if (isObject(items) && Object.keys(items).length > 0 && typeof items.type !== "string"
+      && Object.values(items).every(isObject)) {
+    return entries(items).map((e) => ({
+      value: e.value, path: path.concat("items", ...e.locator), named: true,
+    }));
+  }
+  return [{ value: items, path: path.concat("items") }];
+}
+
 /** Collect the `schema:` references of an output declaration. */
 function walkOutput(node, path, refs) {
   if (!isObject(node)) {
@@ -158,15 +192,10 @@ function walkOutput(node, path, refs) {
   if (typeof node.schema === "string") {
     refs.push({ kind: "schema", name: node.schema, path: path.concat("schema"), output: true });
   }
-  const items = node.items;
-  if (isObject(items) && typeof items.type !== "string" && typeof items.schema !== "string") {
-    // Orchestrated items: a map of named property declarations.
-    for (const p of entries(items)) {
-      walkOutput(p.value, path.concat("items", ...p.locator), refs);
-    }
-  } else {
-    walkOutput(items, path.concat("items"), refs);
+  for (const item of itemsOf(node, path)) {
+    walkOutput(item.value, item.path, refs);
   }
+  walkOutput(node.values, path.concat("values"), refs);
   for (const p of entries(isObject(node.properties) ? node.properties : null)) {
     walkOutput(p.value, path.concat("properties", ...p.locator), refs);
   }
@@ -238,7 +267,15 @@ function buildModel(owner) {
     const steps = unit.steps;
     const orchestrated = Array.isArray(steps) ? steps.length > 0
       : isObject(steps) && Object.keys(steps).length > 0;
-    units.push({ name: u.key, unit, path: unitPath, refs, orchestrated });
+    // Mapped (call-mode) outputs are a list; orchestrated and mock outputs a map.
+    // The engine's rule: an MCP tool's outputs are mapped in list form (it may infer its
+    // call; the map form is a mock's) or with `ref`; a flow's or REST operation's when it has
+    // `call` or `ref`. A `ref` unit's own outputs map its flow's result. Otherwise a mock.
+    const runs = (value) => value !== undefined && value !== null;
+    const mapped = !orchestrated && (owner.unitKind === "tool"
+      ? Array.isArray(unit.outputParameters) || runs(unit.ref)
+      : runs(unit.call) || runs(unit.ref));
+    units.push({ name: u.key, unit, path: unitPath, refs, orchestrated, mapped });
   }
 
   return { owner, sets, schemas, defsPath, setRefs, schemaRefs, units };
@@ -411,12 +448,13 @@ function declares(node, keyword) {
 }
 
 /**
- * The input-only keywords a schema declares, on itself and on what an
- * orchestrated output keeps of it: the properties of an object, and the items
- * of an array when they are objects with properties. Iterative, and each
- * schema is visited once, so cycles and long chains end.
+ * The input-only keywords a schema declares, on itself and on what an output
+ * keeps of it: the properties of an object, and the items of an array (in an
+ * orchestrated output, only when they are objects with properties; in a mapped
+ * output, always). Iterative, and each schema is visited once, so cycles and
+ * long chains end.
  */
-function droppedKeywords(model, name) {
+function droppedKeywords(model, name, allItems) {
   const found = new Set();
   const visited = new Set([name]);
   const target = (node) => {
@@ -451,8 +489,8 @@ function droppedKeywords(model, name) {
       pending.push(...Object.values(node.properties));
     } else if (node.type === "array") {
       const items = target(node.items);
-      if (isObject(items) && items.type === "object" && isObject(items.properties)
-          && Object.keys(items.properties).length > 0) {
+      if (allItems || (isObject(items) && items.type === "object"
+          && isObject(items.properties) && Object.keys(items.properties).length > 0)) {
         pending.push(node.items);
       }
     }
@@ -462,20 +500,467 @@ function droppedKeywords(model, name) {
 
 function checkOutputKeywords(model, results) {
   for (const unit of model.units) {
-    if (!unit.orchestrated) {
+    if (!unit.orchestrated && !unit.mapped) {
       continue;
     }
     for (const ref of unit.refs) {
       if (!ref.output || typeof ref.name !== "string" || !(ref.name in model.schemas)) {
         continue;
       }
-      const dropped = droppedKeywords(model, ref.name);
-      if (dropped.length > 0) {
-        results.push({
-          message: "Schema '" + ref.name + "' is used in an orchestrated output, which does"
+      const dropped = droppedKeywords(model, ref.name, unit.mapped);
+      if (dropped.length === 0) {
+        continue;
+      }
+      results.push({
+        message: unit.orchestrated
+          ? "Schema '" + ref.name + "' is used in an orchestrated output, which does"
             + " not carry its keywords " + dropped.join(", ") + ". An output keeps only the"
-            + " schema's type, properties, and items that are objects with properties.",
-          path: ref.path,
+            + " schema's type, properties, and items that are objects with properties."
+          : "Schema '" + ref.name + "' is used in a mapped output, which does not carry its"
+            + " keywords " + dropped.join(", ") + ". A mapped output keeps only the schema's"
+            + " type, properties and items, each with its mapping.",
+        path: ref.path,
+      });
+    }
+  }
+}
+
+/**
+ * Whether a declaration binds anything with `mappings`. An empty map binds
+ * nothing, as in the engine (the JSON Schema rejects it on its own).
+ */
+function declaresMappings(node) {
+  return isObject(node.mappings) && Object.keys(node.mappings).length > 0;
+}
+
+/** Whether a property name can be addressed by a `mappings` path. */
+function addressable(name) {
+  return !/[.[\]]/.test(name);
+}
+
+/**
+ * Keys a mapped output takes beside `schema:`, as the engine's check. `$ref` is reported on
+ * its own, by `walkMapped`.
+ */
+const BESIDE_MAPPED_SCHEMA = ["schema", "name", "$ref", "mappings", "mapping"];
+
+/**
+ * Upper bound on the declarations the mapped bindings of one namespace expand to together, each
+ * charged the size of its schema as the engine charges it. The engine spends the same bound
+ * across the namespace on everything it expands (inputs and orchestrated outputs too); this
+ * check counts the mapped bindings only, so a namespace it accepts may still exceed the
+ * engine's budget, never the reverse.
+ */
+const MAX_BINDING_NODES = 100000;
+
+/** Upper bound on the nesting depth of a binding walk, as the engine's. */
+const MAX_BINDING_DEPTH = 64;
+
+/** Whether a declaration is an object with properties. */
+function withProperties(schema) {
+  return isObject(schema) && schema.type === "object" && isObject(schema.properties)
+    && Object.keys(schema.properties).length > 0;
+}
+
+/**
+ * Bind a schema reference of a mapped output, as the engine does: walk the
+ * schema, following `schema:` references, and record its bindable paths, the
+ * scalars, arrays and objects without properties its `mappings` leave
+ * unbound, the bindings the runtime never reads, and the property names a path
+ * cannot address. The walk stops at a schema already on its path (a cycle,
+ * which the cycles check reports) and past the engine's depth bound: `stopped`
+ * then says why, and the binding is not judged. It does not enter a subtree
+ * the runtime never reads unless a mapping reaches into it, so a large schema
+ * below nested arrays costs nothing to walk.
+ *
+ * @param rootIsItems whether the schema is an array used as the items of
+ *   another array, whose own items the runtime never shapes
+ */
+function bindingOf(model, node, rootIsItems) {
+  const mappings = isObject(node.mappings) ? node.mappings : {};
+  const keys = Object.keys(mappings);
+  // Whether a mapping names the path or a path below it
+  const reached = (path) => keys.some((key) => key === path || key.startsWith(path + ".")
+    || key.startsWith(path + "["));
+  const binding = {
+    paths: [], unbound: [], unaddressable: [], ineffective: [], used: new Set(),
+    stopped: null,
+  };
+  // Follow references from a declaration, recording each schema it passes
+  // through; null when one of them is already on the walk's path.
+  const target = (declaration, onPath, entered) => {
+    let current = declaration;
+    while (isObject(current) && typeof current.schema === "string"
+        && current.schema in model.schemas) {
+      if (onPath.has(current.schema)) {
+        return null;
+      }
+      onPath.add(current.schema);
+      entered.push(current.schema);
+      current = model.schemas[current.schema];
+    }
+    return current;
+  };
+  const visit = (declaration, path, depth, unread, onPath) => {
+    if (binding.stopped || (unread && !reached(path))) {
+      // Nothing below binds what the runtime never reads: nothing to judge there
+      return;
+    }
+    if (depth > MAX_BINDING_DEPTH) {
+      binding.stopped = "depth";
+      return;
+    }
+    const entered = [];
+    const schema = target(declaration, onPath, entered);
+    if (schema === null) {
+      binding.stopped = "cycle";
+      return;
+    }
+    if (isObject(schema)) {
+      const objectWithProperties = withProperties(schema);
+      if (path !== "") {
+        const bound = Object.prototype.hasOwnProperty.call(mappings, path);
+        if (bound) {
+          binding.used.add(path);
+        }
+        if (unread) {
+          if (bound) {
+            binding.ineffective.push(path);
+          }
+        } else if (bound && path.endsWith("[]") && objectWithProperties) {
+          binding.paths.push(path);
+          binding.ineffective.push(path);
+        } else {
+          binding.paths.push(path);
+          if (!bound && !objectWithProperties && !path.endsWith("[]")) {
+            binding.unbound.push(path);
+          }
+        }
+      }
+      if (schema.type === "object") {
+        for (const p of entries(isObject(schema.properties) ? schema.properties : null)) {
+          if (!addressable(p.key)) {
+            // Below nested arrays nothing is read, so nothing needs a path, as in the engine
+            if (!unread) {
+              binding.unaddressable.push(p.key);
+            }
+            continue;
+          }
+          visit(p.value, path === "" ? p.key : path + "." + p.key, depth + 1, unread, onPath);
+        }
+      } else if (schema.type === "array" && isObject(schema.items)) {
+        const itemsUnread = unread || path.endsWith("[]") || (path === "" && rootIsItems);
+        visit(schema.items, path + "[]", depth + 1, itemsUnread, onPath);
+      }
+    }
+    for (const name of entered) {
+      onPath.delete(name);
+    }
+  };
+  visit(model.schemas[node.schema], "", 0, false, new Set());
+  return binding;
+}
+
+/** The declaration a schema name stands for, following references, or undefined. */
+function rootOf(model, name) {
+  let current = model.schemas[name];
+  const seen = new Set([name]);
+  while (isObject(current) && typeof current.schema === "string"
+      && current.schema in model.schemas && !seen.has(current.schema)) {
+    seen.add(current.schema);
+    current = model.schemas[current.schema];
+  }
+  return current;
+}
+
+/**
+ * Report what is wrong with the binding of one schema reference.
+ *
+ * @param position where the output sits: "top" (a unit's output, an object
+ *   read from the response root), "items" (array items or map values, read
+ *   from each element) or "property"
+ */
+/**
+ * Number of parameter declarations a schema expands to, as the engine's
+ * `size(name)` counts them (each declaration, its items, values and
+ * properties, through references, capped just past the budget), once per
+ * schema; or null for a schema in a cycle, or met on a chain of
+ * `MAX_BINDING_DEPTH` references or more while sizing: every schema of such a
+ * chain is left unsized, its near end included, and which schemas are met that
+ * way depends on the order schemas are sized (so is whether a cycle member
+ * reached only through a schema already unsized gets a size, and is charged).
+ * A reference to an unsized schema counts one, as in the engine. Only a
+ * document the engine rejects for depth or for a cycle has such a chain; the engine's depth bound also counts inline nesting, which
+ * this does not, so on such a document the budget may be reported where the
+ * engine reports the depth. The references are followed iteratively, so a long
+ * chain cannot overflow the call stack.
+ */
+function schemaSize(model, name, budget) {
+  const { sizes, unsized } = budget;
+  const referenced = (schema) => (model.schemaRefs.get(schema) || [])
+    .map((ref) => ref.name)
+    .filter((ref) => typeof ref === "string" && ref in model.schemas);
+  const stack = [{ name, refs: referenced(name), next: 0 }];
+  const chain = [name];
+  while (stack.length > 0 && !sizes.has(name) && !unsized.has(name)) {
+    const top = stack[stack.length - 1];
+    if (top.next < top.refs.length) {
+      const ref = top.refs[top.next];
+      top.next += 1;
+      if (sizes.has(ref) || unsized.has(ref)) {
+        continue;
+      }
+      const at = chain.indexOf(ref);
+      if (at >= 0) {
+        chain.slice(at).forEach((member) => unsized.add(member));
+      } else if (chain.length >= MAX_BINDING_DEPTH) {
+        chain.forEach((member) => unsized.add(member));
+      } else {
+        chain.push(ref);
+        stack.push({ name: ref, refs: referenced(ref), next: 0 });
+      }
+      continue;
+    }
+    stack.pop();
+    chain.pop();
+    if (!unsized.has(top.name)) {
+      sizes.set(top.name, declarationSize(model, model.schemas[top.name], sizes));
+    }
+  }
+  return sizes.has(name) ? sizes.get(name) : null;
+}
+
+/**
+ * Number of declarations of one declaration, its references counted from the
+ * sizes already computed (one for a schema that has none: not expanded).
+ */
+function declarationSize(model, node, sizes) {
+  if (!isObject(node)) {
+    return 0;
+  }
+  if (typeof node.schema === "string") {
+    return sizes.has(node.schema) ? sizes.get(node.schema) : 1;
+  }
+  let total = 1 + declarationSize(model, node.items, sizes)
+    + declarationSize(model, node.values, sizes);
+  for (const p of entries(isObject(node.properties) ? node.properties : null)) {
+    total = Math.min(total + declarationSize(model, p.value, sizes), MAX_BINDING_NODES + 1);
+  }
+  return Math.min(total, MAX_BINDING_NODES + 1);
+}
+
+function checkBinding(model, node, path, position, results, budget) {
+  const name = node.schema;
+  const prefix = "'schema: " + name + "' ";
+  // As the engine: beside `schema:`, a mapped output takes only its binding
+  const extra = Object.keys(node).filter((key) => !BESIDE_MAPPED_SCHEMA.includes(key));
+  if (extra.length > 0) {
+    results.push({
+      message: prefix + "takes only 'mappings' and 'mapping' in a mapped output, found ["
+        + extra.join(", ") + "].",
+      path: path.concat(extra[0]),
+    });
+  }
+  if (!(name in model.schemas)) {
+    return; // reported by the references check
+  }
+  if (position === "unread") {
+    results.push({
+      message: prefix + "sits in the items of a nested array, which the runtime passes"
+        + " through as they are: its bindings are never read. Remove it, or bind the outer"
+        + " items instead.",
+      path: path.concat("schema"),
+    });
+    return;
+  }
+  // Charged as the engine charges a binding: the size of the schema it expands. A schema in a
+  // cycle or on too long a chain of references is not charged, as the engine does not expand
+  // it: the binding walk stops on it, and the cycles check or the engine reports it
+  const size = schemaSize(model, name, budget);
+  budget.visited += size === null ? 0 : size;
+  if (budget.visited > MAX_BINDING_NODES) {
+    if (!budget.reported) {
+      // Once per namespace, as the engine reports its budget
+      budget.reported = true;
+      results.push({
+        message: model.owner.label + ": its definitions expand to more than "
+          + MAX_BINDING_NODES + " parameter declarations. Expansion is bounded, so that a"
+          + " document cannot multiply itself without limit.",
+        path: path.concat("schema"),
+      });
+    }
+    return;
+  }
+  const root = rootOf(model, name);
+  const object = isObject(root) && root.type === "object";
+  if (position === "top" && object && !withProperties(root)) {
+    results.push({
+      message: prefix + "is an object without properties, which as an output always returns"
+        + " an empty object. Use it as a property, with a 'mapping'.",
+      path: path.concat("schema"),
+    });
+    return;
+  }
+  const binding = bindingOf(model, node, position === "items" && isObject(root)
+    && root.type === "array");
+  const empty = !isObject(node.mappings) || Object.keys(node.mappings).length === 0;
+  if (empty && binding.unbound.length > 0 && !binding.stopped) {
+    results.push({
+      message: prefix + "in a mapped (call-mode) output needs 'mappings', the mapping of"
+        + " each path of the schema.",
+      path: path.concat("schema"),
+    });
+    return;
+  }
+  if (binding.stopped === "cycle" || binding.stopped === "depth") {
+    return; // reported by the cycles check, or by the engine's depth bound
+  }
+  const rootWithProperties = withProperties(root);
+  if (typeof node.mapping === "string" && object && position !== "property"
+      && (rootWithProperties || position === "top")) {
+    results.push({
+      message: "'mapping' beside " + prefix.trim() + " has no effect: "
+        + (position === "top" ? "an output object is read from the response root"
+          : "object items are read from each element")
+        + ". Remove it, or move the object under a property.",
+      path: path.concat("mapping"),
+    });
+  }
+  if (typeof node.mapping !== "string" && position !== "items" && !rootWithProperties) {
+    binding.unbound.unshift("(the output itself: set 'mapping' beside 'schema:')");
+  }
+  if (binding.unaddressable.length > 0) {
+    results.push({
+      message: prefix + "has properties that a path cannot address, as their name contains"
+        + " '.', '[' or ']': " + binding.unaddressable.join(", ") + ". Declare the output"
+        + " inline.",
+      path: path.concat("schema"),
+    });
+  }
+  if (binding.unbound.length > 0) {
+    results.push({
+      message: prefix + "leaves paths unbound: " + binding.unbound.join(", ") + ". Give each"
+        + " scalar, array and object without properties a mapping in 'mappings'.",
+      path: path.concat("mappings"),
+    });
+  }
+  if (binding.ineffective.length > 0) {
+    results.push({
+      message: prefix + "binds " + binding.ineffective.join(", ") + ", which the runtime"
+        + " never reads: object items are read from each element, and the items of nested"
+        + " arrays are passed through as they are. Remove them.",
+      path: path.concat("mappings"),
+    });
+  }
+  for (const key of Object.keys(isObject(node.mappings) ? node.mappings : {})) {
+    if (!binding.used.has(key)) {
+      results.push({
+        message: prefix + "has no path '" + key + "'. Its paths are "
+          + (binding.paths.length === 0 ? "none" : binding.paths.join(", ")) + ".",
+        path: path.concat("mappings", key),
+      });
+    } else if (typeof node.mappings[key] !== "string"
+        || !node.mappings[key].trim().startsWith("$")) {
+      results.push({
+        message: prefix + "binds '" + key + "' to a value that is not a JSONPath (starting"
+          + " with '$'). A static 'value' is declared inline.",
+        path: path.concat("mappings", key),
+      });
+    }
+  }
+}
+
+/** Walk a mapped output and check each schema reference and stray `mappings`. */
+function walkMapped(model, node, path, position, results, budget) {
+  if (!isObject(node)) {
+    return;
+  }
+  // As the engine: the JSON Schema leaves a ref unit's outputs open, so it may not reject it
+  if (Object.prototype.hasOwnProperty.call(node, "$ref")) {
+    results.push({
+      message: "'$ref' is not supported. Reference a schema of the definitions by its bare name,"
+        + " with 'schema: name'.",
+      path: path.concat("$ref"),
+    });
+  }
+  if (typeof node.schema === "string") {
+    checkBinding(model, node, path, position, results, budget);
+    return;
+  }
+  if (declaresMappings(node)) {
+    results.push({
+      message: "'mappings' binds a schema, so it needs 'schema:' beside it. Name the schema,"
+        + " or declare a 'mapping' on each leaf inline.",
+      path: path.concat("mappings"),
+    });
+  }
+  const unread = position === "unread";
+  // The items of an array that is itself items are passed through as they are
+  const nested = position === "items" && node.type === "array";
+  for (const item of itemsOf(node, path)) {
+    // Named items are the properties of an object read from each element
+    walkMapped(model, item.value, item.path, unread || nested ? "unread"
+      : (item.named ? "property" : "items"), results, budget);
+  }
+  walkMapped(model, node.values, path.concat("values"), unread ? "unread" : "items", results,
+    budget);
+  for (const p of entries(isObject(node.properties) ? node.properties : null)) {
+    walkMapped(model, p.value, path.concat("properties", ...p.locator),
+      unread ? "unread" : "property", results, budget);
+  }
+}
+
+/** Whether an output, or one of its nested declarations, uses `schema:` or `mappings`. */
+function bindsDefinitions(node) {
+  if (!isObject(node)) {
+    return false;
+  }
+  if (typeof node.schema === "string" || declaresMappings(node)) {
+    return true;
+  }
+  if (itemsOf(node, []).some((item) => bindsDefinitions(item.value))
+      || bindsDefinitions(node.values)) {
+    return true;
+  }
+  return entries(isObject(node.properties) ? node.properties : null)
+    .some((p) => bindsDefinitions(p.value));
+}
+
+function checkMappings(model, results) {
+  const budget = { visited: 0, reported: false, sizes: new Map(), unsized: new Set() };
+  for (const unit of model.units) {
+    if (!unit.mapped && !unit.orchestrated) {
+      // A mock returns static values: nothing there can bind a schema
+      for (const p of entries(unit.unit.outputParameters)) {
+        if (bindsDefinitions(p.value)) {
+          results.push({
+            message: "'schema:' and 'mappings' are not allowed in a mock output, which returns"
+              + " static values. Declare the output inline.",
+            path: unit.path.concat("outputParameters", ...p.locator),
+          });
+        }
+      }
+      continue;
+    }
+    if (!unit.mapped) {
+      continue;
+    }
+    for (const p of entries(unit.unit.outputParameters)) {
+      walkMapped(model, p.value, unit.path.concat("outputParameters", ...p.locator), "top",
+        results, budget);
+    }
+  }
+  // Definitions do not reach MCP resources: a reference there would never be expanded
+  if (model.owner.unitKind === "tool") {
+    for (const r of unitsAt(model.owner.node.resources, model.owner.path.concat("resources"))) {
+      if (!isObject(r.value)) {
+        continue;
+      }
+      if (entries(r.value.outputParameters).some((p) => bindsDefinitions(p.value))) {
+        results.push({
+          message: model.owner.label + ", resource '" + r.key + "': 'schema:' and 'mappings'"
+            + " are not supported in an MCP resource output. Declare the output inline.",
+          path: r.path.concat("outputParameters"),
         });
       }
     }

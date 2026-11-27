@@ -311,6 +311,30 @@ class ProtocolDispatcherCoverageTest {
         }
     }
 
+    /**
+     * The HTTP check finds a tool's requirement through the adapter, the lookup an embedding
+     * application uses for its own check (#1126), so the two can never pick a different tool's
+     * {@code authorization}.
+     */
+    @Test
+    void requirementForShouldFindTheToolThroughTheAdapterLookup() throws Exception {
+        ObjectMapper yaml = IkanosMappers.lenientYaml();
+        IkanosSpec spec = yaml.readValue(new File("src/test/resources/mcp/mcp-capability.yaml"),
+                IkanosSpec.class);
+        McpServerAdapter adapter = org.mockito.Mockito.spy(
+                (McpServerAdapter) new Capability(spec).getServerAdapters().get(0));
+        io.ikanos.spec.exposes.AuthorizationSpec embedded =
+                new io.ikanos.spec.exposes.AuthorizationSpec(java.util.List.of("embedded"), null);
+        org.mockito.Mockito.doReturn(embedded).when(adapter).requirementFor("some-tool");
+        ProtocolDispatcher dispatcher = new ProtocolDispatcher(adapter);
+
+        JsonNode call = JSON.readTree(
+                "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\","
+                        + "\"params\":{\"name\":\"some-tool\"}}");
+        assertEquals(embedded, dispatcher.requirementFor(call));
+        assertEquals(java.util.List.of(embedded), dispatcher.requirementsFor(call, null));
+    }
+
     private static org.restlet.Request requestOf(String subject) {
         org.restlet.Request request = new org.restlet.Request(org.restlet.data.Method.POST,
                 "http://localhost/mcp");

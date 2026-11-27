@@ -832,7 +832,7 @@ class DefinitionsExpanderTest {
     }
 
     @Test
-    void expandAllShouldRejectSchemaInMappedOutput() throws Exception {
+    void expandAllShouldRequireMappingsBesideASchemaInAMappedOutput() throws Exception {
         IkanosSpec spec = mcp("""
                 definitions:
                   schemas:
@@ -842,15 +842,14 @@ class DefinitionsExpanderTest {
                   description: "Get ship."
                   call: erp.get-ship
                   outputParameters:
-                    - type: object
-                      schema: ship
+                    - schema: ship
                 """);
 
         List<String> errors = DefinitionsExpander.expandAll(spec).errors();
 
-        assertEquals(1, errors.size(), errors.toString());
-        assertTrue(errors.get(0).contains("'schema:' is only allowed in orchestrated (steps)"
-                + " outputs"), errors.toString());
+        assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', output: 'schema: ship' in a"
+                + " mapped (call-mode) output needs 'mappings', the mapping of each path of the"
+                + " schema."), errors);
     }
 
     @Test

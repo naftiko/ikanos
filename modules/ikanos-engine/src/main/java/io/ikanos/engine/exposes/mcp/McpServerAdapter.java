@@ -22,6 +22,7 @@ import io.ikanos.engine.exposes.mcp.search.ToolSearchProviders;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.consumes.http.OAuth2AuthenticationSpec;
 import io.ikanos.engine.consumes.mcp.UpstreamTasks;
+import io.ikanos.spec.exposes.AuthorizationSpec;
 import io.ikanos.spec.exposes.mcp.McpServerResourceSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerToolSpec;
@@ -455,6 +456,22 @@ public class McpServerAdapter extends ServerAdapter {
      */
     public McpFileDownloads getFileDownloads() {
         return fileDownloads;
+    }
+
+    /**
+     * The requirement a direct {@link ToolHandler#handleToolCall} of a tool must meet, for an
+     * application that embeds the engine and checks it itself with
+     * {@link AccessControl#check(AuthorizationSpec, Map)} (#1126): the tool's {@code authorization},
+     * else the adapter's, as {@code tools/call} over HTTP. The tool is found by the name
+     * {@code handleToolCall} receives, which is not always its key in {@code tools}: a tool with a
+     * {@code ref} and no {@code name} takes its flow's name. An unknown tool gets the adapter's
+     * requirement. {@link ProtocolDispatcher} finds a {@code tools/call}'s requirement through
+     * this method too, so the HTTP check and the embedded check always pick the same tool.
+     *
+     * @return the requirement, or {@code null} when nothing is required
+     */
+    public AuthorizationSpec requirementFor(String toolName) {
+        return AccessControl.effective(getMcpServerSpec(), toolHandler.toolSpec(toolName));
     }
 
     public ResourceHandler getResourceHandler() {

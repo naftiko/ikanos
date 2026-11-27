@@ -1,0 +1,117 @@
+ikanos: 1.0.0-beta11
+info:
+  display: Tool hints over flow steps
+  description: Fixture for ikanos-flow-call-semantics-conservative on MCP tools whose call steps reach flows (#828)
+capability:
+  consumes:
+  - type: http
+    namespace: billing
+    description: Billing API
+    baseUri: https://billing.example.com
+    resources:
+      invoices:
+        path: /invoices
+        operations:
+          create-invoice:
+            method: POST
+      quotes:
+        path: /quotes
+        operations:
+          get-quote:
+            method: GET
+  aggregates:
+  - display: payments flows
+    namespace: payments
+    flows:
+      checkout:
+        description: Create an invoice, so neither safe nor idempotent
+        call: billing.create-invoice
+      quote:
+        description: Read a quote
+        semantics:
+          safe: true
+          idempotent: true
+        call: billing.get-quote
+  exposes:
+  - type: mcp
+    address: localhost
+    port: 9300
+    namespace: shop-mcp
+    description: Shop tools
+    tools:
+      pay-read-only:
+        description: Claims read-only while its step reaches a flow that posts
+        hints:
+          readOnly: true
+        steps:
+          run:
+            type: call
+            call: payments.checkout
+      pay-idempotent:
+        description: Claims idempotent while its step reaches a flow that posts
+        hints:
+          idempotent: true
+        steps:
+          run:
+            type: call
+            call: payments.checkout
+      quote:
+        description: Read-only, and so is the flow its step reaches
+        hints:
+          readOnly: true
+        steps:
+          run:
+            type: call
+            call: payments.quote
+      pay:
+        description: Claims nothing, so nothing to contradict
+        steps:
+          run:
+            type: call
+            call: payments.checkout
+    resources:
+      receipt:
+        display: Receipt
+        uri: shop://receipt
+        description: A resource has no ref, so a call step is how it reaches a flow
+        steps:
+          pay:
+            type: call
+            call: payments.checkout
+  - type: mcp
+    address: localhost
+    port: 9301
+    namespace: shop-defaults
+    description: Tools read-only by default
+    hints:
+      readOnly: true
+    tools:
+      pay-by-default:
+        description: Read-only through the server's hints while its step reaches a flow that posts
+        steps:
+          run:
+            type: call
+            call: payments.checkout
+      pay-destructive:
+        description: destructive without readOnly resolves readOnly to false
+        hints:
+          destructive: true
+        steps:
+          run:
+            type: call
+            call: payments.checkout
+  - type: rest
+    address: localhost
+    port: 9302
+    namespace: shop-rest
+    resources:
+      checkouts:
+        path: /checkouts
+        description: Checkouts
+        operations:
+          create:
+            method: POST
+            steps:
+              pay:
+                type: call
+                call: payments.checkout

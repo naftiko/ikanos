@@ -3,8 +3,12 @@
 FROM maven:3.9.15-eclipse-temurin-25 AS build
 WORKDIR /app
 COPY pom.xml .
+# The ikanos-client-* adapters are not part of the image and an operator
+# adds their -all jar to /app/lib. Drop them from the reactor
+# rather than copying them, so a new client module does not break this build.
 RUN sed -i -e 's|<module>modules/ikanos-coverage</module>||g' \
-    -e 's|<module>modules/ikanos-rules-tests</module>||g' pom.xml
+    -e 's|<module>modules/ikanos-rules-tests</module>||g' \
+    -e 's|<module>modules/ikanos-client-[a-z0-9-]*</module>||g' pom.xml
 COPY modules/ikanos-durable-api ./modules/ikanos-durable-api
 COPY modules/ikanos-durable-core ./modules/ikanos-durable-core
 COPY modules/ikanos-durable-store-memory ./modules/ikanos-durable-store-memory

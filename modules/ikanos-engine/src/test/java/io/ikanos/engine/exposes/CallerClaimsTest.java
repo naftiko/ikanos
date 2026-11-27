@@ -62,6 +62,52 @@ class CallerClaimsTest {
         assertEquals("1800000000", CallerClaims.claim(root, "exp"));
     }
 
+    // ─── Claims validated by an embedding application (#1126) ───────────────────
+
+    @Test
+    void ofClaimsShouldReturnNullWhenThereAreNoClaims() {
+        assertNull(CallerClaims.of((Map<String, Object>) null));
+    }
+
+    @Test
+    void ofClaimsShouldReturnACallerRoot() {
+        assertInstanceOf(CallerRoot.class, CallerClaims.of(Map.of("sub", "alice")));
+    }
+
+    @Test
+    void ofClaimsShouldKeepScalarClaimsAsText() {
+        Map<String, Object> root = CallerClaims.of(Map.of("sub", "alice", "level", 3));
+
+        assertEquals("alice", CallerClaims.claim(root, "sub"));
+        assertEquals("3", CallerClaims.claim(root, "level"));
+    }
+
+    @Test
+    void ofClaimsShouldRenderInstantClaimsAsEpochSeconds() {
+        Map<String, Object> root = CallerClaims.of(
+                Map.of("exp", java.time.Instant.ofEpochSecond(1_800_000_000L)));
+
+        assertEquals("1800000000", CallerClaims.claim(root, "exp"));
+    }
+
+    @Test
+    void ofClaimsShouldBuildTheSameRootAsAValidatedTokenWithTheSameClaims() {
+        Map<String, Object> claims = Map.of("sub", "alice", "tenant.id", "acme",
+                "realm_access", Map.of("roles", List.of("editor", "viewer")));
+
+        assertEquals(rootOf(new JWTClaimsSet.Builder().subject("alice").claim("tenant.id", "acme")
+                .claim("realm_access", Map.of("roles", List.of("editor", "viewer"))).build()),
+                CallerClaims.of(claims));
+    }
+
+    @Test
+    void ofClaimsShouldBeReadByAuthClaimsTemplates() {
+        Map<String, Object> parameters = new HashMap<>();
+        CallerClaims.putInto(parameters, CallerClaims.of(Map.of("sub", "alice")));
+
+        assertEquals("alice", Resolver.resolveMustacheTemplate("{{auth.claims.sub}}", parameters));
+    }
+
     @Test
     void putIntoShouldRemoveDottedKeysThatWouldShadowTheRoot() {
         Map<String, Object> parameters = new HashMap<>();
