@@ -206,18 +206,25 @@ public final class Elicitation {
      * The URL a URL mode step sends its caller to: its {@code url} rendered as a Mustache
      * template against {@code parameters}, as the message is.
      *
-     * @throws IllegalStateException naming the variables nothing provides, or when the URL is
-     *         not an absolute {@code https} URL; plain {@code http} is only accepted for a local
-     *         host, in development
+     * <p>The scheme and the authority (host and port) must be literal text of the template: a
+     * value there could send the user to a page of an attacker's choice, since tool arguments
+     * may be steered by prompt injection and step outputs come from upstreams. After them, each
+     * value is percent-encoded by position, as in a consumed URI (GHSA-rvg4-2rxw-mc64): it stays
+     * one path segment or one query value, so it can add no parameter and change no path.</p>
+     *
+     * @throws IllegalStateException naming the variables nothing provides, when a value is
+     *         substituted in the scheme or the authority, or when the URL is not an absolute
+     *         {@code https} URL; plain {@code http} is accepted for a local host
+     *         ({@code localhost}, {@code 127.0.0.1}, {@code [::1]}), which is meant for
+     *         development
      */
     static String url(OperationStepElicitSpec step, Map<String, Object> parameters) {
-        // Each value is percent-encoded by position, as in a consumed URI (GHSA-rvg4-2rxw-mc64):
-        // an input or a step output stays one path segment or one query value, so it can add no
-        // parameter and change no path; the template's literal text is kept as is.
         String url;
         try {
-            url = PathSegmentEncoder.encodeMarkedValues(render(step, step.getUrl(), "URL",
-                    parameters, PathSegmentEncoder::mark));
+            String marked = render(step, step.getUrl(), "URL", parameters,
+                    PathSegmentEncoder::mark);
+            requireLiteralOrigin(step, marked);
+            url = PathSegmentEncoder.encodeMarkedValues(marked);
         } catch (IllegalArgumentException e) {
             throw new IllegalStateException("Step '" + step.getName() + "': " + e.getMessage());
         }
@@ -237,6 +244,30 @@ public final class Elicitation {
                     + "': the URL must be an absolute https:// URL");
         }
         return url;
+    }
+
+    /**
+     * Refuses a rendered URL whose scheme or authority holds a substituted value: the literal
+     * text before the first value must hold {@code ://} and, after it, the {@code /},
+     * {@code ?} or {@code #} that ends the authority.
+     */
+    private static void requireLiteralOrigin(OperationStepElicitSpec step, String marked) {
+        int value = marked.indexOf(PathSegmentEncoder.VALUE_START);
+        if (value < 0) {
+            return;
+        }
+        String literal = marked.substring(0, value);
+        int authority = literal.indexOf("://");
+        if (authority >= 0) {
+            for (int i = authority + 3; i < literal.length(); i++) {
+                char c = literal.charAt(i);
+                if (c == '/' || c == '?' || c == '#') {
+                    return;
+                }
+            }
+        }
+        throw new IllegalStateException("Step '" + step.getName() + "': the URL's scheme and "
+                + "host must be written in the template, not read from a value");
     }
 
     private static String render(OperationStepElicitSpec step, String template, String what,

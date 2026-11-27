@@ -15,6 +15,7 @@ package io.ikanos.engine.execution;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import io.ikanos.spec.util.OperationStepElicitSpec;
@@ -51,6 +52,36 @@ class ElicitationUrlTest {
                 Map.of("name", "Ada Lovelace"));
 
         assertEquals("https://billing.example.com/setup?name=Ada%20Lovelace", url);
+    }
+
+    @Test
+    void urlShouldRefuseAValueThatWouldBeTheHost() {
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+                () -> Elicitation.url(step("https://{{tenant_host}}/setup"),
+                        Map.of("tenant_host", "evil.example")));
+
+        assertTrue(e.getMessage().contains("scheme and host"), e.getMessage());
+    }
+
+    @Test
+    void urlShouldRefuseAValueInThePortThatWouldChangeTheHost() {
+        assertThrows(IllegalStateException.class,
+                () -> Elicitation.url(step("https://billing.example.com:{{port}}/setup"),
+                        Map.of("port", "443@evil.example")));
+    }
+
+    @Test
+    void urlShouldRefuseAValueThatWouldBeTheWholeUrl() {
+        assertThrows(IllegalStateException.class,
+                () -> Elicitation.url(step("{{page}}"),
+                        Map.of("page", "https://evil.example/setup")));
+    }
+
+    @Test
+    void urlShouldAcceptAValueRightAfterTheAuthority() {
+        assertEquals("https://billing.example.com/acme",
+                Elicitation.url(step("https://billing.example.com/{{tenant}}"),
+                        Map.of("tenant", "acme")));
     }
 
     @Test

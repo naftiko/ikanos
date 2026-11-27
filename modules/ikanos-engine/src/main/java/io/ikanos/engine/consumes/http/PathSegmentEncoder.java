@@ -38,7 +38,7 @@ public final class PathSegmentEncoder {
     private static final char[] HEX = "0123456789ABCDEF".toCharArray();
 
     /** Marks the start and end of a substituted value in a rendered URI template. */
-    static final char VALUE_START = '\u0002';
+    public static final char VALUE_START = '\u0002';
     static final char VALUE_END = '\u0003';
 
     private PathSegmentEncoder() {
