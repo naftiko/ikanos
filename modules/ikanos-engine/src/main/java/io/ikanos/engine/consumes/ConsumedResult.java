@@ -90,6 +90,11 @@ public interface ConsumedResult {
      *
      * @return the failure cause, or {@code null} when the adapter has none
      */
+    default Throwable failureCause() {
+        return null;
+    }
+
+    /** @return {@code true} when the result carries a non-empty body */
     /**
      * The protocol-neutral outcome of the call ({@code StepOutcomes}), when the adapter can tell
      * it better than its status, such as a SQL connection failure reported as 502; {@code null}
@@ -99,11 +104,6 @@ public interface ConsumedResult {
         return null;
     }
 
-    default Throwable failureCause() {
-        return null;
-    }
-
-    /** @return {@code true} when the result carries a non-empty body */
     boolean hasBody();
 
     /**

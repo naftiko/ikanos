@@ -152,6 +152,13 @@ public class FlowConsumedResult implements ConsumedResult {
         return source != null ? source.status() : 200;
     }
 
+    /** The outcome the result that decides the status reports, such as a SQL timeout's. */
+    @Override
+    public String stepOutcome() {
+        ConsumedResult source = statusSource();
+        return source != null ? source.stepOutcome() : null;
+    }
+
     @Override
     public String reason() {
         ConsumedResult source = statusSource();
