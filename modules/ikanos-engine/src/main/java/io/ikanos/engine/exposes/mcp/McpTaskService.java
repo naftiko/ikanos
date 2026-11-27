@@ -35,6 +35,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -53,6 +54,7 @@ import io.ikanos.durable.ExecutionResult;
 import io.ikanos.durable.Failure;
 import io.ikanos.durable.Interpreter;
 import io.ikanos.durable.NodePath;
+import io.ikanos.durable.core.ExecutionBusyException;
 import io.ikanos.durable.core.JournaledRunner;
 import io.ikanos.durable.store.ExecutionRecord;
 import io.ikanos.durable.store.ExecutionStatus;
@@ -80,6 +82,13 @@ import io.ikanos.spec.util.IkanosMappers;
  * <p>{@link #resume} starts the unfinished tasks of a store again, for instance after a restart in
  * the {@code local} mode: steps already journaled are restored, not run again. A task started by
  * another version of the capability fails instead, since its steps may no longer exist.</p>
+ *
+ * <p>On a store several replicas share ({@code distributed}), a task runs on one replica at a
+ * time, under its execution's lease, and any replica answers {@code tasks/get},
+ * {@code tasks/update} and {@code tasks/cancel} from the store. Every lease period,
+ * {@link #takeOver} starts again the running tasks whose lease expired, as when the replica
+ * running them stopped, and the waiting tasks whose answers arrived; a task another replica still
+ * runs is left to it.</p>
  *
  * <p>A task whose flow asks for input ({@code elicit}) does not fail: its tool-call action ends
  * with the questions as its outcome, and the task's execution waits for an update holding the
@@ -150,6 +159,8 @@ public final class McpTaskService {
             });
     private final ExecutorService workers;
     private final AtomicBoolean draining = new AtomicBoolean();
+    /** Takes the tasks of stopped replicas over, on a shared store; started by the adapter. */
+    private volatile ScheduledExecutorService takeovers;
     private final InlineRounds inline;
 
     /**
@@ -222,7 +233,6 @@ public final class McpTaskService {
         if (draining.get()) {
             return 0;
         }
-        int resumed = 0;
         // Tasks only, filtered by the store before the limit: inline calls and sub-runs, however
         // many, never take a task's place.
         List<ExecutionRecord> unfinished = new ArrayList<>(
@@ -231,33 +241,104 @@ public final class McpTaskService {
         // its inbox; without them, it waits again at once, running nothing.
         unfinished.addAll(runner.listLabelled(ExecutionStatus.SUSPENDED, TASK_ID, null, null,
                 RESUME_LIMIT));
+        return restart(unfinished, workFor);
+    }
+
+    /**
+     * On a store several replicas share, starts again the tasks no replica runs: the running
+     * ones whose lease expired, and the waiting ones whose answers are in the inbox. A task whose
+     * lease another replica holds is left to it. Unlike {@link #resume}, a waiting task without
+     * answers is not run, so a sweep costs nothing for the tasks that wait on a person.
+     *
+     * @return the number of tasks started again, including those another replica turned out to
+     *         run
+     */
+    int takeOver(BiFunction<String, JsonNode, Callable<JsonNode>> workFor) {
+        if (draining.get()) {
+            return 0;
+        }
+        List<ExecutionRecord> unowned = new ArrayList<>(
+                runner.listLabelled(ExecutionStatus.RUNNING, TASK_ID, null, null, RESUME_LIMIT));
+        for (ExecutionRecord waiting : runner.listLabelled(ExecutionStatus.SUSPENDED, TASK_ID,
+                null, null, RESUME_LIMIT)) {
+            if (runner.hasPendingUpdates(waiting.executionId())) {
+                unowned.add(waiting);
+            }
+        }
+        return restart(unowned, workFor);
+    }
+
+    /**
+     * Takes over, every lease period, the tasks of replicas that stopped ({@link #takeOver}),
+     * until {@link #drain}. Does nothing on a store of one process, whose tasks only a restart
+     * resumes.
+     */
+    public void takeOverPeriodically(BiFunction<String, JsonNode, Callable<JsonNode>> workFor) {
+        if (!runner.isShared() || draining.get()) {
+            return;
+        }
+        synchronized (this) {
+            if (takeovers != null) {
+                return;
+            }
+            takeovers = Executors.newSingleThreadScheduledExecutor(task -> {
+                Thread thread = new Thread(task, "ikanos-task-takeover");
+                thread.setDaemon(true);
+                return thread;
+            });
+        }
+        long period = runner.leaseFor().toMillis();
+        takeovers.scheduleWithFixedDelay(() -> {
+            try {
+                takeOver(workFor);
+            } catch (RuntimeException e) {
+                // The store is unreachable for now: the next sweep tries again.
+            }
+        }, period, period, TimeUnit.MILLISECONDS);
+    }
+
+    private int restart(List<ExecutionRecord> unfinished,
+            BiFunction<String, JsonNode, Callable<JsonNode>> workFor) {
+        int resumed = 0;
         for (ExecutionRecord record : unfinished) {
-            if (!record.labels().containsKey(TASK_ID) || isRunning(record.executionId())
-                    || record.entry() == null) {
-                continue;
+            try {
+                if (restart(record, workFor)) {
+                    resumed++;
+                }
+            } catch (ExecutionBusyException e) {
+                // Another replica runs it: it is that replica's to finish or to fail.
             }
-            Optional<Object> input = runner.input(record.executionId());
-            JsonNode arguments = input.map(JsonNode.class::cast).orElse(null);
-            Callable<JsonNode> work = workFor.apply(record.entry(), arguments);
-            if (work == null) {
-                continue;
-            }
-            if (input.isEmpty()) {
-                // The process stopped between recording the task and its arguments: the task was
-                // never returned to a client, and running it without its arguments would be wrong.
-                runner.fail(record.executionId(), new Failure(INCOMPLETE,
-                        "The task was not fully recorded before the process stopped"));
-                continue;
-            }
-            if (!record.specDigest().equals(runner.specDigest())) {
-                runner.fail(record.executionId(), new Failure(SPEC_CHANGED,
-                        "The capability changed since this task started"));
-                continue;
-            }
-            submit(record.executionId(), work);
-            resumed++;
         }
         return resumed;
+    }
+
+    private boolean restart(ExecutionRecord record,
+            BiFunction<String, JsonNode, Callable<JsonNode>> workFor) {
+        if (!record.labels().containsKey(TASK_ID) || isRunning(record.executionId())
+                || record.entry() == null) {
+            return false;
+        }
+        Optional<Object> input = runner.input(record.executionId());
+        JsonNode arguments = input.map(JsonNode.class::cast).orElse(null);
+        Callable<JsonNode> work = workFor.apply(record.entry(), arguments);
+        if (work == null) {
+            return false;
+        }
+        if (input.isEmpty()) {
+            // The process stopped between recording the task and its arguments: the task was
+            // never returned to a client, and running it without its arguments would be wrong.
+            // On a shared store, the replica still recording it holds its lease: fail throws.
+            runner.fail(record.executionId(), new Failure(INCOMPLETE,
+                    "The task was not fully recorded before the process stopped"));
+            return false;
+        }
+        if (!record.specDigest().equals(runner.specDigest())) {
+            runner.fail(record.executionId(), new Failure(SPEC_CHANGED,
+                    "The capability changed since this task started"));
+            return false;
+        }
+        submit(record.executionId(), work);
+        return true;
     }
 
     private void submit(ExecutionId executionId, Callable<JsonNode> work) {
@@ -336,6 +417,10 @@ public final class McpTaskService {
      */
     public int drain(Duration timeout) {
         draining.set(true);
+        ScheduledExecutorService sweeping = takeovers;
+        if (sweeping != null) {
+            sweeping.shutdownNow();
+        }
         long deadline = System.nanoTime() + timeout.toNanos();
         for (Future<?> task : List.copyOf(running.values())) {
             long left = deadline - System.nanoTime();

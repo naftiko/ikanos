@@ -18,7 +18,11 @@
  *                       are out of reach of a single-document lint and skipped;
  *   - "sealing-key-binds": `durability.sealingKey` is not a single Mustache
  *                       expression naming a key declared in `binds` or
- *                       `capability.binds` (`{{KEY}}` or `{{namespace.KEY}}`).
+ *                       `capability.binds` (`{{KEY}}` or `{{namespace.KEY}}`);
+ *   - "store-password-binds": the same, for `durability.store.password`;
+ *   - "distributed-sealing-key": the `distributed` mode declares no
+ *                       `sealingKey`, so each replica would draw its own key and
+ *                       could not open the state another replica sealed.
  */
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 const MUSTACHE_PATTERN = /^\{\{\s*(?:([A-Za-z0-9_-]+)\.)?([A-Za-z0-9_-]+)\s*\}\}$/;
@@ -44,26 +48,51 @@ export default function durability(targetVal, options) {
     return control.mode === "none" ? checkElicitSafety(capability) : [];
   }
   if (check === "sealing-key-binds") {
-    return checkSealingKey(targetVal, control);
+    const durability = control.adapter && control.adapter.durability;
+    return checkBinding(targetVal, durability && durability.sealingKey,
+      control.path.concat("durability", "sealingKey"), "durability.sealingKey", "key",
+      "IKANOS_SEALING_KEY");
+  }
+  if (check === "store-password-binds") {
+    const durability = control.adapter && control.adapter.durability;
+    const store = durability && durability.store;
+    return checkBinding(targetVal, store && store.password,
+      control.path.concat("durability", "store", "password"), "durability.store.password",
+      "password", "DURABLE_DB_PASSWORD");
+  }
+  if (check === "distributed-sealing-key") {
+    return checkDistributedSealingKey(control);
   }
   return;
 }
 
-// Messages never quote the key: it may be a secret, and the linter could read double braces
+function checkDistributedSealingKey(control) {
+  if (control.mode !== "distributed") {
+    return [];
+  }
+  const declared = control.adapter.durability.sealingKey;
+  if (typeof declared === "string" && declared.trim() !== "") {
+    return [];
+  }
+  return [{
+    message: "The distributed durability mode needs durability.sealingKey: replicas must share "
+      + "one key to open the state each other sealed.",
+    path: control.path.concat("durability"),
+  }];
+}
+
+// Messages never quote the value: it may be a secret, and the linter could read double braces
 // as a placeholder.
-function checkSealingKey(doc, control) {
-  const durability = control.adapter && control.adapter.durability;
-  const declared = durability && durability.sealingKey;
+function checkBinding(doc, declared, path, field, noun, example) {
   if (typeof declared !== "string" || declared.trim() === "") {
     return [];
   }
-  const path = control.path.concat("durability", "sealingKey");
   const match = declared.match(MUSTACHE_PATTERN);
   if (!match) {
     return [{
-      message: "durability.sealingKey is written into the capability. Reference a binding "
-        + "key instead, such as IKANOS_SEALING_KEY in double braces, so the key stays out of "
-        + "source control.",
+      message: field + " is written into the capability. Reference a binding "
+        + "key instead, such as " + example + " in double braces, so the " + noun
+        + " stays out of source control.",
       path,
     }];
   }
@@ -74,14 +103,14 @@ function checkSealingKey(doc, control) {
     const keys = bindings.byNamespace.get(ns);
     if (!keys) {
       return [{
-        message: "durability.sealingKey references binding namespace '" + ns
+        message: field + " references binding namespace '" + ns
           + "', but no matching entry exists in 'binds' or 'capability.binds'.",
         path,
       }];
     }
     if (!keys.has(key)) {
       return [{
-        message: "durability.sealingKey references key '" + key + "' on binding '" + ns
+        message: field + " references key '" + key + "' on binding '" + ns
           + "', but that key is not declared. Add it to the keys of the '" + ns
           + "' entry in capability.binds.",
         path,
@@ -91,7 +120,7 @@ function checkSealingKey(doc, control) {
   }
   if (!bindings.allKeys.has(key)) {
     return [{
-      message: "durability.sealingKey references key '" + key + "', but no binding declares "
+      message: field + " references key '" + key + "', but no binding declares "
         + "it. Add it to the keys of an entry in 'capability.binds'.",
       path,
     }];

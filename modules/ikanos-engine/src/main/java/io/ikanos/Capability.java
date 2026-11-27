@@ -198,13 +198,13 @@ public class Capability {
         }
         this.scriptingSpec.set(resolvedScriptingSpec);
 
-        // Durability is declared once per capability, on the control port. A missing store module
-        // fails the load here rather than running a durable contract without a journal.
+        // Durability is declared once per capability, on the control port.
         DurabilitySpec durabilitySpec = null;
+        ControlServerSpec durabilityPort = null;
         for (ServerSpec serverSpec : spec.getCapability().getExposes()) {
             if (serverSpec instanceof ControlServerSpec controlSpec) {
+                durabilityPort = controlSpec;
                 durabilitySpec = controlSpec.getDurability();
-                this.durability.set(Durability.fromSpec(durabilitySpec, specDigest(spec)));
                 break;
             }
         }
@@ -232,6 +232,13 @@ public class Capability {
         // Each key by name, {{KEY}}, and under its namespace, {{namespace.KEY}} (#942)
         this.bindings.set(bindingResolver.resolveBindings(spec.getCapability().getBinds(), context));
         this.sealingKey.set(sealingKey(durabilitySpec, this.bindings.get()));
+        // Opened once the bindings are known, which hold a shared store's URL and credentials. A
+        // missing store module fails the load here rather than running a durable contract
+        // without a journal.
+        if (durabilityPort != null) {
+            this.durability.set(Durability.fromSpec(durabilitySpec, specDigest(spec),
+                    this.bindings.get()));
+        }
         this.specDigest.set(specDigest(spec));
 
         // Initialize client adapters first

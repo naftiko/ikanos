@@ -339,6 +339,57 @@ public abstract class StoreConformanceTest {
     }
 
     @Test
+    void acquireShouldLeaseAnExecutionThatIsNotQueued() {
+        Lease lease = stores.queue().acquire(ID, "pod-a", Duration.ofSeconds(30)).orElseThrow();
+
+        assertEquals(ID, lease.executionId());
+        assertEquals("pod-a", lease.owner());
+        assertEquals(NOW.plusSeconds(30), lease.expiresAt());
+        assertTrue(stores.queue().renew(lease, Duration.ofSeconds(30)));
+    }
+
+    @Test
+    void acquireShouldRefuseAnExecutionLeasedByAnyOwner() {
+        stores.queue().acquire(ID, "pod-a", Duration.ofSeconds(30)).orElseThrow();
+
+        assertTrue(stores.queue().acquire(ID, "pod-b", Duration.ofSeconds(30)).isEmpty());
+        assertTrue(stores.queue().acquire(ID, "pod-a", Duration.ofSeconds(30)).isEmpty());
+        assertTrue(stores.queue().acquire(OTHER, "pod-b", Duration.ofSeconds(30)).isPresent());
+    }
+
+    @Test
+    void acquireShouldTakeOverAnExpiredLeaseWithAGreaterFencingToken() {
+        Lease first = stores.queue().acquire(ID, "pod-a", Duration.ofSeconds(30)).orElseThrow();
+
+        clock.advance(Duration.ofSeconds(30));
+        Lease second = stores.queue().acquire(ID, "pod-b", Duration.ofSeconds(30)).orElseThrow();
+
+        assertTrue(second.fencingToken() > first.fencingToken());
+        assertFalse(stores.queue().renew(first, Duration.ofSeconds(30)));
+        stores.queue().release(first);
+        assertTrue(stores.queue().renew(second, Duration.ofSeconds(30)),
+                "Releasing a lost lease leaves the new one in place");
+    }
+
+    @Test
+    void acquireShouldLeaseAgainOnceReleased() {
+        Lease first = stores.queue().acquire(ID, "pod-a", Duration.ofSeconds(30)).orElseThrow();
+        stores.queue().release(first);
+
+        Lease second = stores.queue().acquire(ID, "pod-b", Duration.ofSeconds(30)).orElseThrow();
+
+        assertTrue(second.fencingToken() > first.fencingToken());
+    }
+
+    @Test
+    void claimShouldSkipAnExecutionLeasedByAcquire() {
+        stores.queue().enqueue(ID, NOW);
+        stores.queue().acquire(ID, "pod-a", Duration.ofSeconds(30)).orElseThrow();
+
+        assertTrue(stores.queue().claim("pod-b", Duration.ofSeconds(30)).isEmpty());
+    }
+
+    @Test
     void queueShouldHandAnExpiredLeaseToAnotherOwner() {
         stores.queue().enqueue(ID, NOW);
         Lease first = stores.queue().claim("pod-a", Duration.ofSeconds(30)).orElseThrow();

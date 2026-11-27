@@ -4722,13 +4722,13 @@
     },
     "Durability": {
       "type": "object",
-      "description": "Where the capability keeps its executions, declared once per capability. `none` (the default) runs everything inline with no journal. `memory` keeps executions in process memory, so MCP tasks work while the process lives, on a single replica.",
+      "description": "Where the capability keeps its executions, declared once per capability. `none` (the default) runs everything inline with no journal. `memory` keeps executions in process memory, so MCP tasks work while the process lives, on a single replica. `local` and `distributed` keep them across restarts, on one replica or on several.",
       "properties": {
         "mode": {
           "type": "string",
-          "enum": ["none", "memory", "local"],
+          "enum": ["none", "memory", "local", "distributed"],
           "default": "none",
-          "description": "Durability mode. `local` keeps executions in an embedded H2 file, so they survive a restart, on a single replica; it needs `store.path`, the file to keep them in."
+          "description": "Durability mode. `local` keeps executions in an embedded H2 file, so they survive a restart, on a single replica; it needs `store.path`, the file to keep them in. `distributed` keeps them in a PostgreSQL database that several replicas share, so any replica answers for a task and takes over the tasks of a replica that stopped; it needs `store.url` and a `sealingKey` the replicas share."
         },
         "store": {
           "$ref": "#/$defs/DurabilityStore"
@@ -4743,6 +4743,23 @@
           "description": "Key sealing the state handed to clients, such as an MCP `requestState`: a base64-encoded AES key of 128, 192 or 256 bits. Reference a `binds` variable (for example `{{IKANOS_SEALING_KEY}}`) rather than writing the key here. Replicas serving the same clients need the same key. Absent, each process draws a random key, so state does not survive a restart."
         }
       },
+      "allOf": [
+        {
+          "if": { "properties": { "mode": { "const": "memory" } }, "required": ["mode"] },
+          "then": { "properties": { "store": { "properties": { "type": { "const": "memory" } } } } }
+        },
+        {
+          "if": { "properties": { "mode": { "const": "local" } }, "required": ["mode"] },
+          "then": { "properties": { "store": { "properties": { "type": { "const": "h2" } } } } }
+        },
+        {
+          "if": { "properties": { "mode": { "const": "distributed" } }, "required": ["mode"] },
+          "then": {
+            "required": ["store"],
+            "properties": { "store": { "required": ["url"], "properties": { "type": { "const": "postgres" } } } }
+          }
+        }
+      ],
       "additionalProperties": false
     },
     "DurabilityStore": {
@@ -4751,12 +4768,24 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["memory", "h2"],
-          "description": "Store type: `memory` for the `memory` mode, `h2` for the `local` mode. Absent, the mode's own type is used."
+          "enum": ["memory", "h2", "postgres"],
+          "description": "Store type: `memory` for the `memory` mode, `h2` for the `local` mode, `postgres` for the `distributed` mode. Absent, the mode's own type is used."
         },
         "path": {
           "type": "string",
           "description": "File of an embedded store, such as the H2 database of `local`, relative to the working directory; H2 adds its `.mv.db` extension."
+        },
+        "url": {
+          "type": "string",
+          "description": "JDBC URL of a shared store, such as the PostgreSQL database of `distributed` (`jdbc:postgresql://host:5432/database`). Reference a `binds` variable (for example `{{DURABLE_DB_URL}}`)."
+        },
+        "user": {
+          "type": "string",
+          "description": "Database user of a shared store. Reference a `binds` variable (for example `{{DURABLE_DB_USER}}`)."
+        },
+        "password": {
+          "type": "string",
+          "description": "Database password of a shared store. Reference a `binds` variable (for example `{{DURABLE_DB_PASSWORD}}`) rather than writing the password here."
         }
       },
       "additionalProperties": false

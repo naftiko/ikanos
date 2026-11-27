@@ -14,11 +14,14 @@
 package io.ikanos.engine.execution;
 
 import java.time.Clock;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import io.ikanos.durable.core.JournaledRunner;
 import io.ikanos.durable.store.StoreProvider;
 import io.ikanos.durable.store.Stores;
+import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.exposes.control.DurabilitySpec;
+import io.ikanos.spec.exposes.control.DurabilityStoreSpec;
 import java.time.Duration;
 import java.time.format.DateTimeParseException;
 
@@ -26,10 +29,13 @@ import java.time.format.DateTimeParseException;
  * The durability mode of a capability, resolved at load time from the control port's
  * {@code durability} block.
  *
- * <p>{@code none} needs nothing. {@code memory} opens the {@code memory} store and {@code local}
- * the {@code h2} store at {@code store.path}, each discovered with {@code ServiceLoader}; when the
- * store module is missing, the capability fails at load with an error naming the module, and
- * never falls back to {@code none}. {@link #close()} releases the store, such as the H2 file.</p>
+ * <p>{@code none} needs nothing. {@code memory} opens the {@code memory} store, {@code local}
+ * the {@code h2} store at {@code store.path}, and {@code distributed} the {@code postgres} store
+ * at {@code store.url}, which several replicas share; each is discovered with
+ * {@code ServiceLoader}. When the store module is missing, the capability fails at load with an
+ * error naming the module, and never falls back to {@code none}. {@code distributed} also fails
+ * at load on a store that does not declare itself shared. {@link #close()} releases the store,
+ * such as the H2 file or the PostgreSQL connection pool.</p>
  */
 public final class Durability implements AutoCloseable {
 
@@ -41,6 +47,12 @@ public final class Durability implements AutoCloseable {
 
     /** The store type of the {@code local} mode. */
     static final String H2 = "h2";
+
+    /** The store type of the {@code distributed} mode. */
+    static final String POSTGRES = "postgres";
+
+    /** The module providing the {@code h2} and {@code postgres} stores. */
+    private static final String JDBC_MODULE = "io.ikanos:ikanos-durable-store-jdbc";
 
     private static final Durability NONE =
             new Durability(DurabilitySpec.MODE_NONE, null, null, null);
@@ -82,6 +94,20 @@ public final class Durability implements AutoCloseable {
      * @see #fromSpec(DurabilitySpec)
      */
     public static Durability fromSpec(DurabilitySpec spec, String specDigest) {
+        return fromSpec(spec, specDigest, Map.of());
+    }
+
+    /**
+     * Resolves the durability declared on the control port, with the store's connection
+     * settings ({@code url}, {@code user}, {@code password}) resolved against {@code bindings}.
+     *
+     * @throws IllegalArgumentException also for a {@code distributed} mode without
+     *         {@code store.url}, with a setting that does not resolve, or on a store that several
+     *         replicas cannot share
+     * @see #fromSpec(DurabilitySpec, String)
+     */
+    public static Durability fromSpec(DurabilitySpec spec, String specDigest,
+            Map<String, Object> bindings) {
         String mode = spec == null ? DurabilitySpec.MODE_NONE : spec.effectiveMode();
         switch (mode) {
             case DurabilitySpec.MODE_NONE:
@@ -106,13 +132,71 @@ public final class Durability implements AutoCloseable {
                     throw new IllegalArgumentException("Durability mode 'local' needs "
                             + "durability.store.path: the file its executions are kept in");
                 }
-                return open(mode, type, "io.ikanos:ikanos-durable-store-jdbc",
-                        Map.of("path", path), retentionMs(spec.getRetention()), specDigest);
+                return open(mode, type, JDBC_MODULE, Map.of("path", path),
+                        retentionMs(spec.getRetention()), specDigest);
             }
+            case DurabilitySpec.MODE_DISTRIBUTED:
+                return distributed(spec, specDigest, bindings);
             default:
                 throw new IllegalArgumentException("Unknown durability mode '" + mode
-                        + "'; expected none, memory or local");
+                        + "'; expected none, memory, local or distributed");
         }
+    }
+
+    private static Durability distributed(DurabilitySpec spec, String specDigest,
+            Map<String, Object> bindings) {
+        String type = storeType(spec, POSTGRES);
+        if (H2.equals(type) || DurabilitySpec.MODE_MEMORY.equals(type)) {
+            throw notShared(type);
+        }
+        DurabilityStoreSpec store = spec.getStore();
+        String url = setting(store == null ? null : store.getUrl(), "url", bindings);
+        if (url == null) {
+            throw new IllegalArgumentException("Durability mode 'distributed' needs "
+                    + "durability.store.url: the JDBC URL of the database its replicas share");
+        }
+        Map<String, String> settings = new LinkedHashMap<>();
+        settings.put("url", url);
+        String user = setting(store.getUser(), "user", bindings);
+        if (user != null) {
+            settings.put("user", user);
+        }
+        String password = setting(store.getPassword(), "password", bindings);
+        if (password != null) {
+            settings.put("password", password);
+        }
+        Durability durability = open(DurabilitySpec.MODE_DISTRIBUTED, type,
+                POSTGRES.equals(type) ? JDBC_MODULE : "the module of store type '" + type + "'",
+                settings, retentionMs(spec.getRetention()), specDigest);
+        if (!durability.runner.isShared()) {
+            durability.close();
+            throw notShared(type);
+        }
+        return durability;
+    }
+
+    private static IllegalArgumentException notShared(String type) {
+        return new IllegalArgumentException("Durability mode 'distributed' needs a store "
+                + "several replicas share; store type '" + type + "' is not one");
+    }
+
+    /**
+     * A store setting resolved against the bindings, or {@code null} when it is not declared.
+     *
+     * @throws IllegalArgumentException when it names a binding that does not resolve
+     */
+    static String setting(String declared, String name, Map<String, Object> bindings) {
+        if (declared == null || declared.isBlank()) {
+            return null;
+        }
+        String resolved = declared.contains("{{")
+                ? Resolver.resolveMustacheTemplate(declared, bindings) : declared;
+        if (resolved == null || resolved.isBlank() || resolved.contains("{{")) {
+            // Never quotes the value: it may be a secret.
+            throw new IllegalArgumentException("durability.store." + name
+                    + " does not resolve: declare its variable in capability.binds");
+        }
+        return resolved;
     }
 
     private static String storeType(DurabilitySpec spec, String defaultType) {
@@ -134,6 +218,9 @@ public final class Durability implements AutoCloseable {
     /** Releases the store, such as the H2 file of {@code local}; nothing under {@code none}. */
     @Override
     public void close() {
+        if (runner != null) {
+            runner.close();
+        }
         if (stores != null) {
             stores.close();
         }
@@ -159,6 +246,11 @@ public final class Durability implements AutoCloseable {
     /** The resolved mode. */
     public String mode() {
         return mode;
+    }
+
+    /** Whether several replicas share the store, as under {@code distributed}. */
+    public boolean isShared() {
+        return runner != null && runner.isShared();
     }
 
     /** Whether executions are journaled. */

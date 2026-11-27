@@ -13,7 +13,8 @@
  */
 /**
  * The JDBC store of the durable engine: the five storage interfaces over SQL, in an embedded H2
- * file for the {@code local} durability mode. A Postgres dialect, for a store shared by several
- * replicas, comes later with the same tables.
+ * file for the {@code local} durability mode, or in a PostgreSQL database that several replicas
+ * share for the {@code distributed} mode. Both use the same tables; {@link
+ * io.ikanos.durable.store.jdbc.JdbcDialect} holds the SQL that differs.
  */
 package io.ikanos.durable.store.jdbc;

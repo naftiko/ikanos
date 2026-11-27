@@ -266,7 +266,8 @@ public class McpServerAdapter extends ServerAdapter {
     /**
      * Starts again the unfinished tasks of this adapter's tools that the durable store kept, such
      * as those of the {@code local} mode after a restart. A task belongs to this adapter when its
-     * entry names the adapter's namespace; one whose tool no longer exists fails when called.
+     * entry names the adapter's namespace; one whose tool no longer exists fails when called. On
+     * a store several replicas share, a task another replica runs is left to it.
      *
      * @return the number of tasks started again
      */
@@ -460,6 +461,11 @@ public class McpServerAdapter extends ServerAdapter {
         if (resumed > 0) {
             Context.getCurrentLogger().log(Level.INFO, "Resumed " + resumed + " MCP task(s)"
                     + " (namespace: " + getMcpServerSpec().getNamespace() + ")");
+        }
+        // On a store several replicas share, the tasks of a replica that stopped are taken over
+        // once their lease expires.
+        if (taskService != null) {
+            taskService.takeOverPeriodically(taskWork());
         }
         if (getMcpServerSpec().isStdio()) {
             Thread thread = new Thread(stdioHandler.get(), "mcp-stdio");

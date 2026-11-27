@@ -1,0 +1,40 @@
+ikanos: 1.0.0-beta11
+info:
+  display: Durability distributed violations
+  description: Negative fixture declaring the distributed mode without a sealing key and with a literal store password
+capability:
+  binds:
+  - namespace: secrets
+    description: Deployment secrets
+    keys:
+      DURABLE_DB_URL: durable-db-url
+  aggregates:
+  - display: departure flows
+    namespace: departure
+    flows:
+      get-voyage:
+        description: Mock voyage lookup
+        outputParameters:
+          status:
+            type: string
+            value: planned
+  exposes:
+  - type: mcp
+    address: localhost
+    port: 9333
+    namespace: shipyard-ops
+    description: Shipyard operations
+    tools:
+      get-voyage:
+        description: Get a voyage
+        ref: departure.get-voyage
+  - type: control
+    address: localhost
+    port: 9334
+    durability:
+      mode: distributed
+      store:
+        type: postgres
+        url: "{{secrets.DURABLE_DB_URL}}"
+        user: ikanos
+        password: not-a-binding

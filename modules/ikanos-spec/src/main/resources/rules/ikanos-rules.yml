@@ -401,6 +401,39 @@ rules:
       functionOptions:
         check: sealing-key-binds
 
+  ikanos-store-password-must-bind:
+    message: "{{error}}"
+    description: >
+      The password of a shared durability store, such as the PostgreSQL
+      database of the `distributed` mode, gives access to every execution the
+      capability keeps. A password written into the capability ends up in
+      source control. Write a single Mustache expression naming a binding key,
+      such as `{{DURABLE_DB_PASSWORD}}`, and declare that key in
+      `capability.binds`.
+    severity: warn
+    recommended: true
+    given: "$"
+    then:
+      function: durability
+      functionOptions:
+        check: store-password-binds
+
+  ikanos-distributed-requires-sealing-key:
+    message: "{{error}}"
+    description: >
+      Under the `distributed` durability mode, a client's next request may land
+      on another replica, which must open the state the first one sealed, such
+      as an MCP `requestState`. Without `durability.sealingKey`, each replica
+      draws its own random key and rejects the others' state. Declare one key,
+      referenced from `capability.binds`, that every replica shares.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: durability
+      functionOptions:
+        check: distributed-sealing-key
+
   ikanos-mcp-auth-stdio-conflict:
     message: "MCP `authentication` should not be set when `transport` is `stdio`."
     description: >

@@ -27,6 +27,14 @@ public interface WorkQueue {
     /** Claims the next due execution for {@code owner}, if any. */
     Optional<Lease> claim(String owner, Duration leaseFor);
 
+    /**
+     * Leases {@code executionId} to {@code owner}, whether it is queued or not: the way a replica
+     * takes the right to run an execution it was asked about. Empty when another lease on it has
+     * not expired, whoever holds it; the new lease's fencing token is greater than any before.
+     * Several replicas racing for the same execution get at most one lease.
+     */
+    Optional<Lease> acquire(ExecutionId executionId, String owner, Duration leaseFor);
+
     /** Extends a lease; returns {@code false} when it was lost. */
     boolean renew(Lease lease, Duration leaseFor);
 

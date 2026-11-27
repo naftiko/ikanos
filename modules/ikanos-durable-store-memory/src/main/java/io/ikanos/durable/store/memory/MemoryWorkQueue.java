@@ -57,6 +57,18 @@ final class MemoryWorkQueue implements WorkQueue {
     }
 
     @Override
+    public synchronized Optional<Lease> acquire(ExecutionId executionId, String owner,
+            Duration leaseFor) {
+        Instant now = clock.instant();
+        if (isLeased(executionId, now)) {
+            return Optional.empty();
+        }
+        Lease lease = new Lease(executionId, owner, ++fencingTokens, now.plus(leaseFor));
+        leases.put(executionId, lease);
+        return Optional.of(lease);
+    }
+
+    @Override
     public synchronized boolean renew(Lease lease, Duration leaseFor) {
         Instant now = clock.instant();
         Lease current = leases.get(lease.executionId());

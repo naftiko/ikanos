@@ -43,19 +43,26 @@ final class JdbcExecutionIndex implements ExecutionIndex {
 
     @Override
     public boolean create(ExecutionRecord record) {
+        JdbcDialect dialect = database.dialect();
         return database.call(c -> {
-            if (exists(c, record.executionId())) {
+            // Shared: one atomic insert, so two replicas creating the same ID get one true.
+            if (!dialect.isShared() && exists(c, record.executionId())) {
                 return false;
             }
-            try (PreparedStatement s = c.prepareStatement(
-                    "INSERT INTO executions (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?)")) {
+            String insert = dialect.isShared()
+                    ? dialect.insertIfAbsent("executions", List.of("execution_id"),
+                            COLUMNS.split(", "))
+                    : "INSERT INTO executions (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?)";
+            try (PreparedStatement s = c.prepareStatement(insert)) {
                 s.setString(1, record.executionId().value());
                 s.setString(2, record.specDigest());
                 s.setString(3, record.entry());
                 s.setString(4, record.status().name());
                 JdbcDatabase.setInstant(s, 5, record.createdAt());
                 JdbcDatabase.setInstant(s, 6, record.deadline());
-                s.executeUpdate();
+                if (s.executeUpdate() == 0) {
+                    return false;
+                }
             }
             try (PreparedStatement s = c.prepareStatement("INSERT INTO execution_labels "
                     + "(execution_id, label_key, label_value) VALUES (?, ?, ?)")) {
