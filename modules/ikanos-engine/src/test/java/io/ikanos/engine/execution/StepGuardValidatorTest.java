@@ -345,6 +345,84 @@ public class StepGuardValidatorTest {
     }
 
     @Test
+    void findWarningsShouldLetEachPathReadTheStepsBeforeTheChoice() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow("""
+                - name: issue
+                  type: call
+                  what: github.get-issue
+                - name: route
+                  type: choice
+                  if: "issue.label == 'bug'"
+                  then:
+                    type: call
+                    what: notion.create-incident
+                    onlyIf: issue.title
+                  else:
+                    type: choice
+                    if: "issue.label == 'feature'"
+                    then:
+                      type: call
+                      what: notion.add-row
+                    else:
+                      type: call
+                      what: github.ask-details
+                - name: after
+                  type: call
+                  what: log.write
+                  onlyIf: route
+                """));
+
+        assertTrue(warnings.isEmpty(), warnings.toString());
+    }
+
+    @Test
+    void findErrorsShouldReportAnIfThatDoesNotParse() {
+        List<String> errors = StepGuardValidator.findErrors(flow("""
+                - name: route
+                  type: choice
+                  if: "issue.label =="
+                  then:
+                    type: call
+                    what: notion.create-incident
+                """));
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).startsWith("The if of step 'route'"), errors.get(0));
+    }
+
+    @Test
+    void findErrorsShouldReportAQuestionInAPath() {
+        List<String> errors = StepGuardValidator.findErrors(flow("""
+                - name: route
+                  type: choice
+                  if: issue
+                  then:
+                    type: elicit
+                    fields:
+                      ok:
+                        type: boolean
+                """));
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).contains("or a choice"), errors.get(0));
+    }
+
+    @Test
+    void findWarningsShouldReportAnIfReadingANameNothingProvides() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow("""
+                - name: route
+                  type: choice
+                  if: "isue.label == 'bug'"
+                  then:
+                    type: call
+                    what: notion.create-incident
+                """));
+
+        assertEquals(1, warnings.size(), warnings.toString());
+        assertTrue(warnings.get(0).contains("reads 'isue'"), warnings.get(0));
+    }
+
+    @Test
     void findErrorsShouldReportASequenceInsideASequence() {
         List<String> errors = StepGuardValidator.findErrors(flow("""
                 - name: gather

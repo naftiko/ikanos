@@ -43,6 +43,8 @@ public record StepNode(NodePath path, Kind kind, OperationStepSpec step, int ind
         PARALLEL,
         /** A {@code forEach} step: runs its {@code do} for each item, in order, as one action. */
         FOREACH,
+        /** A {@code choice} step: runs the path its {@code if} picks, as one action. */
+        CHOICE,
         /** An {@code end} step: completes the run, as a success, without the steps after it. */
         END,
         /** A step type the engine does not run; ignored, as before. */
@@ -51,7 +53,7 @@ public record StepNode(NodePath path, Kind kind, OperationStepSpec step, int ind
         /** Whether the node is an action, whose outcome a durable mode records. */
         public boolean isAction() {
             return this == CALL || this == SCRIPT || this == HANDLER || this == PARALLEL
-                    || this == FOREACH;
+                    || this == FOREACH || this == CHOICE;
         }
     }
 

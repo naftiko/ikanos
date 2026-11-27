@@ -116,7 +116,10 @@ public final class StepInterpreter implements Interpreter {
                     // Recorded by an earlier run of this execution: restore the step's output
                     // instead of running the step again.
                     Object value = ((ActionOutcome.Succeeded) outcome.get()).value();
-                    if (node.kind() == StepNode.Kind.PARALLEL) {
+                    if (node.kind() == StepNode.Kind.CHOICE) {
+                        ChoiceRunner.restore(node.step().getName(),
+                                value instanceof JsonNode json ? json : null, run);
+                    } else if (node.kind() == StepNode.Kind.PARALLEL) {
                         ParallelTracks.restore(node.step().getName(),
                                 value instanceof JsonNode json ? json : null, run);
                     } else {

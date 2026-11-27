@@ -24,6 +24,7 @@ import io.ikanos.spec.util.OperationStepLookupSpec;
 import io.ikanos.spec.util.OperationStepSpec;
 import io.ikanos.spec.util.OperationStepElicitSpec;
 import io.ikanos.spec.util.OperationStepEndSpec;
+import io.ikanos.spec.util.OperationStepChoiceSpec;
 import io.ikanos.spec.util.OperationStepForEachSpec;
 import io.ikanos.spec.util.OperationStepParallelSpec;
 
@@ -85,6 +86,7 @@ public final class ExecutionTree {
             case OperationStepEndSpec end -> StepNode.Kind.END;
             case OperationStepParallelSpec parallel -> StepNode.Kind.PARALLEL;
             case OperationStepForEachSpec forEach -> StepNode.Kind.FOREACH;
+            case OperationStepChoiceSpec choice -> StepNode.Kind.CHOICE;
             case null, default -> StepNode.Kind.SKIP;
         };
     }

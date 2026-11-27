@@ -165,6 +165,27 @@ public final class StepGuard {
     }
 
     /**
+     * Whether a condition read like a guard holds, such as the {@code if} of a {@code choice}.
+     *
+     * @param label what the condition is, for the error message
+     * @throws IllegalArgumentException as {@link #holds} does
+     */
+    public static boolean holdsAs(String label, String condition,
+            Map<String, Object> parameters) {
+        return holdsAs(label, condition, parameters,
+                GuardManagementSpec.DEFAULT_EVALUATION_LIMIT);
+    }
+
+    /**
+     * Whether a condition holds, evaluating at most {@code evaluationLimit} sub-expressions, as
+     * {@link #holdsAs(String, String, Map)}.
+     */
+    public static boolean holdsAs(String label, String condition,
+            Map<String, Object> parameters, long evaluationLimit) {
+        return evaluate(label, condition, parameters, evaluationLimit);
+    }
+
+    /**
      * Whether any of a call step's success criteria holds. Each is a guard, read like
      * {@code onlyIf}.
      *

@@ -132,8 +132,10 @@ function stepCalls(steps, calls) {
     }
     stepCalls(step.tracks, calls);
     stepCalls(step.steps, calls);
-    if (isObject(step.do)) {
-      stepCalls([step.do], calls);
+    for (const key of ["do", "then", "else"]) {
+      if (isObject(step[key])) {
+        stepCalls([step[key]], calls);
+      }
     }
   }
 }

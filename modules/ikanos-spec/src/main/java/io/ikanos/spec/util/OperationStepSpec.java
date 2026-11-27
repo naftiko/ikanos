@@ -24,8 +24,8 @@ import io.ikanos.spec.scripting.OperationStepScriptSpec;
  * Base Operation Step Specification Element
  * 
  * Represents a step in an orchestrated operation. OperationStep is a discriminated union
- * whose subtypes (call, lookup, script, elicit, end, parallel, sequence, forEach) are told
- * apart by {@code type}.
+ * whose subtypes (call, lookup, script, elicit, end, parallel, sequence, forEach, choice) are
+ * told apart by {@code type}.
  */
 @JsonTypeInfo(
     use = JsonTypeInfo.Id.NAME,
@@ -41,7 +41,8 @@ import io.ikanos.spec.scripting.OperationStepScriptSpec;
     @JsonSubTypes.Type(value = OperationStepEndSpec.class, name = "end"),
     @JsonSubTypes.Type(value = OperationStepParallelSpec.class, name = "parallel"),
     @JsonSubTypes.Type(value = OperationStepSequenceSpec.class, name = "sequence"),
-    @JsonSubTypes.Type(value = OperationStepForEachSpec.class, name = "forEach")
+    @JsonSubTypes.Type(value = OperationStepForEachSpec.class, name = "forEach"),
+    @JsonSubTypes.Type(value = OperationStepChoiceSpec.class, name = "choice")
 })
 @JsonPropertyOrder({"name", "type", "onlyIf"})
 public abstract class OperationStepSpec {

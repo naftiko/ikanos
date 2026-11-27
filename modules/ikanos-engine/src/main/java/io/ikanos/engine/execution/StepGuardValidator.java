@@ -34,6 +34,7 @@ import io.ikanos.spec.exposes.rest.RestServerOperationSpec;
 import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.util.OperationStepCallSpec;
+import io.ikanos.spec.util.OperationStepChoiceSpec;
 import io.ikanos.spec.util.OperationStepElicitSpec;
 import io.ikanos.spec.util.OperationStepEndSpec;
 import io.ikanos.spec.util.OperationStepForEachSpec;
@@ -169,8 +170,8 @@ public final class StepGuardValidator {
             // of a list: a sequence met here is misplaced, and would never run.
             if (step instanceof OperationStepSequenceSpec) {
                 errors.add("Step '" + step.getName() + "' in " + where + " is a sequence, which"
-                        + " is only allowed as a track of a parallel step or as the do of a"
-                        + " forEach step.");
+                        + " is only allowed as a track of a parallel step, the do of a forEach"
+                        + " step or a path of a choice.");
             }
             if (step instanceof OperationStepEndSpec && inTrack) {
                 errors.add("Step '" + step.getName() + "' in " + where + " ends the flow from"
@@ -179,8 +180,8 @@ public final class StepGuardValidator {
             }
             if (step instanceof OperationStepElicitSpec && depth > 0) {
                 errors.add("Step '" + step.getName() + "' in " + where + " asks the caller from"
-                        + " inside a parallel track or a forEach step, where questions are not"
-                        + " supported. Ask before that step.");
+                        + " inside a parallel track, a forEach step or a choice, where questions"
+                        + " are not supported. Ask before that step.");
             }
             checkGuards(step, visible, where, siblings, findings);
             checkSiblingReads(step, where, siblings, findings);
@@ -198,6 +199,9 @@ public final class StepGuardValidator {
             }
             if (step instanceof OperationStepForEachSpec forEach) {
                 visitForEach(forEach, visible, where, depth, siblings, inTrack, findings);
+            }
+            if (step instanceof OperationStepChoiceSpec choice) {
+                visitChoice(choice, visible, where, depth, siblings, findings);
             }
             if (step instanceof OperationStepEndSpec && step.getOnlyIf() == null) {
                 endedBy = step.getName();
@@ -304,6 +308,56 @@ public final class StepGuardValidator {
         }
         visit(ParallelTracks.stepsOf(body.getName(), body), bodyVisible, inner, bodyDepth,
                 siblings, inTrack, findings);
+    }
+
+    /**
+     * Checks a {@code choice} step: its {@code if} is read like a guard, and each path sees the
+     * steps before it.
+     */
+    private static void visitChoice(OperationStepChoiceSpec choice, Set<String> visible,
+            String where, int depth, Set<String> siblings, Findings findings) {
+        String label = "The if of step '" + choice.getName() + "' in " + where;
+        String error = StepGuard.parseError(choice.getIf());
+        if (error != null) {
+            findings.errors().add(label + " is not a valid CEL expression: " + error);
+        } else {
+            for (String unknown : StepGuard.unknownOutcomes(choice.getIf())) {
+                findings.errors().add(label + " compares an outcome with '" + unknown
+                        + "', which is not one: use "
+                        + String.join(", ", StepOutcomes.VOCABULARY) + ".");
+            }
+            for (String name : StepGuard.referencedNames(choice.getIf())) {
+                if (readsSibling(name, siblings)) {
+                    findings.errors().add(label + " reads track '" + name + "', which runs at"
+                            + " the same time: a track sees only the steps before its parallel"
+                            + " step.");
+                } else if (!visible.contains(name)) {
+                    findings.warnings().add(label + " reads '" + name + "', which no input,"
+                            + " 'with' value or earlier step provides: the else path always"
+                            + " runs.");
+                }
+            }
+        }
+        String inner = where + ", choice step '" + choice.getName() + "'";
+        for (OperationStepSpec path : java.util.Arrays.asList(choice.getThen(),
+                choice.getElse())) {
+            if (path == null) {
+                continue;
+            }
+            int pathDepth = depth + (path instanceof OperationStepSequenceSpec ? 2 : 1);
+            if (pathDepth > MAX_NESTING) {
+                findings.warnings().add("Path '" + path.getName() + "' of " + inner
+                        + " is nested more than " + MAX_NESTING + " levels deep (parallel"
+                        + " steps, forEach steps, choices and sequences), which makes the flow"
+                        + " hard to read and to trace.");
+            }
+            Set<String> pathVisible = new HashSet<>(visible);
+            if (path instanceof OperationStepSequenceSpec) {
+                checkGuards(path, pathVisible, inner, siblings, findings);
+            }
+            visit(ParallelTracks.stepsOf(path.getName(), path), pathVisible, inner, pathDepth,
+                    siblings, false, findings);
+        }
     }
 
     private static void visitTracks(OperationStepParallelSpec parallel, Set<String> stepNames,
