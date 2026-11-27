@@ -171,6 +171,24 @@ final class JdbcExecutionIndex implements ExecutionIndex {
     }
 
     @Override
+    public List<ExecutionRecord> listUnleased(ExecutionStatus status, String key, Instant now,
+            int limit) {
+        // The leases live in the same database: filtered in the query, so leased executions,
+        // however many, never take an unleased one's place.
+        String sql = "SELECT " + COLUMNS + " FROM executions e WHERE status = ? AND EXISTS "
+                + "(SELECT 1 FROM execution_labels l WHERE l.execution_id = e.execution_id "
+                + "AND l.label_key = ?) AND NOT EXISTS (SELECT 1 FROM leases s "
+                + "WHERE s.execution_id = e.execution_id AND s.expires_at > ?)"
+                + " ORDER BY created_at, execution_id LIMIT ?";
+        return database.call(c -> select(c, sql, s -> {
+            s.setString(1, status.name());
+            s.setString(2, key);
+            JdbcDatabase.setInstant(s, 3, now);
+            s.setInt(4, limit);
+        }));
+    }
+
+    @Override
     public List<ExecutionRecord> findByLabel(String key, String value) {
         return database.call(c -> select(c, "SELECT " + COLUMNS + " FROM executions e WHERE "
                 + "EXISTS (SELECT 1 FROM execution_labels l WHERE l.execution_id = e.execution_id "

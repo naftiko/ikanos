@@ -93,11 +93,13 @@ public final class JournaledRunner implements Runner {
     private final Duration leaseFor;
     private final boolean shared;
     /** Ownership of no execution: the token of a single process, with no lease to renew. */
-    private final Owned notOwned = new Owned(null);
+    private final Owned notOwned = new Owned((Lease) null);
     /** Renews the leases of the runs in progress; started with the first lease. */
     private volatile ScheduledExecutorService renewals;
     /** The lock of each execution a thread runs or waits on; removed once none does. */
     private final Map<ExecutionId, ExecutionLock> locks = new ConcurrentHashMap<>();
+    /** The leases this runner holds, by execution: its nested executions run under them. */
+    private final Map<ExecutionId, Owned> held = new ConcurrentHashMap<>();
 
     public JournaledRunner(Stores stores, PayloadCodec codec, Clock clock, String specDigest) {
         this(stores, codec, clock, specDigest, "runner-" + UUID.randomUUID(), DEFAULT_LEASE);
@@ -224,6 +226,14 @@ public final class JournaledRunner implements Runner {
     public List<ExecutionRecord> listLabelled(ExecutionStatus status, String key, String value,
             Instant createdBefore, int limit) {
         return stores.index().listLabelled(status, key, value, createdBefore, limit);
+    }
+
+    /**
+     * Up to {@code limit} executions with {@code status} and a label {@code key} that no replica
+     * runs: on a shared store, those whose lease has expired or was released, oldest first.
+     */
+    public List<ExecutionRecord> listUnowned(ExecutionStatus status, String key, int limit) {
+        return stores.index().listUnleased(status, key, clock.instant(), limit);
     }
 
     /** Up to {@code limit} executions with {@code status}, oldest first. */
@@ -410,14 +420,27 @@ public final class JournaledRunner implements Runner {
                 : new IllegalStateException("Another owner appended to the journal of " + id, e);
     }
 
-    /** Takes the right to write {@code id}: its lease on a shared store, nothing otherwise. */
+    /**
+     * Takes the right to write {@code id}: its lease on a shared store, nothing otherwise. A
+     * nested execution ({@code <execution>/...}, such as a task's steps or a flow one of them
+     * calls) runs under the lease this runner holds on an enclosing one, and takes none of its
+     * own: so a replica that takes a task over owns its nested executions with it, whatever
+     * leases the replica that stopped left on them.
+     */
     private Owned own(ExecutionId id) {
         if (!shared) {
             return notOwned;
         }
+        for (Map.Entry<ExecutionId, Owned> enclosing : held.entrySet()) {
+            if (id.value().startsWith(enclosing.getKey().value() + "/")) {
+                return new Owned(enclosing.getValue());
+            }
+        }
         Lease lease = stores.queue().acquire(id, owner, leaseFor)
                 .orElseThrow(() -> new ExecutionBusyException(id, null));
-        return new Owned(lease);
+        Owned owned = new Owned(lease);
+        held.put(id, owned);
+        return owned;
     }
 
     private ScheduledExecutorService renewals() {
@@ -445,11 +468,20 @@ public final class JournaledRunner implements Runner {
     private final class Owned implements AutoCloseable {
 
         private final Lease lease;
+        /** The enclosing execution's ownership this one borrows, or {@code null}. */
+        private final Owned enclosing;
         private volatile boolean lost;
         private volatile ScheduledFuture<?> renewal;
 
+        /** Ownership borrowed from an enclosing execution: its token, renewed and released by it. */
+        Owned(Owned enclosing) {
+            this.lease = null;
+            this.enclosing = enclosing;
+        }
+
         Owned(Lease lease) {
             this.lease = lease;
+            this.enclosing = null;
             if (lease != null) {
                 long period = Math.max(1, leaseFor.toMillis() / 3);
                 renewal = renewals().scheduleAtFixedRate(this::renew, period, period,
@@ -458,12 +490,15 @@ public final class JournaledRunner implements Runner {
         }
 
         long token() {
+            if (enclosing != null) {
+                return enclosing.token();
+            }
             return lease == null ? SINGLE_OWNER : lease.fencingToken();
         }
 
         /** Whether the lease expired before it was renewed: another replica may own it now. */
         boolean lost() {
-            return lost;
+            return enclosing != null ? enclosing.lost() : lost;
         }
 
         void renew() {
@@ -483,6 +518,7 @@ public final class JournaledRunner implements Runner {
             if (lease == null) {
                 return;
             }
+            held.remove(lease.executionId(), this);
             ScheduledFuture<?> scheduled = renewal;
             if (scheduled != null) {
                 scheduled.cancel(false);

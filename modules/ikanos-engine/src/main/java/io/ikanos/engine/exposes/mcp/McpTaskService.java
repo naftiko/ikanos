@@ -233,6 +233,11 @@ public final class McpTaskService {
         if (draining.get()) {
             return 0;
         }
+        if (runner.isShared()) {
+            // Other replicas run, or wait on people for, most of the store's tasks: a replica
+            // starting takes over only those no replica owns.
+            return takeOver(workFor);
+        }
         // Tasks only, filtered by the store before the limit: inline calls and sub-runs, however
         // many, never take a task's place.
         List<ExecutionRecord> unfinished = new ArrayList<>(
@@ -250,17 +255,19 @@ public final class McpTaskService {
      * lease another replica holds is left to it. Unlike {@link #resume}, a waiting task without
      * answers is not run, so a sweep costs nothing for the tasks that wait on a person.
      *
-     * @return the number of tasks started again, including those another replica turned out to
-     *         run
+     * @return the number of tasks started again, including those another replica took in the
+     *         meantime
      */
     int takeOver(BiFunction<String, JsonNode, Callable<JsonNode>> workFor) {
         if (draining.get()) {
             return 0;
         }
+        // Filtered by the store before the limit: tasks other replicas hold, however many,
+        // never take the place of one no replica runs.
         List<ExecutionRecord> unowned = new ArrayList<>(
-                runner.listLabelled(ExecutionStatus.RUNNING, TASK_ID, null, null, RESUME_LIMIT));
-        for (ExecutionRecord waiting : runner.listLabelled(ExecutionStatus.SUSPENDED, TASK_ID,
-                null, null, RESUME_LIMIT)) {
+                runner.listUnowned(ExecutionStatus.RUNNING, TASK_ID, RESUME_LIMIT));
+        for (ExecutionRecord waiting : runner.listUnowned(ExecutionStatus.SUSPENDED, TASK_ID,
+                RESUME_LIMIT)) {
             if (runner.hasPendingUpdates(waiting.executionId())) {
                 unowned.add(waiting);
             }
@@ -347,11 +354,17 @@ public final class McpTaskService {
         // when it is cancelled before it starts): an entry never outlives its task.
         AtomicReference<Future<?>> self = new AtomicReference<>();
         FutureTask<Void> task = new FutureTask<>(() -> {
+            boolean ran = true;
             try {
                 runner.run(request, InputRounds.interpreter(),
                         InputRounds.executor(runner, executionId, draining::get, clock, work));
+            } catch (ExecutionBusyException e) {
+                // Another replica runs it: nothing changed here.
+                ran = false;
             } finally {
-                lastUpdated.put(executionId, clock.instant());
+                if (ran) {
+                    lastUpdated.put(executionId, clock.instant());
+                }
                 // This worker's own entry only: a later submit may already have replaced it.
                 running.remove(executionId, self.get());
                 cleanUpIfCancelled(executionId);
@@ -490,7 +503,23 @@ public final class McpTaskService {
                 return false;
             }
         }
-        if (record.status() != ExecutionStatus.SUSPENDED) {
+        boolean waiting = record.status() == ExecutionStatus.SUSPENDED;
+        // On a shared store, another replica may be running the round that asks: the answers go
+        // to the inbox, which that replica reads once it releases the task's lease.
+        boolean askedElsewhere = !waiting && runner.isShared()
+                && record.status() == ExecutionStatus.RUNNING && stillAsks(record, responses);
+        if (!waiting && !askedElsewhere) {
+            return true;
+        }
+        if (!record.specDigest().equals(runner.specDigest())) {
+            // Recorded by another version of the capability, whose steps may not exist here: it
+            // fails as resume and takeOver fail it, rather than run against this version.
+            try {
+                runner.fail(record.executionId(), new Failure(SPEC_CHANGED,
+                        "The capability changed since this task started"));
+            } catch (ExecutionBusyException e) {
+                // A replica of its own version runs it.
+            }
             return true;
         }
         ExecutionView view = runner.view(record.executionId());

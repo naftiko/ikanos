@@ -48,6 +48,7 @@ import io.ikanos.durable.ExecutionId;
 import io.ikanos.durable.ExecutionRequest;
 import io.ikanos.durable.ExecutionView;
 import io.ikanos.durable.core.JournaledRunner;
+import io.ikanos.durable.store.ExecutionStatus;
 import io.ikanos.durable.store.Stores;
 import io.ikanos.durable.store.jdbc.PostgresStoreProvider;
 import io.ikanos.engine.exposes.ServerAdapter;
@@ -143,11 +144,16 @@ public class McpDistributedTasksIntegrationTest {
     }
 
     private Capability replica() throws Exception {
+        return replica("A task that asks before it finishes, on replicas sharing a store");
+    }
+
+    /** A replica; another {@code description} stands for another version of the capability. */
+    private Capability replica(String description) throws Exception {
         String yaml = """
                 ikanos: "%s"
                 info:
                   display: "Departure clearance"
-                  description: "A task that asks before it finishes, on replicas sharing a store"
+                  description: "%s"
                 capability:
                   consumes:
                   - type: http
@@ -207,7 +213,8 @@ public class McpDistributedTasksIntegrationTest {
                         type: postgres
                         url: "%s"
                       sealingKey: "%s"
-                """.formatted(VersionHelper.getSchemaVersion(), port, url, SEALING_KEY);
+                """.formatted(VersionHelper.getSchemaVersion(), description, port, url,
+                SEALING_KEY);
         Capability capability = new Capability(yamlMapper.readValue(yaml, IkanosSpec.class));
         replicas.add(capability);
         return capability;
@@ -311,9 +318,10 @@ public class McpDistributedTasksIntegrationTest {
                 Clock.systemUTC())) {
             store.queue().acquire(id, "pod-a", Duration.ofMillis(500)).orElseThrow();
 
-            assertEquals(1, podB.getTaskService().takeOver(podB.taskWork()));
-            Thread.sleep(200);
-            assertEquals(0, bookings.get(), "Pod B leaves a task whose lease is held");
+            assertEquals(0, podB.getTaskService().takeOver(podB.taskWork()),
+                    "Pod B leaves a task whose lease is held");
+            assertEquals(0, podB.resumeTasks(), "So does a replica starting");
+            assertEquals(0, bookings.get());
             assertEquals("working", get(podB, "task-a").path("status").asString());
 
             Thread.sleep(500);
@@ -323,6 +331,48 @@ public class McpDistributedTasksIntegrationTest {
         JsonNode waiting = awaitSettled(podB, "task-a");
         assertEquals("input_required", waiting.path("status").asString(), waiting.toString());
         assertEquals(1, bookings.get());
+    }
+
+    @Test
+    void answersSentToAReplicaWhileAnotherRunsTheTaskShouldBeKept() throws Exception {
+        McpServerAdapter podA = mcp(replica());
+        Capability replicaB = replica();
+        McpServerAdapter podB = mcp(replicaB);
+        String taskId = dispatch(podA, "tools/call", CLEAR).path("result").path("taskId")
+                .asString();
+        awaitSettled(podA, taskId);
+        // Pod A is running the round that asks: the task is RUNNING, under pod A's lease.
+        ExecutionId id = replicaB.getDurability().runner().findByLabel(McpTaskService.TASK_ID,
+                taskId).get(0).executionId();
+        try (Stores store = PostgresStoreProvider.openStores(url, null, null,
+                Clock.systemUTC())) {
+            store.index().compareAndSetStatus(id, ExecutionStatus.SUSPENDED,
+                    ExecutionStatus.RUNNING);
+            store.queue().acquire(id, "pod-a", Duration.ofSeconds(30)).orElseThrow();
+
+            dispatch(podB, "tasks/update", "{\"taskId\":\"" + taskId
+                    + "\",\"inputResponses\":{\"" + KEY + "\":" + ACCEPT + "}}");
+
+            assertTrue(replicaB.getDurability().runner().hasPendingUpdates(id),
+                    "The answers wait in the inbox for the replica running the task");
+        }
+    }
+
+    @Test
+    void anUpdateShouldFailATaskRecordedByAnotherVersionOfTheCapability() throws Exception {
+        McpServerAdapter podA = mcp(replica());
+        McpServerAdapter newer = mcp(replica("The next version of the capability"));
+        String taskId = dispatch(podA, "tools/call", CLEAR).path("result").path("taskId")
+                .asString();
+        awaitSettled(podA, taskId);
+
+        dispatch(newer, "tasks/update", "{\"taskId\":\"" + taskId
+                + "\",\"inputResponses\":{\"" + KEY + "\":" + ACCEPT + "}}");
+
+        JsonNode failed = awaitSettled(podA, taskId);
+        assertEquals("failed", failed.path("status").asString(), failed.toString());
+        assertTrue(failed.toString().contains("changed"), failed.toString());
+        assertEquals(1, bookings.get(), "The newer replica runs none of the older steps");
     }
 
     @Test

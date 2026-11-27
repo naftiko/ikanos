@@ -135,6 +135,21 @@ class PostgresStoresTest extends StoreConformanceTest {
     }
 
     @Test
+    void indexShouldListOnlyTheExecutionsWithoutALiveLease() {
+        stores.index().create(record(ID, NOW));
+        stores.index().create(record(OTHER, NOW.plusSeconds(1)));
+        stores.queue().acquire(ID, "pod-a", Duration.ofSeconds(30)).orElseThrow();
+
+        assertEquals(List.of(OTHER), stores.index().listUnleased(
+                io.ikanos.durable.store.ExecutionStatus.RUNNING, "taskId", NOW, 1).stream()
+                .map(io.ikanos.durable.store.ExecutionRecord::executionId).toList(),
+                "A leased execution never takes the place of an unleased one");
+        assertEquals(2, stores.index().listUnleased(
+                io.ikanos.durable.store.ExecutionStatus.RUNNING, "taskId",
+                NOW.plusSeconds(30), 10).size(), "An expired lease no longer counts");
+    }
+
+    @Test
     void acquireShouldGrantOneLeaseWhenReplicasRaceForAnExecution() throws Exception {
         Stores other = replica();
         AtomicInteger turn = new AtomicInteger();

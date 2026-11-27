@@ -273,6 +273,29 @@ class JournaledRunnerLeaseTest {
     }
 
     @Test
+    void runShouldRunANestedExecutionUnderTheLeaseOfItsEnclosingOne() {
+        // Pod B stopped while running the task's steps: its lease on the steps outlives its lease
+        // on the task. Pod A takes the task over, and the steps with it.
+        ExecutionId steps = new ExecutionId(ID.value() + "/steps");
+        stores.queue().acquire(steps, "pod-b", LEASE).orElseThrow();
+        ActionExecutor runsTheSteps = request -> {
+            ExecutionResult nested = podA.run(ExecutionRequest.of(steps, null), CLEARANCE,
+                    recording);
+            return nested instanceof ExecutionResult.Suspended ? "steps waiting" : "steps done";
+        };
+        Interpreter task = view -> view.outcome(SCREEN).isEmpty()
+                ? List.of(new Command.ScheduleAction(SCREEN, "steps", null))
+                : List.of(new Command.Complete("task done"));
+
+        ExecutionResult result = podA.run(ExecutionRequest.of(ID, null), task, runsTheSteps);
+
+        assertEquals(new ExecutionResult.Completed("task done"), result);
+        assertEquals(List.of("steps/screen"), calls, "The nested steps ran under the task's lease");
+        assertTrue(stores.queue().acquire(steps, "pod-c", LEASE).isEmpty(),
+                "Borrowing leaves the stopped replica's lease on the steps as it was");
+    }
+
+    @Test
     void runShouldTakeNoLeaseOnAStoreOfOneProcess() {
         JournaledRunner single = new JournaledRunner(memory, STRINGS, clock, "sha256:tree");
         memory.queue().acquire(ID, "pod-b", LEASE).orElseThrow();
