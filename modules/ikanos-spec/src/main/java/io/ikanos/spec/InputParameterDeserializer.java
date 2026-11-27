@@ -195,6 +195,15 @@ public class InputParameterDeserializer extends ValueDeserializer<InputParameter
             spec.setAdditionalProperties(node.get("additionalProperties").asBoolean());
         }
 
+        // File input (experimental): accepted types and largest size
+        if (node.has("accept") && node.get("accept").isArray()) {
+            node.get("accept").forEach(item -> spec.getAccept().add(item.asString()));
+        }
+
+        if (node.has("maxSize")) {
+            spec.setMaxSize(node.get("maxSize").asString());
+        }
+
         // MCP tool input default (#979): kept as a JSON tree so it keeps its JSON type. A null
         // default has no effect, so it is left unset.
         if (node.hasNonNull("default")) {

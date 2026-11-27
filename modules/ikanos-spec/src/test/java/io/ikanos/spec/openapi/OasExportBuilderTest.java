@@ -1603,6 +1603,69 @@ public class OasExportBuilderTest {
         assertEquals("code", op.getParameters().get(0).getName());
     }
 
+    // ── File inputs (experimental, #1044) ──
+
+    private static final String FILE_CAPABILITY = """
+            ikanos: "%s"
+            capability:
+              aggregates:
+                - namespace: documents
+                  flows:
+                    import-report:
+                      inputParameters:
+                        report:
+                          type: file
+                          accept: ["application/pdf", "text/csv", ".csv"]
+                          maxSize: 50MiB
+                          required: true
+                          description: The report to import
+                        label:
+                          type: string
+              exposes:
+                - type: rest
+                  port: 8080
+                  namespace: documents-api
+                  resources:
+                    reports:
+                      path: /reports
+                      operations:
+                        import:
+                          method: POST
+                          ref: documents.import-report
+            """.formatted(VersionHelper.getSchemaVersion());
+
+    private Operation exportFileOperation() {
+        IkanosSpec spec = IkanosMappers.lenientYaml().readValue(FILE_CAPABILITY, IkanosSpec.class);
+        return builder.build(spec, null).getOpenApi().getPaths().get("/reports").getPost();
+    }
+
+    @Test
+    void buildShouldExportABodyWithAFileInputAsMultipartFormData() {
+        Operation op = exportFileOperation();
+
+        assertNull(op.getRequestBody().getContent().get("application/json"));
+        @SuppressWarnings("rawtypes")
+        io.swagger.v3.oas.models.media.Schema body = op.getRequestBody().getContent()
+                .get("multipart/form-data").getSchema();
+        assertEquals(List.of("report", "label"), List.copyOf(body.getProperties().keySet()));
+        assertEquals(List.of("report"), body.getRequired());
+    }
+
+    @Test
+    void buildShouldExportAFileInputAsABinaryPartWithItsAcceptedTypes() {
+        io.swagger.v3.oas.models.media.MediaType multipart = exportFileOperation()
+                .getRequestBody().getContent().get("multipart/form-data");
+
+        io.swagger.v3.oas.models.media.Schema<?> report =
+                (io.swagger.v3.oas.models.media.Schema<?>) multipart.getSchema().getProperties()
+                        .get("report");
+        assertEquals("string", report.getType());
+        assertEquals("binary", report.getFormat());
+        assertEquals("application/pdf, text/csv",
+                multipart.getEncoding().get("report").getContentType(),
+                "dot-prefixed extensions have no media type to list");
+    }
+
     @Test
     void buildInputSchemaShouldGiveAnArrayItsItems() {
         InputParameterSpec ids = input("ids", "array");

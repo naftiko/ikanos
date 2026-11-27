@@ -144,10 +144,21 @@ class McpFilesSpecTest {
     }
 
     @Test
-    void schemaShouldRejectUploadsUntilTheyAreSupported() throws Exception {
+    void schemaShouldAcceptAnInlineUploadLimit() throws Exception {
+        List<Error> errors = validate("""
+                files:
+                  uploads:
+                    maxInlineBytes: 2MiB
+                """, "");
+        assertTrue(errors.isEmpty(), "Expected no errors, got: " + errors);
+    }
+
+    @Test
+    void schemaShouldRejectAnInlineUploadLimitWithoutUnit() throws Exception {
         assertFalse(validate("""
                 files:
-                  uploads: {}
+                  uploads:
+                    maxInlineBytes: "1048576"
                 """, "").isEmpty());
     }
 
@@ -172,6 +183,7 @@ class McpFilesSpecTest {
         assertNull(server.getFiles().getDownloads());
         assertEquals("1MiB", server.getFiles().downloadsOrDefault().inlineThresholdOrDefault());
         assertEquals("PT5M", server.getFiles().downloadsOrDefault().ttlOrDefault());
+        assertEquals("1MiB", server.getFiles().uploadsOrDefault().maxInlineBytesOrDefault());
         assertEquals("url", server.getTools().get("export-orders").getDownload().getUrl());
     }
 

@@ -341,6 +341,13 @@ public class InputParameterSerializer extends ValueSerializer<InputParameterSpec
         if (spec.getAdditionalProperties() != null) {
             node.put("additionalProperties", spec.getAdditionalProperties());
         }
+        if (!spec.getAccept().isEmpty()) {
+            ArrayNode acceptArray = node.putArray("accept");
+            spec.getAccept().forEach(acceptArray::add);
+        }
+        if (spec.getMaxSize() != null) {
+            node.put("maxSize", spec.getMaxSize());
+        }
         if (spec.getDefaultValue() != null) {
             node.set("default", spec.getDefaultValue().deepCopy());
         }

@@ -998,6 +998,8 @@ public final class DefinitionsExpander {
             addIf(extra, "minimum", param.getMinimum() != null);
             addIf(extra, "maximum", param.getMaximum() != null);
             addIf(extra, "additionalProperties", param.getAdditionalProperties() != null);
+            addIf(extra, "accept", !param.getAccept().isEmpty());
+            addIf(extra, "maxSize", param.getMaxSize() != null);
             addIf(extra, "maxLength", param.getMaxLength() != null);
             addIf(extra, "precision", param.getPrecision() != null);
             addIf(extra, "scale", param.getScale() != null);
