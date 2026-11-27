@@ -629,14 +629,13 @@ function declaresMappingSets(node) {
  * (#1133): its mapping sets by path, in order, a later set winning, then its
  * own `mappings`, which win last. `origins` gives the set each path comes
  * from; `unresolved` says a listed set is not declared (the references check
- * reports it), so what it would bind is unknown; `setEntries` counts the
- * entries of the listed sets, which each use is charged, as in the engine.
+ * reports it), so what it would bind is unknown. Called once the use is charged
+ * (`listedSetEntries`), as the merge costs the entries of the sets.
  */
 function mergedMappings(model, node) {
   const values = Object.create(null);
   const origins = Object.create(null);
   let unresolved = false;
-  let setEntries = 0;
   for (const name of setNames(node)) {
     if (typeof name !== "string" || !(name in model.mappingSets)) {
       unresolved = true;
@@ -644,7 +643,6 @@ function mergedMappings(model, node) {
     }
     // A declared set that is not a map holds no mapping, as in the engine
     const set = isObject(model.mappingSets[name]) ? model.mappingSets[name] : {};
-    setEntries += Object.keys(set).length;
     for (const key of Object.keys(set)) {
       values[key] = set[key];
       origins[key] = name;
@@ -654,7 +652,27 @@ function mergedMappings(model, node) {
     values[key] = node.mappings[key];
     delete origins[key];
   }
-  return { values, origins, unresolved, setEntries };
+  return { values, origins, unresolved };
+}
+
+/**
+ * The entries of the declared mapping sets a reference lists, which each use is charged before
+ * they are merged, as in the engine. The size of each set is counted once per namespace, so a
+ * use costs the names it lists, not the size of its sets.
+ */
+function listedSetEntries(model, node, budget) {
+  let entries = 0;
+  for (const name of setNames(node)) {
+    if (typeof name !== "string" || !(name in model.mappingSets)) {
+      continue;
+    }
+    if (!budget.setSizes.has(name)) {
+      const set = model.mappingSets[name];
+      budget.setSizes.set(name, isObject(set) ? Object.keys(set).length : 0);
+    }
+    entries += budget.setSizes.get(name);
+  }
+  return entries;
 }
 
 /** Whether a property name can be addressed by a `mappings` path. */
@@ -918,12 +936,12 @@ function checkBinding(model, node, path, position, results, budget) {
     return;
   }
   // Charged as the engine charges a binding: the size of the schema it expands and the
-  // entries of the sets it lists, before anything is bound or reported. A schema in a cycle or
+  // entries of the sets it lists, before the sets are merged or anything is bound or reported,
+  // so a use past the budget costs only the names it lists. A schema in a cycle or
   // on too long a chain of references is not charged, as the engine does not expand it: the
   // binding walk stops on it, and the cycles check or the engine reports it
-  const merged = mergedMappings(model, node);
   const size = schemaSize(model, name, budget);
-  if (!charge(model, budget, (size === null ? 0 : size) + merged.setEntries,
+  if (!charge(model, budget, (size === null ? 0 : size) + listedSetEntries(model, node, budget),
       path.concat("schema"), results)) {
     return;
   }
@@ -937,6 +955,7 @@ function checkBinding(model, node, path, position, results, budget) {
     });
     return;
   }
+  const merged = mergedMappings(model, node);
   const binding = bindingOf(model, node, merged.values, position === "items" && isObject(root)
     && root.type === "array");
   const empty = Object.keys(merged.values).length === 0;
@@ -1135,7 +1154,8 @@ function checkStepMappingSets(model, unit, results, budget) {
       return;
     }
     // Charged the entries of the sets it lists before they are checked, as in the engine
-    if (!charge(model, budget, merged.setEntries, path.concat("mappingSets"), results)) {
+    if (!charge(model, budget, listedSetEntries(model, mapping, budget), path.concat("mappingSets"),
+        results)) {
       return;
     }
     const paths = Object.keys(merged.values);
@@ -1178,7 +1198,9 @@ function checkStepMappingSets(model, unit, results, budget) {
 }
 
 function checkMappings(model, results) {
-  const budget = { visited: 0, reported: false, sizes: new Map(), unsized: new Set() };
+  const budget = {
+    visited: 0, reported: false, sizes: new Map(), unsized: new Set(), setSizes: new Map(),
+  };
   // A mapping set's values are checked once, where it is declared; its paths at each use
   for (const name of Object.keys(model.mappingSets)) {
     const set = model.mappingSets[name];
