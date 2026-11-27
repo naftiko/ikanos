@@ -84,6 +84,12 @@
             <artifactId>ikanos-client-grpc</artifactId>
             <version>${project.version}</version>
         </dependency>
+
+        <dependency>
+            <groupId>io.ikanos</groupId>
+            <artifactId>ikanos-client-smithy</artifactId>
+            <version>${project.version}</version>
+        </dependency>
     </dependencies>
 
     <build>

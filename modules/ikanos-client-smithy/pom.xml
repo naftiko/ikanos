@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.ikanos</groupId>
+        <artifactId>ikanos-parent</artifactId>
+        <version>${revision}</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>ikanos-client-smithy</artifactId>
+    <name>Ikanos Client — Smithy</name>
+    <description>Runtime of the consumes type smithy: operations of a local Smithy model called with smithy-java's dynamic client, in the service's own protocol, through Restlet's org.restlet.ext.smithy transport. Drop this jar on the classpath to run capabilities that consume Smithy-described APIs.</description>
+
+    <dependencies>
+        <!-- ClientAdapterFactory SPI and ContractClientAdapter -->
+        <dependency>
+            <groupId>io.ikanos</groupId>
+            <artifactId>ikanos-engine</artifactId>
+        </dependency>
+        <!-- smithy-java client transport on Restlet's HTTP client connector -->
+        <dependency>
+            <groupId>org.restlet</groupId>
+            <artifactId>org.restlet.ext.smithy</artifactId>
+        </dependency>
+        <!-- Calls a service from its model, without generated code -->
+        <dependency>
+            <groupId>software.amazon.smithy.java</groupId>
+            <artifactId>dynamic-client</artifactId>
+            <version>${smithy-java.version}</version>
+        </dependency>
+        <!-- The client protocols, found with ServiceLoader (ClientProtocolFactory) -->
+        <dependency>
+            <groupId>software.amazon.smithy.java</groupId>
+            <artifactId>aws-client-restjson</artifactId>
+            <version>${smithy-java.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.smithy.java</groupId>
+            <artifactId>aws-client-awsjson</artifactId>
+            <version>${smithy-java.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.smithy.java</groupId>
+            <artifactId>aws-client-restxml</artifactId>
+            <version>${smithy-java.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.smithy.java</groupId>
+            <artifactId>aws-client-awsquery</artifactId>
+            <version>${smithy-java.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.smithy.java</groupId>
+            <artifactId>client-rpcv2-cbor</artifactId>
+            <version>${smithy-java.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.smithy.java</groupId>
+            <artifactId>client-rpcv2-json</artifactId>
+            <version>${smithy-java.version}</version>
+        </dependency>
+        <!-- awsSigV4: the SigV4 auth scheme, with the region setting of aws-client-core -->
+        <dependency>
+            <groupId>software.amazon.smithy.java</groupId>
+            <artifactId>aws-sigv4</artifactId>
+            <version>${smithy-java.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.smithy.java</groupId>
+            <artifactId>aws-client-core</artifactId>
+            <version>${smithy-java.version}</version>
+        </dependency>
+
+        <!-- Test -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- The client span of a call, exported in memory -->
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-sdk</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-sdk-testing</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Coverage floor (jacoco.line.min / jacoco.branch.min) and report for ikanos-coverage -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+            </plugin>
+            <!-- An "-all" jar holding this module, the Restlet extension, smithy-java and the
+                 Smithy model library, so an operator adds one file to the image's /app/lib. The
+                 engine and Restlet core are not included: they are already in ikanos.jar. The
+                 ServiceLoader files of the protocols, auth schemes and traits are merged, and so are
+                 the Smithy model manifests. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.5.1</version>
+                <executions>
+                    <execution>
+                        <id>all</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <shadedArtifactAttached>true</shadedArtifactAttached>
+                            <shadedClassifierName>all</shadedClassifierName>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <transformers>
+                                <transformer
+                                    implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
+                                <!-- Each Smithy jar lists its model files (trait definitions) in this
+                                     manifest, which the model assembler discovers -->
+                                <transformer
+                                    implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                                    <resource>META-INF/smithy/manifest</resource>
+                                </transformer>
+                            </transformers>
+                            <artifactSet>
+                                <includes>
+                                    <include>io.ikanos:ikanos-client-smithy</include>
+                                    <include>org.restlet:org.restlet.ext.smithy</include>
+                                    <include>software.amazon.smithy.java:*</include>
+                                    <include>software.amazon.smithy:*</include>
+                                    <include>software.amazon.eventstream:*</include>
+                                </includes>
+                            </artifactSet>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                        <exclude>module-info.class</exclude>
+                                        <exclude>META-INF/versions/*/module-info.class</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>
