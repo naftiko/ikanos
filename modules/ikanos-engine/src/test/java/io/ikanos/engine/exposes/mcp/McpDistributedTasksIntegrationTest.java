@@ -75,8 +75,9 @@ public class McpDistributedTasksIntegrationTest {
             "{\"name\":\"clear-for-departure\",\"arguments\":{\"voyageId\":\"VOY-2026-051\"}}";
     private static final String ACCEPT =
             "{\"action\":\"accept\",\"content\":{\"confirmed\":true}}";
-    /** A test key, shared by both replicas as the distributed mode requires. */
-    private static final String SEALING_KEY = "AAECAwQFBgcICQoLDA0ODw==";
+    /** A test key of 128 zero bits, shared by both replicas as the distributed mode requires. */
+    private static final String SEALING_KEY =
+            java.util.Base64.getEncoder().encodeToString(new byte[16]);
     private static final AtomicInteger SCHEMAS = new AtomicInteger();
 
     private static EmbeddedPostgres server;

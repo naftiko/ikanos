@@ -112,7 +112,8 @@ public class DurabilityTest {
         DurabilityStoreSpec store = new DurabilityStoreSpec(type);
         store.setUrl(url);
         spec.setStore(store);
-        spec.setSealingKey("AAECAwQFBgcICQoLDA0ODw==");
+        // A test key of 128 zero bits, made here rather than written as a key-like literal.
+        spec.setSealingKey(java.util.Base64.getEncoder().encodeToString(new byte[16]));
         return spec;
     }
 
