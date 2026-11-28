@@ -1318,7 +1318,7 @@ public class IkanosPolychroRulesetTest {
         String output = lintFixture(MAPPING_SETS).output();
         assertTrue(output.contains("Unknown mapping set 'ship-from-crm'. MCP adapter 'fleet'"
             + " declares ship-from-registry, ship-with-owner, ship-static, never-used,"
-            + " empty-set, mock-only, crew-items."), output);
+            + " empty-set, mock-only, crew-items, crew-names."), output);
         assertFalse(output.lines().anyMatch(line -> line.contains("unknown-set")
             && line.contains("leaves paths unbound")), output);
     }
@@ -1436,6 +1436,50 @@ public class IkanosPolychroRulesetTest {
             .filter(line -> line.contains("its definitions expand to more than 100000")).toList();
         assertEquals(1, lines.size(), output);
         assertTrue(lines.get(0).contains("ship-from-set"), output);
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldChargeTheEntriesOfAMappingSetInAStepMapping() {
+        // The grids spend 99,996 declarations; the steps-mode entry's set of five entries does
+        // not fit, as in the engine
+        String output = lintFixture("rules/polychro-definitions-step-mapping-sets-budget.yaml")
+            .output();
+        List<String> lines = output.lines()
+            .filter(line -> line.contains("its definitions expand to more than 100000")).toList();
+        assertEquals(1, lines.size(), output);
+        assertTrue(lines.get(0).contains("fleet-from-set"), output);
+    }
+
+    @Test
+    public void definitionsReferenceRuleShouldFireOnAnUnknownMappingSetInAStepMapping() {
+        String output = lintFixture(MAPPING_SETS).output();
+        assertTrue(output.lines().anyMatch(line -> line.contains("step-unknown-set")
+            && line.contains("Unknown mapping set 'ship-from-erp'.")), output);
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnAStepMappingPathTheOutputDoesNotHave() {
+        assertTrue(lintFixture(MAPPING_SETS).output().contains("Output 'flagship' has no path"
+            + " [owner (mapping set 'ship-with-owner')]."));
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnAStepMappingPathThroughArrayItems() {
+        assertTrue(lintFixture(MAPPING_SETS).output().contains("[crew[].fullName (mapping set"
+            + " 'crew-names')] bind array items, which a steps-mode mapping cannot reach"));
+    }
+
+    @Test
+    public void definitionsReferenceRuleShouldReadASingleMappingSetNameInAStepMapping() {
+        String output = lintFixture(MAPPING_SETS).output();
+        assertTrue(output.lines().anyMatch(line -> line.contains("step-one-set-name")
+            && line.contains("Unknown mapping set 'ship-from-nowhere'.")), output);
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnMappingSetsInAnMcpResourceStepMapping() {
+        assertTrue(lintFixture(MAPPING_SETS).output().contains("MCP adapter 'fleet', resource"
+            + " 'flagship': 'mappingSets' is not supported in an MCP resource's mappings."));
     }
 
     @Test

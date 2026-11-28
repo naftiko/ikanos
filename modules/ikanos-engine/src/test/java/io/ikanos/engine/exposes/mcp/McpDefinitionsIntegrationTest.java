@@ -521,6 +521,73 @@ class McpDefinitionsIntegrationTest {
                 + " unknown mapping set 'ship-tags'."), error.getMessage());
     }
 
+    private static final String STEPS_WITH_SETS = HEADER + """
+              exposes:
+                - type: mcp
+                  address: localhost
+                  port: 0
+                  namespace: fleet-mcp
+                  definitions:
+                    mappingSets:
+                      ship-from-registry:
+                        imo: "$.imo_number"
+                        specs: "$.specs"
+                        specs.tonnage: "$.gross_tonnage"
+                  tools:
+                    get-flagship:
+                      description: "Get the flagship."
+                      steps:
+                        ships: { type: call, call: registry.list-ships }
+                      mappings:
+                        - target: flagship
+                          value: "$.ships.flagship"
+                          mappingSets: [ship-from-registry]
+                      outputParameters:
+                        flagship:
+                          type: object
+                          properties:
+                            imo: { type: string }
+                            specs:
+                              type: object
+                              properties:
+                                tonnage: { type: number }
+            """;
+
+    private static final String STEPS_INLINE = HEADER + """
+              exposes:
+                - type: mcp
+                  address: localhost
+                  port: 0
+                  namespace: fleet-mcp
+                  tools:
+                    get-flagship:
+                      description: "Get the flagship."
+                      steps:
+                        ships: { type: call, call: registry.list-ships }
+                      mappings:
+                        - target: flagship.imo
+                          value: "$.ships.flagship.imo_number"
+                        - target: flagship.specs.tonnage
+                          value: "$.ships.flagship.specs.gross_tonnage"
+                      outputParameters:
+                        flagship:
+                          type: object
+                          properties:
+                            imo: { type: string }
+                            specs:
+                              type: object
+                              properties:
+                                tonnage: { type: number }
+            """;
+
+    @Test
+    void toolsListShouldBeTheInlineEquivalentWhenStepMappingsUseMappingSets() throws Exception {
+        String withSets = toolsList(load(STEPS_WITH_SETS, null));
+        String inline = toolsList(load(STEPS_INLINE, null));
+
+        assertEquals(inline, withSets);
+    }
+
     @Test
     void capabilityShouldFailToLoadWhenADefinitionIsUnknown() {
         String yaml = WITH_DEFINITIONS.replace("inputParameterSets: [odata-list, tracing]",

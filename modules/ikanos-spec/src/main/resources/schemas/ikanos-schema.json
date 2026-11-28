@@ -668,7 +668,7 @@
     },
     "MappingSetNames": {
       "type": "array",
-      "description": "Names of mapping sets declared in the `definitions` of the same MCP adapter, REST adapter or aggregate, which bind the schema beside them (#1133). Their mappings merge by path, in order: a later set wins, and the output's own `mappings` win last. The merged mappings bind the schema exactly as `mappings` alone would.",
+      "description": "Names of mapping sets declared in the `definitions` of the same MCP adapter, REST adapter or aggregate, which bind the schema beside them in a mapped output (#1133), or whose paths a steps-mode `mappings` entry roots (#1150). Their mappings merge by path, in order: a later set wins, and the output's own `mappings` win last. Beside `schema:`, the merged mappings bind the schema exactly as `mappings` alone would; on a steps-mode `mappings` entry, the entry's `target` and `value` root their paths, and an explicit entry of the unit wins over an expanded one whose target is the same, an ancestor or a descendant of its own.",
       "items": {
         "$ref": "#/$defs/DefinitionName"
       },
@@ -2340,7 +2340,7 @@
             "$ref": "#/$defs/PathMappings"
           },
           "minProperties": 1,
-          "description": "Named mapping sets, keyed by set name, each the mappings by path of a schema, as `mappings` declares them beside `schema:` in a mapped (call-mode) output. Such an output lists the sets it uses with `mappingSets: [name]` beside `schema:`: their mappings merge by path, in order, a later set winning, and its own `mappings` win last. A set is not tied to one schema: its paths are checked against the schema of each use."
+          "description": "Named mapping sets, keyed by set name, each the mappings by path of a schema, as `mappings` declares them beside `schema:` in a mapped (call-mode) output. Such an output lists the sets it uses with `mappingSets: [name]` beside `schema:`: their mappings merge by path, in order, a later set winning, and its own `mappings` win last. A steps-mode `mappings` entry may list them too, with its `target` and `value` as the roots of their paths (#1150). A set is not tied to one schema: its paths are checked against the schema of each use."
         }
       },
       "minProperties": 1,
@@ -2388,7 +2388,7 @@
             "$ref": "#/$defs/PathMappings"
           },
           "minProperties": 1,
-          "description": "Named mapping sets, keyed by set name, each the mappings by path of a schema, as `mappings` declares them beside `schema:` in a mapped (call-mode) output. Such an output lists the sets it uses with `mappingSets: [name]` beside `schema:`: their mappings merge by path, in order, a later set winning, and its own `mappings` win last. A set is not tied to one schema: its paths are checked against the schema of each use."
+          "description": "Named mapping sets, keyed by set name, each the mappings by path of a schema, as `mappings` declares them beside `schema:` in a mapped (call-mode) output. Such an output lists the sets it uses with `mappingSets: [name]` beside `schema:`: their mappings merge by path, in order, a later set winning, and its own `mappings` win last. A steps-mode `mappings` entry may list them too, with its `target` and `value` as the roots of their paths (#1150). A set is not tied to one schema: its paths are checked against the schema of each use."
         }
       },
       "minProperties": 1,
@@ -2450,9 +2450,14 @@
         },
         "mappings": {
           "type": "array",
-          "description": "Maps step outputs to the resource content.",
+          "description": "Maps step outputs to the resource content. Mapping sets do not reach MCP resources: an entry takes no `mappingSets`.",
           "items": {
-            "$ref": "#/$defs/StepOutputMapping"
+            "$ref": "#/$defs/StepOutputMapping",
+                "not": {
+                  "required": [
+                    "mappingSets"
+                  ]
+                }
           }
         },
         "outputParameters": {
@@ -4201,7 +4206,7 @@
     },
     "StepOutputMapping": {
       "type": "object",
-      "description": "Describes how to map the output of an operation step to the input of another step or to the output of the exposed operation",
+      "description": "Describes how to map the output of an operation step to the input of another step or to the output of the exposed operation. With `mappingSets`, the entry roots the paths of mapping sets of the `definitions` instead (#1150): it expands at load time to one entry per leaf path of the merged sets, whose `target` is this `target` joined to the path and whose `value` is this `value` followed by the relative JSONPaths bound along the path. An explicit entry of the unit (one without `mappingSets`) wins over an expanded entry whose target is the same, an ancestor or a descendant of its own: an explicit `flagship` drops every entry expanded under `flagship`, and an explicit `flagship.specs.tonnage` drops an expanded `flagship.specs`, since the runtime sets each target whole. A path through array items (`[]`) is an error, since a steps-mode mapping sets each target whole, and when `target` names an output of the unit, every path must exist in it.\n\n**Example**:\n```yaml\nmappings:\n  - target: flagship\n    value: \"$.ships.flagship\"\n    mappingSets: [ship-from-registry]\n```",
       "properties": {
         "target": {
           "type": "string",
@@ -4210,7 +4215,10 @@
         },
         "value": {
           "type": "string",
-          "description": "A JsonPath reference to the value to map from. E.g. $.get-database.database_id"
+          "description": "A JsonPath reference to the value to map from. E.g. $.get-database.database_id. Beside `mappingSets`, the step output the sets' JSONPaths are relative to."
+        },
+        "mappingSets": {
+          "$ref": "#/$defs/MappingSetNames"
         }
       },
       "required": [

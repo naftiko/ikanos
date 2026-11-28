@@ -617,6 +617,40 @@ class DefinitionsSchemaValidationTest {
                 "[ship-from-registry, ship-from-registry]")));
     }
 
+    @Test
+    void validateShouldAcceptMappingSetsInAStepMapping() throws Exception {
+        List<Error> errors = schema.validate(mcp(MAPPING_SETS, """
+                get-fleet:
+                  description: "Get the fleet."
+                  steps:
+                    ships: { type: call, call: erp.list-ships }
+                  mappings:
+                    - target: flagship
+                      value: "$.ships.flagship"
+                      mappingSets: [ship-from-registry]
+                  outputParameters:
+                    flagship: { schema: ship }
+                """));
+
+        assertTrue(errors.isEmpty(), errors.toString());
+    }
+
+    @Test
+    void validateShouldRejectAStepMappingWithAnEmptyMappingSetList() throws Exception {
+        assertRejected(mcp(MAPPING_SETS, """
+                get-fleet:
+                  description: "Get the fleet."
+                  steps:
+                    ships: { type: call, call: erp.list-ships }
+                  mappings:
+                    - target: flagship
+                      value: "$.ships.flagship"
+                      mappingSets: []
+                  outputParameters:
+                    flagship: { schema: ship }
+                """));
+    }
+
     private static void assertRejected(JsonNode document) {
         List<Error> errors = schema.validate(document);
         assertFalse(errors.isEmpty(), "Expected the document to be rejected");

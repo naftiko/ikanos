@@ -60,6 +60,20 @@ capability:
             crew: "$.crew"
             crew[]: "$.member"
             crew[].fullName: "$.name"
+          crew-names:
+            crew: "$.crew"
+            crew[].fullName: "$.name"
+      resources:
+        flagship:
+          display: "Flagship"
+          description: "A resource whose step mappings list a mapping set."
+          uri: "data://flagship"
+          steps:
+            ships: { type: call, call: registry.list-ships }
+          mappings:
+            - target: flagship
+              value: "$.ships.flagship"
+              mappingSets: [ship-from-registry]
       tools:
         unknown-set:
           description: "Lists a mapping set the adapter does not declare."
@@ -128,6 +142,46 @@ capability:
           outputParameters:
             - schema: ship
               mappingSets: [1]
+        step-unknown-set:
+          description: "A step mapping that lists an undeclared mapping set."
+          steps:
+            ships: { type: call, call: registry.list-ships }
+          mappings:
+            - target: flagship
+              value: "$.ships.flagship"
+              mappingSets: [ship-from-erp]
+          outputParameters:
+            flagship: { schema: ship }
+        step-extra-path:
+          description: "A step mapping whose set has a path the output does not have."
+          steps:
+            ships: { type: call, call: registry.list-ships }
+          mappings:
+            - target: flagship
+              value: "$.ships.flagship"
+              mappingSets: [ship-with-owner]
+          outputParameters:
+            flagship: { schema: ship }
+        step-items:
+          description: "A step mapping whose set binds array items."
+          steps:
+            ships: { type: call, call: registry.list-ships }
+          mappings:
+            - target: flagship
+              value: "$.ships.flagship"
+              mappingSets: [crew-names]
+          outputParameters:
+            flagship: { type: object }
+        step-one-set-name:
+          description: "A step mapping that lists one unknown mapping set by name."
+          steps:
+            ships: { type: call, call: registry.list-ships }
+          mappings:
+            - target: flagship
+              value: "$.ships.flagship"
+              mappingSets: ship-from-nowhere
+          outputParameters:
+            flagship: { schema: ship }
     - type: rest
       port: 3001
       namespace: fleet-rest
