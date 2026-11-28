@@ -1,0 +1,116 @@
+---
+# MCP files extension example (experimental, draft `io.modelcontextprotocol/files`).
+#
+# The `files` block on the MCP adapter opts into the extension: `server/discover` advertises it,
+# and a `tools/call` that declares `download` in its client capabilities gets large files as
+# download targets in the result's `_meta`, with a text summary in `content`, instead of inline
+# base64. Without `files`, or for a client that does not declare `download`, results are unchanged.
+#
+#   - get-photo: a binary result above `inlineThreshold` is served once, for `ttl`, from a link
+#     on this adapter (`credentials: include`, authenticated like the MCP endpoint).
+#   - export-orders: the consumed API already returns a presigned URL; `download` names the
+#     output properties that describe the file, returned with `credentials: omit`.
+#
+# Limits of hosted links:
+#   - a link is served only by the replica that issued it: give replicas session affinity;
+#   - files wait in one bounded in-memory store per process (at most 1/8 of the heap and
+#     256 MiB, a quarter of it per caller); a result that does not fit is returned inline;
+#   - a client resends only the `Authorization` header and the query string of the MCP address,
+#     so links work with no authentication, bearer, basic, oauth2 or a query apikey; behind a
+#     header apikey or digest, binary results stay inline.
+ikanos: "1.0.0-beta11"
+
+info:
+  display: "Photo library and exports (MCP files example)"
+  description: >
+    Return large photos and order exports to MCP clients as download targets rather than inline
+    bytes, through the experimental MCP files extension.
+  tags:
+    - files
+    - binary
+    - example
+
+capability:
+  consumes:
+    - type: "http"
+      namespace: "photo-library"
+      description: "Upstream photo library API serving original-resolution image bytes."
+      baseUri: "https://photos.example.org"
+      resources:
+        photos:
+          description: "Photo binary resource."
+          path: "/photos/{{id}}/binary"
+          operations:
+            download-photo:
+              method: "GET"
+              description: "Download the original-resolution bytes of a photo by id."
+              outputRawFormat: "binary"
+              outputMediaType: "image/jpeg"
+    - type: "http"
+      namespace: "exports"
+      description: "Upstream export API that writes files to object storage."
+      baseUri: "https://exports.example.org"
+      resources:
+        order-exports:
+          description: "Order export resource."
+          path: "/exports/orders/{{quarter}}"
+          operations:
+            export-orders:
+              method: "POST"
+              description: "Export the orders of a quarter as CSV and return a presigned URL."
+
+  exposes:
+    - type: "mcp"
+      address: "0.0.0.0"
+      port: 8765
+      namespace: "photos-mcp"
+      description: "Photo library MCP server that returns large files as download targets."
+      maxBinarySize: "25MiB"
+      files:
+        downloads:
+          inlineThreshold: "1MiB"
+          ttl: "PT5M"
+      tools:
+        get-photo:
+          description: "Download the original-resolution bytes of a photo by id."
+          hints:
+            readOnly: true
+          inputParameters:
+            id:
+              type: "string"
+              required: true
+              description: "Photo identifier."
+          call: "photo-library.download-photo"
+          with:
+            id: "{{id}}"
+        export-orders:
+          description: "Export the orders of a quarter as a CSV file."
+          inputParameters:
+            quarter:
+              type: "string"
+              required: true
+              description: "Quarter to export, such as 2026-Q3."
+          call: "exports.export-orders"
+          with:
+            quarter: "{{quarter}}"
+          outputParameters:
+            - type: "object"
+              mapping: "$"
+              properties:
+                url:
+                  type: "string"
+                  mapping: "$.signedUrl"
+                size:
+                  type: "number"
+                  mapping: "$.contentLength"
+                file-name:
+                  type: "string"
+                  mapping: "$.fileName"
+                expires-at:
+                  type: "string"
+                  mapping: "$.expiresAt"
+          download:
+            url: "url"
+            size: "size"
+            name: "file-name"
+            expiresAt: "expires-at"

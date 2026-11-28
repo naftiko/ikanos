@@ -55,6 +55,12 @@ public class ServerDataAppender implements DispatchPostProcessor {
                     buildJsonRpcError(null, INTERNAL_ERROR.getCode(), "Internal error: expected a result tag"));
         }
 
-        result.set("_meta", serverInfo);
+        // Keep what the result already carries in _meta, such as download targets (files
+        // extension); a copy, so that no response shares, or changes, the server info node
+        if (result.get("_meta") instanceof ObjectNode meta) {
+            meta.setAll((ObjectNode) serverInfo.deepCopy());
+        } else {
+            result.set("_meta", serverInfo.deepCopy());
+        }
     }
 }

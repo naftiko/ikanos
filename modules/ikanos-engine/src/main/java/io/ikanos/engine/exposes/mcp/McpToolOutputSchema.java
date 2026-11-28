@@ -102,6 +102,11 @@ final class McpToolOutputSchema {
         if (tool == null) {
             return null;
         }
+        // A tool whose result can be a download target (files extension) has no structured
+        // content to promise
+        if (tool.getDownload() != null) {
+            return null;
+        }
 
         if (tool.getRef() != null) {
             if (capability == null) {

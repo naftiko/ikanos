@@ -72,6 +72,10 @@ public class McpServerSpec extends ServerSpec {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private final AtomicReference<McpToolSearchSpec> toolSearch = new AtomicReference<>();
 
+    /** The MCP files extension (experimental): absent means the extension is not advertised. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private final AtomicReference<McpFilesSpec> files = new AtomicReference<>();
+
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonDeserialize(using = McpServerToolMapDeserializer.class)
     private final Map<String, McpServerToolSpec> tools =
@@ -205,6 +209,18 @@ public class McpServerSpec extends ServerSpec {
 
     public void setToolSearch(McpToolSearchSpec toolSearch) {
         this.toolSearch.set(toolSearch);
+    }
+
+    /**
+     * @return the MCP files extension settings (experimental), or {@code null} when the adapter
+     *         does not opt into the extension
+     */
+    public McpFilesSpec getFiles() {
+        return files.get();
+    }
+
+    public void setFiles(McpFilesSpec files) {
+        this.files.set(files);
     }
 
     /**

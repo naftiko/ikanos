@@ -66,4 +66,18 @@ class ServerDataAppenderTest {
         assertThat(response.path("result").path("_meta").path("io.modelcontextprotocol/serverInfo")
                 .path("version").asString()).isEqualTo("1.0.0");
     }
+
+    @Test
+    void applyShouldKeepTheMetaTheResultAlreadyCarries() throws ProcessorException {
+        ObjectNode response = mapper.createObjectNode();
+        response.putObject("result").putObject("_meta")
+                .putObject("io.modelcontextprotocol/files").putArray("downloads");
+
+        processor.apply(response);
+
+        ObjectNode meta = (ObjectNode) response.path("result").path("_meta");
+        assertThat(meta.has("io.modelcontextprotocol/files")).isTrue();
+        assertThat(meta.path("io.modelcontextprotocol/serverInfo").path("name").asString())
+                .isEqualTo("ikanos");
+    }
 }

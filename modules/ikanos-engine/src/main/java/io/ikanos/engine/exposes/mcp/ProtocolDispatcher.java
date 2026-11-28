@@ -109,6 +109,20 @@ public class ProtocolDispatcher {
         return versions;
     }
 
+    /** @return the adapter this dispatcher serves */
+    McpServerAdapter getAdapter() {
+        return adapter;
+    }
+
+    /**
+     * The principal of an HTTP request, as {@link #dispatchWithTracing} binds state to it: what a
+     * hosted download link checks before it serves its file.
+     */
+    String ownerOf(Request httpRequest) {
+        return AgentIdentityResolver.ownerOf(namespace, httpRequest,
+                identityResolver.resolve(httpRequest));
+    }
+
     /** @return the resolver for this adapter's {@code trust} block. */
     AgentIdentityResolver getIdentityResolver() {
         return identityResolver;

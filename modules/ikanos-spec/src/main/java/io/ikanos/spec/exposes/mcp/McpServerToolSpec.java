@@ -62,6 +62,7 @@ public class McpServerToolSpec {
     private final AtomicReference<Map<String, Object>> with = new AtomicReference<>();
     private final AtomicReference<McpToolHintsSpec> hints = new AtomicReference<>();
     private final AtomicReference<McpToolUiSpec> ui = new AtomicReference<>();
+    private final AtomicReference<McpToolDownloadSpec> download = new AtomicReference<>();
     private final AtomicReference<AuthorizationSpec> authorization = new AtomicReference<>();
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
@@ -220,6 +221,14 @@ public class McpServerToolSpec {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public McpToolUiSpec getUi() { return ui.get(); }
     public void setUi(McpToolUiSpec ui) { this.ui.set(ui); }
+
+    /**
+     * @return the output properties that describe a file the consumed API serves (experimental
+     *         MCP files extension), or {@code null}
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public McpToolDownloadSpec getDownload() { return download.get(); }
+    public void setDownload(McpToolDownloadSpec download) { this.download.set(download); }
 
     /**
      * @return the scopes or claims a call must carry ({@code authorization}), or {@code null} when

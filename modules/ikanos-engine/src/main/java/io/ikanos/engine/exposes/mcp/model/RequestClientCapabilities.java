@@ -13,6 +13,7 @@
  */
 package io.ikanos.engine.exposes.mcp.model;
 
+import io.ikanos.engine.exposes.mcp.files.McpFiles;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.MissingNode;
 
@@ -56,6 +57,19 @@ public final class RequestClientCapabilities {
     /** Whether the request declares the tasks extension. */
     public boolean supportsTasks() {
         return hasExtension(TASKS_EXTENSION);
+    }
+
+    /**
+     * Whether the request declares {@code download} in the files extension: the client accepts
+     * download targets in the result.
+     */
+    public boolean acceptsDownloads() {
+        return McpFiles.declares(capabilities.path("extensions"), McpFiles.DOWNLOAD);
+    }
+
+    /** Whether the request declares {@code upload} in the files extension. */
+    public boolean acceptsUploads() {
+        return McpFiles.declares(capabilities.path("extensions"), McpFiles.UPLOAD);
     }
 
     /** Whether the request declares that the client can answer elicitation requests. */
