@@ -129,8 +129,8 @@ public final class StepGuardValidator {
             if (container.declaresOutcome()) {
                 findings.errors().add(reserved("An input or a 'with' key", container.where()));
             }
-            visit(container.steps(), new HashSet<>(container.names()), container.where(), 0,
-                    Set.of(), false, findings);
+            visit(container.steps(), new HashSet<>(container.names()), new HashSet<>(),
+                    container.where(), 0, Set.of(), false, findings);
         }
         return findings;
     }
@@ -139,12 +139,14 @@ public final class StepGuardValidator {
      * Checks a step list.
      *
      * @param visible what its first step can read: inputs, {@code with} values, earlier steps
+     * @param outcomes the earlier steps and tracks whose outcome it can read: only a call step
+     *     or a track records one
      * @param depth how many tracks and sequences hold this list
      * @param siblings in a track, the names of the other tracks of its group; empty otherwise
      * @param inTrack whether the list is, or is inside, a track of a parallel step
      */
     private static void visit(Map<String, OperationStepSpec> steps, Set<String> visible,
-            String where, int depth, Set<String> siblings, boolean inTrack, Findings findings) {
+            Set<String> outcomes, String where, int depth, Set<String> siblings, boolean inTrack, Findings findings) {
         List<String> errors = findings.errors();
         List<String> warnings = findings.warnings();
         String endedBy = null;
@@ -177,7 +179,7 @@ public final class StepGuardValidator {
                         + " inside a parallel track, where questions are not supported. Ask"
                         + " before the parallel step.");
             }
-            checkGuards(step, visible, where, siblings, findings);
+            checkGuards(step, visible, outcomes, where, siblings, findings);
             checkSiblingReads(step, where, siblings, findings);
             if (step instanceof OperationStepParallelSpec parallel) {
                 for (String track : parallel.getTracks().keySet()) {
@@ -189,17 +191,21 @@ public final class StepGuardValidator {
                                 + " under its name. Rename one.");
                     }
                 }
-                visitTracks(parallel, steps.keySet(), visible, where, depth, findings);
+                visitTracks(parallel, steps.keySet(), visible, outcomes, where, depth, findings);
             }
             if (step instanceof OperationStepEndSpec && step.getOnlyIf() == null) {
                 endedBy = step.getName();
             }
             addName(visible, step.getName());
+            if (step instanceof OperationStepCallSpec) {
+                addName(outcomes, step.getName());
+            }
         }
     }
 
     private static void visitTracks(OperationStepParallelSpec parallel, Set<String> stepNames,
-            Set<String> visible, String where, int depth, Findings findings) {
+            Set<String> visible, Set<String> outcomes, String where, int depth,
+            Findings findings) {
         Map<String, OperationStepSpec> tracks = parallel.getTracks();
         String inner = where + ", parallel step '" + parallel.getName() + "'";
         for (Map.Entry<String, OperationStepSpec> track : tracks.entrySet()) {
@@ -212,6 +218,7 @@ public final class StepGuardValidator {
             Set<String> others = new HashSet<>(tracks.keySet());
             others.remove(name);
             Set<String> trackVisible = new HashSet<>(visible);
+            Set<String> trackOutcomes = new HashSet<>(outcomes);
             // One level per parallel step: a sequence track is the track's body, not a level
             int trackDepth = depth + 1;
             if (trackDepth > MAX_NESTING) {
@@ -221,24 +228,29 @@ public final class StepGuardValidator {
             }
             if (track.getValue() instanceof OperationStepSequenceSpec sequence) {
                 // The sequence's own guard, evaluated before its steps run
-                checkGuards(sequence, trackVisible, inner, others, findings);
-                visit(sequence.getSteps(), trackVisible, inner + ", track '" + name + "'",
+                checkGuards(sequence, trackVisible, trackOutcomes, inner, others, findings);
+                visit(sequence.getSteps(), trackVisible, trackOutcomes, inner + ", track '" + name + "'",
                         trackDepth, others, true, findings);
             } else {
                 Map<String, OperationStepSpec> one = new java.util.LinkedHashMap<>();
                 one.put(name, track.getValue());
-                visit(one, trackVisible, inner, trackDepth, others, true, findings);
+                visit(one, trackVisible, trackOutcomes, inner, trackDepth, others, true, findings);
             }
         }
         // The steps after the group read each track under its name.
-        tracks.keySet().forEach(name -> addName(visible, name));
+        tracks.keySet().forEach(name -> {
+            addName(visible, name);
+            addName(outcomes, name);
+        });
     }
 
-    private static void checkGuards(OperationStepSpec step, Set<String> visible, String where,
-            Set<String> siblings, Findings findings) {
+    private static void checkGuards(OperationStepSpec step, Set<String> visible,
+            Set<String> outcomes, String where, Set<String> siblings, Findings findings) {
         // A step's success criteria see its own outcome and output.
         Set<String> own = new HashSet<>(visible);
         addName(own, step.getName());
+        Set<String> ownOutcomes = new HashSet<>(outcomes);
+        addName(ownOutcomes, step.getName());
         for (Guard guard : guardsOf(step, where)) {
             String error = StepGuard.parseError(guard.expression());
             if (error != null) {
@@ -256,7 +268,7 @@ public final class StepGuardValidator {
                     findings.errors().add(guard.label() + " reads the outcome of track '"
                             + outcomeOf + "', which runs at the same time: a track sees only the"
                             + " steps before its parallel step.");
-                } else if (!(criterion ? own : visible).contains(outcomeOf)) {
+                } else if (!(criterion ? ownOutcomes : outcomes).contains(outcomeOf)) {
                     findings.warnings().add(guard.label() + " reads the outcome of '" + outcomeOf
                             + "', which no earlier step has: "
                             + (criterion ? "it never holds." : "the step will always be"
