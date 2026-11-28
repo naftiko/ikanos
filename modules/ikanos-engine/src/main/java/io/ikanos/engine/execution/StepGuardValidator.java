@@ -36,6 +36,7 @@ import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.util.OperationStepCallSpec;
 import io.ikanos.spec.util.OperationStepElicitSpec;
 import io.ikanos.spec.util.OperationStepEndSpec;
+import io.ikanos.spec.util.OperationStepForEachSpec;
 import io.ikanos.spec.util.OperationStepParallelSpec;
 import io.ikanos.spec.util.OperationStepSequenceSpec;
 import io.ikanos.spec.util.OperationStepSpec;
@@ -103,7 +104,7 @@ public final class StepGuardValidator {
     static final int MAX_NESTING = 3;
 
     /** What a walk of the steps finds. */
-    private record Findings(List<String> errors, List<String> warnings) {
+    private record Findings(List<String> errors, List<String> warnings, Set<String> declared) {
     }
 
     /**
@@ -124,8 +125,11 @@ public final class StepGuardValidator {
     }
 
     private static Findings walk(IkanosSpec spec) {
-        Findings findings = new Findings(new ArrayList<>(), new ArrayList<>());
+        Findings findings = new Findings(new ArrayList<>(), new ArrayList<>(), new HashSet<>());
         for (Container container : containers(spec)) {
+            // The names no step produces: inputs, 'with' values, the roots, the items of loops
+            findings.declared().clear();
+            findings.declared().addAll(container.names());
             if (container.declaresOutcome()) {
                 findings.errors().add(reserved("An input or a 'with' key", container.where()));
             }
@@ -165,17 +169,18 @@ public final class StepGuardValidator {
             // of a list: a sequence met here is misplaced, and would never run.
             if (step instanceof OperationStepSequenceSpec) {
                 errors.add("Step '" + step.getName() + "' in " + where + " is a sequence, which"
-                        + " is only allowed as a track of a parallel step.");
+                        + " is only allowed as a track of a parallel step or as the do of a"
+                        + " forEach step.");
             }
             if (step instanceof OperationStepEndSpec && inTrack) {
                 errors.add("Step '" + step.getName() + "' in " + where + " ends the flow from"
                         + " inside a parallel track, where it would end only its track. End the"
                         + " flow after the parallel step.");
             }
-            if (step instanceof OperationStepElicitSpec && inTrack) {
+            if (step instanceof OperationStepElicitSpec && depth > 0) {
                 errors.add("Step '" + step.getName() + "' in " + where + " asks the caller from"
-                        + " inside a parallel track, where questions are not supported. Ask"
-                        + " before the parallel step.");
+                        + " inside a parallel track or a forEach step, where questions are not"
+                        + " supported. Ask before that step.");
             }
             checkGuards(step, visible, where, siblings, findings);
             checkSiblingReads(step, where, siblings, findings);
@@ -191,11 +196,114 @@ public final class StepGuardValidator {
                 }
                 visitTracks(parallel, steps.keySet(), visible, where, depth, findings);
             }
+            if (step instanceof OperationStepForEachSpec forEach) {
+                visitForEach(forEach, visible, where, depth, siblings, inTrack, findings);
+            }
             if (step instanceof OperationStepEndSpec && step.getOnlyIf() == null) {
                 endedBy = step.getName();
             }
             addName(visible, step.getName());
         }
+    }
+
+    /**
+     * Checks a {@code forEach} step: its {@code items} and {@code limit} are read like guards,
+     * and its {@code do} sees the steps before it and the current item.
+     */
+    private static void visitForEach(OperationStepForEachSpec forEach, Set<String> visible,
+            String where, int depth, Set<String> siblings, boolean inTrack,
+            Findings findings) {
+        String label = "The items of step '" + forEach.getName() + "' in " + where;
+        String error = StepGuard.parseError(forEach.getItems());
+        if (error != null) {
+            findings.errors().add(label + " is not a valid CEL expression: " + error);
+        } else {
+            Set<String> explained = warnDashedNames(label, forEach.getItems(), visible,
+                    findings.warnings());
+            for (String name : StepGuard.referencedNames(forEach.getItems())) {
+                if (explained.contains(name)) {
+                    continue;
+                }
+                if (readsSibling(name, siblings)) {
+                    findings.errors().add(label + " reads track '" + name + "', which runs at"
+                            + " the same time: a track sees only the steps before its parallel"
+                            + " step.");
+                } else if (!visible.contains(name)) {
+                    findings.warnings().add(label + " reads '" + name + "', which no input,"
+                            + " 'with' value or earlier step provides: the step runs over no"
+                            + " item.");
+                }
+            }
+            // A step's output, at any level: an earlier step, a track, a step of an enclosing
+            // list; not an input, a 'with' value or a loop's item.
+            boolean overAStep = StepGuard.referencedNames(forEach.getItems()).stream()
+                    .anyMatch(name -> visible.contains(name)
+                            && !findings.declared().contains(name));
+            if (overAStep && forEach.getLimit() == null) {
+                findings.warnings().add("Step '" + forEach.getName() + "' in " + where
+                        + " runs over the result of a step with no limit: a long list makes the"
+                        + " call slow. Set 'limit', or bind it to an input.");
+            }
+        }
+        if (forEach.getLimit() instanceof String limit && !limit.isBlank()) {
+            String limitLabel = "The limit of step '" + forEach.getName() + "' in " + where;
+            String limitError = StepGuard.parseError(limit);
+            if (limitError != null) {
+                findings.errors().add(limitLabel + " is not a valid CEL expression: " + limitError);
+            }
+            Set<String> explained = limitError != null ? Set.of()
+                    : warnDashedNames(limitLabel, limit, visible, findings.warnings());
+            for (String name : StepGuard.referencedNames(limit)) {
+                if (explained.contains(name)) {
+                    continue;
+                }
+                if (readsSibling(name, siblings)) {
+                    findings.errors().add(limitLabel + " reads track '" + name + "', which runs"
+                            + " at the same time: a track sees only the steps before its parallel"
+                            + " step.");
+                } else if (!visible.contains(name)) {
+                    findings.warnings().add("The limit of step '" + forEach.getName() + "' in "
+                            + where + " reads '" + name + "', which no input, 'with' value or"
+                            + " earlier step provides: every item runs.");
+                }
+            }
+        }
+        OperationStepSpec body = forEach.getDo();
+        if (body == null) {
+            return;
+        }
+        String inner = where + ", forEach step '" + forEach.getName() + "'";
+        // An iteration has no early exit: an end would end only the current item's run
+        for (OperationStepSpec bodyStep : ParallelTracks.stepsOf(body.getName(), body).values()) {
+            if (bodyStep instanceof OperationStepEndSpec) {
+                findings.errors().add("Step '" + bodyStep.getName() + "' in " + inner + " ends"
+                        + " the flow from inside a do, where it would end only the current item."
+                        + " End the flow after the forEach step.");
+            }
+        }
+        // One level per forEach step: a sequence do is the body, not a level
+        int bodyDepth = depth + 1;
+        if (bodyDepth > MAX_NESTING) {
+            findings.warnings().add("The do of step '" + forEach.getName() + "' in " + where
+                    + " is nested more than " + MAX_NESTING + " levels deep (parallel and"
+                    + " forEach steps), which makes the flow hard to read and to trace.");
+        }
+        String item = forEach.itemName();
+        if (StepOutcomes.ROOT.equals(item) || Resolver.CALLER_ROOT.equals(item)) {
+            findings.errors().add("Step '" + forEach.getName() + "' in " + where + " names its"
+                    + " item '" + item + "', which is reserved (" + StepOutcomes.ROOT
+                    + ".<step> for the outcomes, " + Resolver.CALLER_ROOT + " for the caller's"
+                    + " claims). Choose another 'as'.");
+        }
+        Set<String> bodyVisible = new HashSet<>(visible);
+        addName(bodyVisible, item);
+        addName(findings.declared(), item);
+        if (body instanceof OperationStepSequenceSpec) {
+            // The sequence's own guard, evaluated for each item before its steps run
+            checkGuards(body, bodyVisible, inner, siblings, findings);
+        }
+        visit(ParallelTracks.stepsOf(body.getName(), body), bodyVisible, inner, bodyDepth,
+                siblings, inTrack, findings);
     }
 
     private static void visitTracks(OperationStepParallelSpec parallel, Set<String> stepNames,
@@ -216,8 +324,8 @@ public final class StepGuardValidator {
             int trackDepth = depth + 1;
             if (trackDepth > MAX_NESTING) {
                 findings.warnings().add("Track '" + name + "' of " + inner + " is nested more"
-                        + " than " + MAX_NESTING + " levels deep (parallel steps), which makes"
-                        + " the flow hard to read and to trace.");
+                        + " than " + MAX_NESTING + " levels deep (parallel and forEach steps),"
+                        + " which makes the flow hard to read and to trace.");
             }
             if (track.getValue() instanceof OperationStepSequenceSpec sequence) {
                 // The sequence's own guard, evaluated before its steps run
@@ -263,16 +371,8 @@ public final class StepGuardValidator {
                                     + " skipped."));
                 }
             }
-            Set<String> explained = new HashSet<>();
-            for (List<String> parts : StepGuard.subtractedNames(guard.expression())) {
-                String dashed = String.join("-", parts);
-                if ((criterion ? own : visible).contains(dashed)) {
-                    findings.warnings().add(guard.label() + " reads '" + String.join(" - ", parts)
-                            + "', a subtraction: CEL reads '-' as minus. To read '"
-                            + dashed + "', write '" + String.join("_", parts) + "'.");
-                    explained.addAll(parts);
-                }
-            }
+            Set<String> explained = warnDashedNames(guard.label(), guard.expression(),
+                    criterion ? own : visible, findings.warnings());
             for (String name : StepGuard.referencedNames(guard.expression())) {
                 if (readsSibling(name, siblings)) {
                     findings.errors().add(guard.label() + " reads track '" + name
@@ -340,6 +440,28 @@ public final class StepGuardValidator {
                         .matcher(value).find()
                 || Pattern.compile("^\\s*\\$\\." + quoted + "(\\.|\\[|\\s*$)").matcher(value)
                         .find();
+    }
+
+    /**
+     * Warns about each subtraction of names in a CEL expression that, joined by {@code -}, name
+     * something visible ({@code get-ship.count} when a step is named {@code get-ship}): CEL reads
+     * the dash as minus, and the name is written {@code get_ship}.
+     *
+     * @return the names those subtractions explain, not to be reported again as unknown
+     */
+    static Set<String> warnDashedNames(String label, String expression, Set<String> visible,
+            List<String> warnings) {
+        Set<String> explained = new HashSet<>();
+        for (List<String> parts : StepGuard.subtractedNames(expression)) {
+            String dashed = String.join("-", parts);
+            if (visible.contains(dashed)) {
+                warnings.add(label + " reads '" + String.join(" - ", parts) + "', a subtraction:"
+                        + " CEL reads '-' as minus. To read '" + dashed + "', write '"
+                        + String.join("_", parts) + "'.");
+                explained.addAll(parts);
+            }
+        }
+        return explained;
     }
 
     private static boolean readsSibling(String name, Set<String> siblings) {

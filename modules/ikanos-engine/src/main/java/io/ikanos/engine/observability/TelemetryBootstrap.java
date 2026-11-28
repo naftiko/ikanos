@@ -77,6 +77,8 @@ public class TelemetryBootstrap {
     public static final AttributeKey<Long> ATTR_STEP_INDEX = AttributeKey.longKey("ikanos.step.index");
     public static final AttributeKey<String> ATTR_STEP_CALL = AttributeKey.stringKey("ikanos.step.call");
     public static final AttributeKey<String> ATTR_STEP_NAME = AttributeKey.stringKey("ikanos.step.name");
+    public static final AttributeKey<Long> ATTR_STEP_ITEMS = AttributeKey.longKey("ikanos.step.items");
+    public static final AttributeKey<Long> ATTR_STEP_ITEM = AttributeKey.longKey("ikanos.step.item");
     public static final AttributeKey<String> ATTR_STEP_MATCH = AttributeKey.stringKey("ikanos.step.match");
     public static final AttributeKey<String> ATTR_STEP_SCRIPT_FILE = AttributeKey.stringKey("ikanos.step.script.file");
     public static final AttributeKey<String> ATTR_STEP_SCRIPT_LANGUAGE = AttributeKey.stringKey("ikanos.step.script.language");
@@ -383,6 +385,26 @@ public class TelemetryBootstrap {
             .setSpanKind(SpanKind.INTERNAL);
         setLongAttribute(builder, ATTR_STEP_INDEX, stepIndex);
         setStringAttribute(builder, ATTR_STEP_NAME, name != null ? name : "unknown");
+        return builder.startSpan();
+    }
+
+    /** Start an INTERNAL span for a {@code forEach} step, the parent of its item spans. */
+    public Span startStepForEachSpan(int stepIndex, String name, int items) {
+        if (!enabled) return Span.getInvalid();
+        SpanBuilder builder = tracer.spanBuilder("step.forEach")
+            .setSpanKind(SpanKind.INTERNAL);
+        setLongAttribute(builder, ATTR_STEP_INDEX, stepIndex);
+        setStringAttribute(builder, ATTR_STEP_NAME, name != null ? name : "unknown");
+        setLongAttribute(builder, ATTR_STEP_ITEMS, items);
+        return builder.startSpan();
+    }
+
+    /** Start an INTERNAL span for one item of a {@code forEach} step. */
+    public Span startStepItemSpan(int item) {
+        if (!enabled) return Span.getInvalid();
+        SpanBuilder builder = tracer.spanBuilder("step.item")
+            .setSpanKind(SpanKind.INTERNAL);
+        setLongAttribute(builder, ATTR_STEP_ITEM, item);
         return builder.startSpan();
     }
 

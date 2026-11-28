@@ -132,6 +132,9 @@ function stepCalls(steps, calls) {
     }
     stepCalls(step.tracks, calls);
     stepCalls(step.steps, calls);
+    if (isObject(step.do)) {
+      stepCalls([step.do], calls);
+    }
   }
 }
 

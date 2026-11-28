@@ -155,6 +155,196 @@ public class StepGuardValidatorTest {
     }
 
     @Test
+    void findWarningsShouldLetADoReadItsItemAndTheStepsBeforeIt() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow("""
+                - name: merged
+                  type: call
+                  what: github.list-merged
+                - name: issues
+                  type: forEach
+                  items: merged
+                  as: pr
+                  limit: 50
+                  do:
+                    type: call
+                    what: github.get-issue
+                    onlyIf: "pr.number > 0 && order != null"
+                """));
+
+        assertTrue(warnings.isEmpty(), warnings.toString());
+    }
+
+    @Test
+    void findErrorsShouldHintAtADashedNameInItemsThatDoesNotCompile() {
+        List<String> errors = StepGuardValidator.findErrors(flow("""
+                - name: list-merged
+                  type: call
+                  what: github.list-merged
+                - name: issues
+                  type: forEach
+                  items: "list-merged.filter(pr, pr.closed)"
+                  limit: 50
+                  do:
+                    type: call
+                    what: github.get-issue
+                """));
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).startsWith("The items of step 'issues'")
+                && errors.get(0).endsWith("write it 'list_merged'"), errors.get(0));
+    }
+
+    @Test
+    void findWarningsShouldReportADashedNameReadAsASubtractionInALimit() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow("""
+                - name: page-size
+                  type: call
+                  what: github.page-size
+                - name: lines
+                  type: forEach
+                  items: order.lines
+                  limit: "page-size + 1"
+                  do:
+                    type: call
+                    what: shop.check-line
+                """));
+
+        assertEquals(1, warnings.size(), warnings.toString());
+        assertTrue(warnings.get(0).startsWith("The limit of step 'lines'")
+                && warnings.get(0).contains("write 'page_size'"), warnings.get(0));
+    }
+
+    @Test
+    void findErrorsShouldCheckTheGuardOfASequenceDo() {
+        List<String> errors = StepGuardValidator.findErrors(flow("""
+                - name: lines
+                  type: forEach
+                  items: order.lines
+                  do:
+                    type: sequence
+                    onlyIf: "item.qty =="
+                    steps:
+                      - name: check
+                        type: call
+                        what: shop.check-line
+                """));
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).contains("not a valid CEL expression"), errors.get(0));
+    }
+
+    @Test
+    void findWarningsShouldReportAForEachOverAStepWithNoLimit() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow("""
+                - name: merged
+                  type: call
+                  what: github.list-merged
+                - name: issues
+                  type: forEach
+                  items: merged
+                  do:
+                    type: call
+                    what: github.get-issue
+                """));
+
+        assertEquals(1, warnings.size(), warnings.toString());
+        assertTrue(warnings.get(0).contains("with no limit"), warnings.get(0));
+    }
+
+    @Test
+    void findWarningsShouldReportAForEachOverATrackWithNoLimit() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow("""
+                - name: gather
+                  type: parallel
+                  tracks:
+                    - name: merged
+                      type: call
+                      what: github.list-merged
+                    - name: other
+                      type: call
+                      what: github.list-other
+                - name: issues
+                  type: forEach
+                  items: merged
+                  do:
+                    type: call
+                    what: github.get-issue
+                """));
+
+        assertEquals(1, warnings.size(), warnings.toString());
+        assertTrue(warnings.get(0).contains("with no limit"), warnings.get(0));
+    }
+
+    private static List<String> forEachErrors(String as, String limit) {
+        return StepGuardValidator.findErrors(flow("""
+                - name: lines
+                  type: forEach
+                  items: order.lines
+                  as: %s
+                  limit: "%s"
+                  do:
+                    type: call
+                    what: shop.check-line
+                """.formatted(as, limit)));
+    }
+
+    @Test
+    void findErrorsShouldReportAnItemNamedOutcome() {
+        List<String> errors = forEachErrors("outcome", "50");
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).contains("item 'outcome'"), errors.get(0));
+    }
+
+    @Test
+    void findErrorsShouldReportAnItemNamedAuth() {
+        List<String> errors = forEachErrors("auth", "50");
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).contains("item 'auth'"), errors.get(0));
+    }
+
+    @Test
+    void findErrorsShouldReportALimitThatDoesNotParse() {
+        List<String> errors = forEachErrors("line", "max +");
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).startsWith("The limit of step 'lines'"), errors.get(0));
+    }
+
+    @Test
+    void findWarningsShouldNotAskForALimitOverAnInput() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow("""
+                - name: lines
+                  type: forEach
+                  items: order.lines
+                  do:
+                    type: call
+                    what: shop.check-line
+                """));
+
+        assertTrue(warnings.isEmpty(), warnings.toString());
+    }
+
+    @Test
+    void findErrorsShouldReportItemsThatDoNotParseAndAQuestionInADo() {
+        List<String> errors = StepGuardValidator.findErrors(flow("""
+                - name: lines
+                  type: forEach
+                  items: "order.lines.filter("
+                  do:
+                    type: elicit
+                    fields:
+                      ok:
+                        type: boolean
+                """));
+
+        assertEquals(2, errors.size(), errors.toString());
+        assertTrue(errors.get(0).startsWith("The items of step 'lines'"), errors.get(0));
+        assertTrue(errors.get(1).contains("forEach step"), errors.get(1));
+    }
+
+    @Test
     void findErrorsShouldReportASequenceInsideASequence() {
         List<String> errors = StepGuardValidator.findErrors(flow("""
                 - name: gather
@@ -587,5 +777,75 @@ public class StepGuardValidatorTest {
         assertEquals(1, errors.size(), errors.toString());
         assertTrue(errors.get(0).contains("has the name of a track of parallel step 'first'"),
                 errors.get(0));
+    }
+
+    @Test
+    void findErrorsShouldReportAnEndInsideADo() {
+        List<String> errors = StepGuardValidator.findErrors(flow("""
+                - name: issues
+                  type: forEach
+                  items: order.lines
+                  do:
+                    type: sequence
+                    steps:
+                      - name: a
+                        type: call
+                        what: shop.a
+                      - name: stop
+                        type: end
+                """));
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).contains("ends the flow from inside a do"), errors.get(0));
+    }
+
+    /**
+     * A parallel step whose track holds a forEach whose sequence do holds another forEach:
+     * three constructs, the most the memo allows.
+     */
+    private static final String THREE_LEVELS = """
+            - name: group
+              type: parallel
+              tracks:
+                - name: lines
+                  type: forEach
+                  items: order.lines
+                  as: line
+                  limit: 10
+                  do:
+                    type: sequence
+                    steps:
+                      - name: parts
+                        type: forEach
+                        items: line.parts
+                        as: part
+                        limit: 10
+                        do:
+                          type: call
+                          what: shop.check-part
+                - name: other
+                  type: call
+                  what: shop.other
+            """;
+
+    @Test
+    void findWarningsShouldAcceptAForEachInAForEachInAParallelStep() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow(THREE_LEVELS));
+
+        assertTrue(warnings.stream().noneMatch(w -> w.contains("levels deep")),
+                warnings.toString());
+    }
+
+    @Test
+    void findWarningsShouldReportAForEachDoPastThreeLevels() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow(THREE_LEVELS.replace(
+                "              type: call\n              what: shop.check-part\n",
+                "              type: forEach\n              items: part.screws\n"
+                        + "              as: screw\n              limit: 10\n"
+                        + "              do:\n                type: call\n"
+                        + "                what: shop.check-screw\n")));
+
+        assertTrue(warnings.stream().anyMatch(w -> w.contains("more than 3 levels")),
+                warnings.toString());
     }
 }
