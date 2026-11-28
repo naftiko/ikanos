@@ -267,4 +267,16 @@ public abstract class ClientAdapter extends Adapter {
         return true;
     }
 
+    /**
+     * Whether calling an operation may write upstream, so that an exposed entry advertised as
+     * read-only must not reach it. {@code false} by default: only adapters that know which
+     * operations write (SQL, and the contract-described adapters) answer {@code true}.
+     *
+     * @param operationName the operation's call name
+     * @return whether the operation writes
+     */
+    public boolean isWriteOperation(String operationName) {
+        return false;
+    }
+
 }

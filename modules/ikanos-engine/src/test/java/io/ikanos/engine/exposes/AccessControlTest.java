@@ -101,6 +101,49 @@ class AccessControlTest {
         assertNotNull(AccessControl.check(scopes("records.read"), claims));
     }
 
+    // ─── Claims validated by an embedding application (#1126) ───────────────────
+
+    @Test
+    void checkClaimsShouldAcceptClaimsCarryingEveryRequiredScope() {
+        assertNull(AccessControl.check(scopes("records.read", "records.write"),
+                Map.<String, Object>of("scope", "records.read records.write")));
+    }
+
+    @Test
+    void checkClaimsShouldRefuseClaimsMissingARequiredScope() {
+        AccessControl.Denial denial = AccessControl.check(scopes("records.write"),
+                Map.<String, Object>of("scope", "records.read"));
+
+        assertNotNull(denial);
+        assertTrue(denial.description().contains("'records.write'"));
+    }
+
+    @Test
+    void checkClaimsShouldReadScpAsAList() {
+        assertNull(AccessControl.check(scopes("records.read"),
+                Map.<String, Object>of("scp", List.of("records.read"))));
+    }
+
+    @Test
+    void checkClaimsShouldReadANestedClaimPath() {
+        assertNull(AccessControl.check(claim("realm_access.roles", "editor"),
+                Map.<String, Object>of("realm_access", Map.of("roles", List.of("editor")))));
+    }
+
+    @Test
+    void checkClaimsShouldRefuseMissingClaimsAsARequestWithoutAToken() {
+        AccessControl.Denial denial = AccessControl.check(scopes("records.read"),
+                (Map<String, Object>) null);
+
+        assertEquals(new AccessControl.Denial(List.of("records.read"), "No validated access token"),
+                denial);
+    }
+
+    @Test
+    void checkClaimsShouldAcceptAnyClaimsWhenThereIsNoRequirement() {
+        assertNull(AccessControl.check(null, (Map<String, Object>) null));
+    }
+
     // ─── Claims ─────────────────────────────────────────────────────────────────
 
     @Test
