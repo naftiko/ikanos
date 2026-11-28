@@ -184,7 +184,7 @@ public final class StepGuard {
         }
         Object result;
         try {
-            result = compiled.program().trace(variables, new Budget(label, evaluationLimit));
+            result = compiled.program().trace(variables, new Budget(label, evaluationLimit, compiled.names()));
         } catch (BudgetExceeded e) {
             throw e.failure();
         } catch (CelEvaluationException e) {
@@ -208,23 +208,26 @@ public final class StepGuard {
 
     /**
      * Counts the work of an evaluation and stops it past the limit: one for each sub-expression
-     * evaluated, each iteration of a macro included, plus the size of each list or map a
-     * sub-expression yields, since what reads it ({@code in}, {@code ==}, {@code +}) walks it
-     * in one step.
+     * evaluated, each iteration of a macro included, plus the size of each list or map the
+     * guard reads from the run (a top-level name or a field), since what reads it ({@code in},
+     * {@code ==}, {@code +}) walks it in one step. The lists a macro builds and its own
+     * variables are not charged: building them is linear, and their iterations already count.
      */
     private static final class Budget implements CelEvaluationListener {
         private final String label;
         private final long limit;
+        private final Set<String> names;
         private long used;
 
-        Budget(String label, long limit) {
+        Budget(String label, long limit, Set<String> names) {
             this.label = label;
             this.limit = limit;
+            this.names = names;
         }
 
         @Override
         public void callback(CelExpr expr, Object result) {
-            used += 1 + sizeOf(result);
+            used += 1 + (readsRun(expr) ? sizeOf(result) : 0);
             if (used > limit) {
                 throw new BudgetExceeded(new IllegalArgumentException(label
                         + " evaluated more than " + limit + " sub-expressions and items, the limit"
@@ -232,6 +235,15 @@ public final class StepGuard {
                         + " it cheaper, such as by not reading a long list inside a macro over"
                         + " another"));
             }
+        }
+
+        /** Whether the expression reads a value of the run: a top-level name, or a field. */
+        private boolean readsRun(CelExpr expr) {
+            return switch (expr.getKind()) {
+                case IDENT -> names.contains(expr.ident().name());
+                case SELECT -> true;
+                default -> false;
+            };
         }
     }
 

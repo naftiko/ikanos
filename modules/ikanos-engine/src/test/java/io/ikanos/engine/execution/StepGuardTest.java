@@ -251,6 +251,21 @@ public class StepGuardTest {
     }
 
     @Test
+    public void holdsShouldFilterThousandsOfObjectsWithinTheDefaultLimit() {
+        Map<String, Object> ship = new HashMap<>();
+        for (int field = 0; field < 30; field++) {
+            ship.put("field" + field, field);
+        }
+        ship.put("status", "active");
+        List<Map<String, Object>> ships = java.util.Collections.nCopies(3_000, ship);
+
+        assertTrue(StepGuard.holds("publish",
+                "size(ships.filter(s, s.status == 'active')) > 0"
+                        + " && ships.map(s, s.status).exists(x, x == 'active')",
+                Map.of("ships", ships), 100_000));
+    }
+
+    @Test
     public void holdsShouldIterateBeyondOneHundredThousandItemsWhenTheLimitIsRaised() {
         List<Integer> items = java.util.stream.IntStream.range(0, 150_000).boxed().toList();
 
