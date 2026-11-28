@@ -300,6 +300,126 @@ class McpDefinitionsIntegrationTest {
         assertEquals(inline, imported);
     }
 
+    private static final String MAPPED_WITH_DEFINITIONS = HEADER + """
+              exposes:
+                - type: mcp
+                  address: localhost
+                  port: 0
+                  namespace: fleet-mcp
+                  definitions:
+                    schemas:
+                      ship:
+                        type: object
+                        properties:
+                          imo: { type: string, description: "IMO number." }
+                          tonnage: { type: integer }
+                          crew:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                fullName: { type: string }
+                          tags: { type: array, items: { type: string } }
+                  tools:
+                    get-ship:
+                      description: "Get a ship."
+                      call: registry.list-ships
+                      outputParameters:
+                        - schema: ship
+                          mappings:
+                            imo: "$.imo_number"
+                            tonnage: "$.gross_tonnage"
+                            crew: "$.crew"
+                            crew[].fullName: "$.name"
+                            tags: "$.labels"
+                    list-ships:
+                      description: "List ships."
+                      call: registry.list-ships
+                      outputParameters:
+                        - type: array
+                          mapping: "$.ships"
+                          items:
+                            schema: ship
+                            mappings:
+                              imo: "$.imo_number"
+                              tonnage: "$.gross_tonnage"
+                              crew: "$.crew"
+                              crew[].fullName: "$.name"
+                              tags: "$.labels"
+            """;
+
+    private static final String MAPPED_INLINE = HEADER + """
+              exposes:
+                - type: mcp
+                  address: localhost
+                  port: 0
+                  namespace: fleet-mcp
+                  tools:
+                    get-ship:
+                      description: "Get a ship."
+                      call: registry.list-ships
+                      outputParameters:
+                        - type: object
+                          properties:
+                            imo: { type: string, mapping: "$.imo_number" }
+                            tonnage: { type: number, mapping: "$.gross_tonnage" }
+                            crew:
+                              type: array
+                              mapping: "$.crew"
+                              items:
+                                type: object
+                                properties:
+                                  fullName: { type: string, mapping: "$.name" }
+                            tags:
+                              type: array
+                              mapping: "$.labels"
+                              items: { type: string }
+                    list-ships:
+                      description: "List ships."
+                      call: registry.list-ships
+                      outputParameters:
+                        - type: array
+                          mapping: "$.ships"
+                          items:
+                            type: object
+                            properties:
+                              imo: { type: string, mapping: "$.imo_number" }
+                              tonnage: { type: number, mapping: "$.gross_tonnage" }
+                              crew:
+                                type: array
+                                mapping: "$.crew"
+                                items:
+                                  type: object
+                                  properties:
+                                    fullName: { type: string, mapping: "$.name" }
+                              tags:
+                                type: array
+                                mapping: "$.labels"
+                                items: { type: string }
+            """;
+
+    @Test
+    void toolsListShouldBeTheInlineEquivalentWhenMappedOutputsUseSchemas() throws Exception {
+        String withDefinitions = toolsList(load(MAPPED_WITH_DEFINITIONS, null));
+        String inline = toolsList(load(MAPPED_INLINE, null));
+
+        assertEquals(inline, withDefinitions);
+        assertFalse(withDefinitions.contains("mappings"), withDefinitions);
+    }
+
+    @Test
+    void capabilityShouldFailToLoadWhenAMappedOutputLeavesALeafUnbound() {
+        // Drop the first binding of tonnage: the one of get-ship
+        String yaml = MAPPED_WITH_DEFINITIONS.replaceFirst(
+                "\\n +tonnage: \"\\$\\.gross_tonnage\"", "");
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> load(yaml, null));
+
+        assertTrue(error.getMessage().contains("MCP adapter 'fleet-mcp', tool 'get-ship', output:"
+                + " 'schema: ship' leaves paths unbound: [tonnage]."), error.getMessage());
+    }
+
     @Test
     void capabilityShouldFailToLoadWhenADefinitionIsUnknown() {
         String yaml = WITH_DEFINITIONS.replace("inputParameterSets: [odata-list, tracing]",

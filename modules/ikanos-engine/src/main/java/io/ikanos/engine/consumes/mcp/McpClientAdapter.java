@@ -165,6 +165,15 @@ public class McpClientAdapter extends ClientAdapter {
         return outputSchemas.get(toolName);
     }
 
+    /**
+     * Only declared tools are callable ({@link #prepare(String, Map)}), so a {@code call:} to any
+     * other tool name is rejected when the capability loads (#827).
+     */
+    @Override
+    public boolean declaresOperation(String operationName) {
+        return getMcpClientSpec().getTools().containsKey(operationName);
+    }
+
     @Override
     public ConsumedInvocation prepare(String operationName, Map<String, Object> parameters) {
         McpClientToolSpec tool = getMcpClientSpec().getTools().get(operationName);

@@ -51,7 +51,9 @@ public class OutputParameterSerializer extends ValueSerializer<OutputParameterSp
             node.put("type", spec.getType());
         }
 
-        if (spec.getMapping() != null) {
+        // Beside `schema`, the siblings below hold `mapping` as declared: writing it as `value`
+        // would add a key that the definitions expander rejects beside `schema` on the copy.
+        if (spec.getMapping() != null && spec.getSchema() == null) {
             // Spec alignment:
             // - ConsumedOutputParameter (named) uses "value"
             // - Mapped output parameters use "mapping"
@@ -84,6 +86,12 @@ public class OutputParameterSerializer extends ValueSerializer<OutputParameterSp
             node.put("schema", spec.getSchema());
             // Kept so that a copy (imports deep-copy through the serializers) is still rejected.
             spec.getSchemaSiblings().forEach(node::set);
+        }
+
+        // Beside `schema`, the siblings above already hold them as declared
+        if (!spec.getMappings().isEmpty() && !node.has("mappings")) {
+            ObjectNode mappings = node.putObject("mappings");
+            spec.getMappings().forEach(mappings::put);
         }
 
         // Kept so that a copy (imports deep-copy through the serializers) is still rejected.
@@ -209,6 +217,12 @@ public class OutputParameterSerializer extends ValueSerializer<OutputParameterSp
             node.put("schema", spec.getSchema());
             // Kept so that a copy (imports deep-copy through the serializers) is still rejected.
             spec.getSchemaSiblings().forEach(node::set);
+        }
+
+        // Beside `schema`, the siblings above already hold them as declared
+        if (!spec.getMappings().isEmpty() && !node.has("mappings")) {
+            ObjectNode mappings = node.putObject("mappings");
+            spec.getMappings().forEach(mappings::put);
         }
 
         // Kept so that a copy (imports deep-copy through the serializers) is still rejected.
