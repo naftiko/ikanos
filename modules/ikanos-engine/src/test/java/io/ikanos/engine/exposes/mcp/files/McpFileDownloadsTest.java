@@ -212,6 +212,38 @@ class McpFileDownloadsTest {
     }
 
     @Test
+    void passThroughShouldListAUrlOnAnAllowedOrigin() {
+        McpFilesSpec files = new McpFilesSpec();
+        files.setAllowedOrigins(java.util.List.of("https://Storage.Example.com:443"));
+        String mapped = "{\"downloadUrl\": \"https://storage.example.com/f\", \"sizeBytes\": 7}";
+
+        McpSchema.CallToolResult result = McpFiles.withDownloads(true,
+                () -> McpFileDownloads.of(server(files), CLOCK)
+                        .passThrough(passThroughTool(), mapped));
+
+        assertEquals("https://storage.example.com/f",
+                McpFiles.downloadsOf(json(result)).get(0).path("url").asString());
+    }
+
+    @Test
+    void passThroughShouldRefuseAUrlOutsideTheAllowedOrigins() {
+        McpFilesSpec files = new McpFilesSpec();
+        files.setAllowedOrigins(java.util.List.of("https://storage.example.com"));
+        String mapped = "{\"downloadUrl\": \"https://elsewhere.example.net/f?sig=abc\","
+                + " \"sizeBytes\": 7}";
+
+        McpSchema.CallToolResult result = McpFiles.withDownloads(true,
+                () -> McpFileDownloads.of(server(files), CLOCK)
+                        .passThrough(passThroughTool(), mapped));
+
+        assertNotNull(result, "A URL outside the list is refused, not returned as the output");
+        assertTrue(result.isError());
+        assertTrue(McpFiles.downloadsOf(json(result)).isMissingNode()
+                || McpFiles.downloadsOf(json(result)).isEmpty(), json(result).toString());
+        assertFalse(json(result).toString().contains("sig=abc"), json(result).toString());
+    }
+
+    @Test
     void passThroughShouldKeepTheOutputWhenTheSizeIsMissing() {
         String mapped = "{\"downloadUrl\": \"https://s.example.com/f\"}";
 

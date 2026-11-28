@@ -30,6 +30,9 @@
 #     confirms the size and type before the flow runs. The flow sees the file with an `uploadId`,
 #     the server-chosen name of the stored object, never its bytes; an inline file is stored the
 #     same way first. The flow is not idempotent, so each `requestState` runs it at most once.
+#   - `allowedOrigins` lists where the `credentials: omit` targets may point: the presigned scan
+#     URLs and the export download URLs. The client sends them no credential, so the adapter
+#     refuses a target on any other origin with an error result.
 #
 # Limits of hosted links and hosted uploads:
 #   - a link or upload target is served only by the replica that issued it: give replicas
@@ -214,6 +217,9 @@ capability:
       description: "Photo library MCP server that returns large files as download targets."
       maxBinarySize: "25MiB"
       files:
+        allowedOrigins:
+          - "https://scans.storage.example.org"
+          - "https://files.exports.example.org"
         downloads:
           inlineThreshold: "1MiB"
           ttl: "PT5M"

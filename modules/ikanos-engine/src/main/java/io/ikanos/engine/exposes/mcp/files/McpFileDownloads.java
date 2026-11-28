@@ -83,13 +83,22 @@ public final class McpFileDownloads {
     private final DownloadStore store;
     private final Clock clock;
 
+    /** Where pass-through download URLs may point, or {@code null} for any origin. */
+    private final OriginAllowlist allowedOrigins;
+
     McpFileDownloads(long inlineThreshold, Duration ttl, boolean hosted, DownloadStore store,
             Clock clock) {
+        this(inlineThreshold, ttl, hosted, store, clock, null);
+    }
+
+    McpFileDownloads(long inlineThreshold, Duration ttl, boolean hosted, DownloadStore store,
+            Clock clock, OriginAllowlist allowedOrigins) {
         this.inlineThreshold = inlineThreshold;
         this.ttl = ttl;
         this.hosted = hosted;
         this.store = store;
         this.clock = clock;
+        this.allowedOrigins = allowedOrigins;
     }
 
     /**
@@ -130,7 +139,8 @@ public final class McpFileDownloads {
                     + spec.getAuthentication().getType() + " credential to a download link:"
                     + " binary results stay inline; presigned URLs still become downloads");
         }
-        return new McpFileDownloads(threshold, ttl, hosted, MemoryDownloadStore.shared(), clock);
+        return new McpFileDownloads(threshold, ttl, hosted, MemoryDownloadStore.shared(), clock,
+                OriginAllowlist.of(spec));
     }
 
     /**
@@ -200,7 +210,9 @@ public final class McpFileDownloads {
     /**
      * A tool's mapped output as a pass-through download target, or {@code null} to return it as
      * it is: the request did not declare {@code download}, or the output does not carry an
-     * {@code https} URL and a size where the tool's {@code download} says.
+     * {@code https} URL and a size where the tool's {@code download} says. A URL outside the
+     * adapter's {@code files.allowedOrigins} is an error result: the mapped output would hand it
+     * to the client all the same.
      */
     public McpSchema.CallToolResult passThrough(McpServerToolSpec tool, String mapped) {
         McpToolDownloadSpec download = tool.getDownload();
@@ -220,6 +232,14 @@ public final class McpFileDownloads {
         if (url == null || !isHttps(url)) {
             return unusable(tool, "property '" + download.getUrl()
                     + "' is not an absolute https URL");
+        }
+        if (allowedOrigins != null && !allowedOrigins.allows(url)) {
+            Context.getCurrentLogger().log(Level.WARNING, "MCP tool '" + tool.getName()
+                    + "' returned a download URL outside files.allowedOrigins: refusing it");
+            return new McpSchema.CallToolResult(List.of(McpSchema.TextContent.builder(
+                    "The file of tool '" + tool.getName() + "' is served from an origin that"
+                            + " this server does not allow (files.allowedOrigins).").build()),
+                    true, null, null);
         }
         Long bytes = sizeOf(output.get(download.getSize()));
         if (bytes == null) {

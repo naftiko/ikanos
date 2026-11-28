@@ -243,6 +243,47 @@ class McpFilesSpecTest {
     }
 
     @Test
+    void schemaShouldAcceptAllowedOrigins() throws Exception {
+        List<Error> errors = validate("""
+                files:
+                  allowedOrigins:
+                    - "https://my-bucket.s3.eu-west-1.amazonaws.com"
+                    - "http://localhost:9000"
+                """, "");
+        assertTrue(errors.isEmpty(), "Expected no errors, got: " + errors);
+    }
+
+    @Test
+    void schemaShouldRejectAnAllowedOriginWithAPathOrAnotherScheme() throws Exception {
+        for (String origin : List.of("https://storage.example.com/bucket", "ftp://files.test",
+                "storage.example.com", "https://user@storage.example.com")) {
+            assertFalse(validate("""
+                    files:
+                      allowedOrigins: ["%s"]
+                    """.formatted(origin), "").isEmpty(), origin);
+        }
+        assertFalse(validate("files:\n  allowedOrigins: []", "").isEmpty());
+    }
+
+    @Test
+    void specShouldReadAndWriteAllowedOrigins() throws Exception {
+        IkanosSpec spec = YAML.readValue(capability("""
+                files:
+                  allowedOrigins: ["https://storage.example.com"]
+                """, ""), IkanosSpec.class);
+        McpFilesSpec files = ((McpServerSpec) spec.getCapability().getExposes().get(0))
+                .getFiles();
+        assertEquals(List.of("https://storage.example.com"), files.getAllowedOrigins());
+        assertTrue(YAML.writeValueAsString(spec).contains("allowedOrigins"));
+
+        IkanosSpec none = YAML.readValue(capability("files: {}", ""), IkanosSpec.class);
+        McpFilesSpec empty = ((McpServerSpec) none.getCapability().getExposes().get(0))
+                .getFiles();
+        assertTrue(empty.getAllowedOrigins().isEmpty());
+        assertFalse(YAML.writeValueAsString(none).contains("allowedOrigins"));
+    }
+
+    @Test
     void schemaShouldRejectADownloadWithoutSize() throws Exception {
         assertFalse(validate("files: {}", """
                 download:

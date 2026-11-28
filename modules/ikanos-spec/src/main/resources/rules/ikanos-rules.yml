@@ -24,6 +24,7 @@
 #   5. Script steps                 — script step defaults
 #   6. Imports                      — unified import directive validation (§11 of blueprint)
 #   7. Cache hints                  — ttlMs / cacheScope / ttlFromUpstream against the spec
+#   8. MCP files (experimental)     — file inputs and file transfer targets
 
 extends: []
 
@@ -52,6 +53,7 @@ functions:
   - mcp-tool-search
   - mcp-tool-description
   - sql-procedures
+  - mcp-files
 
 rules:
 
@@ -1459,3 +1461,94 @@ rules:
       function: cache-hints
       functionOptions:
         check: ttl-from-upstream-no-effect
+
+  # ────────────────────────────────────────────────────────────────
+  # 8. MCP FILES (experimental draft extension io.modelcontextprotocol/files) — #1047
+  # ────────────────────────────────────────────────────────────────
+
+  ikanos-file-input-max-size:
+    message: "{{error}}"
+    description: >
+      A `type: file` input (of an aggregate flow, of an exposed MCP tool, or in an
+      input parameter set of their `definitions`) should bound the files it takes
+      with `maxSize`. Without it, an inline file is bounded only by the adapter's
+      `files.uploads.maxInlineBytes` (MCP) or `maxBinarySize` (REST), and a file sent
+      out of band, to a presigned URL or a hosted target, by nothing Ikanos checks
+      before the flow runs: unbounded files let a client exhaust storage.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: mcp-files
+      functionOptions:
+        check: max-size
+
+  ikanos-file-input-accept:
+    message: "{{error}}"
+    description: >
+      A `type: file` input should list the media types or extensions it takes in
+      `accept`. Uploaded files are untrusted (a matching digest proves integrity, not
+      safety), and `accept` is what refuses any other type before the tool or flow
+      runs; a hosted upload also checks the bytes of the types Ikanos recognizes
+      against it.
+    severity: warn
+    recommended: true
+    given: "$"
+    then:
+      function: mcp-files
+      functionOptions:
+        check: accept
+
+  ikanos-files-target-https:
+    message: "{{error}}"
+    description: >
+      The consumed HTTP operations that a flow's `upload.presign` and `upload.verify`
+      call, and those an MCP tool with `download` calls (its `call`, its `call` steps,
+      or those of the flow it `ref`s), answer with the URL a client sends a file to,
+      or downloads it from, with no credential (`credentials: omit`), or confirm what
+      was stored there. Their consumed adapter must use an `https` `baseUri`, or
+      `http` on a loopback host for local development. A `baseUri` taken whole from a
+      binding, and a namespace imported from another document, are not known at lint
+      time and are skipped. The engine also refuses a presigned or download URL that
+      is not `https` (or `http` on a loopback host, for a presigned upload).
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: mcp-files
+      functionOptions:
+        check: target-https
+
+  ikanos-files-omit-allowlist:
+    message: "{{error}}"
+    description: >
+      With `credentials: omit`, the server directs a client's upload or download to
+      any endpoint, and the client's host approves the tool call before it knows the
+      target. An MCP adapter that returns such targets (a tool that `ref`s a flow with
+      `upload`, or a tool with `download`) should list in `files.allowedOrigins` the
+      origins its storage uses: the engine then refuses any target outside the list
+      with an error result. Hosted targets (`credentials: include`) are not affected.
+    severity: warn
+    recommended: true
+    given: "$"
+    then:
+      function: mcp-files
+      functionOptions:
+        check: omit-allowlist
+
+  ikanos-files-non-idempotent-single-use:
+    message: "{{error}}"
+    description: >
+      Over MCP, the `requestState` of an `upload_required` result runs a tool at most
+      once when the flow that takes the upload is not declared `safe` or `idempotent`
+      in its `semantics`, and always for a tool that takes hosted uploads
+      (`files.uploads.hosted: true`), whose bytes are deleted once the call completes.
+      A second retry with the same `requestState` is refused (`-32602`): the client
+      must call the tool again and upload again. A reminder, not a defect.
+    severity: info
+    recommended: true
+    given: "$"
+    then:
+      function: mcp-files
+      functionOptions:
+        check: single-use

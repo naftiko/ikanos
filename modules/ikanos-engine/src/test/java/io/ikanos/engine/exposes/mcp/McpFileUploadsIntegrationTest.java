@@ -70,15 +70,17 @@ class McpFileUploadsIntegrationTest {
     private HttpClient http;
     private String mcpUrl;
     private int nextId = 1;
+    private String capabilityYaml;
+    private int upstreamPort;
 
     @BeforeEach
     void start() throws Exception {
-        int upstreamPort = freePort();
+        upstreamPort = freePort();
         upstream = upstream(upstreamPort);
         upstream.start();
 
         int mcpPort = freePort();
-        IkanosSpec spec = IkanosMappers.lenientYaml().readValue("""
+        capabilityYaml = """
                 ikanos: "%s"
                 capability:
                   aggregates:
@@ -210,8 +212,9 @@ class McpFileUploadsIntegrationTest {
                         description: Import a scan through a presigner that ignores the expiry.
                         ref: documents.late-scan
                 """.formatted(VersionHelper.getSchemaVersion(), upstreamPort, upstreamPort,
-                mcpPort), IkanosSpec.class);
-        capability = new Capability(spec);
+                mcpPort);
+        capability = new Capability(
+                IkanosMappers.lenientYaml().readValue(capabilityYaml, IkanosSpec.class));
         capability.start();
         http = HttpClient.newHttpClient();
         mcpUrl = "http://127.0.0.1:" + mcpPort + "/";
@@ -248,6 +251,43 @@ class McpFileUploadsIntegrationTest {
         assertFalse(target.path("expiresAt").asString().isEmpty(), target.toString());
         assertFalse(result.path("requestState").asString().isEmpty());
         assertTrue(imported.isEmpty(), "The flow must not run before the upload");
+    }
+
+    @Test
+    void presignedUrlOnAnAllowedOriginShouldBeReturned() throws Exception {
+        restartWithAllowedOrigins("http://127.0.0.1:" + upstreamPort);
+
+        JsonNode result = callTool("import-scan", scanArguments(), null, true).path("result");
+
+        assertEquals("upload_required", result.path("resultType").asString(), result.toString());
+        assertTrue(result.path("uploads").get(0).path("url").asString()
+                .startsWith("http://127.0.0.1:" + upstreamPort + "/"), result.toString());
+    }
+
+    @Test
+    void presignedUrlOutsideTheAllowedOriginsShouldBeRefusedBeforeAnyTarget() throws Exception {
+        restartWithAllowedOrigins("https://my-bucket.s3.eu-west-1.amazonaws.com");
+
+        JsonNode result = callTool("import-scan", scanArguments(), null, true).path("result");
+
+        assertTrue(result.path("isError").asBoolean(), result.toString());
+        assertFalse(result.has("uploads"), result.toString());
+        assertFalse(result.has("requestState"), result.toString());
+        assertTrue(result.path("content").get(0).path("text").asString()
+                .contains("files.allowedOrigins"), result.toString());
+        assertTrue(imported.isEmpty(), "The flow must not run");
+    }
+
+    /** Restarts the capability with {@code files.allowedOrigins} set to one origin. */
+    private void restartWithAllowedOrigins(String origin) throws Exception {
+        capability.stop();
+        String uploads = "      uploads:\n        maxInlineBytes: 1KiB\n";
+        assertTrue(capabilityYaml.contains(uploads));
+        capability = new Capability(IkanosMappers.lenientYaml().readValue(
+                capabilityYaml.replace(uploads,
+                        "      allowedOrigins: [\"" + origin + "\"]\n" + uploads),
+                IkanosSpec.class));
+        capability.start();
     }
 
     @Test
