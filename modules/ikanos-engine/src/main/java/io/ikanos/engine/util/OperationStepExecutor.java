@@ -43,6 +43,7 @@ import io.ikanos.engine.execution.Executions;
 import io.ikanos.engine.execution.InputDeclinedException;
 import io.ikanos.engine.execution.InputRequiredException;
 import io.ikanos.engine.execution.NodeRunner;
+import io.ikanos.engine.execution.ParallelTracks;
 import io.ikanos.engine.execution.StepGuard;
 import io.ikanos.engine.execution.StepNode;
 import io.ikanos.engine.execution.StepOutcomes;
@@ -58,6 +59,7 @@ import io.ikanos.spec.exposes.rest.RestServerResourceSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.util.OperationStepSpec;
 import io.ikanos.spec.util.OperationStepCallSpec;
+import io.ikanos.spec.util.OperationStepParallelSpec;
 import io.ikanos.spec.util.OperationStepElicitSpec;
 import io.ikanos.spec.util.OperationStepLookupSpec;
 import io.ikanos.spec.scripting.OperationStepScriptSpec;
@@ -534,6 +536,12 @@ public class OperationStepExecutor {
             }
             case OperationStepElicitSpec elicitStep -> {
                 return applyAnswer(elicitStep, run.answer(node.path()), run);
+            }
+            case OperationStepParallelSpec parallelStep -> {
+                // Each track runs its steps through this same method, on a thread of its own.
+                return ParallelTracks.run(parallelStep, stepIndex, run, registry,
+                        (trackNode, trackRun) -> runStep(trackNode, trackRun, namespace,
+                                registry));
             }
             default -> {
                 // Ignore unsupported step types
@@ -1153,6 +1161,14 @@ public class OperationStepExecutor {
                 KEEP_UPSTREAM_ERROR_BODY.set(previous);
             }
         };
+    }
+
+    /**
+     * Whether the failed steps of this thread keep the upstream error body: a step run on a
+     * thread of its own, such as a track of a {@code parallel} step, carries it over.
+     */
+    public static boolean keepsUpstreamErrorBodies() {
+        return Boolean.TRUE.equals(KEEP_UPSTREAM_ERROR_BODY.get());
     }
 
     /** The scope returned by {@link #keepUpstreamErrorBodies()}. */
