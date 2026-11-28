@@ -85,6 +85,16 @@ class McpFileDownloadsTest {
     }
 
     @Test
+    void fileNameShouldUseTheUsualExtensionOfTheMediaType() {
+        assertEquals("get-photo.jpg", McpFileDownloads.fileName("get-photo", "image/jpeg"));
+        assertEquals("get-photo.jpg",
+                McpFileDownloads.fileName("get-photo", "image/jpeg; charset=binary"));
+        assertEquals("get-song.mp3", McpFileDownloads.fileName("get-song", "audio/mpeg"));
+        assertEquals("get-photo.png", McpFileDownloads.fileName("get-photo", "image/png"));
+        assertEquals("get-blob", McpFileDownloads.fileName("get-blob", "application/x-unknown"));
+    }
+
+    @Test
     void hostedShouldKeepTheResultInlineWhenItIsNotAboveTheThreshold() {
         assertNull(McpFiles.withDownloads(true,
                 () -> downloads(true).hosted("get-photo", new byte[10], "image/png", ALICE)));
