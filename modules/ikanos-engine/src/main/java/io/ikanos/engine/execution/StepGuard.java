@@ -118,8 +118,11 @@ public final class StepGuard {
     private StepGuard() {
     }
 
-    /** A guard compiled against the top-level names it reads, all declared as {@code dyn}. */
-    private record Compiled(CelRuntime.Program program, Set<String> names) {
+    /**
+     * A guard compiled against the top-level names it reads, all declared as {@code dyn}, with
+     * the ids of the operands whose list an operator walks in one step.
+     */
+    private record Compiled(CelRuntime.Program program, Set<String> names, Set<Long> walked) {
     }
 
     /**
@@ -184,7 +187,7 @@ public final class StepGuard {
         }
         Object result;
         try {
-            result = compiled.program().trace(variables, new Budget(label, evaluationLimit, compiled.names()));
+            result = compiled.program().trace(variables, new Budget(label, evaluationLimit, compiled.walked()));
         } catch (BudgetExceeded e) {
             throw e.failure();
         } catch (CelEvaluationException e) {
@@ -208,26 +211,25 @@ public final class StepGuard {
 
     /**
      * Counts the work of an evaluation and stops it past the limit: one for each sub-expression
-     * evaluated, each iteration of a macro included, plus the size of each list or map the
-     * guard reads from the run (a top-level name or a field), since what reads it ({@code in},
-     * {@code ==}, {@code +}) walks it in one step. The lists a macro builds and its own
-     * variables are not charged: building them is linear, and their iterations already count.
+     * evaluated, each iteration of a macro included, plus the length of each list that an
+     * {@code in}, {@code ==}, {@code !=} or {@code +} walks in one step. Reading a field of a
+     * map walks nothing, and a macro's iterations already count, so neither is charged more.
      */
     private static final class Budget implements CelEvaluationListener {
         private final String label;
         private final long limit;
-        private final Set<String> names;
+        private final Set<Long> walked;
         private long used;
 
-        Budget(String label, long limit, Set<String> names) {
+        Budget(String label, long limit, Set<Long> walked) {
             this.label = label;
             this.limit = limit;
-            this.names = names;
+            this.walked = walked;
         }
 
         @Override
         public void callback(CelExpr expr, Object result) {
-            used += 1 + (readsRun(expr) ? sizeOf(result) : 0);
+            used += 1 + (walked.contains(expr.id()) ? sizeOf(result) : 0);
             if (used > limit) {
                 throw new BudgetExceeded(new IllegalArgumentException(label
                         + " evaluated more than " + limit + " sub-expressions and items, the limit"
@@ -236,26 +238,11 @@ public final class StepGuard {
                         + " another"));
             }
         }
-
-        /** Whether the expression reads a value of the run: a top-level name, or a field. */
-        private boolean readsRun(CelExpr expr) {
-            return switch (expr.getKind()) {
-                case IDENT -> names.contains(expr.ident().name());
-                case SELECT -> true;
-                default -> false;
-            };
-        }
     }
 
-    /** The number of items of a list or entries of a map, or 0 for any other value. */
+    /** The number of items of a list, or 0 for any other value. */
     static long sizeOf(Object value) {
-        if (value instanceof java.util.Collection<?> items) {
-            return items.size();
-        }
-        if (value instanceof Map<?, ?> map) {
-            return map.size();
-        }
-        return 0;
+        return value instanceof java.util.Collection<?> items ? items.size() : 0;
     }
 
     /** Stops an evaluation past its budget, carrying the failure to report. */
@@ -470,7 +457,8 @@ public final class StepGuard {
         }
         Compiled compiled;
         try {
-            compiled = new Compiled(RUNTIME.createProgram(checked.getAst()), Set.copyOf(names));
+            compiled = new Compiled(RUNTIME.createProgram(checked.getAst()), Set.copyOf(names),
+                    GuardIdentifiers.walkedOperands(checked.getAst().getExpr()));
         } catch (CelValidationException | CelEvaluationException e) {
             throw new IllegalArgumentException(label + " is not a valid CEL expression: "
                     + e.getMessage(), e);

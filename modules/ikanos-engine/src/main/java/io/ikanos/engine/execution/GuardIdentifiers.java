@@ -109,6 +109,98 @@ final class GuardIdentifiers {
         }
     }
 
+    /** The operators that walk a list operand in one step. */
+    private static final Set<String> WALKING = Set.of("@in", "_==_", "_!=_", "_+_");
+
+    /**
+     * The ids of the expressions whose list an operator walks in one step: the list of an
+     * {@code in}, and both operands of {@code ==}, {@code !=} and {@code +}. Reading a field of
+     * a map, or iterating a list in a macro, walks nothing more than what is counted already.
+     */
+    static Set<Long> walkedOperands(CelExpr expr) {
+        Set<Long> ids = new HashSet<>();
+        walkedOperands(expr, ids);
+        // A filter or map appends to its own result with +: building it is linear, and its
+        // iterations already count.
+        Set<Long> accumulators = new HashSet<>();
+        accumulatorReads(expr, new HashSet<>(), accumulators);
+        ids.removeAll(accumulators);
+        return Set.copyOf(ids);
+    }
+
+    /** Collects the ids of the identifiers that read a macro's accumulator. */
+    private static void accumulatorReads(CelExpr expr, Set<String> accuVars, Set<Long> ids) {
+        switch (expr.getKind()) {
+            case IDENT -> {
+                if (accuVars.contains(expr.ident().name())) {
+                    ids.add(expr.id());
+                }
+            }
+            case CALL -> {
+                expr.call().target().ifPresent(t -> accumulatorReads(t, accuVars, ids));
+                expr.call().args().forEach(a -> accumulatorReads(a, accuVars, ids));
+            }
+            case SELECT -> accumulatorReads(expr.select().operand(), accuVars, ids);
+            case LIST -> expr.list().elements().forEach(e -> accumulatorReads(e, accuVars, ids));
+            case MAP -> expr.map().entries().forEach(entry -> {
+                accumulatorReads(entry.key(), accuVars, ids);
+                accumulatorReads(entry.value(), accuVars, ids);
+            });
+            case STRUCT -> expr.struct().entries()
+                    .forEach(e -> accumulatorReads(e.value(), accuVars, ids));
+            case COMPREHENSION -> {
+                CelExpr.CelComprehension loop = expr.comprehension();
+                Set<String> inner = new HashSet<>(accuVars);
+                inner.add(loop.accuVar());
+                accumulatorReads(loop.iterRange(), accuVars, ids);
+                accumulatorReads(loop.accuInit(), accuVars, ids);
+                accumulatorReads(loop.loopCondition(), inner, ids);
+                accumulatorReads(loop.loopStep(), inner, ids);
+                accumulatorReads(loop.result(), inner, ids);
+            }
+            default -> {
+                // constants read no accumulator
+            }
+        }
+    }
+
+    private static void walkedOperands(CelExpr expr, Set<Long> ids) {
+        switch (expr.getKind()) {
+            case CALL -> {
+                CelExpr.CelCall call = expr.call();
+                if (call.target().isEmpty() && WALKING.contains(call.function())) {
+                    if ("@in".equals(call.function())) {
+                        if (call.args().size() == 2) {
+                            ids.add(call.args().get(1).id());
+                        }
+                    } else {
+                        call.args().forEach(arg -> ids.add(arg.id()));
+                    }
+                }
+                call.target().ifPresent(target -> walkedOperands(target, ids));
+                call.args().forEach(arg -> walkedOperands(arg, ids));
+            }
+            case SELECT -> walkedOperands(expr.select().operand(), ids);
+            case LIST -> expr.list().elements().forEach(e -> walkedOperands(e, ids));
+            case MAP -> expr.map().entries().forEach(entry -> {
+                walkedOperands(entry.key(), ids);
+                walkedOperands(entry.value(), ids);
+            });
+            case STRUCT -> expr.struct().entries().forEach(e -> walkedOperands(e.value(), ids));
+            case COMPREHENSION -> {
+                CelExpr.CelComprehension loop = expr.comprehension();
+                walkedOperands(loop.iterRange(), ids);
+                walkedOperands(loop.accuInit(), ids);
+                walkedOperands(loop.loopCondition(), ids);
+                walkedOperands(loop.loopStep(), ids);
+                walkedOperands(loop.result(), ids);
+            }
+            default -> {
+                // constants and identifiers contain no operator
+            }
+        }
+    }
+
     private static boolean isSubtraction(CelExpr expr) {
         return SUBTRACT.equals(expr.call().function()) && expr.call().target().isEmpty()
                 && expr.call().args().size() == 2;

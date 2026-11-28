@@ -21,8 +21,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * <p>A guard is a CEL expression evaluated on the request thread, over values that upstreams
  * return: a macro such as {@code exists} nested in another grows with the square of their
  * lists. {@code evaluationLimit} bounds how many sub-expressions one evaluation of a guard may
- * evaluate, counting each iteration of a macro and the items of each list or map it reads; a
- * guard that exceeds it fails its step.</p>
+ * evaluate, counting each iteration of a macro and the items of each list that {@code in},
+ * {@code ==}, {@code !=} or {@code +} walks; a guard that exceeds it fails its step.</p>
  */
 public class GuardManagementSpec {
 

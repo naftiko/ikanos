@@ -266,6 +266,22 @@ public class StepGuardTest {
     }
 
     @Test
+    public void holdsShouldNotChargeAWholeMapForOneFieldReadInsideAMacro() {
+        Map<String, Object> ship = new HashMap<>();
+        for (int field = 0; field < 60; field++) {
+            ship.put("field" + field, field);
+        }
+        ship.put("captainId", "c-1");
+        ship.put("specs", new HashMap<>(ship));
+        List<Map<String, Object>> crew = java.util.Collections.nCopies(3_000, Map.of("id", "c-2"));
+
+        assertFalse(StepGuard.holds("publish",
+                "crew.exists(c, c.id == get_ship.captainId)"
+                        + " || crew.exists(c, get_ship.specs.captainId == c.id)",
+                params("crew", crew, "get-ship", ship), 100_000));
+    }
+
+    @Test
     public void holdsShouldIterateBeyondOneHundredThousandItemsWhenTheLimitIsRaised() {
         List<Integer> items = java.util.stream.IntStream.range(0, 150_000).boxed().toList();
 
