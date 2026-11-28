@@ -18,6 +18,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import io.ikanos.engine.exposes.mcp.files.McpFiles;
+import io.ikanos.engine.util.BinarySize;
 import io.ikanos.engine.util.InputDefaults;
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.util.IkanosMappers;
@@ -66,6 +68,11 @@ final class McpToolInputSchema {
     }
 
     static Map<String, Object> propertySchema(InputParameterSpec param) {
+        if (param.isFile()) {
+            // Files extension (experimental): the draft's file object, marked x-mcp-file
+            return McpFiles.fileInputSchema(param.getDescription(), param.getAccept(),
+                    param.getMaxSize() != null ? BinarySize.parse(param.getMaxSize()) : null);
+        }
         Map<String, Object> property = new LinkedHashMap<>();
         String type = param.getType() != null ? param.getType() : "string";
         property.put("type", type);

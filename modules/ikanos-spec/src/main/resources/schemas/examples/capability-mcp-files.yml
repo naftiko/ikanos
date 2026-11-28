@@ -10,6 +10,11 @@
 #     on this adapter (`credentials: include`, authenticated like the MCP endpoint).
 #   - export-orders: the consumed API already returns a presigned URL; `download` names the
 #     output properties that describe the file, returned with `credentials: omit`.
+#   - import-report: the `documents.import-report` flow takes a file (`type: file`). Over MCP, the
+#     tool takes the draft's file object marked `x-mcp-file`, with the bytes inline in `data` (up
+#     to `uploads.maxInlineBytes` per call), and is listed only to clients that declare the
+#     extension. Over REST, the operation takes a `multipart/form-data` body. Either way, the flow
+#     sends the file on as a `multipartForm` part, from `{{report.data}}` in base64.
 #
 # Limits of hosted links:
 #   - a link is served only by the replica that issued it: give replicas session affinity;
@@ -47,6 +52,28 @@ capability:
               outputRawFormat: "binary"
               outputMediaType: "image/jpeg"
     - type: "http"
+      namespace: "records"
+      description: "Upstream records API that stores lab reports."
+      baseUri: "https://records.example.org"
+      resources:
+        reports:
+          description: "Lab report resource."
+          path: "/reports"
+          operations:
+            upload-report:
+              method: "POST"
+              description: "Store a lab report, sent as multipart/form-data."
+              body:
+                type: "multipartForm"
+                data:
+                  - name: "label"
+                    value: "{{label}}"
+                  - name: "file"
+                    value: "{{report.data}}"
+                    encoding: "base64"
+                    filename: "{{report.name}}"
+                    contentType: "{{report.mimeType}}"
+    - type: "http"
       namespace: "exports"
       description: "Upstream export API that writes files to object storage."
       baseUri: "https://exports.example.org"
@@ -59,7 +86,43 @@ capability:
               method: "POST"
               description: "Export the orders of a quarter as CSV and return a presigned URL."
 
+  aggregates:
+    - display: "Documents"
+      namespace: "documents"
+      flows:
+        import-report:
+          description: "Import a lab report into the records system."
+          semantics:
+            idempotent: false
+          inputParameters:
+            report:
+              type: "file"
+              accept:
+                - "application/pdf"
+                - "text/csv"
+              maxSize: "50MiB"
+              required: true
+              description: "The report to import."
+            label:
+              type: "string"
+              description: "A label for the report."
+          call: "records.upload-report"
+
   exposes:
+    - type: "rest"
+      address: "0.0.0.0"
+      port: 8080
+      namespace: "documents-api"
+      maxBinarySize: "50MiB"
+      resources:
+        reports:
+          description: "Lab reports."
+          path: "/reports"
+          operations:
+            import-report:
+              method: "POST"
+              description: "Import a lab report, sent as multipart/form-data."
+              ref: "documents.import-report"
     - type: "mcp"
       address: "0.0.0.0"
       port: 8765
@@ -70,6 +133,8 @@ capability:
         downloads:
           inlineThreshold: "1MiB"
           ttl: "PT5M"
+        uploads:
+          maxInlineBytes: "1MiB"
       tools:
         get-photo:
           description: "Download the original-resolution bytes of a photo by id."
@@ -114,3 +179,6 @@ capability:
             size: "size"
             name: "file-name"
             expiresAt: "expires-at"
+        import-report:
+          description: "Import a lab report into the records system."
+          ref: "documents.import-report"

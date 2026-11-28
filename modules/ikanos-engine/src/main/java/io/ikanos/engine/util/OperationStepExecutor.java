@@ -128,18 +128,29 @@ public class OperationStepExecutor {
         Map<String, Object> params = new HashMap<>();
         JsonNode tmpRoot = null;
 
+        // Files (experimental): an operation whose flow takes a file reads its body inputs from
+        // a multipart/form-data body too, each file a part. Its files are bounded by the
+        // adapter's maxBinarySize.
+        boolean takesFiles = FileInputs.takesFiles(inheritedInputs);
+        long maxFileBytes = takesFiles ? BinarySize.parseOrDefault(
+                serverSpec != null ? serverSpec.getMaxBinarySize() : null) : 0;
+
         // Read request body once (may be null). A request with no Content-Length and
         // "Connection: close" gets an empty entity of unknown size, so not isEmpty(), whose reader
         // is null: that is no body either (issue #897).
-        try {
-            Reader body = (request.getEntity() != null) && !request.getEntity().isEmpty()
-                    ? request.getEntity().getReader() : null;
-            if (body != null) {
-                tmpRoot = mapper.readTree(body);
+        if (takesFiles && MultipartFormReader.isMultipartForm(request.getEntity())) {
+            tmpRoot = MultipartFormReader.read(request.getEntity(), maxFileBytes);
+        } else {
+            try {
+                Reader body = (request.getEntity() != null) && !request.getEntity().isEmpty()
+                        ? request.getEntity().getReader() : null;
+                if (body != null) {
+                    tmpRoot = mapper.readTree(body);
+                }
+            } catch (JacksonException | IOException e) {
+                logger.debug("Request body is not valid JSON; treating as absent", e);
+                tmpRoot = null;
             }
-        } catch (JacksonException | IOException e) {
-            logger.debug("Request body is not valid JSON; treating as absent", e);
-            tmpRoot = null;
         }
 
         final JsonNode root = tmpRoot;
@@ -192,6 +203,16 @@ public class OperationStepExecutor {
             // Their defaults apply now, as for an MCP tool's arguments, so that the operation's
             // with mappings read them too
             params = InputDefaults.apply(inheritedInputs, params);
+            // A file is checked (size, type, digest) before the flow runs, as over MCP
+            params = FileInputs.check(inheritedInputs, params, maxFileBytes);
+        }
+
+        // A ref operation that declares its own inputs inherits none, but still sends its
+        // flow's file inputs: the adapter's maxBinarySize bounds them too
+        if (!takesFiles && serverOp != null && serverOp.getRef() != null && capability != null) {
+            params = FileInputs.check(capability.lookupFlow(serverOp.getRef())
+                    .getInputParameters(), params, BinarySize.parseOrDefault(
+                            serverSpec != null ? serverSpec.getMaxBinarySize() : null));
         }
 
         return params;

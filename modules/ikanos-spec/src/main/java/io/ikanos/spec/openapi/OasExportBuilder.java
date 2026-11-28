@@ -32,6 +32,7 @@ import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.media.StringSchema;
 import io.swagger.v3.oas.models.parameters.Parameter;
 import io.swagger.v3.oas.models.parameters.RequestBody;
+import io.swagger.v3.oas.models.media.Encoding;
 import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.headers.Header;
 import io.ikanos.spec.aggregates.AggregateSpec;
@@ -386,6 +387,7 @@ public class OasExportBuilder {
                         .get("application/json").getSchema();
                 bodySchema.setRequired(bodyRequired);
             }
+            asMultipartWhenItTakesFiles(requestBody, inputs);
             operation.setRequestBody(requestBody);
         }
 
@@ -412,6 +414,37 @@ public class OasExportBuilder {
         operation.setResponses(responses);
 
         return operation;
+    }
+
+    /**
+     * A body with a file input ({@code type: file}) is read from {@code multipart/form-data}, as
+     * the REST adapter reads it: the same members, each a part, and each file a binary part whose
+     * {@code encoding} lists the media types it accepts.
+     */
+    static void asMultipartWhenItTakesFiles(RequestBody requestBody,
+            List<InputParameterSpec> inputs) {
+        Map<String, Encoding> encodings = new LinkedHashMap<>();
+        boolean takesFiles = false;
+        for (InputParameterSpec input : inputs) {
+            if ("body".equals(input.getIn()) && input.isFile()) {
+                takesFiles = true;
+                List<String> mediaTypes = input.getAccept().stream()
+                        .filter(accepted -> !accepted.startsWith(".")).toList();
+                if (!mediaTypes.isEmpty()) {
+                    encodings.put(input.getName(),
+                            new Encoding().contentType(String.join(", ", mediaTypes)));
+                }
+            }
+        }
+        if (!takesFiles) {
+            return;
+        }
+        MediaType json = requestBody.getContent().get("application/json");
+        MediaType multipart = new MediaType().schema(json.getSchema());
+        if (!encodings.isEmpty()) {
+            multipart.setEncoding(encodings);
+        }
+        requestBody.setContent(new Content().addMediaType("multipart/form-data", multipart));
     }
 
     /** Whether an operation may ask its caller for input, and so answers in rounds. */
@@ -702,6 +735,10 @@ public class OasExportBuilder {
         Schema schema = new Schema<>();
         String type = mapIkanosTypeToOas(inputParam.getType());
         setSchemaType(schema, type);
+        if (inputParam.isFile()) {
+            // A file part of a multipart body
+            schema.setFormat("binary");
+        }
         if (inputParam.getDescription() != null) {
             schema.setDescription(inputParam.getDescription());
         }

@@ -21,12 +21,16 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  *
  * <p>Opts an MCP adapter into the draft MCP files extension ({@code io.modelcontextprotocol/files}).
  * An adapter that declares this block advertises the extension in {@code server/discover}; one
- * that does not behaves as before. Only downloads are supported for now.</p>
+ * that does not behaves as before. Downloads, and file inputs sent inline, are supported; out-of-band
+ * uploads are not yet.</p>
  */
 public class McpFilesSpec {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private final AtomicReference<McpFileDownloadsSpec> downloads = new AtomicReference<>();
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private final AtomicReference<McpFileUploadsSpec> uploads = new AtomicReference<>();
 
     public McpFilesSpec() {}
 
@@ -43,5 +47,20 @@ public class McpFilesSpec {
     public McpFileDownloadsSpec downloadsOrDefault() {
         McpFileDownloadsSpec declared = downloads.get();
         return declared != null ? declared : new McpFileDownloadsSpec();
+    }
+
+    /** @return the upload settings, or {@code null} when the block omits them */
+    public McpFileUploadsSpec getUploads() {
+        return uploads.get();
+    }
+
+    public void setUploads(McpFileUploadsSpec uploads) {
+        this.uploads.set(uploads);
+    }
+
+    /** @return the upload settings, defaults included when the block omits them */
+    public McpFileUploadsSpec uploadsOrDefault() {
+        McpFileUploadsSpec declared = uploads.get();
+        return declared != null ? declared : new McpFileUploadsSpec();
     }
 }

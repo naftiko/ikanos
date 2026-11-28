@@ -35,7 +35,10 @@ import io.ikanos.engine.consumes.Outcome;
 import io.ikanos.engine.exposes.mcp.files.McpFileDownloads;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.engine.util.CallerClaimMissingException;
+import io.ikanos.engine.util.BinarySize;
+import io.ikanos.engine.util.FileInputs;
 import io.ikanos.engine.util.InputDefaults;
+import io.ikanos.spec.exposes.mcp.McpFileUploadsSpec;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.engine.util.Resolver;
 import io.ikanos.spec.InputParameterSpec;
@@ -98,6 +101,12 @@ public class ToolHandler {
      */
     private final McpFileDownloads fileDownloads;
 
+    /**
+     * The largest total decoded size of the inline files of one call (files extension): the
+     * adapter's {@code files.uploads.maxInlineBytes}.
+     */
+    private final long maxInlineBytes;
+
     public ToolHandler(Capability capability, Map<String, McpServerToolSpec> tools) {
         this(capability, tools, null);
     }
@@ -114,7 +123,15 @@ public class ToolHandler {
 
     public ToolHandler(Capability capability, Map<String, McpServerToolSpec> tools,
             String exposeNamespace, String maxBinarySize, McpFileDownloads fileDownloads) {
+        this(capability, tools, exposeNamespace, maxBinarySize, fileDownloads,
+                BinarySize.parse(McpFileUploadsSpec.DEFAULT_MAX_INLINE_BYTES));
+    }
+
+    public ToolHandler(Capability capability, Map<String, McpServerToolSpec> tools,
+            String exposeNamespace, String maxBinarySize, McpFileDownloads fileDownloads,
+            long maxInlineBytes) {
         this.fileDownloads = fileDownloads;
+        this.maxInlineBytes = maxInlineBytes;
         this.capability = capability;
         this.toolSpecs = new ConcurrentHashMap<>();
         this.outputContracts = new ConcurrentHashMap<>();
@@ -311,6 +328,24 @@ public class ToolHandler {
         // Check the arguments against their declared types before any template sees them.
         arguments = checkArgumentTypes(toolName, arguments);
 
+        // Files extension (experimental): a file argument is checked (inline bytes, size, type,
+        // digest) before the tool runs. A refused file is an error result, as the draft asks,
+        // not a protocol error
+        try {
+            arguments = FileInputs.check(getInputParameters(toolName), arguments,
+                    maxInlineBytes);
+            // A ref tool that declares its own inputs, none of them a file, still sends its
+            // flow's file inputs: the call limit applies to them too
+            if (toolSpec.getRef() != null
+                    && !FileInputs.takesFiles(getInputParameters(toolName))) {
+                arguments = FileInputs.check(
+                        capability.lookupFlow(toolSpec.getRef()).getInputParameters(),
+                        arguments, maxInlineBytes);
+            }
+        } catch (FileInputs.InvalidFileException e) {
+            return textResult(e.getMessage(), true);
+        }
+
         // The caller's validated claims, for {{auth.claims...}} templates (#998), put among the
         // arguments so the tool's 'with' can read them too. Taken from the request the transport
         // is dispatching, never from an argument.
@@ -463,6 +498,9 @@ public class ToolHandler {
             }
 
             return buildToolResult(toolSpec, result.lastResult);
+        } catch (FileInputs.InvalidFileException e) {
+            // A file the flow refused: an error result, as when the tool checks it itself
+            return textResult(e.getMessage(), true);
         } catch (IllegalArgumentException | InputRequiredException e) {
             throw e;
         } catch (OperationStepExecutor.StepFailedException e) {

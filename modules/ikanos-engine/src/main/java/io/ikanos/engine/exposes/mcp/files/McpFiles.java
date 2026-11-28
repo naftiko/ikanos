@@ -37,6 +37,12 @@ public final class McpFiles {
     /** Setting of a peer that supports out-of-band uploads. */
     public static final String UPLOAD = "upload";
 
+    /** Server setting: the largest total decoded size of the inline files of one request. */
+    public static final String MAX_INLINE_BYTES = "maxInlineBytes";
+
+    /** Keyword that marks a file argument in a tool's {@code inputSchema}. */
+    public static final String FILE_KEYWORD = "x-mcp-file";
+
     /** Member of the result {@code _meta} entry that lists the download targets. */
     public static final String DOWNLOADS = "downloads";
 
@@ -47,12 +53,69 @@ public final class McpFiles {
     }
 
     /**
-     * The settings {@code server/discover} advertises: none, since {@code download} is a client
-     * setting and the engine does not accept uploads yet. Advertising the extension is what lets
-     * a client declare {@code download}.
+     * The settings {@code server/discover} advertises: the inline upload limit only.
+     * {@code download} is a client setting, and advertising the extension is what lets a client
+     * declare it. {@code upload} is not advertised: it announces out-of-band uploads and the
+     * {@code upload_required} result, which the engine does not support yet, and inline files
+     * need only {@code maxInlineBytes}.
+     *
+     * @param maxInlineBytes the largest total decoded size of the inline files of one request
      */
-    public static ObjectNode serverSettings(ObjectMapper mapper) {
-        return mapper.createObjectNode();
+    public static ObjectNode serverSettings(ObjectMapper mapper, long maxInlineBytes) {
+        ObjectNode settings = mapper.createObjectNode();
+        settings.put(MAX_INLINE_BYTES, maxInlineBytes);
+        return settings;
+    }
+
+    /**
+     * The schema of a file argument in a tool's {@code inputSchema}: the draft's
+     * {@code FileInput} object, marked with {@link #FILE_KEYWORD}.
+     *
+     * @param description the argument description, or {@code null}
+     * @param accept the accepted media types and extensions, may be empty
+     * @param maxSize the largest file in bytes, or {@code null}
+     */
+    public static Map<String, Object> fileInputSchema(String description, List<String> accept,
+            Long maxSize) {
+        Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put("type", "object");
+        if (description != null) {
+            schema.put("description", description);
+        }
+        Map<String, Object> descriptor = new LinkedHashMap<>();
+        if (accept != null && !accept.isEmpty()) {
+            descriptor.put("accept", List.copyOf(accept));
+        }
+        if (maxSize != null) {
+            descriptor.put("maxSize", maxSize);
+        }
+        schema.put(FILE_KEYWORD, descriptor);
+
+        Map<String, Object> idSchema = new LinkedHashMap<>();
+        idSchema.put("type", "string");
+        idSchema.put("minLength", 1);
+        idSchema.put("maxLength", 128);
+        Map<String, Object> sizeSchema = new LinkedHashMap<>();
+        sizeSchema.put("type", "integer");
+        sizeSchema.put("minimum", 0);
+        Map<String, Object> digestProperties = new LinkedHashMap<>();
+        digestProperties.put("algorithm", Map.of("const", "sha-256"));
+        digestProperties.put("value", Map.of("type", "string"));
+        Map<String, Object> digest = new LinkedHashMap<>();
+        digest.put("type", "object");
+        digest.put("properties", digestProperties);
+        digest.put("required", List.of("algorithm", "value"));
+
+        Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("id", idSchema);
+        properties.put("name", Map.of("type", "string"));
+        properties.put("mimeType", Map.of("type", "string"));
+        properties.put("size", sizeSchema);
+        properties.put("digest", digest);
+        properties.put("data", Map.of("type", "string"));
+        schema.put("properties", properties);
+        schema.put("required", List.of("id", "mimeType", "size"));
+        return schema;
     }
 
     /**

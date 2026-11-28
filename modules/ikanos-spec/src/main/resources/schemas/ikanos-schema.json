@@ -1652,10 +1652,25 @@
     },
     "McpFiles": {
       "type": "object",
-      "description": "**Experimental.** Opts this adapter into the draft MCP files extension (`io.modelcontextprotocol/files`), whose shape may still change. With this block, `server/discover` advertises the extension (with no settings: `download` is a client setting), and a `tools/call` request that declares `download` in its `io.modelcontextprotocol/clientCapabilities` gets large files as download targets, listed in the result's `_meta[\"io.modelcontextprotocol/files\"].downloads` with a text summary in `content`, instead of inline base64. A request that does not declare `download` gets the inline result as before. Files come from two sources: a binary tool result (`outputRawFormat: binary`) larger than `downloads.inlineThreshold` is served once from a short-lived link on this adapter (`credentials: include`: the link takes the same authentication as the MCP endpoint, HTTP transport only), and a tool that declares `download` returns the URL its consumed API already gives (`credentials: omit`). Limits of hosted links: a link is served only by the replica that issued it, so replicas behind a load balancer need session affinity; files wait in one bounded in-memory store per process (at most 1/8 of the heap and 256 MiB, a quarter of it per caller), and a result that does not fit is returned inline; and a client resends only the `Authorization` header and the query string of the MCP address, so links are issued with no `authentication`, `bearer`, `basic`, `oauth2` or an `apikey` in the query, and results stay inline behind an `apikey` in another header or `digest`. Without this block, nothing changes.",
+      "description": "**Experimental.** Opts this adapter into the draft MCP files extension (`io.modelcontextprotocol/files`), whose shape may still change. With this block, `server/discover` advertises the extension, with `maxInlineBytes` as its only setting (`download` is a client setting), and a `tools/call` request that declares `download` in its `io.modelcontextprotocol/clientCapabilities` gets large files as download targets, listed in the result's `_meta[\"io.modelcontextprotocol/files\"].downloads` with a text summary in `content`, instead of inline base64. A request that does not declare `download` gets the inline result as before. With `uploads` settings (defaults apply when it is left out), a tool whose input is `type: file` takes the file inline in its arguments, up to `maxInlineBytes` per request. Downloaded files come from two sources: a binary tool result (`outputRawFormat: binary`) larger than `downloads.inlineThreshold` is served once from a short-lived link on this adapter (`credentials: include`: the link takes the same authentication as the MCP endpoint, HTTP transport only), and a tool that declares `download` returns the URL its consumed API already gives (`credentials: omit`). Limits of hosted links: a link is served only by the replica that issued it, so replicas behind a load balancer need session affinity; files wait in one bounded in-memory store per process (at most 1/8 of the heap and 256 MiB, a quarter of it per caller), and a result that does not fit is returned inline; and a client resends only the `Authorization` header and the query string of the MCP address, so links are issued with no `authentication`, `bearer`, `basic`, `oauth2` or an `apikey` in the query, and results stay inline behind an `apikey` in another header or `digest`. Without this block, nothing changes.",
       "properties": {
         "downloads": {
           "$ref": "#/$defs/McpFileDownloads"
+        },
+        "uploads": {
+          "$ref": "#/$defs/McpFileUploads"
+        }
+      },
+      "additionalProperties": false
+    },
+    "McpFileUploads": {
+      "type": "object",
+      "description": "**Experimental.** File inputs (`type: file`) sent inline in a `tools/call`. `server/discover` advertises `maxInlineBytes`, and a tool argument carries the file's bytes in base64 in its `data`. Out-of-band uploads are not supported yet: a non-empty file without `data` is refused, and `upload` is not advertised.",
+      "properties": {
+        "maxInlineBytes": {
+          "$ref": "#/$defs/BinarySize",
+          "default": "1MiB",
+          "description": "The largest total decoded size of the inline files of one `tools/call` request, advertised in bytes as `maxInlineBytes`. A request over it is answered with an error result, without running the tool. Each file is also bounded by its input's `maxSize`. Default: `1MiB`."
         }
       },
       "additionalProperties": false
@@ -2115,16 +2130,31 @@
       "properties": {
         "type": {
           "type": "string",
-          "description": "The expected data type of the parameter. Defaults to `string`, so a string parameter can leave it out. Caller values are checked against it: a string is always accepted, a number or boolean is written as text for `string`, and any other mismatch (for example an object for `string`) fails the call.",
+          "description": "The expected data type of the parameter. Defaults to `string`, so a string parameter can leave it out. Caller values are checked against it: a string is always accepted, a number or boolean is written as text for `string`, and any other mismatch (for example an object for `string`) fails the call. **Experimental:** `file` declares a file input of an exposed MCP tool or an aggregate flow, with `accept` and `maxSize`. Over MCP, the tool takes the file object of the draft MCP files extension (`id`, `name`, `mimeType`, `size`, optional `digest` and inline base64 `data`), marked `x-mcp-file`; it needs `files` on the MCP exposes block, and only clients that declare the extension see the tool in `tools/list`. Over REST, an operation that inherits it through `ref` takes a `multipart/form-data` body, with the file as a part of the input's name. Either way, steps and consumed templates see the file as an object with `id`, `name`, `mimeType`, `size` and `data` (the bytes in base64), which a `multipartForm` part with `encoding: base64` or a `binary` body sends as bytes.",
           "enum": [
             "string",
             "number",
             "integer",
             "boolean",
             "array",
-            "object"
+            "object",
+            "file"
           ],
           "default": "string"
+        },
+        "accept": {
+          "type": "array",
+          "description": "**Experimental.** For `type: file`: the media types (`application/pdf`, or a range such as `image/*`) or dot-prefixed file extensions (`.csv`) the input accepts. A file whose `mimeType`, or whose `name` for an extension, matches none of them is refused before the tool or flow runs. Advertised over MCP as `x-mcp-file.accept`.",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "maxSize": {
+          "$ref": "#/$defs/BinarySize",
+          "description": "**Experimental.** For `type: file`: the largest file the input accepts, such as `50MiB`. A larger file is refused before the tool or flow runs. Advertised over MCP as `x-mcp-file.maxSize`, in bytes. Inline MCP uploads are also bounded by the adapter's `files.uploads.maxInlineBytes`, and REST uploads by the adapter's `maxBinarySize`."
         },
         "description": {
           "type": "string",
@@ -2189,6 +2219,30 @@
               "required",
               "default"
             ]
+          }
+        }
+      },
+      "if": {
+        "anyOf": [
+          {
+            "required": [
+              "accept"
+            ]
+          },
+          {
+            "required": [
+              "maxSize"
+            ]
+          }
+        ]
+      },
+      "then": {
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "const": "file"
           }
         }
       }
@@ -3435,7 +3489,7 @@
         },
         "body": {
           "$ref": "#/$defs/RequestBody",
-          "description": "Optional request body (POST/PUT/PATCH). Choose the variant matching the upstream API content-type: `json`, `text`/`xml`/`sparql`, `formUrlEncoded`, `multipartForm`, or a raw string."
+          "description": "Optional request body (POST/PUT/PATCH). Choose the variant matching the upstream API content-type: `json`, `text`/`xml`/`sparql`, `formUrlEncoded`, `multipartForm`, `binary`, or a raw string."
         }
       },
       "required": [
@@ -4390,12 +4444,35 @@
       ],
       "additionalProperties": false
     },
+    "RequestBodyBinary": {
+      "type": "object",
+      "description": "Binary request body: the decoded bytes of a base64 value, such as a file input's `data` (`{{report.data}}`), sent as is.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "binary"
+        },
+        "data": {
+          "type": "string",
+          "description": "The bytes to send, base64-encoded, Mustache-rendered (for a file input, `{{name.data}}`). A value that is not base64 fails the call."
+        },
+        "contentType": {
+          "type": "string",
+          "description": "Media type of the body, Mustache-rendered (for a file input, `{{name.mimeType}}`). Default: `application/octet-stream`. A `Content-Type` header input replaces it."
+        }
+      },
+      "required": [
+        "type",
+        "data"
+      ],
+      "additionalProperties": false
+    },
     "RequestBodyRaw": {
       "type": "string",
       "description": "Raw body string sent as-is. Use a YAML block scalar (`|`) for multi-line payloads. The framework treats the string as JSON by default; pair with a `Content-Type` input parameter to override."
     },
     "RequestBody": {
-      "description": "Request body attached to a `ConsumedHttpOperation`. Choose the variant that matches the upstream API's expected content-type:\n- `json` \u2192 `application/json` (object, array, or template string)\n- `text` / `xml` / `sparql` \u2192 plain text / XML / SPARQL query\n- `formUrlEncoded` \u2192 `application/x-www-form-urlencoded`\n- `multipartForm` \u2192 `multipart/form-data` (file uploads)\n- raw string \u2192 sent as-is (override content-type via an `inputParameter` with `in: header`)",
+      "description": "Request body attached to a `ConsumedHttpOperation`. Choose the variant that matches the upstream API's expected content-type:\n- `json` \u2192 `application/json` (object, array, or template string)\n- `text` / `xml` / `sparql` \u2192 plain text / XML / SPARQL query\n- `formUrlEncoded` \u2192 `application/x-www-form-urlencoded`\n- `multipartForm` \u2192 `multipart/form-data` (file uploads)\n- `binary` \u2192 the decoded bytes of a base64 value (a file input's `data`)\n- raw string \u2192 sent as-is (override content-type via an `inputParameter` with `in: header`)",
       "oneOf": [
         {
           "$ref": "#/$defs/RequestBodyJson"
@@ -4408,6 +4485,9 @@
         },
         {
           "$ref": "#/$defs/RequestBodyMultipartForm"
+        },
+        {
+          "$ref": "#/$defs/RequestBodyBinary"
         },
         {
           "$ref": "#/$defs/RequestBodyRaw"

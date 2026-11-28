@@ -67,6 +67,14 @@ public final class RequestClientCapabilities {
         return McpFiles.declares(capabilities.path("extensions"), McpFiles.DOWNLOAD);
     }
 
+    /**
+     * Whether the request declares the files extension at all: an inline-only client declares
+     * it with empty settings, and sees the tools that take a file.
+     */
+    public boolean supportsFiles() {
+        return hasExtension(McpFiles.EXTENSION_ID);
+    }
+
     /** Whether the request declares {@code upload} in the files extension. */
     public boolean acceptsUploads() {
         return McpFiles.declares(capabilities.path("extensions"), McpFiles.UPLOAD);

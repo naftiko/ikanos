@@ -6,7 +6,7 @@ notion_last_sync: 2026-06-26T13:25:14Z
 # Feature Coverage Tracker — Ikanos Engine
 
 **Issue**: [#578](https://github.com/naftiko/ikanos/issues/578) / sub-issue [#590](https://github.com/naftiko/ikanos/issues/590)
-**Last updated**: 2026-11-09
+**Last updated**: 2026-11-27
 **Scope**: Disk + Notion ITD cross-checked (see limitations for the residual caveat).
 **Model**: 1 design doc = 1 feature.
 
@@ -124,7 +124,7 @@ delivery). The follow-up sub-issues (family A / B) are the actionable test outpu
 | 4 | Consumed auth — bearer | SHIPPED | JVM | no dedicated design doc | `Step3ShipyardMcpClientIntegrationTest`. Base-spec auth scheme. |
 | 5 | Consumed auth — basic / apikey / digest | SHIPPED | NONE | no dedicated design doc | No integration test launches a capability against a backend requiring these schemes. Base-spec auth schemes. |
 | 6 | Request body — JSON | SHIPPED | JVM | no dedicated design doc | `Step6ShipyardMcpClientIntegrationTest` (write operations). Base-spec primitive. |
-| 7 | Request body — form-urlencoded / multipart / text / raw | SHIPPED | NONE | no dedicated design doc | No end-user test sends these content types. Base-spec primitives. |
+| 7 | Request body — form-urlencoded / multipart / text / raw | SHIPPED | JVM (multipart, binary) / NONE (form, text, raw) | no dedicated design doc | **Multipart and binary**: `FileInputsIntegrationTest` boots an MCP and a REST adapter on real ports in-process and sends a file to a stub upstream, as a `multipartForm` part (from an MCP `tools/call` with an inline file, and from a REST `multipart/form-data` upload) and as a `binary` body, asserting the exact bytes, boundary and part headers the upstream receives ([#1044](https://github.com/naftiko/ikanos/issues/1044)). `McpMultipartFormBodyIntegrationTest` covers a multipart body from MCP in-process. **form-urlencoded / text / raw**: no end-user test sends these content types yet. Base-spec primitives. |
 | 8 | Multi-step orchestration (call + lookup) | SHIPPED | JVM | no dedicated design doc | `Step7ShipyardMcpClientIntegrationTest`. Base-spec orchestration steps. |
 | 9 | Aggregates + `ref` (REST + MCP reuse) | SHIPPED | NONE | no dedicated design doc | `AggregateIntegrationTest` / `AggregateSharedMockIntegrationTest` load the spec in-process **without booting an HTTP server** → NONE. `step-9-shipyard-aggregates.yml` fixture exists but **has no test class**. |
 | 10 | REST exposition (`type: rest`) | SHIPPED | PACKAGE | no dedicated design doc | JVM via `Step10ShipyardRestAdapterIntegrationTest`; **also PACKAGE** — the nightly `smoke-tests` serves `serve-rest-mock.ikanos.yaml` from the installed jlink package on 4 OS and sends a real `GET /greet` (200 with the expected body). Until #914 the same check ran on the native binary, where it found the HTTP hang fixed in [#594](https://github.com/naftiko/ikanos/issues/594). |
@@ -219,7 +219,7 @@ a first end-user test for a NONE feature.
 | 🟠 Medium | A0 | **Extend the package smoke** (`serve-http` fixture) to drive the **MCP** adapter at package level — the fixture already declares a skills-only MCP port (formerly the Skill port) that is never probed; follow the control port pattern ([#608](https://github.com/naftiko/ikanos/issues/608)) | Medium — fixture exists, add a real client call |
 | 🟡 Low | A1 | OTel via control port (`/metrics` + `/traces`) | Low |
 | 🟡 Low | A1 | Consumed auth basic / apikey / digest | Low |
-| 🟡 Low | A1 | Request body form / multipart | Medium |
+| 🟡 Low | A1 | Request body form-urlencoded / text / raw (multipart and binary done in [#1044](https://github.com/naftiko/ikanos/issues/1044)) | Medium |
 | ⬜ Special | A1 | Reverse tunnel (Ziti) — contract test first, sandbox e2e later | High |
 
 ---

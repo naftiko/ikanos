@@ -65,6 +65,49 @@ class McpToolInputSchemaTest {
     }
 
     @Test
+    void forParametersShouldEmitTheDraftFileObjectMarkedXMcpFileForAFileInput()
+            throws Exception {
+        JsonNode schema = schemaOf("""
+                - name: report
+                  type: file
+                  accept: ["application/pdf", ".csv"]
+                  maxSize: 50MiB
+                  required: true
+                  description: "The report."
+                """);
+
+        JsonNode report = schema.path("properties").path("report");
+        assertEquals(JSON.readTree("""
+                {"type":"object","description":"The report.",
+                 "x-mcp-file":{"accept":["application/pdf",".csv"],"maxSize":52428800},
+                 "properties":{
+                   "id":{"type":"string","minLength":1,"maxLength":128},
+                   "name":{"type":"string"},
+                   "mimeType":{"type":"string"},
+                   "size":{"type":"integer","minimum":0},
+                   "digest":{"type":"object",
+                     "properties":{"algorithm":{"const":"sha-256"},"value":{"type":"string"}},
+                     "required":["algorithm","value"]},
+                   "data":{"type":"string"}},
+                 "required":["id","mimeType","size"]}
+                """).toString(), report.toString());
+        assertEquals(JSON.readTree("[\"report\"]"), schema.path("required"));
+    }
+
+    @Test
+    void forParametersShouldLeaveTheFileDescriptorEmptyWithoutAcceptOrMaxSize()
+            throws Exception {
+        JsonNode schema = schemaOf("""
+                - name: attachment
+                  type: file
+                  description: "Any file."
+                """);
+
+        assertEquals(JSON.createObjectNode(),
+                schema.path("properties").path("attachment").path("x-mcp-file"));
+    }
+
+    @Test
     void forParametersShouldLeaveInputOutOfRequiredWhenRequiredIsNotDeclared() throws Exception {
         JsonNode schema = schemaOf("""
                 - name: team

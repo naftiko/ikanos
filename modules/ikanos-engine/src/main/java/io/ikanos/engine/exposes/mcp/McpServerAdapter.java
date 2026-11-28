@@ -34,8 +34,10 @@ import org.restlet.routing.Router;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -45,6 +47,8 @@ import io.ikanos.engine.execution.Durability;
 import io.ikanos.engine.exposes.CallerClaims;
 import io.ikanos.engine.exposes.mcp.handler.ToolsCallHandler;
 import io.ikanos.engine.exposes.mcp.files.McpFileDownloads;
+import io.ikanos.engine.util.BinarySize;
+import io.ikanos.engine.util.FileInputs;
 import io.ikanos.spec.util.IkanosMappers;
 import io.ikanos.engine.consumes.sql.SqlWriteExposure;
 import io.ikanos.engine.execution.Elicitation;
@@ -96,6 +100,12 @@ public class McpServerAdapter extends ServerAdapter {
     private final McpRequestState requestState;
     private final McpFileDownloads fileDownloads;
 
+    /** The tools that take a file: listed only to clients of the files extension. */
+    private final Set<String> fileTools;
+
+    /** The inline upload limit of the files extension, {@code 0} when the block declares none. */
+    private final long maxInlineBytes;
+
     public McpServerAdapter(Capability capability, McpServerSpec serverSpec) {
         super(capability, serverSpec);
         this.requestState = McpRequestState.withKey(capability.getSealingKey(),
@@ -105,11 +115,17 @@ public class McpServerAdapter extends ServerAdapter {
 
         // Files extension (experimental): only when the exposes block declares files
         this.fileDownloads = McpFileDownloads.of(serverSpec, Clock.systemUTC());
+        this.maxInlineBytes = serverSpec.getFiles() != null
+                ? BinarySize.parse(serverSpec.getFiles().uploadsOrDefault()
+                        .maxInlineBytesOrDefault())
+                : 0;
 
         // Create the tool handler first (transport-agnostic): it owns each tool's output
         // contract, which buildMcpTool() advertises as the MCP outputSchema.
         this.toolHandler = new ToolHandler(capability, serverSpec.getTools(),
-                serverSpec.getNamespace(), serverSpec.getMaxBinarySize(), fileDownloads);
+                serverSpec.getNamespace(), serverSpec.getMaxBinarySize(), fileDownloads,
+                maxInlineBytes);
+        this.fileTools = fileTools(capability, serverSpec, toolHandler);
 
         // Build MCP Tool definitions from the spec
         this.tools = new ArrayList<>();
@@ -168,6 +184,32 @@ public class McpServerAdapter extends ServerAdapter {
         } else {
             initHttpTransport(serverSpec);
         }
+    }
+
+    /**
+     * The tools that take a file: through their own inputs, or through the flow of their
+     * {@code ref}, even when they declare inputs of their own, since the flow checks its file
+     * inputs whatever the tool declares. A file input needs the files extension, so a tool that
+     * takes one on an adapter without {@code files} fails the load: no client could send it a
+     * file.
+     */
+    static Set<String> fileTools(Capability capability, McpServerSpec serverSpec,
+            ToolHandler toolHandler) {
+        Set<String> names = new HashSet<>();
+        for (McpServerToolSpec tool : serverSpec.getTools().values()) {
+            if (tool != null && tool.getName() != null && (FileInputs.takesFiles(
+                    toolHandler.getInputParameters(tool.getName()))
+                    || (tool.getRef() != null && FileInputs.takesFiles(
+                            capability.lookupFlow(tool.getRef()).getInputParameters())))) {
+                if (serverSpec.getFiles() == null) {
+                    throw new IllegalArgumentException("MCP tool '" + tool.getName()
+                            + "' takes a file (type: file), which needs 'files' on its exposes"
+                            + " block '" + serverSpec.getNamespace() + "'");
+                }
+                names.add(tool.getName());
+            }
+        }
+        return Set.copyOf(names);
     }
 
     /**
@@ -455,6 +497,22 @@ public class McpServerAdapter extends ServerAdapter {
      */
     public Map<String, List<String>> getToolTags() {
         return toolTags;
+    }
+
+    /**
+     * @return whether the tool takes a file ({@code type: file}): it is listed only to a client
+     *         that declares the files extension
+     */
+    public boolean takesFiles(String toolName) {
+        return fileTools.contains(toolName);
+    }
+
+    /**
+     * @return the largest total decoded size of the inline files of one {@code tools/call}, as
+     *         {@code server/discover} advertises it, or {@code 0} without a {@code files} block
+     */
+    public long getMaxInlineBytes() {
+        return maxInlineBytes;
     }
 
     /** @return this endpoint's tool search: its modes, meta-tools, pinned tools and index */

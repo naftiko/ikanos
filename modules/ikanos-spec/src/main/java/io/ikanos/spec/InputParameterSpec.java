@@ -17,6 +17,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.annotation.JsonDeserialize;
 import tools.jackson.databind.annotation.JsonSerialize;
@@ -34,6 +35,9 @@ public class InputParameterSpec extends StructureSpec<InputParameterSpec> {
      * inputs, aggregate flow inputs and consumed MCP tool arguments (#986).
      */
     public static final String DEFAULT_MCP_TOOL_INPUT_TYPE = "string";
+
+    /** Type of a file input (experimental, draft MCP files extension). */
+    public static final String FILE_TYPE = "file";
 
     private volatile String in;
 
@@ -102,6 +106,15 @@ public class InputParameterSpec extends StructureSpec<InputParameterSpec> {
      * when none is declared.
      */
     private volatile JsonNode defaultValue;
+
+    /**
+     * For a {@code type: file} input: the accepted media types (or ranges such as
+     * {@code image/*}) and dot-prefixed file extensions. Empty when the input accepts any file.
+     */
+    private final List<String> accept = new CopyOnWriteArrayList<>();
+
+    /** For a {@code type: file} input: the largest accepted file, a sized string, or null. */
+    private volatile String maxSize;
 
     public InputParameterSpec() {
         super();
@@ -281,6 +294,25 @@ public class InputParameterSpec extends StructureSpec<InputParameterSpec> {
         this.additionalProperties = additionalProperties;
     }
 
+    /** @return the accepted media types and extensions of a file input, never null */
+    public List<String> getAccept() {
+        return accept;
+    }
+
+    /** @return the largest accepted file of a file input, a sized string, or {@code null} */
+    public String getMaxSize() {
+        return maxSize;
+    }
+
+    public void setMaxSize(String maxSize) {
+        this.maxSize = maxSize;
+    }
+
+    /** @return whether this input takes a file ({@code type: file}) */
+    public boolean isFile() {
+        return FILE_TYPE.equals(getType());
+    }
+
     /** @return the declared {@code default}, or {@code null} when none is declared */
     public JsonNode getDefaultValue() {
         return defaultValue;
@@ -406,6 +438,8 @@ public class InputParameterSpec extends StructureSpec<InputParameterSpec> {
         copy.getEnumeration().addAll(getEnumeration());
         copy.getExamples().addAll(getExamples());
         copy.getTuple().addAll(getTuple());
+        copy.getAccept().addAll(getAccept());
+        copy.setMaxSize(getMaxSize());
         return copy;
     }
 

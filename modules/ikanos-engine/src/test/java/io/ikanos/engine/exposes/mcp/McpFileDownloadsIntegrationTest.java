@@ -152,13 +152,16 @@ class McpFileDownloadsIntegrationTest {
     }
 
     @Test
-    void serverDiscoverShouldAdvertiseTheFilesExtensionWithoutSettings() throws Exception {
+    void serverDiscoverShouldAdvertiseTheFilesExtensionWithTheInlineLimitOnly() throws Exception {
         JsonNode result = rpc("server/discover", null, JSON.createObjectNode(), false);
 
         JsonNode files = result.path("capabilities").path("extensions")
                 .path("io.modelcontextprotocol/files");
         assertTrue(files.isObject(), result.toString());
-        assertTrue(files.isEmpty(), "download is a client setting, uploads come later: " + result);
+        assertEquals(java.util.List.of("maxInlineBytes"),
+                java.util.List.copyOf(files.propertyNames()),
+                "download is a client setting, out-of-band uploads come later: " + result);
+        assertEquals(1024 * 1024, files.path("maxInlineBytes").asLong());
     }
 
     @Test

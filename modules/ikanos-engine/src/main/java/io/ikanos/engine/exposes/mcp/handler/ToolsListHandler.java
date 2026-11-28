@@ -22,6 +22,7 @@ import io.ikanos.engine.exposes.mcp.model.HandlerSuccessResult;
 import io.ikanos.engine.exposes.mcp.model.HandlerResult;
 import io.ikanos.engine.exposes.mcp.model.McpHeader;
 import io.ikanos.engine.exposes.mcp.model.McpRequestContext;
+import io.ikanos.engine.exposes.mcp.model.RequestClientCapabilities;
 import io.ikanos.engine.exposes.mcp.search.ToolSearchCatalog;
 import io.ikanos.engine.exposes.mcp.search.ToolSearchMode;
 import io.ikanos.engine.exposes.mcp.processor.DispatchPostProcessor;
@@ -59,6 +60,10 @@ public class ToolsListHandler extends McpCallHandler {
      * <p>In deferred mode, the list is the two meta-tools, never filtered, followed by the pinned
      * tools. It never changes between requests, so it stays in the client's cached prompt
      * prefix; the model finds the other tools with the search meta-tool.</p>
+     *
+     * <p>A tool that takes a file ({@code type: file}) is left out for a request that does not
+     * declare the files extension, as the draft recommends: such a client could not fill its file
+     * argument.</p>
      */
     @Override
     public HandlerResult handle(JsonNode requestBody, McpRequestContext context) {
@@ -75,7 +80,14 @@ public class ToolsListHandler extends McpCallHandler {
             }
             listed = catalog.pinnedTools();
         }
+        // Files extension (experimental): a tool that takes a file is listed only to a client
+        // that declares the extension, which can fill its file object
+        boolean files = RequestClientCapabilities.from(requestBody.path("params"))
+                .supportsFiles();
         for (McpSchema.Tool tool : listed) {
+            if (!files && adapter.takesFiles(tool.name())) {
+                continue;
+            }
             if (context.acceptsTags(tags.getOrDefault(tool.name(), List.of()))) {
                 toolsArray.add(McpToolJson.write(tool, labels, MAPPER));
             }

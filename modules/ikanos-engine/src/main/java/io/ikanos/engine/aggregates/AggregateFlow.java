@@ -23,6 +23,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import io.ikanos.engine.consumes.ConsumedResult;
 import io.ikanos.engine.observability.TelemetryBootstrap;
+import io.ikanos.engine.util.FileInputs;
 import io.ikanos.engine.util.InputDefaults;
 import io.ikanos.engine.util.OperationStepExecutor;
 import io.ikanos.engine.util.Resolver;
@@ -183,6 +184,17 @@ public class AggregateFlow {
         // Use the flow's input defaults for the inputs its caller (an MCP tool, a REST operation
         // or another flow) left out (#979), before the flow's 'with' and templates read them
         merged = InputDefaults.apply(getInputParameters(), merged);
+
+        // A file input of the flow is checked here too (size, type, digest), whatever adapter
+        // or step calls the flow: a ref tool or operation that declares its own inputs does not
+        // inherit the flow's, so the adapter's check does not see them. The total is left to
+        // the adapters (maxInlineBytes, maxBinarySize); a file they already checked passes
+        // again unchanged.
+        Map<String, Object> checked = FileInputs.check(getInputParameters(), merged,
+                Long.MAX_VALUE);
+        if (checked != merged) {
+            merged = new HashMap<>(checked);
+        }
 
         // Merge flow-level 'with' parameters
         OperationStepExecutor.mergeWithParameters(spec.getWith(), merged, namespace);

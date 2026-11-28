@@ -13,6 +13,7 @@
  */
 package io.ikanos.engine.consumes.http;
 
+import java.util.Base64;
 import org.restlet.Client;
 import org.restlet.Context;
 import org.restlet.Request;
@@ -274,6 +275,9 @@ public class HttpClientAdapter extends ClientAdapter {
             MultipartFormBody multipart = MultipartFormBody.build(multipartData, parameters);
             clientRequest.setEntity(
                     new ByteArrayRepresentation(multipart.bytes(), multipart.mediaType()));
+        } else if (isBinaryBody(clientOp.getBody())) {
+            clientRequest.setEntity(binaryEntity((Map<?, ?>) clientOp.getBody(), parameters,
+                    operationName));
         } else if (clientOp.getBody() != null) {
             String resolvedBody;
             MediaType bodyMediaType = MediaType.APPLICATION_JSON;
@@ -481,6 +485,54 @@ public class HttpClientAdapter extends ClientAdapter {
             }
         }
         return false;
+    }
+
+    /** @return {@code true} when {@code bodySpec} is a {@code type: binary} body */
+    static boolean isBinaryBody(Object bodySpec) {
+        return bodySpec instanceof Map<?, ?> bodyMap
+                && "binary".equalsIgnoreCase(String.valueOf(bodyMap.get("type")));
+    }
+
+    /**
+     * The entity of a {@code type: binary} body: the decoded bytes of its rendered base64
+     * {@code data}, such as a file input's {@code {{report.data}}}, with its rendered
+     * {@code contentType}, {@code application/octet-stream} by default. Neither message echoes a
+     * value.
+     *
+     * @throws IllegalArgumentException when {@code data} is missing or does not render to
+     *         base64, or {@code contentType} is not one media type
+     */
+    static ByteArrayRepresentation binaryEntity(Map<?, ?> bodySpec,
+            Map<String, Object> parameters, String operationName) {
+        if (!(bodySpec.get("data") instanceof String template)) {
+            throw new IllegalArgumentException("The binary body of operation '" + operationName
+                    + "' requires a base64 template in 'data'");
+        }
+        rejectUnresolved("body", template, parameters);
+        String rendered = Resolver.resolveMustacheTemplate(template, parameters);
+        byte[] bytes;
+        try {
+            // Strip whitespace so line-wrapped input decodes, as for a base64 multipart part
+            bytes = Base64.getDecoder().decode(rendered == null ? ""
+                    : rendered.replaceAll("\\s", ""));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("The binary body of operation '" + operationName
+                    + "' is not valid base64", e);
+        }
+        MediaType mediaType = MediaType.APPLICATION_OCTET_STREAM;
+        Object contentType = bodySpec.get("contentType");
+        if (contentType != null) {
+            String type = Resolver.resolveMustacheTemplate(String.valueOf(contentType),
+                    parameters);
+            if (type != null && (type.indexOf('\r') >= 0 || type.indexOf('\n') >= 0)) {
+                throw new IllegalArgumentException("Line break in the contentType of the binary"
+                        + " body of operation '" + operationName + "'");
+            }
+            if (type != null && !type.isBlank()) {
+                mediaType = MediaType.valueOf(type.trim());
+            }
+        }
+        return new ByteArrayRepresentation(bytes, mediaType);
     }
 
     /**
