@@ -1055,9 +1055,9 @@ public class ValidateCommandTest {
                         list:
                           description: "List the items"
                           steps:
-                            - name: fetch
+                            fetch:
                               type: "call"
-                              what: "api.list-items"
+                              call: "api.list-items"
                           mappings:
                             - target: "items"
                               value: "$.fetch"
