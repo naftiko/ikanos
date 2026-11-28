@@ -233,8 +233,8 @@ public class OAuth2AuthenticationRestlet extends Restlet {
                 spec.getAudience() != null ? spec.getAudience() : spec.getResource();
         if (expectedAudience != null) {
             List<String> audiences = claims.getAudience();
-            if (audiences == null || audiences.isEmpty()
-                    || !audiences.contains(expectedAudience)) {
+            if (audiences == null || audiences.stream()
+                    .noneMatch(audience -> sameResource(audience, expectedAudience))) {
                 return "Invalid audience";
             }
         }
@@ -462,6 +462,38 @@ public class OAuth2AuthenticationRestlet extends Restlet {
 
     private static String stripTrailingSlash(String uri) {
         return uri.endsWith("/") ? uri.substring(0, uri.length() - 1) : uri;
+    }
+
+    /**
+     * Whether a token's audience names the expected resource. They match as written, or as the
+     * same resource identifier with an empty path, which RFC 3986 (6.2.3) makes equivalent to
+     * {@code /}: an authorization server may bind the token to {@code https://mcp.example.org/}
+     * when the capability declares {@code https://mcp.example.org}, as MCP enterprise-managed
+     * authorization's examples do. A non-empty path is compared as written, since
+     * {@code /mcp} and {@code /mcp/} may name different resources.
+     */
+    static boolean sameResource(String audience, String expected) {
+        if (audience == null || expected == null) {
+            return false;
+        }
+        return audience.equals(expected)
+                || withRootPath(audience).equals(withRootPath(expected));
+    }
+
+    /** The URI with {@code /} as its path when it has an authority and an empty path. */
+    private static String withRootPath(String uri) {
+        try {
+            java.net.URI parsed = new java.net.URI(uri);
+            if (parsed.getRawAuthority() != null && (parsed.getRawPath() == null
+                    || parsed.getRawPath().isEmpty())) {
+                return parsed.getScheme() + "://" + parsed.getRawAuthority() + "/"
+                        + (parsed.getRawQuery() != null ? "?" + parsed.getRawQuery() : "")
+                        + (parsed.getRawFragment() != null ? "#" + parsed.getRawFragment() : "");
+            }
+        } catch (java.net.URISyntaxException e) {
+            // Not a URI: compared as written.
+        }
+        return uri;
     }
 
 }

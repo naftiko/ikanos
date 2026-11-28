@@ -220,6 +220,57 @@ class McpOAuth2IntegrationTest {
         }
     }
 
+    /**
+     * MCP enterprise-managed authorization (#1153), seen from the MCP server: the server
+     * declares nothing of its own. The client is challenged, reads the Protected Resource
+     * Metadata, gets a token from the first authorization server it lists by presenting an
+     * identity assertion (ID-JAG, jwt-bearer grant), and that token, audience-restricted to the
+     * metadata's {@code resource}, is checked like any other.
+     */
+    @Test
+    void oauth2ShouldAcceptAnEnterpriseManagedTokenWhenBoundToTheMetadataResource()
+            throws Exception {
+        McpServerAdapter adapter = startOAuth2Server();
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            String issuer = "http://127.0.0.1:" + mockAsPort;
+            // 1. A call without a token is challenged, naming the metadata
+            HttpResponse<String> challenged = client.send(discoverRequest(adapter).build(),
+                    HttpResponse.BodyHandlers.ofString());
+            assertEquals(401, challenged.statusCode());
+            String challenge = challenged.headers().firstValue("WWW-Authenticate").orElse("");
+            java.util.regex.Matcher metadataUrl = java.util.regex.Pattern
+                    .compile("resource_metadata=\"([^\"]+)\"").matcher(challenge);
+            assertTrue(metadataUrl.find(), challenge);
+
+            // 2. The metadata names the resource and, first, the authorization server
+            JsonNode metadata = JSON.readTree(client.send(
+                    HttpRequest.newBuilder(URI.create(metadataUrl.group(1))).GET().build(),
+                    HttpResponse.BodyHandlers.ofString()).body());
+            String resource = metadata.path("resource").asString();
+            assertEquals(issuer, metadata.path("authorization_servers").path(0).asString());
+
+            // 3. The token the authorization server issues for an ID-JAG is accepted
+            JWTClaimsSet.Builder issued = new JWTClaimsSet.Builder()
+                    .issuer(issuer)
+                    .subject("employee-4711")
+                    .claim("client_id", "https://client.example.com/client.json")
+                    .claim("scope", "tools:read")
+                    .expirationTime(new Date(System.currentTimeMillis() + 300_000));
+            HttpResponse<String> accepted = sendDiscover(adapter,
+                    signedJwt(issued.audience(resource).build()));
+            assertEquals(200, accepted.statusCode(), accepted.body());
+
+            // 4. The same grant for another MCP server is refused here
+            HttpResponse<String> refused = sendDiscover(adapter,
+                    signedJwt(issued.audience("https://other-mcp.example.org/mcp").build()));
+            assertEquals(401, refused.statusCode());
+            assertTrue(refused.headers().firstValue("WWW-Authenticate").orElse("")
+                    .contains("Invalid audience"));
+        } finally {
+            adapter.stop();
+        }
+    }
+
     @Test
     void oauth2ShouldServeProtectedResourceMetadata() throws Exception {
         McpServerAdapter adapter = startOAuth2Server();

@@ -191,6 +191,64 @@ class OAuth2AuthenticationRestletTest {
     }
 
     @Test
+    void handleShouldAcceptAnAudienceThatAddsARootPathToTheResource() throws Exception {
+        // #1153: an authorization server may bind the token to "https://mcp.example.com/", the
+        // same resource as a declared "https://mcp.example.com" (RFC 3986, 6.2.3)
+        OAuth2AuthenticationSpec spec = minimalSpec();
+        spec.setResource("https://mcp.example.com");
+        OAuth2AuthenticationRestlet restlet = buildRestlet(spec);
+        String token = signedJwt(new JWTClaimsSet.Builder()
+                .issuer("https://auth.example.com")
+                .audience("https://mcp.example.com/")
+                .expirationTime(futureDate())
+                .build());
+        Request request = bearerRequest(token);
+        Response response = new Response(request);
+
+        restlet.handle(request, response);
+
+        assertEquals(Status.SUCCESS_OK, response.getStatus());
+    }
+
+    @Test
+    void handleShouldRejectAnAudienceThatAddsASlashToAResourcePath() throws Exception {
+        // "/mcp/" and "/mcp" may name different resources: only an empty path is the root
+        OAuth2AuthenticationRestlet restlet = buildRestlet(minimalSpec());
+        String token = signedJwt(new JWTClaimsSet.Builder()
+                .issuer("https://auth.example.com")
+                .audience("https://mcp.example.com/mcp/")
+                .expirationTime(futureDate())
+                .build());
+        Request request = bearerRequest(token);
+        Response response = new Response(request);
+
+        restlet.handle(request, response);
+
+        assertEquals(Status.CLIENT_ERROR_UNAUTHORIZED, response.getStatus());
+    }
+
+    @Test
+    void sameResourceShouldTreatAnEmptyPathAsTheRoot() {
+        assertTrue(OAuth2AuthenticationRestlet.sameResource("https://mcp.example.com/",
+                "https://mcp.example.com"));
+        assertTrue(OAuth2AuthenticationRestlet.sameResource("https://mcp.example.com",
+                "https://mcp.example.com/"));
+        assertTrue(OAuth2AuthenticationRestlet.sameResource("https://mcp.example.com:8443/",
+                "https://mcp.example.com:8443"));
+    }
+
+    @Test
+    void sameResourceShouldTellApartDifferentResources() {
+        assertFalse(OAuth2AuthenticationRestlet.sameResource("https://mcp.example.com/mcp",
+                "https://mcp.example.com"));
+        assertFalse(OAuth2AuthenticationRestlet.sameResource("https://other.example.com/",
+                "https://mcp.example.com"));
+        assertFalse(OAuth2AuthenticationRestlet.sameResource(null, "https://mcp.example.com"));
+        assertFalse(OAuth2AuthenticationRestlet.sameResource("urn:example:mcp",
+                "urn:example:mcp/"), "A URN has no authority: compared as written");
+    }
+
+    @Test
     void handleShouldAcceptJwtLackingSomeRecognizedScopes() throws Exception {
         // #999: the adapter's scopes are the ones it recognizes, not scopes every call requires
         OAuth2AuthenticationSpec spec = minimalSpec();

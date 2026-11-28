@@ -192,6 +192,10 @@ public class McpServerAdapter extends ServerAdapter {
     protected Restlet createOAuth2Restlet(OAuth2AuthenticationSpec oauth2, Restlet next) {
         McpOAuth2Restlet restlet = new McpOAuth2Restlet(oauth2, next);
         this.oauth2Restlet.set(restlet);
+        String warning = McpResourceIdentifier.warning(getMcpServerSpec());
+        if (warning != null) {
+            Context.getCurrentLogger().log(Level.WARNING, warning);
+        }
         return restlet;
     }
 
