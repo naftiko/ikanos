@@ -64,7 +64,7 @@ MCP has had no standard way to move files. Ikanos returned binary results inline
 2. **One place for the wire shape.** `McpFiles` holds the extension identifier, the setting names, the file input schema and the `_meta` placement of download targets. The working group may move the placement; only that class would change.
 3. **Hosted targets use `path`, not `url`.** A `path` resolves under the MCP address the client already uses, so it works behind any mount path or proxy, and keeps `credentials: include` on the server's own origin by construction.
 4. **In-memory stores behind interfaces, not the durable `BlobStore`.** `BlobStore` is keyed by execution, offers only `deleteAll(executionId)` and exists only in a durable mode, while a file belongs to a `tools/call` that has no execution. `DownloadStore` and `UploadStore` let a shared backend replace the memory ones later.
-5. **One memory budget for the process.** Hosted downloads and hosted uploads draw from `FileMemoryBudget.shared()`: 1/8 of the maximum heap, at most 256 MiB, and a quarter of it per caller the adapter can tell apart.
+5. **One memory budget for the process.** Hosted downloads and hosted uploads draw from `FileMemoryBudget.shared()`: 1/8 of the maximum heap, at most 256 MiB, and a quarter of it per caller. Hosted downloads hold every caller to that quarter, including the anonymous principal that all requests share on an adapter without caller identity; hosted uploads of that anonymous principal draw on the total only, with the adapter's `quota` bounding them.
 6. **Server-chosen object names.** A file stored through a presigned URL is named by a random `uploadId`, never by the client's `id`.
 7. **A refused file is an error result, never a protocol error.** That is what the draft's error table asks, and it lets the model act on the message. Protocol errors are kept for a missing capability (`-32021`) and a bad or reused `requestState` (`-32602`).
 8. **Durations are ISO 8601** (`PT5M`), like `durability.retention`, the only duration string the spec had before. Sizes are sized strings (`1MiB`), like `maxBinarySize`.
@@ -299,7 +299,7 @@ A 4 MiB photo becomes a hosted target. The other members the adapter adds to `_m
     "content": [
       {
         "type": "text",
-        "text": "The file get-photo.jpe (image/jpeg, 4194304 bytes) is ready to download; its content is not part of this result."
+        "text": "The file get-photo.jpg (image/jpeg, 4194304 bytes) is ready to download; its content is not part of this result."
       }
     ],
     "isError": false,
@@ -307,7 +307,7 @@ A 4 MiB photo becomes a hosted target. The other members the adapter adds to `_m
       "io.modelcontextprotocol/files": {
         "downloads": [
           {
-            "name": "get-photo.jpe",
+            "name": "get-photo.jpg",
             "mimeType": "image/jpeg",
             "size": 4194304,
             "digest": { "algorithm": "sha-256", "value": "…" },
@@ -322,7 +322,7 @@ A 4 MiB photo becomes a hosted target. The other members the adapter adds to `_m
 }
 ```
 
-The client then sends `GET <MCP address>/files/<token>` with the `Authorization` header of its MCP requests and gets the bytes, with `Content-Disposition: attachment; filename=get-photo.jpe` and `Cache-Control: no-store`.
+The client then sends `GET <MCP address>/files/<token>` with the `Authorization` header of its MCP requests and gets the bytes, with `Content-Disposition: attachment; filename=get-photo.jpg` and `Cache-Control: no-store`.
 
 `export-orders` returns the upstream's URL instead, with `credentials: omit`:
 
@@ -369,7 +369,7 @@ sequenceDiagram
 ### 4.5 Engine behaviour and limits
 
 - **When a target is returned.** Only for a direct `tools/call` whose request declared `download`. `ToolsCallHandler` runs the call under `McpFiles.withDownloads(...)`, a thread-local, and `ToolHandler` asks `McpFileDownloads` for a target. Tasks and the `call-tool` meta-tool never set the flag, so their results stay inline: a task result can be read after its link has expired, and the meta-tool batches results. Below `inlineThreshold`, or without `download`, the result is inline as before.
-- **Hosted targets.** A binary result (`outputRawFormat: binary`) larger than `inlineThreshold` is kept in the process-wide `MemoryDownloadStore.shared()` under a token of 32 random bytes (43 base64url characters). The result is still read under `maxBinarySize`: the threshold moves the bytes out of the result, it does not raise the cap. The target carries a SHA-256 `digest`, `path: /files/<token>`, `credentials: include` and `expiresAt` (now plus `ttl`, to the second). The file name is the tool name with the first extension Restlet's `MetadataService` maps to the media type (`get-photo.png` for a PNG, `get-photo.jpe` for a JPEG).
+- **Hosted targets.** A binary result (`outputRawFormat: binary`) larger than `inlineThreshold` is kept in the process-wide `MemoryDownloadStore.shared()` under a token of 32 random bytes (43 base64url characters). The result is still read under `maxBinarySize`: the threshold moves the bytes out of the result, it does not raise the cap. The target carries a SHA-256 `digest`, `path: /files/<token>`, `credentials: include` and `expiresAt` (now plus `ttl`, to the second). The file name is the tool name with the media type's usual extension.
 - **Serving the link.** `McpServerResource` serves `GET <address>/files/<token>` behind the adapter's authentication chain, once, only to the principal the tool call ran for (`ProtocolDispatcher.ownerOf`, the same owner `requestState` and tasks use), and before `expiresAt`. The link is recognized as the last two path segments, `files/<43-char token>`, whatever the MCP address path is. An unknown, used, expired or foreign link gets the same `404`, so a link cannot be probed, and a foreign principal does not use it up. A `HEAD` gets `405` with `Allow: GET` and leaves the file in the store (Restlet answers `HEAD` with the `GET` handler, which would otherwise consume the link).
 - **Which authentication supports hosted links.** With `credentials: include`, a client resends only the `Authorization` header of its MCP requests and keeps the query string of the MCP address. `McpFileDownloads.resendsCredential` therefore allows no authentication, `bearer`, `basic`, `oauth2` and an `apikey` in the query. Behind an `apikey` in another header, `digest` (bound to one request) or `awsSigV4` (a signature per request), binary results stay inline and a warning at load names the adapter; pass-through targets still work.
 - **Transport.** Hosted targets need HTTP: on stdio, binary results stay inline. Pass-through targets work on both.
@@ -891,7 +891,7 @@ sequenceDiagram
     S->>S: owner? once? type and length exact? read at most the declared size
     S-->>C: 204
     C->>S: tools/call import-report, same arguments + requestState
-    S->>S: open the state; already claimed? (-32602)
+    S->>S: open the state, already claimed? (-32602)
     S->>S: confirm: bytes there, size, signature (when accept is set), digest
     S->>S: claim the state (always single use)
     S->>U: POST /reports multipart part from {{report.data}}
@@ -985,7 +985,8 @@ Hosted targets (`credentials: include`, on the adapter's own origin) are not che
 | Bound | Value | Where |
 |---|---|---|
 | Hosted bytes per process (downloads and uploads together) | 1/8 of the maximum heap, at most 256 MiB | `FileMemoryBudget.shared()` |
-| Hosted bytes per caller the adapter can tell apart | A quarter of the above | `FileMemoryBudget` |
+| Hosted download bytes per principal, the anonymous one included | A quarter of the above | `FileMemoryBudget`, `MemoryDownloadStore` |
+| Hosted upload bytes per caller the adapter can tell apart (`oauth2`, `trust: forwarded`) | A quarter of the above; the anonymous principal draws on the total only | `FileMemoryBudget`, `MemoryUploadStore` |
 | Hosted download links | 256 files per process | `MemoryDownloadStore` |
 | Hosted upload bytes per adapter | `files.uploads.quota`, default 100 MiB | `MemoryUploadStore` |
 | Hosted upload slots per adapter | 10,000 | `MemoryUploadStore` |
