@@ -122,7 +122,8 @@ public final class StepGuard {
      * A guard compiled against the top-level names it reads, all declared as {@code dyn}, with
      * the ids of the operands whose list an operator walks in one step.
      */
-    private record Compiled(CelRuntime.Program program, Set<String> names, Set<Long> walked) {
+    private record Compiled(CelRuntime.Program program, Set<String> names,
+            Map<Long, GuardIdentifiers.Walked> walked) {
     }
 
     /**
@@ -187,7 +188,8 @@ public final class StepGuard {
         }
         Object result;
         try {
-            result = compiled.program().trace(variables, new Budget(label, evaluationLimit, compiled.walked()));
+            result = compiled.program().trace(variables,
+                    new Budget(label, evaluationLimit, compiled.walked()));
         } catch (BudgetExceeded e) {
             throw e.failure();
         } catch (CelEvaluationException e) {
@@ -212,16 +214,19 @@ public final class StepGuard {
     /**
      * Counts the work of an evaluation and stops it past the limit: one for each sub-expression
      * evaluated, each iteration of a macro included, plus the length of each list that an
-     * {@code in}, {@code ==}, {@code !=} or {@code +} walks in one step. Reading a field of a
-     * map walks nothing, and a macro's iterations already count, so neither is charged more.
+     * {@code in} or {@code +} walks in one step, and the shorter length of the two lists that
+     * {@code ==} or {@code !=} compares. Reading a field of a map walks nothing, and a macro's
+     * iterations already count, so neither is charged more.
      */
     private static final class Budget implements CelEvaluationListener {
         private final String label;
         private final long limit;
-        private final Set<Long> walked;
+        private final Map<Long, GuardIdentifiers.Walked> walked;
+        /** The length of the first operand of each comparison under way, by comparison id. */
+        private final Map<Long, Long> compared = new HashMap<>();
         private long used;
 
-        Budget(String label, long limit, Set<Long> walked) {
+        Budget(String label, long limit, Map<Long, GuardIdentifiers.Walked> walked) {
             this.label = label;
             this.limit = limit;
             this.walked = walked;
@@ -229,7 +234,7 @@ public final class StepGuard {
 
         @Override
         public void callback(CelExpr expr, Object result) {
-            used += 1 + (walked.contains(expr.id()) ? sizeOf(result) : 0);
+            used += 1 + charge(expr.id(), result);
             if (used > limit) {
                 throw new BudgetExceeded(new IllegalArgumentException(label
                         + " evaluated more than " + limit + " sub-expressions and items, the limit"
@@ -237,6 +242,24 @@ public final class StepGuard {
                         + " it cheaper, such as by not reading a long list inside a macro over"
                         + " another"));
             }
+        }
+
+        /** The items an operand's list costs: its length, or for a comparison the shorter. */
+        private long charge(long id, Object result) {
+            GuardIdentifiers.Walked walk = walked.get(id);
+            if (walk == null) {
+                return 0;
+            }
+            long size = sizeOf(result);
+            if (walk.alone()) {
+                return size;
+            }
+            if (walk.left()) {
+                compared.put(walk.comparison(), size);
+                return 0;
+            }
+            Long left = compared.remove(walk.comparison());
+            return left == null ? 0 : Math.min(left, size);
         }
     }
 

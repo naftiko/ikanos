@@ -14,6 +14,7 @@
 package io.ikanos.engine.execution;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -109,23 +110,24 @@ final class GuardIdentifiers {
         }
     }
 
-    /** The operators that walk a list operand in one step. */
-    private static final Set<String> WALKING = Set.of("@in", "_==_", "_!=_", "_+_");
+    /** The comparisons, which walk their two list operands together, up to the shorter. */
+    private static final Set<String> COMPARING = Set.of("_==_", "_!=_");
 
     /**
-     * The ids of the expressions whose list an operator walks in one step: the list of an
-     * {@code in}, and both operands of {@code ==}, {@code !=} and {@code +}. Reading a field of
-     * a map, or iterating a list in a macro, walks nothing more than what is counted already.
+     * The expressions whose list an operator walks in one step, by id: the list of an
+     * {@code in} and each operand of {@code +}, charged their length, and the two operands of
+     * {@code ==} or {@code !=}, charged the shorter length. Reading a field of a map, or iterating a list
+     * in a macro, walks nothing more than what is counted already.
      */
-    static Set<Long> walkedOperands(CelExpr expr) {
-        Set<Long> ids = new HashSet<>();
+    static Map<Long, Walked> walkedOperands(CelExpr expr) {
+        Map<Long, Walked> ids = new HashMap<>();
         walkedOperands(expr, ids);
         // A filter or map appends to its own result with +: building it is linear, and its
         // iterations already count.
         Set<Long> accumulators = new HashSet<>();
         accumulatorReads(expr, new HashSet<>(), accumulators);
-        ids.removeAll(accumulators);
-        return Set.copyOf(ids);
+        ids.keySet().removeAll(accumulators);
+        return Map.copyOf(ids);
     }
 
     /** Collects the ids of the identifiers that read a macro's accumulator. */
@@ -164,17 +166,30 @@ final class GuardIdentifiers {
         }
     }
 
-    private static void walkedOperands(CelExpr expr, Set<Long> ids) {
+    /**
+     * How an operand's list is charged: alone, or as the left or right operand of the comparison
+     * whose id is {@code comparison}.
+     */
+    record Walked(long comparison, boolean left) {
+        static final Walked ALONE = new Walked(-1, false);
+
+        boolean alone() {
+            return comparison < 0;
+        }
+    }
+
+    private static void walkedOperands(CelExpr expr, Map<Long, Walked> ids) {
         switch (expr.getKind()) {
             case CALL -> {
                 CelExpr.CelCall call = expr.call();
-                if (call.target().isEmpty() && WALKING.contains(call.function())) {
+                if (call.target().isEmpty() && call.args().size() == 2) {
                     if ("@in".equals(call.function())) {
-                        if (call.args().size() == 2) {
-                            ids.add(call.args().get(1).id());
-                        }
-                    } else {
-                        call.args().forEach(arg -> ids.add(arg.id()));
+                        ids.put(call.args().get(1).id(), Walked.ALONE);
+                    } else if ("_+_".equals(call.function())) {
+                        call.args().forEach(arg -> ids.put(arg.id(), Walked.ALONE));
+                    } else if (COMPARING.contains(call.function())) {
+                        ids.put(call.args().get(0).id(), new Walked(expr.id(), true));
+                        ids.put(call.args().get(1).id(), new Walked(expr.id(), false));
                     }
                 }
                 call.target().ifPresent(target -> walkedOperands(target, ids));

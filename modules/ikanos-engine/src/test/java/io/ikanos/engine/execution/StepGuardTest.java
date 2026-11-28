@@ -282,6 +282,16 @@ public class StepGuardTest {
     }
 
     @Test
+    public void holdsShouldChargeAComparisonOfListsTheShorterOne() {
+        List<Integer> lines = java.util.stream.IntStream.range(0, 30).boxed().toList();
+        List<Map<String, Object>> orders =
+                java.util.Collections.nCopies(5_000, Map.<String, Object>of("lines", lines));
+
+        assertFalse(StepGuard.holds("publish", "orders.exists(o, o.lines == [])",
+                Map.of("orders", orders), 100_000));
+    }
+
+    @Test
     public void holdsShouldIterateBeyondOneHundredThousandItemsWhenTheLimitIsRaised() {
         List<Integer> items = java.util.stream.IntStream.range(0, 150_000).boxed().toList();
 
