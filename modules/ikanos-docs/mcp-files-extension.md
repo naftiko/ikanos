@@ -56,6 +56,7 @@ MCP has had no standard way to move files. Ikanos returned binary results inline
 - **Stream or spool to disk.** Hosted bytes are buffered in memory, under one process-wide bound.
 - **Share state across replicas.** Download links, hosted upload slots and single-use claims live in the process that issued them.
 - **Issue `form` or `POST` upload targets.** Every upload target is a `PUT`.
+- **Negotiate out-of-band uploads over REST.** REST has no `upload_required` result. [§6.7](#67-over-rest-two-operations) shows the two-operation pattern that sends a file straight to storage.
 - **Sniff files it never reads.** Out-of-band files stored by an upstream (phase 3) and inline files (phase 2) are not inspected for their type. Only hosted uploads (phase 4) are.
 
 ### Key design decisions
@@ -803,6 +804,109 @@ sequenceDiagram
 - **No sniffing.** Sniffing would need a third call on the flow (a ranged `GET`) and a signature table that covers only some accepted types. The gap is documented where operators configure `verify`.
 - **`PUT` only.** No `form` targets: the draft keeps `form` for storage APIs that take only multipart, which none of the targets here needs.
 
+### 6.7 Over REST: two operations
+
+REST has no `upload_required` result. A file sent in a multipart body to a flow that declares `upload` is stored by Ikanos (`FlowUpload.stage`), so its bytes pass through the adapter, bounded by `maxBinarySize`. For a file that should go straight to storage, a capability exposes two operations, written with plain flows and no `files` block:
+
+1. `POST /scan-uploads` takes the file's metadata and returns a presigned URL and an object id.
+2. The client `PUT`s the bytes to the URL.
+3. `POST /scans` takes the object id, confirms the object exists, and imports it.
+
+```yaml
+consumes:
+  - type: "http"
+    namespace: "storage"
+    baseUri: "https://storage.example.org"
+    resources:
+      upload-urls:
+        path: "/upload-urls"
+        operations:
+          create-upload-url:                   # the storage chooses the object id
+            method: "POST"
+            inputParameters:
+              prefix: { in: "query" }
+              contentType: { in: "query" }
+              size: { in: "query" }
+      objects:
+        path: "/objects/{{key}}"
+        operations:
+          head-object:
+            method: "HEAD"
+  - type: "http"
+    namespace: "records"
+    baseUri: "https://records.example.org"
+    resources:
+      reports:
+        path: "/reports"
+        operations:
+          import-from-storage:
+            method: "PUT"
+            inputParameters:
+              key: { in: "query" }
+
+aggregates:
+  - namespace: "documents"
+    flows:
+      start-scan-upload:
+        inputParameters:
+          mimeType: { type: "string", required: true }
+          size: { type: "integer", required: true }
+        call: "storage.create-upload-url"
+        with:
+          prefix: "scans/{{auth.claims.sub}}"  # one prefix per caller
+          contentType: "{{mimeType}}"
+          size: "{{size}}"
+        # returns {uploadUrl, headers, expiresAt, objectId}
+      import-stored-scan:
+        inputParameters:
+          objectId: { type: "string", required: true }
+        steps:
+          exists:
+            type: "call"                       # fails the flow when the object is missing
+            call: "storage.head-object"
+            with:
+              key: "scans/{{auth.claims.sub}}/{{objectId}}"
+          import:
+            type: "call"
+            call: "records.import-from-storage"
+            with:
+              key: "scans/{{auth.claims.sub}}/{{objectId}}"
+
+exposes:
+  - type: "rest"
+    namespace: "documents-api"
+    port: 8080
+    authentication:
+      type: "oauth2"
+      # …
+    resources:
+      scan-uploads:
+        path: "/scan-uploads"
+        operations:
+          start:
+            method: "POST"
+            ref: "documents.start-scan-upload"
+      scans:
+        path: "/scans"
+        operations:
+          import:
+            method: "POST"
+            ref: "documents.import-stored-scan"
+```
+
+What the pattern leaves to the capability author and the storage, which the MCP round of §6.5 does in the engine:
+
+| Concern | MCP `upload` flow (§6.5) | Two REST operations |
+|---|---|---|
+| Object name | Server-chosen `uploadId` | Chosen by the storage (`objectId`). Never let the client pick the key. |
+| Binding to the caller | `requestState` sealed to the principal | The key prefix built from `{{auth.claims.sub}}` in both flows, so a caller can only import its own objects. Without `oauth2`, any caller that knows an object id can import it. |
+| Size and type | `verify` compares them with the declared file | Not checked by Ikanos. Have the storage enforce them: sign `Content-Type` and the length (or a `content-length-range` policy) into the presigned URL. |
+| Single use | `UploadClaims` unless the flow is `safe` or `idempotent` | None: the import can run twice with the same id. Make the downstream import idempotent. |
+| Expiry | The target expires before the `requestState` | The presigned URL's own expiry. Objects never imported are left to a storage lifecycle rule. |
+| `maxSize` and `accept` | Checked on the file metadata | Not available: the first flow takes strings, not a `type: file` input. |
+
+This is the documented answer for REST until users ask for a negotiated round. A REST equivalent of `upload_required` would need a response shape for "upload these first", and `McpRequestState` and `UploadClaims` moved out of `exposes.mcp`.
+
 ---
 
 ## 7. Phase 4: uploads hosted on the adapter
@@ -1061,6 +1165,7 @@ Each phase ships unit tests and an integration test that boots the adapter on a 
 - **A Shipyard page for the files extension.** Thomas asked, on [#1186](https://github.com/naftiko/ikanos/pull/1186), for one specification page for the experimental extension once #1044 landed, covering `files:`, `download:` and the limits of hosted links (replicas, memory, authentication). It is in review as [naftiko/shipyard#424](https://github.com/naftiko/shipyard/pull/424), to merge once this stack ships.
 - **Spooling.** If quotas above a few hundred MiB per adapter become common, a disk-backed `UploadStore` could replace the memory one.
 - **Uploads and elicitation together.** A tool cannot do both: an upload `requestState` would have to carry answers, and a later `input_required` the upload confirmations.
+- **Downloads over REST.** REST operations have no `download` block and buffer binary responses up to `maxBinarySize`. [#1206](https://github.com/naftiko/ikanos/issues/1206) proposes a `303` redirect to a pass-through URL and streaming of binary responses. Out-of-band uploads over REST stay a pattern ([§6.7](#67-over-rest-two-operations)).
 - **`form` and `POST` targets.** Not issued; a storage API that takes only multipart cannot be a presigned target yet.
 - **Client side.** The MCP client adapter (binary content, [#781](https://github.com/naftiko/ikanos/issues/781), phase 3) should consume the same extension when it calls upstream MCP servers.
 
