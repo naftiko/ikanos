@@ -2059,7 +2059,7 @@
         },
         "description": {
           "type": "string",
-          "description": "A meaningful description of the parameter. Used for agent discovery and tool documentation."
+          "description": "A meaningful description of the parameter. Used for agent discovery and tool documentation. Required on an exposed input (an MCP tool, an aggregate flow, an input parameter set), whose description MCP clients see; optional on a consumed input: no client sees it, since what a client sees is the description of the exposed input."
         },
         "schema": {
           "$ref": "#/$defs/DefinitionName",
@@ -2108,9 +2108,6 @@
           "description": "Value used when a call leaves this optional input out or passes null, written with the input's JSON type (a string, number, boolean, array or object). Advertised to MCP clients in the tool's inputSchema, and applied before `call`, `steps` or `ref` run, so templates, `with` mappings and JSON bodies see it. On a consumed MCP tool, it is the argument sent upstream when the calling step's `with` leaves it out. `ikanos validate` and the engine reject a default that does not match `type` or `enum`. A default on a required input never applies and is reported as a warning. Only allowed on the parameter itself, not inside `items` or `properties`. Beside `schema`, it is checked against the type and enum of the expanded schema."
         }
       },
-      "required": [
-        "description"
-      ],
       "dependentSchemas": {
         "schema": {
           "propertyNames": {
@@ -2127,6 +2124,9 @@
     "McpToolInputParameter": {
       "description": "Declares an input parameter for an MCP tool. These become properties in the tool's JSON Schema input definition. Either declared inline (`type`, `description`, ...) or shaped by a schema of the adapter's or aggregate's `definitions` (`schema`, `description`, and optionally `required` and `default`).",
       "$ref": "#/$defs/McpToolInputParameterBase",
+      "required": [
+        "description"
+      ],
       "unevaluatedProperties": false
     },
     "McpToolInputSchema": {
@@ -2204,8 +2204,8 @@
       "additionalProperties": false
     },
     "ConsumedMcpToolInputParameter": {
-      "description": "Argument of a consumed MCP tool, declared inline at every level: `schema: name` is not allowed, as a consumed adapter has no `definitions`.",
-      "$ref": "#/$defs/McpToolInputParameter",
+      "description": "Argument of a consumed MCP tool, declared inline at every level: `schema: name` is not allowed, as a consumed adapter has no `definitions`. Its `description` is optional, as on every consumed input.",
+      "$ref": "#/$defs/McpToolInputParameterBase",
       "not": {
         "required": [
           "schema"
@@ -2220,7 +2220,8 @@
             "$ref": "#/$defs/McpToolInputSchemaInline"
           }
         }
-      }
+      },
+      "unevaluatedProperties": false
     },
     "McpToolInputSchemaInline": {
       "description": "Nested MCP tool input schema declared inline at every level: `schema: name` is not allowed.",
@@ -5010,7 +5011,7 @@
       "unevaluatedProperties": false
     },
     "ConsumedTypedInputParameter": {
-      "description": "Typed input of a contract-described consumed operation (`grpc`, `graphql`, `smithy`): the fields of an MCP tool input, declared inline at every level, plus `wireName`. Values come from the calling step's `with`; an absent optional input is left out of the request, after `default` applies.",
+      "description": "Typed input of a contract-described consumed operation (`grpc`, `graphql`, `smithy`): the fields of an MCP tool input, declared inline at every level, plus `wireName`. Values come from the calling step's `with`; an absent optional input is left out of the request, after `default` applies. Its `description` is optional, as on every consumed input: no client sees it, since what a client sees is the description of the exposed input.",
       "$ref": "#/$defs/McpToolInputParameterBase",
       "not": {
         "required": [
