@@ -23,6 +23,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.JsonNodeFactory;
 import io.ikanos.engine.consumes.ConsumedOperationView;
 import io.ikanos.engine.consumes.ConsumedResult;
+import io.ikanos.engine.execution.StepOutcomes;
 import io.ikanos.engine.consumes.Outcome;
 
 class FlowConsumedResultTest {
@@ -54,6 +55,69 @@ class FlowConsumedResultTest {
 
         assertTrue(result.nativeDocument());
         assertEquals(TOTAL, result.document().get("total").decimalValue());
+    }
+
+    @Test
+    void aFailedCallShouldPassOnTheOutcomeItsAdapterReports() throws Exception {
+        FlowConsumedResult result = new FlowConsumedResult(null,
+                new FlowResult(new TimedOut(), null, null));
+
+        assertEquals("unreachable", result.stepOutcome());
+        assertEquals("unreachable", StepOutcomes.of(result));
+    }
+
+    /** A call whose adapter answered 504 and reports it as unreachable, as SQL does. */
+    private static final class TimedOut implements ConsumedResult {
+
+        @Override
+        public Outcome outcome() {
+            return Outcome.UPSTREAM_ERROR;
+        }
+
+        @Override
+        public int status() {
+            return 504;
+        }
+
+        @Override
+        public String reason() {
+            return "Gateway Timeout";
+        }
+
+        @Override
+        public String stepOutcome() {
+            return "unreachable";
+        }
+
+        @Override
+        public boolean hasBody() {
+            return false;
+        }
+
+        @Override
+        public String mediaType() {
+            return null;
+        }
+
+        @Override
+        public String text() {
+            return null;
+        }
+
+        @Override
+        public JsonNode document() {
+            return null;
+        }
+
+        @Override
+        public byte[] bytes(long maxBytes) {
+            return null;
+        }
+
+        @Override
+        public ConsumedOperationView operation() {
+            return ConsumedOperationView.NONE;
+        }
     }
 
     /** A successful consumed result with a fixed document. */

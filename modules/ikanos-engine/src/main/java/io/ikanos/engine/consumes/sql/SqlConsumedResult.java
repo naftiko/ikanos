@@ -56,6 +56,23 @@ final class SqlConsumedResult implements ConsumedResult {
         this.cause = cause;
     }
 
+    /**
+     * A timeout (504), no free pooled connection (503) or a connection failure (SQLState class
+     * {@code 08}, 502) is {@code unreachable}: the database gave no answer. Any other failure
+     * follows from the status.
+     */
+    @Override
+    public String stepOutcome() {
+        if (status == 503 || status == 504) {
+            return "unreachable";
+        }
+        if (cause instanceof SQLException sql && sql.getSQLState() != null
+                && sql.getSQLState().startsWith("08")) {
+            return "unreachable";
+        }
+        return null;
+    }
+
     static SqlConsumedResult success(ConsumedOperationView operation, JsonNode document) {
         return new SqlConsumedResult(operation, document, 200, "OK", null);
     }

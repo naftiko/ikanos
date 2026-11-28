@@ -285,6 +285,107 @@ final class GuardIdentifiers {
         }
     }
 
+    /**
+     * Collects the strings an expression compares an outcome with, as in
+     * {@code outcome.sync == 'not-found'} or {@code outcome['sync'] != 'failure'}.
+     */
+    static void collectOutcomeLiterals(CelAbstractSyntaxTree ast, Set<String> literals) {
+        walkOutcomes(ast.getExpr(), literals);
+    }
+
+    private static void walkOutcomes(CelExpr expr, Set<String> literals) {
+        switch (expr.getKind()) {
+            case CALL -> {
+                CelExpr.CelCall call = expr.call();
+                if (("_==_".equals(call.function()) || "_!=_".equals(call.function()))
+                        && call.args().size() == 2) {
+                    CelExpr left = call.args().get(0);
+                    CelExpr right = call.args().get(1);
+                    if (isOutcome(left) && isString(right)) {
+                        literals.add(right.constant().stringValue());
+                    } else if (isOutcome(right) && isString(left)) {
+                        literals.add(left.constant().stringValue());
+                    }
+                }
+                call.target().ifPresent(target -> walkOutcomes(target, literals));
+                call.args().forEach(arg -> walkOutcomes(arg, literals));
+            }
+            case SELECT -> walkOutcomes(expr.select().operand(), literals);
+            case LIST -> expr.list().elements().forEach(e -> walkOutcomes(e, literals));
+            case COMPREHENSION -> {
+                walkOutcomes(expr.comprehension().iterRange(), literals);
+                walkOutcomes(expr.comprehension().loopStep(), literals);
+                walkOutcomes(expr.comprehension().result(), literals);
+            }
+            default -> {
+                // nothing compares an outcome here
+            }
+        }
+    }
+
+    /**
+     * Collects the steps whose outcome an expression reads: {@code sync} for
+     * {@code outcome.sync == 'not-found'} or {@code outcome['sync'] != 'failure'}.
+     */
+    static void collectOutcomeSteps(CelAbstractSyntaxTree ast, Set<String> steps) {
+        walkOutcomeSteps(ast.getExpr(), steps);
+    }
+
+    private static void walkOutcomeSteps(CelExpr expr, Set<String> steps) {
+        switch (expr.getKind()) {
+            case SELECT -> {
+                if (isOutcomeRoot(expr.select().operand())) {
+                    steps.add(expr.select().field());
+                }
+                walkOutcomeSteps(expr.select().operand(), steps);
+            }
+            case CALL -> {
+                CelExpr.CelCall call = expr.call();
+                if ("_[_]".equals(call.function()) && call.args().size() == 2
+                        && isOutcomeRoot(call.args().get(0)) && isString(call.args().get(1))) {
+                    steps.add(call.args().get(1).constant().stringValue());
+                }
+                call.target().ifPresent(target -> walkOutcomeSteps(target, steps));
+                call.args().forEach(arg -> walkOutcomeSteps(arg, steps));
+            }
+            case LIST -> expr.list().elements().forEach(e -> walkOutcomeSteps(e, steps));
+            case MAP -> expr.map().entries().forEach(entry -> {
+                walkOutcomeSteps(entry.key(), steps);
+                walkOutcomeSteps(entry.value(), steps);
+            });
+            case COMPREHENSION -> {
+                walkOutcomeSteps(expr.comprehension().iterRange(), steps);
+                walkOutcomeSteps(expr.comprehension().loopStep(), steps);
+                walkOutcomeSteps(expr.comprehension().result(), steps);
+            }
+            default -> {
+                // nothing reads an outcome here
+            }
+        }
+    }
+
+    /** {@code outcome.<step>} or {@code outcome['<step>']}. */
+    private static boolean isOutcome(CelExpr expr) {
+        if (expr.getKind() == CelExpr.ExprKind.Kind.SELECT) {
+            return isOutcomeRoot(expr.select().operand());
+        }
+        if (expr.getKind() == CelExpr.ExprKind.Kind.CALL && "_[_]".equals(expr.call().function())
+                && !expr.call().args().isEmpty()) {
+            return isOutcomeRoot(expr.call().args().get(0));
+        }
+        return false;
+    }
+
+    private static boolean isOutcomeRoot(CelExpr expr) {
+        return expr.getKind() == CelExpr.ExprKind.Kind.IDENT
+                && StepOutcomes.ROOT.equals(expr.ident().name());
+    }
+
+    private static boolean isString(CelExpr expr) {
+        return expr.getKind() == CelExpr.ExprKind.Kind.CONSTANT
+                && expr.constant().getKind() == dev.cel.common.ast.CelConstant.Kind.STRING_VALUE;
+    }
+
     private static void walk(CelExpr expr, Set<String> bound, Set<String> names) {
         switch (expr.getKind()) {
             case IDENT -> {

@@ -329,6 +329,15 @@ class McpCallerClaimsCacheScopeTest {
     }
 
     @Test
+    void loadShouldRefuseAPublicResourceWithASuccessCriterionThatReadsAClaim() {
+        Exception error = assertThrows(Exception.class, () -> loadGuarded("true",
+                "true\"\n            successCriteria:\n"
+                        + "              - \"auth.claims.role == 'admin'"));
+
+        assertTrue(messages(error).contains("cacheScope public"), messages(error));
+    }
+
+    @Test
     void loadShouldAcceptAPublicResourceWhoseStepGuardsReadNoClaim() {
         assertDoesNotThrow(() -> loadGuarded("true", "true"));
     }

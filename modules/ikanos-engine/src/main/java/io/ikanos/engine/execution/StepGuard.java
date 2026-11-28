@@ -164,6 +164,96 @@ public final class StepGuard {
                 evaluationLimit);
     }
 
+    /**
+     * Whether any of a call step's success criteria holds. Each is a guard, read like
+     * {@code onlyIf}.
+     *
+     * @param step the step name, for the error message
+     * @param criteria the criteria; none holds when it is empty
+     * @param parameters the values the run holds, the step's outcome included
+     */
+    public static boolean anyHolds(String step, List<String> criteria,
+            Map<String, Object> parameters) {
+        return anyHolds(step, criteria, parameters, GuardManagementSpec.DEFAULT_EVALUATION_LIMIT);
+    }
+
+    /**
+     * Whether any of a call step's success criteria holds, each evaluating at most
+     * {@code evaluationLimit} sub-expressions.
+     */
+    public static boolean anyHolds(String step, List<String> criteria,
+            Map<String, Object> parameters, long evaluationLimit) {
+        for (String criterion : criteria) {
+            if (evaluate("A success criterion of step '" + step + "'", criterion, parameters,
+                    evaluationLimit)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The values a guard of {@code run} reads: its parameters, and the step outputs kept only in
+     * its step context, such as a lookup step's.
+     */
+    public static Map<String, Object> parametersOf(StepRun run) {
+        return Elicitation.parameters(run);
+    }
+
+    /**
+     * The strings a guard compares an outcome with ({@code outcome.sync == 'not-found'}) that
+     * are not outcomes of {@link StepOutcomes#VOCABULARY}.
+     *
+     * @return the unknown outcomes, or an empty set when the guard cannot be parsed
+     */
+    public static Set<String> unknownOutcomes(String guard) {
+        Set<String> unknown = new TreeSet<>();
+        if (guard == null || guard.isBlank() || isBareName(guard)) {
+            return unknown;
+        }
+        CelValidationResult parsed = PARSER.parse(guard);
+        if (parsed.hasError()) {
+            return unknown;
+        }
+        try {
+            GuardIdentifiers.collectOutcomeLiterals(parsed.getAst(), unknown);
+        } catch (CelValidationException e) {
+            return new TreeSet<>();
+        }
+        unknown.removeAll(StepOutcomes.VOCABULARY);
+        return unknown;
+    }
+
+    /**
+     * The steps whose outcome a guard reads: {@code sync} for {@code outcome.sync == 'not-found'},
+     * {@code outcome['sync']} or the bare name {@code outcome.sync}.
+     *
+     * @return the step names as written, or an empty set when the guard cannot be parsed
+     */
+    public static Set<String> outcomeSteps(String guard) {
+        Set<String> steps = new TreeSet<>();
+        if (guard == null || guard.isBlank()) {
+            return steps;
+        }
+        if (isBareName(guard)) {
+            String[] segments = guard.strip().split("\\.");
+            if (segments.length > 1 && StepOutcomes.ROOT.equals(segments[0])) {
+                steps.add(segments[1]);
+            }
+            return steps;
+        }
+        CelValidationResult parsed = PARSER.parse(guard);
+        if (parsed.hasError()) {
+            return steps;
+        }
+        try {
+            GuardIdentifiers.collectOutcomeSteps(parsed.getAst(), steps);
+        } catch (CelValidationException e) {
+            return new TreeSet<>();
+        }
+        return steps;
+    }
+
     private static boolean evaluate(String label, String onlyIf, Map<String, Object> parameters,
             long evaluationLimit) {
         if (onlyIf == null || onlyIf.isBlank()) {
@@ -172,19 +262,19 @@ public final class StepGuard {
         if (isBareName(onlyIf)) {
             String name = onlyIf.strip();
             requireCallerRoot(label, Set.of(firstSegment(name)), parameters);
-            return isPresent(read(parameters, name));
+            return isPresent(read(visible(parameters), name));
         }
         Compiled compiled = compile(label, onlyIf);
         requireCallerRoot(label, compiled.names(), parameters);
         Map<String, Object> variables = new LinkedHashMap<>();
         for (String name : compiled.names()) {
             Object value = lookup(parameters, name);
-            if (value == null) {
-                // The guard reads a value the run does not have: it does not hold, as for a
-                // bare name.
-                return false;
+            if (value != null) {
+                variables.put(name, toCel(value));
             }
-            variables.put(name, toCel(value));
+            // A name the run does not have stays unbound: CEL reports reading it as an
+            // attribute it cannot find, unless the result does not depend on it, as in
+            // "outcome.find == 'not-found' || find.id != ''" when the first term holds.
         }
         Object result;
         try {
@@ -198,11 +288,17 @@ public final class StepGuard {
                 throw exceeded.failure();
             }
             if (e.getErrorCode() == CelErrorCode.ATTRIBUTE_NOT_FOUND) {
-                // A field the value does not have, such as order.missing: absent, as above.
+                // A name the run does not have, or a field its value does not have, such as
+                // order.missing: absent, so the guard does not hold, as for a bare name.
                 return false;
             }
             throw new IllegalArgumentException(label + " could not be evaluated: "
                     + e.getMessage(), e);
+        }
+        if (result instanceof dev.cel.runtime.CelUnknownSet) {
+            // The result depends on a name the run does not have: absent, so the guard does not
+            // hold, as for a bare name.
+            return false;
         }
         if (!(result instanceof Boolean value)) {
             throw new IllegalArgumentException(label + " must evaluate to true or false, not "
@@ -499,6 +595,11 @@ public final class StepGuard {
      * ({@code get_ship} for {@code get-ship}).
      */
     static Object lookup(Map<String, Object> parameters, String name) {
+        if (StepOutcomes.ROOT.equals(name)) {
+            // Only the engine's own outcomes are read under this reserved name.
+            Object outcomes = parameters.get(name);
+            return StepOutcomes.isOutcomes(outcomes) ? outcomes : null;
+        }
         if (parameters.containsKey(name)) {
             return parameters.get(name);
         }
@@ -546,6 +647,17 @@ public final class StepGuard {
             return value;
         }
         return String.valueOf(value);
+    }
+
+    /** The parameters, without a value under the outcomes' name that is not the engine's. */
+    private static Map<String, Object> visible(Map<String, Object> parameters) {
+        if (!parameters.containsKey(StepOutcomes.ROOT)
+                || StepOutcomes.isOutcomes(parameters.get(StepOutcomes.ROOT))) {
+            return parameters;
+        }
+        Map<String, Object> visible = new java.util.HashMap<>(parameters);
+        visible.remove(StepOutcomes.ROOT);
+        return visible;
     }
 
     /** Reads a dotted path from the parameters, through maps and JSON objects. */

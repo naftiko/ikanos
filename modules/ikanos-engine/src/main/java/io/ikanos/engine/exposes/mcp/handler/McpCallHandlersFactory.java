@@ -158,7 +158,7 @@ public class McpCallHandlersFactory {
      * Step fields read as CEL expressions rather than templates: their top-level names, not
      * {@code {{...}}}, say whether they read the caller root.
      */
-    private static final Set<String> EXPRESSION_FIELDS = Set.of("onlyIf");
+    private static final Set<String> EXPRESSION_FIELDS = Set.of("onlyIf", "successCriteria");
 
     /**
      * Whether reading {@code resource} may depend on a caller claim: a template that reads one,
