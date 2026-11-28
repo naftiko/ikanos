@@ -77,6 +77,20 @@ public final class McpFileDownloads {
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final MetadataService METADATA = new MetadataService();
 
+    /**
+     * The usual extension of media types for which Restlet's {@link MetadataService} picks a rare
+     * one first ({@code jpe} for JPEG, {@code mp2} for MPEG audio) or none at all.
+     */
+    private static final Map<String, String> USUAL_EXTENSIONS = Map.of(
+            "image/jpeg", "jpg",
+            "audio/mpeg", "mp3",
+            "video/mpeg", "mpeg",
+            "text/html", "html",
+            "image/webp", "webp",
+            "audio/wav", "wav",
+            "audio/ogg", "ogg",
+            "application/gzip", "gz");
+
     private final long inlineThreshold;
     private final Duration ttl;
     private final boolean hosted;
@@ -282,7 +296,15 @@ public final class McpFileDownloads {
     static String fileName(String toolName, String mediaType) {
         String extension = null;
         try {
-            extension = METADATA.getExtension(MediaType.valueOf(mediaType));
+            // Without parameters such as charset, which MediaType.valueOf keeps in the name
+            int semicolon = mediaType.indexOf(';');
+            String name = (semicolon >= 0 ? mediaType.substring(0, semicolon) : mediaType).trim()
+                    .toLowerCase(java.util.Locale.ROOT);
+            MediaType type = MediaType.valueOf(name);
+            extension = USUAL_EXTENSIONS.get(name);
+            if (extension == null) {
+                extension = METADATA.getExtension(type);
+            }
         } catch (IllegalArgumentException e) {
             // an unparsable media type gets no extension
         }
