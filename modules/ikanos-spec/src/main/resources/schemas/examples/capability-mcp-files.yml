@@ -45,7 +45,7 @@
 #     caller identity, so its callers share the bound and the quota;
 #   - a client resends only the `Authorization` header and the query string of the MCP address,
 #     so they work with no authentication, bearer, basic, oauth2 or a query apikey; behind any
-#     other (a header apikey, digest, awsSigV4), binary results stay inline and
+#     other (a header apikey or digest), binary results stay inline and
 #     `uploads.hosted: true` fails the load.
 ikanos: "1.0.0-beta11"
 
