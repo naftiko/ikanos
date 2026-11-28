@@ -183,4 +183,112 @@ public class DurabilityTest {
                 java.util.Map.of("voyageId", "VOY-2026-042")));
         assertEquals("VOY-2026-042", node.path("voyageId").asString());
     }
+
+    private static DurabilitySpec local(String path) {
+        DurabilitySpec spec = new DurabilitySpec("local");
+        DurabilityStoreSpec store = new DurabilityStoreSpec(null);
+        store.setPath(path);
+        spec.setStore(store);
+        return spec;
+    }
+
+    private static java.util.function.Function<String, String> environment(String store,
+            String replicas) {
+        java.util.Map<String, String> variables = new java.util.HashMap<>();
+        variables.put(Durability.STORE_VARIABLE, store);
+        variables.put(Durability.REPLICAS_VARIABLE, replicas);
+        return variables::get;
+    }
+
+    @Test
+    void placementShouldBeUnmanagedWithoutTheVariables() {
+        assertEquals(Durability.Placement.NONE,
+                Durability.Placement.fromEnvironment(environment(null, " ")));
+    }
+
+    @Test
+    void placementShouldReadTheStoreAndTheReplicas() {
+        assertEquals(new Durability.Placement("postgres", 3),
+                Durability.Placement.fromEnvironment(environment("postgres", "3")));
+    }
+
+    @Test
+    void placementShouldRefuseAValueThatDoesNotParse() {
+        for (String replicas : new String[] {"0", "-2", "three", "2.5"}) {
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                    () -> Durability.Placement.fromEnvironment(environment(null, replicas)));
+            assertTrue(e.getMessage().contains(Durability.REPLICAS_VARIABLE), e.getMessage());
+        }
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> Durability.Placement.fromEnvironment(environment("redis", "1")));
+        assertTrue(e.getMessage().contains(Durability.STORE_VARIABLE), e.getMessage());
+    }
+
+    @Test
+    void checkPlacementShouldCheckNothingWithoutAnOperator() {
+        Durability.checkPlacement(local("tasks.db"), Durability.Placement.NONE);
+        Durability.checkPlacement(new DurabilitySpec("memory"), null);
+    }
+
+    @Test
+    void checkPlacementShouldRefuseAModeOfOneProcessOnSeveralReplicas() {
+        for (DurabilitySpec spec : new DurabilitySpec[] {local("tasks.db"),
+                new DurabilitySpec("memory")}) {
+            String store = "local".equals(spec.effectiveMode()) ? "h2" : null;
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                    () -> Durability.checkPlacement(spec, new Durability.Placement(store, 3)));
+            assertTrue(e.getMessage().contains("cannot run as 3 replicas"), e.getMessage());
+            assertTrue(e.getMessage().contains("spec.durability.replicas"), e.getMessage());
+        }
+    }
+
+    @Test
+    void checkPlacementShouldLetModesWithoutAStoreScale() {
+        Durability.checkPlacement(null, new Durability.Placement(null, 5));
+        Durability.checkPlacement(new DurabilitySpec("none"), new Durability.Placement(null, 5));
+        Durability.checkPlacement(new DurabilitySpec("memory"),
+                new Durability.Placement(null, 1));
+    }
+
+    @Test
+    void checkPlacementShouldAcceptTheStoreTheModeNeeds() {
+        Durability.checkPlacement(local("tasks.db"), new Durability.Placement("h2", 1));
+        Durability.checkPlacement(distributed(null, "jdbc:postgresql://db/ikanos"),
+                new Durability.Placement("postgres", 3));
+    }
+
+    @Test
+    void checkPlacementShouldRefuseAStoreForAModeWithoutOne() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> Durability.checkPlacement(new DurabilitySpec("memory"),
+                        new Durability.Placement("h2", 1)));
+
+        assertTrue(e.getMessage().contains("remove spec.durability.store"), e.getMessage());
+    }
+
+    @Test
+    void checkPlacementShouldRefuseAnotherStoreThanTheModeNeeds() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> Durability.checkPlacement(local("tasks.db"),
+                        new Durability.Placement("postgres", 1)));
+
+        assertTrue(e.getMessage().contains("store 'h2'"), e.getMessage());
+        assertTrue(e.getMessage().contains("with store 'postgres'"), e.getMessage());
+        assertTrue(e.getMessage().contains("Set spec.durability.store to 'h2'"), e.getMessage());
+    }
+
+    @Test
+    void checkPlacementShouldRefuseADurableModeTheOperatorGaveNoStore() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> Durability.checkPlacement(local("tasks.db"),
+                        new Durability.Placement(null, 1)));
+
+        assertTrue(e.getMessage().contains("without a store"), e.getMessage());
+    }
+
+    @Test
+    void checkPlacementShouldLeaveAnUnknownModeToTheLoad() {
+        Durability.checkPlacement(new DurabilitySpec("forever"),
+                new Durability.Placement("h2", 3));
+    }
 }
