@@ -248,8 +248,10 @@ public final class Durability implements AutoCloseable {
     /**
      * Refuses a durability that disagrees with how the operator runs the capability: a mode
      * that keeps executions in one process ({@code memory}, {@code local}) on more than one
-     * replica, or a store type other than the one the operator gave it. Nothing is checked when
-     * no operator declares a placement. An unknown mode is left to {@link #fromSpec}.
+     * replica, a store the operator gave a mode that uses none, a store type other than the one
+     * the operator gave it, and a durable mode the operator gave no store. Nothing is checked
+     * when no operator declares a placement. An unknown mode, and a store type its mode cannot
+     * use, are errors in the capability itself, left to {@link #fromSpec}.
      *
      * @throws IllegalArgumentException on a disagreement, naming the operator's field to change
      */
@@ -259,6 +261,8 @@ public final class Durability implements AutoCloseable {
         }
         String mode = spec == null ? DurabilitySpec.MODE_NONE : spec.effectiveMode();
         String store;
+        // A store type the mode cannot use is an error in the capability itself: each case
+        // leaves it to fromSpec rather than ask the operator for a change that fails next.
         switch (mode) {
             case DurabilitySpec.MODE_NONE:
                 store = null;
@@ -284,8 +288,7 @@ public final class Durability implements AutoCloseable {
                 }
                 break;
             default:
-                // An unknown mode, or a store type the mode cannot use, is an error in the
-                // capability itself, which fromSpec reports; the operator is not the one to fix.
+                // An unknown mode is an error in the capability itself, which fromSpec reports.
                 return;
         }
         boolean oneProcess = DurabilitySpec.MODE_MEMORY.equals(mode)
