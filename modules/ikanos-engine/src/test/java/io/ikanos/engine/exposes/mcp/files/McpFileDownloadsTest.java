@@ -244,6 +244,47 @@ class McpFileDownloadsTest {
     }
 
     @Test
+    void passThroughShouldRefuseAUrlOutsideTheAllowedOriginsWhenTheRequestDidNotDeclareDownload() {
+        McpFilesSpec files = new McpFilesSpec();
+        files.setAllowedOrigins(java.util.List.of("https://storage.example.com"));
+        String mapped = "{\"downloadUrl\": \"https://elsewhere.example.net/f?sig=abc\","
+                + " \"sizeBytes\": 7}";
+
+        McpSchema.CallToolResult result = McpFileDownloads.of(server(files), CLOCK)
+                .passThrough(passThroughTool(), mapped);
+
+        assertNotNull(result, "The mapped output would hand the URL to the client");
+        assertTrue(result.isError());
+        assertFalse(json(result).toString().contains("sig=abc"), json(result).toString());
+    }
+
+    @Test
+    void passThroughShouldRefuseAPlainHttpUrlOutsideTheAllowedOrigins() {
+        McpFilesSpec files = new McpFilesSpec();
+        files.setAllowedOrigins(java.util.List.of("https://storage.example.com"));
+        String mapped = "{\"downloadUrl\": \"http://storage.example.com/f?sig=abc\","
+                + " \"sizeBytes\": 7}";
+
+        McpSchema.CallToolResult result = McpFiles.withDownloads(true,
+                () -> McpFileDownloads.of(server(files), CLOCK)
+                        .passThrough(passThroughTool(), mapped));
+
+        assertNotNull(result, "The mapped output would hand the URL to the client");
+        assertTrue(result.isError());
+        assertFalse(json(result).toString().contains("sig=abc"), json(result).toString());
+    }
+
+    @Test
+    void passThroughShouldKeepTheOutputOnAnAllowedOriginWhenTheRequestDidNotDeclareDownload() {
+        McpFilesSpec files = new McpFilesSpec();
+        files.setAllowedOrigins(java.util.List.of("https://storage.example.com"));
+        String mapped = "{\"downloadUrl\": \"https://storage.example.com/f\", \"sizeBytes\": 7}";
+
+        assertNull(McpFileDownloads.of(server(files), CLOCK)
+                .passThrough(passThroughTool(), mapped));
+    }
+
+    @Test
     void passThroughShouldKeepTheOutputWhenTheSizeIsMissing() {
         String mapped = "{\"downloadUrl\": \"https://s.example.com/f\"}";
 
