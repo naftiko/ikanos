@@ -228,7 +228,7 @@ class McpOAuth2IntegrationTest {
      * metadata's {@code resource}, is checked like any other.
      */
     @Test
-    void anEnterpriseManagedClientShouldConnectThroughTheChallengeAndTheMetadata()
+    void oauth2ShouldAcceptAnEnterpriseManagedTokenWhenBoundToTheMetadataResource()
             throws Exception {
         McpServerAdapter adapter = startOAuth2Server();
         try (HttpClient client = HttpClient.newHttpClient()) {

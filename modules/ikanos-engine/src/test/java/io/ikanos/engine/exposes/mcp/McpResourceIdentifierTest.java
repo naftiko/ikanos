@@ -69,6 +69,12 @@ class McpResourceIdentifierTest {
     }
 
     @Test
+    void warningShouldBeNullForAnAdapterMountedAtTheRoot() {
+        // path: / is the same root mount as no path
+        assertNull(McpResourceIdentifier.warning(adapter("/", "https://mcp.example.org/mcp")));
+    }
+
+    @Test
     void warningShouldBeNullWhenAnExplicitAudienceIsChecked() {
         McpServerSpec adapter = adapter("/mcp", "https://mcp.example.org/api");
         ((OAuth2AuthenticationSpec) adapter.getAuthentication())

@@ -34,7 +34,8 @@ import io.ikanos.spec.exposes.mcp.McpServerSpec;
  * token with {@code Invalid audience}.</p>
  *
  * <p>Only the paths are compared: the public host is unknown to the adapter, behind a gateway in
- * particular. An adapter without {@code path} answers on any path, so it is not checked.</p>
+ * particular. An adapter without {@code path}, or with {@code path: /}, is mounted at the root
+ * and answers on any path, so it is not checked.</p>
  */
 public final class McpResourceIdentifier {
 
@@ -45,7 +46,7 @@ public final class McpResourceIdentifier {
      * nor a parent of it, or {@code null} when there is nothing to warn about.
      */
     public static String warning(McpServerSpec adapter) {
-        if (adapter == null || adapter.isStdio() || adapter.getPath() == null
+        if (adapter == null || adapter.isStdio() || trim(adapter.getPath()).isEmpty()
                 || !(adapter.getAuthentication() instanceof OAuth2AuthenticationSpec oauth2)
                 || oauth2.getResource() == null || oauth2.getAudience() != null) {
             return null;
