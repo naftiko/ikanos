@@ -446,4 +446,53 @@ class InputDefaultsTest {
 
         assertTrue(error.getMessage().contains("'crm.ask-account'"), error.getMessage());
     }
+
+    private static IkanosSpec grpcSpec(String procedureParameters) throws Exception {
+        String yaml = """
+                ikanos: "%s"
+                capability:
+                  consumes:
+                    - type: grpc
+                      namespace: orders
+                      description: Order service.
+                      endpoint: "http://localhost:50051"
+                      descriptorSet: ./contracts/orders.binpb
+                      service: io.example.orders.v1.OrderService
+                      procedures:
+                        list-orders:
+                          description: Lists orders.
+                          rpc: ListOrders
+                          inputParameters:
+                %s
+                  exposes:
+                    - type: mcp
+                      port: 0
+                      namespace: shop
+                      tools:
+                        list:
+                          description: "List."
+                          call: orders.list-orders
+                """.formatted(IKANOS, procedureParameters.indent(12).stripTrailing());
+        return IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class);
+    }
+
+    @Test
+    void findErrorsShouldCheckTheDefaultsOfAContractOperation() throws Exception {
+        List<String> errors = InputDefaults.findErrors(grpcSpec("""
+                page-size: { type: integer, description: Size, wireName: pageSize, default: "50" }
+                """));
+
+        assertEquals(List.of("consumed grpc procedure 'orders.list-orders' input parameter"
+                + " 'page-size': default does not match type 'integer'"), errors);
+    }
+
+    @Test
+    void findExampleErrorsShouldCheckTheExamplesOfAContractOperation() throws Exception {
+        List<String> errors = InputDefaults.findExampleErrors(grpcSpec("""
+                state: { type: string, description: State, enum: [open, closed], examples: [lost] }
+                """));
+
+        assertEquals(List.of("consumed grpc procedure 'orders.list-orders' input parameter"
+                + " 'state': example 'lost' is not one of the enum values"), errors);
+    }
 }

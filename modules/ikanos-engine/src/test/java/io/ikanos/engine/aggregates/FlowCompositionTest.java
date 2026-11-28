@@ -409,6 +409,38 @@ class FlowCompositionTest {
     }
 
     @Test
+    void exposedToolStepCallingAFlowShouldRunTheFlow() throws Exception {
+        // #828: only the tool's own call: may not name a flow. A call step may, as on an MCP
+        // resource, which has no ref; the lint checks the tool's hints against the flow instead.
+        String exposes = MCP_EXPOSES.replace("ref: payments.checkout", """
+                steps:
+                            pay:
+                              type: call
+                              call: payments.checkout
+                              with:
+                                amount: shop-mcp.amount
+                          inputParameters:
+                            amount:
+                              type: number
+                              description: Amount
+                          mappings:
+                            - target: payment-id
+                              value: $.pay.payment-id
+                          outputParameters:
+                            payment-id:
+                              type: string""");
+        Capability capability = capability(cannedConsumes(200) + shimAggregates() + exposes);
+        McpServerAdapter mcp = (McpServerAdapter) capability.getServerAdapters().get(0);
+
+        McpSchema.CallToolResult result =
+                mcp.getToolHandler().handleToolCall("checkout", Map.of("amount", 9));
+
+        assertFalse(Boolean.TRUE.equals(result.isError()), String.valueOf(result));
+        assertEquals(1, FakeClientAdapter.CALLS.size(), "the flow reached the upstream once");
+        assertEquals(9, FakeClientAdapter.CALLS.get(0).get("amount"));
+    }
+
+    @Test
     void exposedToolDeclaringCallNextToRefShouldFailAtLoad() {
         String exposes = MCP_EXPOSES.replace("ref: payments.checkout",
                 "ref: payments.checkout\n          call: canned.echo");

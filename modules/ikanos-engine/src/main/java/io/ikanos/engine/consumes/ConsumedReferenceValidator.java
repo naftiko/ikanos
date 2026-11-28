@@ -18,6 +18,7 @@ import java.util.Locale;
 import java.util.Map;
 import io.ikanos.engine.consumes.http.HttpClientAdapter;
 import io.ikanos.engine.exposes.rest.ForwardResponseHeaders;
+import io.ikanos.engine.util.QualifiedName;
 import io.ikanos.spec.consumes.http.AwsSigV4AuthenticationSpec;
 import io.ikanos.spec.CapabilitySpec;
 import io.ikanos.spec.aggregates.AggregateFlowSpec;
@@ -189,20 +190,20 @@ public final class ConsumedReferenceValidator {
         }
     }
 
-    /** Same parsing as the executor: exactly {@code namespace.operation}, else not checked. */
+    /**
+     * Same parsing as the executor ({@link QualifiedName}): split on the first dot, so a tool
+     * name with dots ({@code fs.files.read}) is checked too (#827).
+     */
     private static void checkReference(String reference, String where,
             List<ClientAdapter> clientAdapters) {
-        if (reference == null) {
+        QualifiedName target = QualifiedName.parse(reference);
+        if (target == null) {
             return;
         }
-        String[] tokens = reference.split("\\.");
-        if (tokens.length != 2) {
-            return;
-        }
-        ClientAdapter adapter = adapterFor(tokens[0], clientAdapters);
-        if (adapter != null && !adapter.declaresOperation(tokens[1])) {
-            throw new IllegalArgumentException("Consumed namespace '" + tokens[0]
-                    + "' has no operation '" + tokens[1] + "' (called from " + where + ")");
+        ClientAdapter adapter = adapterFor(target.namespace(), clientAdapters);
+        if (adapter != null && !adapter.declaresOperation(target.name())) {
+            throw new IllegalArgumentException("Consumed namespace '" + target.namespace()
+                    + "' has no operation '" + target.name() + "' (called from " + where + ")");
         }
     }
 

@@ -92,6 +92,14 @@
           the image's /app/lib; an embedding application adds it as a dependency.
         -->
         <module>modules/ikanos-tool-search</module>
+        <!--
+          The runtimes of the core consumes types grpc, graphql and smithy follow the same rule:
+          their spec classes are in ikanos-spec, so a capability validates without them, and each
+          adapter is a ClientAdapterFactory found with java.util.ServiceLoader. ikanos-engine and
+          ikanos-cli do not depend on them; an operator adds the -all jar to the image's /app/lib,
+          an embedding application adds the module as a dependency.
+        -->
+        <module>modules/ikanos-client-graphql</module>
     </modules>
 
     <properties>
@@ -336,6 +344,21 @@
             <dependency>
                 <groupId>org.restlet</groupId>
                 <artifactId>org.restlet</artifactId>
+                <version>${restlet.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.restlet</groupId>
+                <artifactId>org.restlet.ext.graphql</artifactId>
+                <version>${restlet.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.restlet</groupId>
+                <artifactId>org.restlet.ext.grpc</artifactId>
+                <version>${restlet.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.restlet</groupId>
+                <artifactId>org.restlet.ext.smithy</artifactId>
                 <version>${restlet.version}</version>
             </dependency>
             <dependency>

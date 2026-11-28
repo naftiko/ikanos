@@ -47,6 +47,7 @@ import io.ikanos.engine.imports.RootSectionsValidator;
 import io.ikanos.engine.imports.SourceFileLoader;
 import io.ikanos.engine.consumes.ClientAdapterRegistry;
 import io.ikanos.engine.consumes.ConsumedReferenceValidator;
+import io.ikanos.engine.consumes.ConsumedWriteExposure;
 import io.ikanos.engine.consumes.ConsumedQueryParameterValidator;
 import io.ikanos.engine.consumes.ConsumedTemplateValidator;
 import io.ikanos.engine.consumes.http.ConsumedAuthentication;
@@ -101,6 +102,8 @@ public class Capability {
     private final AtomicReference<List<ClientAdapter>> clientAdapters = new AtomicReference<>();
     private final AtomicReference<List<Aggregate>> aggregates = new AtomicReference<>();
     private final AtomicReference<Map<String, Object>> bindings = new AtomicReference<>();
+    /** Directory of the capability file; local contract files are resolved against it. */
+    private final AtomicReference<Path> capabilityDir = new AtomicReference<>();
     private final AtomicReference<ScriptingManagementSpec> scriptingSpec = new AtomicReference<>();
     private final AtomicReference<SecretKey> sealingKey = new AtomicReference<>();
     private final AtomicReference<String> specDigest = new AtomicReference<>();
@@ -121,6 +124,8 @@ public class Capability {
      */
     public Capability(IkanosSpec spec, String capabilityDir) throws Exception {
         this.spec.set(spec);
+        this.capabilityDir.set(capabilityDir != null && !capabilityDir.isEmpty()
+                ? Path.of(capabilityDir) : null);
 
         // A capability document keeps its sections under `capability`. A root section would be
         // ignored, since the document is not validated against the schema here: reject it.
@@ -292,16 +297,22 @@ public class Capability {
                 java.time.Duration.ofSeconds(30),
                 this.bindings.get());
 
-        for (ClientSpec clientSpec : spec.getCapability().getConsumes()) {
-            clientList.add(ClientAdapterRegistry.getDefault().create(this, clientSpec, tunnels));
-        }
-
-        // Check call and forward references against the consumed adapters now that they exist,
-        // so a spec mistake fails at load time rather than on the first request. Tunnels were
-        // already started above; close them if the capability is rejected.
+        // Tunnels were started above: close them if the capability is rejected from here on, by
+        // a consumed adapter that cannot be built (a contract file refused, a missing module) or
+        // by the reference checks below.
         try {
+            for (ClientSpec clientSpec : spec.getCapability().getConsumes()) {
+                clientList.add(ClientAdapterRegistry.getDefault().create(this, clientSpec,
+                        tunnels));
+            }
+            // Check call and forward references against the consumed adapters now that they
+            // exist, so a spec mistake fails at load time rather than on the first request. A
+            // read-only exposed entry must not reach a consumed write either: the readOnly of a
+            // contract-described adapter may come from its contract, known only now.
+            ConsumedWriteExposure.validate(spec.getCapability(), this, clientList);
             ConsumedReferenceValidator.validate(spec.getCapability(), clientList);
-        } catch (IllegalArgumentException e) {
+        } catch (RuntimeException | Error e) {
+            // An Error too: a module missing a dependency fails with NoClassDefFoundError
             for (Tunnel tunnel : tunnels.values()) {
                 try {
                     tunnel.close();
@@ -322,6 +333,11 @@ public class Capability {
 
     public void setSpec(IkanosSpec config) {
         this.spec.set(config);
+    }
+
+    /** @return the directory of the capability file, or {@code null} when it has none */
+    public Path getCapabilityDir() {
+        return capabilityDir.get();
     }
 
     public List<ClientAdapter> getClientAdapters() {

@@ -20,6 +20,9 @@ import java.util.ServiceLoader;
 import java.util.Set;
 import io.ikanos.spec.consumes.http.HttpClientSpec;
 import io.ikanos.spec.consumes.mcp.McpClientSpec;
+import io.ikanos.spec.consumes.graphql.GraphqlClientSpec;
+import io.ikanos.spec.consumes.grpc.GrpcClientSpec;
+import io.ikanos.spec.consumes.smithy.SmithyClientSpec;
 import io.ikanos.spec.consumes.sql.SqlClientSpec;
 
 /**
@@ -40,6 +43,15 @@ public final class ClientSpecTypes {
 
     /** The built-in consumed SQL (JDBC) type. */
     public static final String SQL = SqlClientSpec.TYPE;
+
+    /** The built-in consumed gRPC type; its runtime is the optional ikanos-client-grpc module. */
+    public static final String GRPC = GrpcClientSpec.TYPE;
+
+    /** The built-in consumed GraphQL type; its runtime is the optional ikanos-client-graphql. */
+    public static final String GRAPHQL = GraphqlClientSpec.TYPE;
+
+    /** The built-in consumed Smithy type; its runtime is the optional ikanos-client-smithy. */
+    public static final String SMITHY = SmithyClientSpec.TYPE;
 
     private static volatile Map<String, Class<? extends ClientSpec>> registry;
 
@@ -86,6 +98,9 @@ public final class ClientSpecTypes {
         map.put(HTTP, HttpClientSpec.class);
         map.put(MCP, McpClientSpec.class);
         map.put(SQL, SqlClientSpec.class);
+        map.put(GRPC, GrpcClientSpec.class);
+        map.put(GRAPHQL, GraphqlClientSpec.class);
+        map.put(SMITHY, SmithyClientSpec.class);
         for (ClientSpecType provider : providers) {
             String type = provider.type();
             if (type == null || type.isBlank()) {
