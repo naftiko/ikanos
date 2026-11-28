@@ -1472,9 +1472,11 @@ rules:
       A `type: file` input (of an aggregate flow, of an exposed MCP tool, or in an
       input parameter set of their `definitions`) should bound the files it takes
       with `maxSize`. Without it, an inline file is bounded only by the adapter's
-      `files.uploads.maxInlineBytes` (MCP) or `maxBinarySize` (REST), and a file sent
-      out of band, to a presigned URL or a hosted target, by nothing Ikanos checks
-      before the flow runs: unbounded files let a client exhaust storage.
+      `files.uploads.maxInlineBytes` (MCP) or `maxBinarySize` (REST), a hosted upload
+      only by the adapter's `files.uploads.quota` and the process memory budget, and a
+      file sent to a presigned URL by nothing Ikanos checks: whatever size the client
+      declares is presigned, and the storage accepts it. Unbounded files let a client
+      exhaust storage.
     severity: error
     recommended: true
     given: "$"
@@ -1509,8 +1511,11 @@ rules:
       was stored there. Their consumed adapter must use an `https` `baseUri`, or
       `http` on a loopback host for local development. A `baseUri` taken whole from a
       binding, and a namespace imported from another document, are not known at lint
-      time and are skipped. The engine also refuses a presigned or download URL that
-      is not `https` (or `http` on a loopback host, for a presigned upload).
+      time and are skipped. At runtime, the engine refuses a presigned upload URL that
+      is not `https` (or `http` on a loopback host) with an error result; a `download`
+      URL that is not `https` is not turned into a target, and the tool returns its
+      mapped output instead, which still carries the URL, unless `files.allowedOrigins`
+      excludes it.
     severity: error
     recommended: true
     given: "$"

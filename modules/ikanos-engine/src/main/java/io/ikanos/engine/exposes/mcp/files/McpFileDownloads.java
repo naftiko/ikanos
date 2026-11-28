@@ -210,36 +210,45 @@ public final class McpFileDownloads {
     /**
      * A tool's mapped output as a pass-through download target, or {@code null} to return it as
      * it is: the request did not declare {@code download}, or the output does not carry an
-     * {@code https} URL and a size where the tool's {@code download} says. A URL outside the
-     * adapter's {@code files.allowedOrigins} is an error result: the mapped output would hand it
-     * to the client all the same.
+     * {@code https} URL and a size where the tool's {@code download} says.
+     *
+     * <p>When the adapter declares {@code files.allowedOrigins}, a URL in the output on any other
+     * origin is an error result, whatever the request declared and whatever the URL's scheme:
+     * the mapped output would otherwise hand it to the client all the same.</p>
      */
     public McpSchema.CallToolResult passThrough(McpServerToolSpec tool, String mapped) {
         McpToolDownloadSpec download = tool.getDownload();
-        if (download == null || mapped == null || !McpFiles.downloadsAccepted()) {
+        if (download == null || mapped == null) {
+            return null;
+        }
+        boolean accepted = McpFiles.downloadsAccepted();
+        if (!accepted && allowedOrigins == null) {
             return null;
         }
         JsonNode output;
         try {
             output = JSON.readTree(mapped);
         } catch (JacksonException e) {
-            return unusable(tool, "it is not JSON");
+            return accepted ? unusable(tool, "it is not JSON") : null;
         }
         if (output == null || !output.isObject()) {
-            return unusable(tool, "it is not a JSON object");
+            return accepted ? unusable(tool, "it is not a JSON object") : null;
         }
         String url = text(output, download.getUrl());
-        if (url == null || !isHttps(url)) {
-            return unusable(tool, "property '" + download.getUrl()
-                    + "' is not an absolute https URL");
-        }
-        if (allowedOrigins != null && !allowedOrigins.allows(url)) {
+        if (url != null && allowedOrigins != null && !allowedOrigins.allows(url)) {
             Context.getCurrentLogger().log(Level.WARNING, "MCP tool '" + tool.getName()
                     + "' returned a download URL outside files.allowedOrigins: refusing it");
             return new McpSchema.CallToolResult(List.of(McpSchema.TextContent.builder(
                     "The file of tool '" + tool.getName() + "' is served from an origin that"
                             + " this server does not allow (files.allowedOrigins).").build()),
                     true, null, null);
+        }
+        if (!accepted) {
+            return null;
+        }
+        if (url == null || !isHttps(url)) {
+            return unusable(tool, "property '" + download.getUrl()
+                    + "' is not an absolute https URL");
         }
         Long bytes = sizeOf(output.get(download.getSize()));
         if (bytes == null) {

@@ -125,8 +125,9 @@ function checkFileInputs(model, field) {
     results.push({
       message: field === "maxSize"
         ? "File input '" + name + "' of " + where + " declares no maxSize. Bound it (such as"
-          + " 50MiB): without it, a file is bounded only by the adapter's inline or binary"
-          + " limits, and an out-of-band upload not at all."
+          + " 50MiB): without it, an inline file is bounded only by the adapter's"
+          + " maxInlineBytes or maxBinarySize, a hosted upload only by its quota, and a"
+          + " presigned upload by nothing Ikanos checks before the storage accepts it."
         : "File input '" + name + "' of " + where + " declares no accept. List the media"
           + " types or extensions it takes: files are untrusted, and accept is what refuses"
           + " the others before the flow runs.",
