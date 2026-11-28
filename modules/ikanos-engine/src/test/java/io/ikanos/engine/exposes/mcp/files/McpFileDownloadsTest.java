@@ -320,4 +320,21 @@ class McpFileDownloadsTest {
 
         assertTrue(meta.containsKey("io.modelcontextprotocol/files"), meta.toString());
     }
+
+    @Test
+    void dropLinksOfShouldDropOnlyTheLinksOfThatAdapter() {
+        McpFileDownloads downloads = downloads(true);
+        String docs = "[\"docs-mcp\",\"sub\",\"alice\"]";
+        String docsV2 = "[\"docs-mcp-v2\",\"sub\",\"alice\"]";
+        String first = McpFileDownloads.tokenOf(McpFiles.downloadsOf(json(McpFiles.withDownloads(true,
+                () -> downloads.hosted("t", new byte[64], "application/octet-stream", docs)))).get(0).path("path").asString());
+        String second = McpFileDownloads.tokenOf(McpFiles.downloadsOf(json(McpFiles.withDownloads(true,
+                () -> downloads.hosted("t", new byte[64], "application/octet-stream", docsV2)))).get(0).path("path")
+                .asString());
+
+        downloads.dropLinksOf("docs-mcp");
+
+        assertTrue(downloads.take(first, docs).isEmpty());
+        assertTrue(downloads.take(second, docsV2).isPresent());
+    }
 }

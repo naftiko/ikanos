@@ -168,7 +168,7 @@ public class AgentIdentityResolver {
     }
 
     /** The owner of a request to the adapter {@code namespace} that names no caller. */
-    static String anonymousOwner(String namespace) {
+    public static String anonymousOwner(String namespace) {
         return owner(namespace, McpCallContext.ANONYMOUS);
     }
 

@@ -15,6 +15,13 @@
 #     to `uploads.maxInlineBytes` per call), and is listed only to clients that declare the
 #     extension. Over REST, the operation takes a `multipart/form-data` body. Either way, the flow
 #     sends the file on as a `multipartForm` part, from `{{report.data}}` in base64.
+#     The adapter also hosts uploads (`uploads.hosted: true`), so a report larger than
+#     `maxInlineBytes` can be sent out of band: a client that declares `upload` calls the tool
+#     with the file's metadata and no `data`, gets an `upload_required` result whose target is a
+#     path on this adapter (`/files/<token>` under the MCP address, `credentials: include`),
+#     `PUT`s the bytes there with its MCP credential, and retries the call. Ikanos keeps the bytes
+#     (within `quota`, the target open for `ttl`), checks their size, type and digest on the
+#     retry, runs the flow with them as if they had been sent inline, then deletes them.
 #   - import-scan: the `documents.import-scan` flow declares `upload`: its file is stored in an
 #     object store that issues presigned URLs, so large scans never pass through Ikanos. A client
 #     that declares `upload` calls the tool with the file's metadata and no `data`, gets an
@@ -24,13 +31,19 @@
 #     the server-chosen name of the stored object, never its bytes; an inline file is stored the
 #     same way first. The flow is not idempotent, so each `requestState` runs it at most once.
 #
-# Limits of hosted links:
-#   - a link is served only by the replica that issued it: give replicas session affinity;
-#   - files wait in one bounded in-memory store per process (at most 1/8 of the heap and
-#     256 MiB, a quarter of it per caller); a result that does not fit is returned inline;
+# Limits of hosted links and hosted uploads:
+#   - a link or upload target is served only by the replica that issued it: give replicas
+#     session affinity for the whole call, retry included;
+#   - downloads and uploads wait in memory and share one bound per process (at most 1/8 of the
+#     heap and 256 MiB); a result that does not fit is returned inline, and an upload that does
+#     not fit (or goes over `uploads.quota`) is an error result. `quota: 64MiB` fits that bound
+#     from a 512 MiB heap, and takes one 50 MiB report at a time. A caller the adapter can tell
+#     apart (oauth2, trust: forwarded) holds at most a quarter of the bound; this adapter has no
+#     caller identity, so its callers share the bound and the quota;
 #   - a client resends only the `Authorization` header and the query string of the MCP address,
-#     so links work with no authentication, bearer, basic, oauth2 or a query apikey; behind a
-#     header apikey or digest, binary results stay inline.
+#     so they work with no authentication, bearer, basic, oauth2 or a query apikey; behind any
+#     other (a header apikey or digest), binary results stay inline and
+#     `uploads.hosted: true` fails the load.
 ikanos: "1.0.0-beta11"
 
 info:
@@ -206,6 +219,9 @@ capability:
           ttl: "PT5M"
         uploads:
           maxInlineBytes: "1MiB"
+          hosted: true
+          quota: "64MiB"
+          ttl: "PT5M"
       tools:
         get-photo:
           description: "Download the original-resolution bytes of a photo by id."
@@ -251,7 +267,7 @@ capability:
             name: "file-name"
             expiresAt: "expires-at"
         import-report:
-          description: "Import a lab report into the records system."
+          description: "Import a lab report into the records system, uploaded to this server when large."
           ref: "documents.import-report"
         import-scan:
           description: "Import a scanned document, uploaded out of band to the object store."

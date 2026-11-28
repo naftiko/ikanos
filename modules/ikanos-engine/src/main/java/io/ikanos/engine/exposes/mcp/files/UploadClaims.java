@@ -64,6 +64,11 @@ public class UploadClaims {
         return claims.putIfAbsent(id, expiresAt) == null;
     }
 
+    /** Whether {@code id} was claimed already, and its claim is still kept. */
+    public boolean isClaimed(String id) {
+        return claims.containsKey(id);
+    }
+
     /** Drops the claims whose {@code requestState} has expired: it can no longer be presented. */
     void dropExpired() {
         Instant now = clock.instant();

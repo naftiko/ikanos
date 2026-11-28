@@ -18,6 +18,10 @@
  * {@code _meta} placement, which the working group may still move, in one place.
  * {@link io.ikanos.engine.exposes.mcp.files.McpFileDownloads} turns large binary tool results
  * and presigned URLs into download targets, and serves the hosted ones from a
- * {@link io.ikanos.engine.exposes.mcp.files.DownloadStore}.</p>
+ * {@link io.ikanos.engine.exposes.mcp.files.DownloadStore}.
+ * {@link io.ikanos.engine.exposes.mcp.files.McpFileUploads} answers files sent out of band with
+ * {@code upload_required}: through presigned URLs when a flow declares {@code upload}, or through
+ * targets on the adapter itself ({@link io.ikanos.engine.exposes.mcp.files.HostedUploads}, kept in
+ * an {@link io.ikanos.engine.exposes.mcp.files.UploadStore}).</p>
  */
 package io.ikanos.engine.exposes.mcp.files;
