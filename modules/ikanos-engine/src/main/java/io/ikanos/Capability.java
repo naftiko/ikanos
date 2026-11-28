@@ -22,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
 import tools.jackson.databind.ObjectMapper;
@@ -107,7 +108,8 @@ public class Capability {
     /** Directory of the capability file; local contract files are resolved against it. */
     private final AtomicReference<Path> capabilityDir = new AtomicReference<>();
     private final AtomicReference<ScriptingManagementSpec> scriptingSpec = new AtomicReference<>();
-    private volatile long guardEvaluationLimit = GuardManagementSpec.DEFAULT_EVALUATION_LIMIT;
+    private final AtomicLong guardEvaluationLimit =
+            new AtomicLong(GuardManagementSpec.DEFAULT_EVALUATION_LIMIT);
     private final AtomicReference<SecretKey> sealingKey = new AtomicReference<>();
     private final AtomicReference<String> specDigest = new AtomicReference<>();
     private final AtomicReference<Durability> durability =
@@ -197,8 +199,8 @@ public class Capability {
                     maxFlowCallDepth = controlSpec.getManagement().getFlows().getMaxCallDepth();
                 }
                 if (controlSpec.getManagement().getGuards() != null) {
-                    this.guardEvaluationLimit =
-                            controlSpec.getManagement().getGuards().getEvaluationLimit();
+                    this.guardEvaluationLimit.set(
+                            controlSpec.getManagement().getGuards().getEvaluationLimit());
                 }
                 break;
             }
@@ -430,7 +432,7 @@ public class Capability {
      *         {@code management.guards.evaluationLimit} on the control port
      */
     public long getGuardEvaluationLimit() {
-        return guardEvaluationLimit;
+        return guardEvaluationLimit.get();
     }
 
     public StepHandlerRegistry getStepHandlerRegistry() {
