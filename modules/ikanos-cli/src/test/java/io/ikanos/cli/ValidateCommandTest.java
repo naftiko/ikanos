@@ -221,6 +221,39 @@ public class ValidateCommandTest {
         assertTrue(out.contains("'authorization'"), out);
     }
 
+    @Test
+    public void callShouldWarnWhenAnMcpResourceIsNotItsEndpointOrAParent() {
+        // #1153: clients that follow MCP authorization would bind their tokens to the endpoint
+        Path yaml = tempDir.resolve("mcp-resource.yaml");
+        assertDoesNotThrow(() -> Files.writeString(yaml, """
+                ikanos: "%s"
+                capability:
+                  exposes:
+                    - type: "mcp"
+                      port: 3001
+                      path: "/mcp"
+                      namespace: "records-mcp"
+                      authentication:
+                        type: "oauth2"
+                        authorizationServerUri: "https://idp.example.com"
+                        resource: "https://mcp.example.com/api"
+                      tools:
+                        ping:
+                          description: "Ping the server."
+                          outputParameters:
+                            status:
+                              type: "string"
+                              value: "ok"
+                """.formatted(IKANOS)));
+
+        int exitCode = new CommandLine(new ValidateCommand()).execute(yaml.toString());
+
+        String out = outCapture.toString();
+        assertEquals(0, exitCode, errCapture.toString() + out);
+        assertTrue(out.contains("Warnings:"), out);
+        assertTrue(out.contains("MCP adapter 'records-mcp': authentication.resource"), out);
+    }
+
     private static final String OAUTH2 = """
                   authentication:
                     type: "oauth2"

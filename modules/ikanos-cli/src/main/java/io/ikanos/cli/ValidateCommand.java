@@ -28,6 +28,7 @@ import io.ikanos.engine.consumes.ConsumedTemplateValidator;
 import io.ikanos.engine.consumes.http.ConsumedHeaderValidator;
 import io.ikanos.engine.definitions.DefinitionsExpander;
 import io.ikanos.engine.exposes.AccessControl;
+import io.ikanos.engine.exposes.mcp.McpResourceIdentifier;
 import io.ikanos.engine.exposes.mcp.InferredToolCallResolver;
 import io.ikanos.engine.exposes.rest.ForwardTrustedHeadersValidator;
 import io.ikanos.engine.exposes.rest.ForwardResponseHeaders;
@@ -160,6 +161,8 @@ public class ValidateCommand implements Callable<Integer> {
                 warnings.addAll(InputDefaults.findWarnings(spec));
                 // authentication.scopes no longer required on every call (#999)
                 warnings.addAll(AccessControl.findWarnings(spec));
+                // A resource no token can be bound to, for MCP authorization clients (#1153)
+                warnings.addAll(McpResourceIdentifier.findWarnings(spec));
             }
 
             // Display validation result.

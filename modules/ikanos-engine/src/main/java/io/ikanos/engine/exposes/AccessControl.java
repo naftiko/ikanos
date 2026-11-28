@@ -435,7 +435,7 @@ public final class AccessControl {
     }
 
     /** The exposed adapters of a document: its capability's, then its own. */
-    private static List<ServerSpec> exposesOf(IkanosSpec spec) {
+    public static List<ServerSpec> exposesOf(IkanosSpec spec) {
         List<ServerSpec> exposes = new ArrayList<>();
         if (spec != null && spec.getCapability() != null
                 && spec.getCapability().getExposes() != null) {
