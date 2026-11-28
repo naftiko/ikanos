@@ -13,6 +13,7 @@
  */
 package io.ikanos.spec.util;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
@@ -37,7 +38,7 @@ import io.ikanos.spec.scripting.OperationStepScriptSpec;
     @JsonSubTypes.Type(value = OperationStepScriptSpec.class, name = "script"),
     @JsonSubTypes.Type(value = OperationStepElicitSpec.class, name = "elicit")
 })
-@JsonPropertyOrder({"name", "type"})
+@JsonPropertyOrder({"name", "type", "onlyIf"})
 public abstract class OperationStepSpec {
 
     @JsonProperty("type")
@@ -45,6 +46,10 @@ public abstract class OperationStepSpec {
 
     @JsonProperty("name")
     private volatile String name;
+
+    @JsonProperty("onlyIf")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private volatile String onlyIf;
 
     public OperationStepSpec() {
         this(null, null);
@@ -69,6 +74,18 @@ public abstract class OperationStepSpec {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    /**
+     * @return the condition under which the step runs ({@code onlyIf:}), or {@code null} when it
+     *         always runs
+     */
+    public String getOnlyIf() {
+        return onlyIf;
+    }
+
+    public void setOnlyIf(String onlyIf) {
+        this.onlyIf = onlyIf;
     }
 
 }

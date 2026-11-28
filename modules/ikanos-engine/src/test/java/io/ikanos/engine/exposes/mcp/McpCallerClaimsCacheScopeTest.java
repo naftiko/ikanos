@@ -246,6 +246,93 @@ class McpCallerClaimsCacheScopeTest {
         assertTrue(messages(error).contains("cacheScope public"), messages(error));
     }
 
+    /**
+     * A capability whose public {@code catalogue} resource has a step, guarded by
+     * {@code resourceGuard}, calling {@code cat.list}, whose step is guarded by {@code flowGuard}.
+     */
+    private static Capability loadGuarded(String resourceGuard, String flowGuard)
+            throws Exception {
+        String yaml = """
+                ikanos: "%s"
+                capability:
+                  exposes:
+                  - type: mcp
+                    port: 0
+                    namespace: catalogue
+                    description: "Catalogue"
+                    tools:
+                      hello:
+                        description: "Say hello"
+                        outputParameters:
+                          msg:
+                            type: string
+                            value: "hi"
+                    resources:
+                      catalogue:
+                        display: "Catalogue"
+                        uri: "data://catalogue"
+                        description: "The catalogue"
+                        cacheScope: public
+                        steps:
+                          - name: list
+                            type: call
+                            what: cat.list
+                            onlyIf: "%s"
+                  aggregates:
+                  - namespace: cat
+                    flows:
+                      list:
+                        description: "Lists the catalogue"
+                        steps:
+                          - name: fetch
+                            type: call
+                            what: shop.list
+                            onlyIf: "%s"
+                  consumes:
+                  - type: http
+                    namespace: shop
+                    description: "The shop"
+                    baseUri: "http://127.0.0.1:1"
+                    resources:
+                      items:
+                        path: "/items"
+                        operations:
+                          list:
+                            method: GET
+                """.formatted(VersionHelper.getSchemaVersion(), resourceGuard, flowGuard);
+        return new Capability(IkanosMappers.lenientYaml().readValue(yaml, IkanosSpec.class));
+    }
+
+    @Test
+    void loadShouldRefuseAPublicResourceWithAStepGuardThatReadsAClaim() {
+        Exception error = assertThrows(Exception.class,
+                () -> loadGuarded("auth.claims.role == 'admin'", "true"));
+
+        assertTrue(messages(error).contains("MCP resource 'catalogue': cacheScope public")
+                && messages(error).contains("or a step guard that reads auth"), messages(error));
+    }
+
+    @Test
+    void loadShouldRefuseAPublicResourceWithABareStepGuardOnAClaim() {
+        Exception error = assertThrows(Exception.class,
+                () -> loadGuarded("auth.claims.admin", "true"));
+
+        assertTrue(messages(error).contains("cacheScope public"), messages(error));
+    }
+
+    @Test
+    void loadShouldRefuseAPublicResourceWhoseFlowHasAStepGuardThatReadsAClaim() {
+        Exception error = assertThrows(Exception.class,
+                () -> loadGuarded("true", "auth.claims.role == 'admin'"));
+
+        assertTrue(messages(error).contains("cacheScope public"), messages(error));
+    }
+
+    @Test
+    void loadShouldAcceptAPublicResourceWhoseStepGuardsReadNoClaim() {
+        assertDoesNotThrow(() -> loadGuarded("true", "true"));
+    }
+
     @Test
     void loadShouldAcceptAPublicResourceWhoseFlowsReadNoClaim() {
         assertDoesNotThrow(() -> loadAggregate("inner.deep", "static", "static", "static"));

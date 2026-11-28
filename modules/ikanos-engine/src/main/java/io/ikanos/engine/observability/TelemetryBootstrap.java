@@ -76,6 +76,7 @@ public class TelemetryBootstrap {
     public static final AttributeKey<String> ATTR_NAMESPACE = AttributeKey.stringKey("ikanos.namespace");
     public static final AttributeKey<Long> ATTR_STEP_INDEX = AttributeKey.longKey("ikanos.step.index");
     public static final AttributeKey<String> ATTR_STEP_CALL = AttributeKey.stringKey("ikanos.step.call");
+    public static final AttributeKey<String> ATTR_STEP_NAME = AttributeKey.stringKey("ikanos.step.name");
     public static final AttributeKey<String> ATTR_STEP_MATCH = AttributeKey.stringKey("ikanos.step.match");
     public static final AttributeKey<String> ATTR_STEP_SCRIPT_FILE = AttributeKey.stringKey("ikanos.step.script.file");
     public static final AttributeKey<String> ATTR_STEP_SCRIPT_LANGUAGE = AttributeKey.stringKey("ikanos.step.script.language");
@@ -360,6 +361,19 @@ public class TelemetryBootstrap {
             setStringAttribute(builder, ATTR_NAMESPACE, namespace);
         }
         return builder.startSpan();
+    }
+
+    /**
+     * Records a step its {@code onlyIf} guard skipped, as an INTERNAL {@code step.skip} span that
+     * ends at once. A guarded step that runs gets the span of its type instead.
+     */
+    public void recordStepSkipped(int stepIndex, String name) {
+        if (!enabled) return;
+        SpanBuilder builder = tracer.spanBuilder("step.skip")
+            .setSpanKind(SpanKind.INTERNAL);
+        setLongAttribute(builder, ATTR_STEP_INDEX, stepIndex);
+        setStringAttribute(builder, ATTR_STEP_NAME, name != null ? name : "unknown");
+        builder.startSpan().end();
     }
 
     /**

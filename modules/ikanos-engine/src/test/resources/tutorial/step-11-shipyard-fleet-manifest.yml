@@ -256,6 +256,7 @@ capability:
             what: registry.list-crew
           - name: resolve-crew
             type: lookup
+            onlyIf: get-ship.assignedCrew
             index: list-crew
             match: crewId
             lookupValue: "$.get-ship.assignedCrew"
@@ -332,6 +333,7 @@ capability:
             what: registry.list-crew
           - name: resolve-crew
             type: lookup
+            onlyIf: get-voyage.crewIds
             index: list-crew
             match: crewId
             lookupValue: "$.get-voyage.crewIds"
@@ -530,6 +532,7 @@ capability:
                 what: registry.list-crew
               - name: resolve-crew
                 type: lookup
+                onlyIf: get-ship.assignedCrew
                 index: list-crew
                 match: crewId
                 lookupValue: "$.get-ship.assignedCrew"
@@ -724,6 +727,7 @@ capability:
                 what: registry.list-crew
               - name: resolve-crew
                 type: lookup
+                onlyIf: get-voyage.crewIds
                 index: list-crew
                 match: crewId
                 lookupValue: "$.get-voyage.crewIds"

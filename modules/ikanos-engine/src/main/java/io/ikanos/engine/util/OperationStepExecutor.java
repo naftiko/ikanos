@@ -42,6 +42,7 @@ import io.ikanos.engine.execution.ExecutionTree;
 import io.ikanos.engine.execution.Executions;
 import io.ikanos.engine.execution.InputDeclinedException;
 import io.ikanos.engine.execution.InputRequiredException;
+import io.ikanos.engine.execution.NodeRunner;
 import io.ikanos.engine.execution.StepNode;
 import io.ikanos.engine.execution.StepRun;
 import io.ikanos.engine.observability.TelemetryBootstrap;
@@ -62,6 +63,7 @@ import io.ikanos.spec.util.StepOutputMappingSpec;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.context.Scope;
 import io.ikanos.spec.util.IkanosMappers;
+import io.ikanos.spec.exposes.control.GuardManagementSpec;
 
 /**
  * Executor for orchestrated operation steps.
@@ -259,8 +261,19 @@ public class OperationStepExecutor {
 
         // The steps compile to an execution tree, walked by the Interpreter: the same path every
         // flow and exposed operation takes, whatever its durability mode.
-        Executions.runSteps(ExecutionTree.compile(steps, registry), run,
-                (node, current) -> runStep(node, current, namespace, registry));
+        long guardLimit = capability != null ? capability.getGuardEvaluationLimit()
+                : GuardManagementSpec.DEFAULT_EVALUATION_LIMIT;
+        Executions.runSteps(ExecutionTree.compile(steps, registry), run, new NodeRunner() {
+            @Override
+            public Object run(StepNode node, StepRun current) {
+                return runStep(node, current, namespace, registry);
+            }
+
+            @Override
+            public long guardEvaluationLimit() {
+                return guardLimit;
+            }
+        });
         return new StepExecutionResult(run.lastResult(), run.stepContext());
     }
 

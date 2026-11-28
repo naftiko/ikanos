@@ -38,6 +38,7 @@ public class ControlManagementSpec {
     private final AtomicReference<ControlLogsEndpointSpec> logs = new AtomicReference<>();
     private final AtomicReference<ScriptingManagementSpec> scripting = new AtomicReference<>();
     private final AtomicReference<FlowManagementSpec> flows = new AtomicReference<>();
+    private final AtomicReference<GuardManagementSpec> guards = new AtomicReference<>();
 
     public boolean isHealth() {
         return health.get();
@@ -106,6 +107,16 @@ public class ControlManagementSpec {
 
     public void setFlows(FlowManagementSpec flows) {
         this.flows.set(flows);
+    }
+
+    /** @return the step guard limits, or {@code null} when not configured */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public GuardManagementSpec getGuards() {
+        return guards.get();
+    }
+
+    public void setGuards(GuardManagementSpec guards) {
+        this.guards.set(guards);
     }
 
     /**

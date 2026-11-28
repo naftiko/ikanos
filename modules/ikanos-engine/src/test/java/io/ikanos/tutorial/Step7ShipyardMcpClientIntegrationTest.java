@@ -117,4 +117,22 @@ public class Step7ShipyardMcpClientIntegrationTest
         assertTrue(first.has("role"), "crew entries must have role");
         assertFalse(first.path("fullName").asString().isBlank(), "fullName must not be blank");
     }
+
+    @Test
+    public void getShipWithCrewShouldSkipTheCrewOfAShipWithoutOne() throws Exception {
+        HttpClient http = HttpClient.newHttpClient();
+
+        JsonNode result = callTool(http, """
+                {"jsonrpc":"2.0","id":6,"method":"tools/call",
+                 "params":{"name":"get-ship-with-crew","arguments":{"imo":"IMO-9512345"}}}
+                """);
+
+        // resolve-crew is guarded by onlyIf: get-ship.assignedCrew, so it is skipped, and the
+        // crew mapping reads it as absent
+        assertTrue(result.isObject(), "get-ship-with-crew must return a mapped object");
+        assertEquals("IMO-9512345", result.path("imo").asString());
+        assertFalse(result.path("name").asString().isBlank(), "name must not be blank");
+        assertTrue(result.path("crew").isMissingNode() || result.path("crew").isNull()
+                || result.path("crew").isEmpty(), "a ship without crew has no crew: " + result);
+    }
 }

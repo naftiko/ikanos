@@ -165,6 +165,10 @@
             <artifactId>groovy</artifactId>
         </dependency>
         <dependency>
+            <groupId>dev.cel</groupId>
+            <artifactId>cel</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.graalvm.polyglot</groupId>
             <artifactId>python</artifactId>
             <type>pom</type>

@@ -31,6 +31,7 @@ import io.ikanos.engine.exposes.AccessControl;
 import io.ikanos.engine.exposes.mcp.InferredToolCallResolver;
 import io.ikanos.engine.exposes.rest.ForwardTrustedHeadersValidator;
 import io.ikanos.engine.exposes.rest.ForwardResponseHeaders;
+import io.ikanos.engine.execution.StepGuardValidator;
 import io.ikanos.engine.imports.RootSectionsValidator;
 import io.ikanos.spec.util.OperationStepMapDeserializer;
 import io.ikanos.engine.util.InputDefaults;
@@ -169,11 +170,15 @@ public class ValidateCommand implements Callable<Integer> {
             // Their examples too, read as the tool's inputSchema advertises them
             List<String> exampleErrors =
                     spec != null ? InputDefaults.findExampleErrors(spec) : List.of();
+            // Step guards (onlyIf) that do not parse as CEL, which the engine refuses at load
+            List<String> guardErrors =
+                    spec != null ? StepGuardValidator.findErrors(spec) : List.of();
             List<String> warnings = new ArrayList<>(definitions.warnings());
             if (spec != null) {
                 warnings.addAll(InputDefaults.findWarnings(spec));
                 // authentication.scopes no longer required on every call (#999)
                 warnings.addAll(AccessControl.findWarnings(spec));
+                warnings.addAll(StepGuardValidator.findWarnings(spec));
             }
 
             // Display validation result.
@@ -181,7 +186,8 @@ public class ValidateCommand implements Callable<Integer> {
                     && headerErrors.isEmpty() && forwardErrors.isEmpty()
                     && definitions.errors().isEmpty()
                     && inferredCallErrors.isEmpty() && defaultErrors.isEmpty()
-                    && authorizationErrors.isEmpty() && exampleErrors.isEmpty()) {
+                    && authorizationErrors.isEmpty() && exampleErrors.isEmpty()
+                    && guardErrors.isEmpty()) {
                 System.out.println("✓ Validation successful!");
                 System.out.println("  File: " + filePath);
                 System.out.println("  Status: OK");
@@ -240,6 +246,10 @@ public class ValidateCommand implements Callable<Integer> {
                 }
                 for (String error : inferredCallErrors) {
                     System.err.println("\n  [" + errorCount + "] " + error);
+                    errorCount++;
+                }
+                for (String error : guardErrors) {
+                    System.err.println("\n  [" + errorCount + "] Invalid step guard: " + error);
                     errorCount++;
                 }
                 for (String error : defaultErrors) {

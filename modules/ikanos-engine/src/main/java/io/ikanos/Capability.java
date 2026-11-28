@@ -22,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
 import tools.jackson.databind.ObjectMapper;
@@ -43,6 +44,7 @@ import io.ikanos.engine.imports.ConsumesImportStrategy;
 import io.ikanos.engine.imports.ExposesImportStrategy;
 import io.ikanos.engine.imports.ImportResolver;
 import io.ikanos.engine.imports.NamespaceUniquenessValidator;
+import io.ikanos.engine.execution.StepGuardValidator;
 import io.ikanos.engine.imports.RootSectionsValidator;
 import io.ikanos.engine.imports.SourceFileLoader;
 import io.ikanos.engine.consumes.ClientAdapterRegistry;
@@ -69,6 +71,7 @@ import io.ikanos.spec.IkanosSpec;
 import io.ikanos.spec.consumes.ClientSpec;
 import io.ikanos.spec.exposes.control.ControlServerSpec;
 import io.ikanos.spec.exposes.control.FlowManagementSpec;
+import io.ikanos.spec.exposes.control.GuardManagementSpec;
 import io.ikanos.spec.exposes.control.ScriptingManagementSpec;
 import io.ikanos.spec.exposes.rest.RestServerSpec;
 import io.ikanos.spec.exposes.mcp.McpServerSpec;
@@ -105,6 +108,8 @@ public class Capability {
     /** Directory of the capability file; local contract files are resolved against it. */
     private final AtomicReference<Path> capabilityDir = new AtomicReference<>();
     private final AtomicReference<ScriptingManagementSpec> scriptingSpec = new AtomicReference<>();
+    private final AtomicLong guardEvaluationLimit =
+            new AtomicLong(GuardManagementSpec.DEFAULT_EVALUATION_LIMIT);
     private final AtomicReference<SecretKey> sealingKey = new AtomicReference<>();
     private final AtomicReference<String> specDigest = new AtomicReference<>();
     private final AtomicReference<Durability> durability =
@@ -193,6 +198,10 @@ public class Capability {
                 if (controlSpec.getManagement().getFlows() != null) {
                     maxFlowCallDepth = controlSpec.getManagement().getFlows().getMaxCallDepth();
                 }
+                if (controlSpec.getManagement().getGuards() != null) {
+                    this.guardEvaluationLimit.set(
+                            controlSpec.getManagement().getGuards().getEvaluationLimit());
+                }
                 break;
             }
         }
@@ -274,6 +283,10 @@ public class Capability {
         ConsumedTemplateValidator.validate(spec);
         InputDefaults.validate(spec);
         for (String warning : InputDefaults.findWarnings(spec)) {
+            Context.getCurrentLogger().log(Level.WARNING, warning);
+        }
+        StepGuardValidator.validate(spec);
+        for (String warning : StepGuardValidator.findWarnings(spec)) {
             Context.getCurrentLogger().log(Level.WARNING, warning);
         }
         ConsumedQueryParameterValidator.validate(spec);
@@ -412,6 +425,14 @@ public class Capability {
 
     public ScriptingManagementSpec getScriptingSpec() {
         return scriptingSpec.get();
+    }
+
+    /**
+     * @return the most sub-expressions one evaluation of a step guard may evaluate, from
+     *         {@code management.guards.evaluationLimit} on the control port
+     */
+    public long getGuardEvaluationLimit() {
+        return guardEvaluationLimit.get();
     }
 
     public StepHandlerRegistry getStepHandlerRegistry() {
