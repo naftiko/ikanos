@@ -848,7 +848,8 @@ class DefinitionsExpanderTest {
         List<String> errors = DefinitionsExpander.expandAll(spec).errors();
 
         assertEquals(List.of("MCP adapter 'tools', tool 'get-ship', output: 'schema: ship' in a"
-                + " mapped (call-mode) output needs 'mappings', the mapping of each path of the"
+                + " mapped (call-mode) output needs 'mappings' or 'mappingSets', the mapping of"
+                + " each path of the"
                 + " schema."), errors);
     }
 

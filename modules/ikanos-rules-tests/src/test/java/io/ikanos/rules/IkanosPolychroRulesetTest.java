@@ -1223,8 +1223,8 @@ public class IkanosPolychroRulesetTest {
     @Test
     public void definitionsMappingsRuleShouldFireOnASchemaInAnMcpResourceOutput() {
         assertTrue(lintFixture("rules/polychro-definitions-mapped-violations.yaml").output()
-            .contains("MCP adapter 'fleet', resource 'flagship': 'schema:' and 'mappings' are"
-                + " not supported in an MCP resource output."));
+            .contains("MCP adapter 'fleet', resource 'flagship': 'schema:', 'mappings' and"
+                + " 'mappingSets' are not supported in an MCP resource output."));
     }
 
     @Test
@@ -1232,7 +1232,8 @@ public class IkanosPolychroRulesetTest {
         // Mocks return static values: a schema there is rejected, never bound
         String output = lintFixture("rules/polychro-definitions-mapped-violations.yaml").output();
         assertTrue(output.lines().anyMatch(line -> line.contains("get-cargo")
-                && line.contains("'schema:' and 'mappings' are not allowed in a mock output")),
+                && line.contains("'schema:', 'mappings' and 'mappingSets' are not allowed in a"
+                    + " mock output")),
             output);
         assertFalse(output.contains("'schema: load'"), output);
     }
@@ -1258,8 +1259,8 @@ public class IkanosPolychroRulesetTest {
         // The JSON Schema leaves a ref tool's outputs open: the rule checks the keys itself
         String output = lintFixture("rules/polychro-definitions-mapped-violations.yaml").output();
         assertTrue(output.lines().anyMatch(line -> line.contains("ref-extra-key")
-                && line.contains("'schema: tags' takes only 'mappings' and 'mapping' in a mapped"
-                    + " output, found [description].")), output);
+                && line.contains("'schema: tags' takes only 'mappings', 'mappingSets' and"
+                    + " 'mapping' in a mapped output, found [description].")), output);
     }
 
     @Test
@@ -1301,6 +1302,146 @@ public class IkanosPolychroRulesetTest {
     public void definitionsRulesShouldNotFireForCompliantMappedOutputs() {
         LintResult result = lintFixtureAtSeverity(
             "rules/polychro-definitions-mapped-compliant.yaml", "warn");
+        assertEquals(0, result.exitCode(), result.output());
+        assertFalse(result.output().contains("ikanos-definitions-"), result.output());
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // Mapping sets in mapped outputs (#1133)
+    // ────────────────────────────────────────────────────────────────
+
+    private static final String MAPPING_SETS =
+        "rules/polychro-definitions-mapping-sets-violations.yaml";
+
+    @Test
+    public void definitionsReferenceRuleShouldFireOnAnUnknownMappingSet() {
+        String output = lintFixture(MAPPING_SETS).output();
+        assertTrue(output.contains("Unknown mapping set 'ship-from-crm'. MCP adapter 'fleet'"
+            + " declares ship-from-registry, ship-with-owner, ship-static, never-used,"
+            + " empty-set, mock-only, crew-items."), output);
+        assertFalse(output.lines().anyMatch(line -> line.contains("unknown-set")
+            && line.contains("leaves paths unbound")), output);
+    }
+
+    @Test
+    public void definitionsReferenceRuleShouldFireOnASchemaListedAsAMappingSet() {
+        assertTrue(lintFixture(MAPPING_SETS).output()
+            .contains("'ship' is a schema, not a mapping set. Use it with 'schema: ship'."));
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldNameTheMappingSetOfAPathTheSchemaDoesNotHave() {
+        assertTrue(lintFixture(MAPPING_SETS).output()
+            .contains("'schema: ship' has no path 'owner' (mapping set 'ship-with-owner')."
+                + " Its paths are imo, flag."));
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnceOnAMappingSetValueThatIsNotAJsonPath() {
+        String output = lintFixture(MAPPING_SETS).output();
+        assertEquals(1, output.lines().filter(line -> line.contains(
+            "mapping set 'ship-static' binds 'imo' to a value that is not a JSONPath")).count(),
+            output);
+        assertFalse(output.contains("'schema: ship' binds 'imo'"), output);
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnMappingSetsWithoutASchema() {
+        assertTrue(lintFixture(MAPPING_SETS).output()
+            .contains("'mappingSets' binds a schema, so it needs 'schema:' beside it."));
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnMappingSetsInAMockOutput() {
+        String output = lintFixture(MAPPING_SETS).output();
+        assertTrue(output.lines().anyMatch(line -> line.contains("mock-ship")
+            && line.contains("'schema:', 'mappings' and 'mappingSets' are not allowed in a mock"
+                + " output")), output);
+    }
+
+    @Test
+    public void definitionsUnusedRuleShouldWarnOnAMappingSetNoUnitUses() {
+        String output = lintFixture(MAPPING_SETS).output();
+        assertTrue(output.contains("declares the mapping set 'never-used', which no tool uses."),
+            output);
+        assertFalse(output.contains("mapping set 'ship-from-registry', which no tool uses"),
+            output);
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldFireOnAMappingSetThatDeclaresNoMapping() {
+        assertTrue(lintFixture(MAPPING_SETS).output().contains("MCP adapter 'fleet', mapping set"
+            + " 'empty-set' declares no mapping. Declare it as a map of paths to JSONPaths."));
+    }
+
+    @Test
+    public void definitionsUnusedRuleShouldNotWarnOnAMappingSetListedOnlyWhereItIsRejected() {
+        String output = lintFixture(MAPPING_SETS).output();
+        assertFalse(output.contains("mapping set 'mock-only', which no tool uses"), output);
+    }
+
+    @Test
+    public void definitionsRulesShouldReadASingleMappingSetNameAsAList() {
+        String output = lintFixture(MAPPING_SETS).output();
+        assertFalse(output.lines().anyMatch(line -> line.contains("single-name")
+            && line.contains("ikanos-definitions-")), output);
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldNameTheMappingSetOfABindingTheRuntimeNeverReads() {
+        String output = lintFixture(MAPPING_SETS).output();
+        assertTrue(output.lines().anyMatch(line -> line.contains("set-never-read")
+            && line.contains("'schema: crewed' binds crew[] (mapping set 'crew-items'), which the"
+                + " runtime never reads")), output);
+    }
+
+    @Test
+    public void definitionsReferenceRuleShouldFireOnAnUnknownMappingSetUnderValues() {
+        String output = lintFixture(MAPPING_SETS).output();
+        assertTrue(output.lines().anyMatch(line -> line.contains("values-typo")
+            && line.contains("Unknown mapping set 'ship-from-typo'.")), output);
+    }
+
+    @Test
+    public void definitionsReferenceRuleShouldReadANumericMappingSetNameAsItsText() {
+        String output = lintFixture(MAPPING_SETS).output();
+        assertTrue(output.lines().anyMatch(line -> line.contains("numeric-name")
+            && line.contains("Unknown mapping set '1'.")), output);
+    }
+
+    @Test
+    public void definitionsReferenceRuleShouldFireOnAnUnknownMappingSetOfARestAdapter() {
+        String output = lintFixture(MAPPING_SETS).output();
+        assertTrue(output.lines().anyMatch(line -> line.contains("rest-unknown-set")
+            && line.contains("Unknown mapping set 'ship-from-rest-typo'. REST adapter"
+                + " 'fleet-rest' declares ship-from-registry, rest-never-used.")), output);
+    }
+
+    @Test
+    public void definitionsUnusedRuleShouldWarnOnAMappingSetNoRestOperationUses() {
+        String output = lintFixture(MAPPING_SETS).output();
+        assertTrue(output.contains("REST adapter 'fleet-rest' declares the mapping set"
+            + " 'rest-never-used', which no resource or operation uses."), output);
+        assertFalse(output.contains("'fleet-rest' declares the mapping set 'ship-from-registry'"),
+            output);
+    }
+
+    @Test
+    public void definitionsMappingsRuleShouldChargeTheEntriesOfAMappingSetToTheBudget() {
+        // The grids spend 99,996 declarations; the last binding's schema (3) fits, its schema
+        // and its set's two entries (5) do not, as in the engine
+        String output = lintFixture("rules/polychro-definitions-mapping-sets-budget.yaml")
+            .output();
+        List<String> lines = output.lines()
+            .filter(line -> line.contains("its definitions expand to more than 100000")).toList();
+        assertEquals(1, lines.size(), output);
+        assertTrue(lines.get(0).contains("ship-from-set"), output);
+    }
+
+    @Test
+    public void definitionsRulesShouldNotFireForCompliantMappingSets() {
+        LintResult result = lintFixtureAtSeverity(
+            "rules/polychro-definitions-mapping-sets-compliant.yaml", "warn");
         assertEquals(0, result.exitCode(), result.output());
         assertFalse(result.output().contains("ikanos-definitions-"), result.output());
     }

@@ -7,26 +7,28 @@
  * inside schemas and in outputs. Definitions are local to their adapter or
  * aggregate. Select the check with `functionOptions.check`:
  *
- *   - "references": a set or schema name that the namespace does not declare,
- *                   or that names the other kind of definition;
+ *   - "references": a set, schema or mapping set name that the namespace does
+ *                   not declare, or that names another kind of definition;
  *   - "conflicts":  two sets of one unit (tool, resource, operation or flow)
  *                   declare the same input;
  *   - "cycles":     schemas reference each other in a cycle;
- *   - "unused":     a set or schema that no unit of the namespace uses,
- *                   directly or through another definition;
+ *   - "unused":     a set, schema or mapping set that no unit of the
+ *                   namespace uses, directly or through another definition;
  *   - "outputKeywords": a schema used in an orchestrated or mapped output
  *                   declares keywords that an output does not carry
  *                   (informational);
  *   - "mappings":   a schema used in a mapped (call-mode) output is not bound
- *                   by its `mappings` (#1036): a scalar, array or object
+ *                   by its `mappings` and `mappingSets` (#1036, #1133),
+ *                   merged by path: a scalar, array or object
  *                   without properties left unbound, a path the schema does
  *                   not have, a binding the runtime never reads (object
  *                   items, below nested arrays, a `mapping` on an output
  *                   object), a value that is not a JSONPath, a property name
  *                   a path cannot address, a key beside `schema:` other than
- *                   `mappings` and `mapping`, `mappings` without `schema:`, or
- *                   `schema:` / `mappings` in a mock output or an MCP resource
- *                   output.
+ *                   `mappings`, `mappingSets` and `mapping`, `mappings` or
+ *                   `mappingSets` without `schema:`, `schema:` / `mappings` /
+ *                   `mappingSets` in a mock output or an MCP resource output,
+ *                   or a mapping set value that is not a JSONPath.
  *
  * Covers MCP adapters, REST adapters and aggregates in a capability and at the
  * root of a standalone file. The engine and `ikanos validate` run the same checks when
@@ -192,6 +194,13 @@ function walkOutput(node, path, refs) {
   if (typeof node.schema === "string") {
     refs.push({ kind: "schema", name: node.schema, path: path.concat("schema"), output: true });
   }
+  setNames(node).forEach((name, index) => {
+    refs.push({
+      kind: "mappingSet", name,
+      path: Array.isArray(node.mappingSets) ? path.concat("mappingSets", index)
+        : path.concat("mappingSets"),
+    });
+  });
   for (const item of itemsOf(node, path)) {
     walkOutput(item.value, item.path, refs);
   }
@@ -220,6 +229,7 @@ function buildModel(owner) {
   const defs = isObject(owner.node.definitions) ? owner.node.definitions : {};
   const sets = dictionary(defs.inputParameterSets);
   const schemas = dictionary(defs.schemas);
+  const mappingSets = dictionary(defs.mappingSets);
   const defsPath = owner.path.concat("definitions");
 
   // References made by each set and each schema.
@@ -278,7 +288,7 @@ function buildModel(owner) {
     units.push({ name: u.key, unit, path: unitPath, refs, orchestrated, mapped });
   }
 
-  return { owner, sets, schemas, defsPath, setRefs, schemaRefs, units };
+  return { owner, sets, schemas, mappingSets, defsPath, setRefs, schemaRefs, units };
 }
 
 function allReferences(model) {
@@ -324,6 +334,19 @@ function checkReferences(model, results) {
             + declared(model.schemas) + ".",
         path: ref.path,
       });
+    } else if (ref.kind === "mappingSet" && !(ref.name in model.mappingSets)) {
+      let message;
+      if (ref.name in model.schemas) {
+        message = "'" + ref.name + "' is a schema, not a mapping set. Use it with 'schema: "
+          + ref.name + "'.";
+      } else if (ref.name in model.sets) {
+        message = "'" + ref.name + "' is an input parameter set, not a mapping set. Use it with"
+          + " 'inputParameterSets: [" + ref.name + "]' on the " + model.owner.unitKind + ".";
+      } else {
+        message = "Unknown mapping set '" + ref.name + "'. " + label + " declares "
+          + declared(model.mappingSets) + ".";
+      }
+      results.push({ message, path: ref.path });
     }
   }
 }
@@ -392,8 +415,13 @@ function checkCycles(model, results) {
 function checkUnused(model, results) {
   const usedSets = new Set();
   const usedSchemas = new Set();
+  const usedMappingSets = new Set();
   const pending = [];
   const use = (ref) => {
+    if (ref.kind === "mappingSet") {
+      usedMappingSets.add(ref.name);
+      return;
+    }
     if (ref.kind === "set" && ref.name in model.sets && !usedSets.has(ref.name)) {
       usedSets.add(ref.name);
       pending.push(...(model.setRefs.get(ref.name) || []));
@@ -405,6 +433,16 @@ function checkUnused(model, results) {
   };
   for (const unit of model.units) {
     unit.refs.forEach(use);
+  }
+  // Sets listed in an MCP resource output are rejected there, but used, as in the engine
+  if (model.owner.unitKind === "tool") {
+    for (const r of unitsAt(model.owner.node.resources, model.owner.path.concat("resources"))) {
+      const refs = [];
+      for (const p of entries(isObject(r.value) ? r.value.outputParameters : null)) {
+        walkOutput(p.value, r.path.concat("outputParameters", ...p.locator), refs);
+      }
+      refs.filter((ref) => ref.kind === "mappingSet").forEach(use);
+    }
   }
   while (pending.length > 0) {
     use(pending.pop());
@@ -426,6 +464,15 @@ function checkUnused(model, results) {
         message: label + " declares the schema '" + name + "', which no " + unitKind
           + " uses.",
         path: model.defsPath.concat("schemas", name),
+      });
+    }
+  }
+  for (const name of Object.keys(model.mappingSets)) {
+    if (!usedMappingSets.has(name)) {
+      results.push({
+        message: label + " declares the mapping set '" + name + "', which no " + unitKind
+          + " uses.",
+        path: model.defsPath.concat("mappingSets", name),
       });
     }
   }
@@ -533,6 +580,83 @@ function declaresMappings(node) {
   return isObject(node.mappings) && Object.keys(node.mappings).length > 0;
 }
 
+/**
+ * The mapping set names a declaration lists: a single name reads as a
+ * one-name list, as in the engine (the JSON Schema wants a list).
+ */
+function setNames(node) {
+  // As the engine reads them: no value is no list, and a number, a boolean or null names a set
+  // by its text (an unknown one); an object stays as is, which no set is named after
+  const name = (value) => (value === null || typeof value !== "object" ? String(value) : value);
+  const sets = node.mappingSets;
+  if (sets === undefined || sets === null) {
+    return [];
+  }
+  return Array.isArray(sets) ? sets.map(name) : [name(sets)];
+}
+
+/** The path of a mapping set a declaration lists, for a finding. */
+function setPath(node, path, set) {
+  return Array.isArray(node.mappingSets)
+    ? path.concat("mappingSets", node.mappingSets.indexOf(set)) : path.concat("mappingSets");
+}
+
+/** Whether a declaration lists mapping sets. */
+function declaresMappingSets(node) {
+  return setNames(node).length > 0;
+}
+
+/**
+ * The mappings that bind a schema reference, as the engine merges them
+ * (#1133): its mapping sets by path, in order, a later set winning, then its
+ * own `mappings`, which win last. `origins` gives the set each path comes
+ * from; `unresolved` says a listed set is not declared (the references check
+ * reports it), so what it would bind is unknown. Called once the use is charged
+ * (`listedSetEntries`), as the merge costs the entries of the sets.
+ */
+function mergedMappings(model, node) {
+  const values = Object.create(null);
+  const origins = Object.create(null);
+  let unresolved = false;
+  for (const name of setNames(node)) {
+    if (typeof name !== "string" || !(name in model.mappingSets)) {
+      unresolved = true;
+      continue;
+    }
+    // A declared set that is not a map holds no mapping, as in the engine
+    const set = isObject(model.mappingSets[name]) ? model.mappingSets[name] : {};
+    for (const key of Object.keys(set)) {
+      values[key] = set[key];
+      origins[key] = name;
+    }
+  }
+  for (const key of Object.keys(isObject(node.mappings) ? node.mappings : {})) {
+    values[key] = node.mappings[key];
+    delete origins[key];
+  }
+  return { values, origins, unresolved };
+}
+
+/**
+ * The entries of the declared mapping sets a reference lists, which each use is charged before
+ * they are merged, as in the engine. The size of each set is counted once per namespace, so a
+ * use costs the names it lists, not the size of its sets.
+ */
+function listedSetEntries(model, node, budget) {
+  let entries = 0;
+  for (const name of setNames(node)) {
+    if (typeof name !== "string" || !(name in model.mappingSets)) {
+      continue;
+    }
+    if (!budget.setSizes.has(name)) {
+      const set = model.mappingSets[name];
+      budget.setSizes.set(name, isObject(set) ? Object.keys(set).length : 0);
+    }
+    entries += budget.setSizes.get(name);
+  }
+  return entries;
+}
+
 /** Whether a property name can be addressed by a `mappings` path. */
 function addressable(name) {
   return !/[.[\]]/.test(name);
@@ -542,11 +666,11 @@ function addressable(name) {
  * Keys a mapped output takes beside `schema:`, as the engine's check. `$ref` is reported on
  * its own, by `walkMapped`.
  */
-const BESIDE_MAPPED_SCHEMA = ["schema", "name", "$ref", "mappings", "mapping"];
+const BESIDE_MAPPED_SCHEMA = ["schema", "name", "$ref", "mappings", "mappingSets", "mapping"];
 
 /**
  * Upper bound on the declarations the mapped bindings of one namespace expand to together, each
- * charged the size of its schema as the engine charges it. The engine spends the same bound
+ * charged the size of its schema and the entries of its mapping sets as the engine charges it. The engine spends the same bound
  * across the namespace on everything it expands (inputs and orchestrated outputs too); this
  * check counts the mapped bindings only, so a namespace it accepts may still exceed the
  * engine's budget, never the reverse.
@@ -576,8 +700,7 @@ function withProperties(schema) {
  * @param rootIsItems whether the schema is an array used as the items of
  *   another array, whose own items the runtime never shapes
  */
-function bindingOf(model, node, rootIsItems) {
-  const mappings = isObject(node.mappings) ? node.mappings : {};
+function bindingOf(model, node, mappings, rootIsItems) {
   const keys = Object.keys(mappings);
   // Whether a mapping names the path or a path below it
   const reached = (path) => keys.some((key) => key === path || key.startsWith(path + ".")
@@ -619,7 +742,7 @@ function bindingOf(model, node, rootIsItems) {
     if (isObject(schema)) {
       const objectWithProperties = withProperties(schema);
       if (path !== "") {
-        const bound = Object.prototype.hasOwnProperty.call(mappings, path);
+        const bound = path in mappings;
         if (bound) {
           binding.used.add(path);
         }
@@ -756,8 +879,8 @@ function checkBinding(model, node, path, position, results, budget) {
   const extra = Object.keys(node).filter((key) => !BESIDE_MAPPED_SCHEMA.includes(key));
   if (extra.length > 0) {
     results.push({
-      message: prefix + "takes only 'mappings' and 'mapping' in a mapped output, found ["
-        + extra.join(", ") + "].",
+      message: prefix + "takes only 'mappings', 'mappingSets' and 'mapping' in a mapped"
+        + " output, found [" + extra.join(", ") + "].",
       path: path.concat(extra[0]),
     });
   }
@@ -773,11 +896,13 @@ function checkBinding(model, node, path, position, results, budget) {
     });
     return;
   }
-  // Charged as the engine charges a binding: the size of the schema it expands. A schema in a
-  // cycle or on too long a chain of references is not charged, as the engine does not expand
-  // it: the binding walk stops on it, and the cycles check or the engine reports it
+  // Charged as the engine charges a binding: the size of the schema it expands and the
+  // entries of the sets it lists, before the sets are merged or anything is bound or reported,
+  // so a use past the budget costs only the names it lists. A schema in a cycle or
+  // on too long a chain of references is not charged, as the engine does not expand it: the
+  // binding walk stops on it, and the cycles check or the engine reports it
   const size = schemaSize(model, name, budget);
-  budget.visited += size === null ? 0 : size;
+  budget.visited += (size === null ? 0 : size) + listedSetEntries(model, node, budget);
   if (budget.visited > MAX_BINDING_NODES) {
     if (!budget.reported) {
       // Once per namespace, as the engine reports its budget
@@ -801,13 +926,14 @@ function checkBinding(model, node, path, position, results, budget) {
     });
     return;
   }
-  const binding = bindingOf(model, node, position === "items" && isObject(root)
+  const merged = mergedMappings(model, node);
+  const binding = bindingOf(model, node, merged.values, position === "items" && isObject(root)
     && root.type === "array");
-  const empty = !isObject(node.mappings) || Object.keys(node.mappings).length === 0;
-  if (empty && binding.unbound.length > 0 && !binding.stopped) {
+  const empty = Object.keys(merged.values).length === 0;
+  if (empty && binding.unbound.length > 0 && !binding.stopped && !merged.unresolved) {
     results.push({
-      message: prefix + "in a mapped (call-mode) output needs 'mappings', the mapping of"
-        + " each path of the schema.",
+      message: prefix + "in a mapped (call-mode) output needs 'mappings' or 'mappingSets', the"
+        + " mapping of each path of the schema.",
       path: path.concat("schema"),
     });
     return;
@@ -837,30 +963,40 @@ function checkBinding(model, node, path, position, results, budget) {
       path: path.concat("schema"),
     });
   }
-  if (binding.unbound.length > 0) {
+  if (binding.unbound.length > 0 && !merged.unresolved) {
+    // A set that is not declared is reported by the references check
     results.push({
       message: prefix + "leaves paths unbound: " + binding.unbound.join(", ") + ". Give each"
-        + " scalar, array and object without properties a mapping in 'mappings'.",
-      path: path.concat("mappings"),
+        + " scalar, array and object without properties a mapping in 'mappings' or"
+        + " 'mappingSets'.",
+      path: path.concat(isObject(node.mappings) || !declaresMappingSets(node) ? "mappings"
+        : "mappingSets"),
     });
   }
   if (binding.ineffective.length > 0) {
+    const fromSet = binding.ineffective.map((key) => merged.origins[key])
+      .find((set) => set !== undefined);
     results.push({
-      message: prefix + "binds " + binding.ineffective.join(", ") + ", which the runtime"
-        + " never reads: object items are read from each element, and the items of nested"
-        + " arrays are passed through as they are. Remove them.",
-      path: path.concat("mappings"),
+      message: prefix + "binds " + binding.ineffective.map((key) => key
+        + (merged.origins[key] === undefined ? "" : " (mapping set '" + merged.origins[key]
+          + "')")).join(", ") + ", which the runtime never reads: object items are read from"
+        + " each element, and the items of nested arrays are passed through as they are."
+        + " Remove them, or bind this schema with other mappings.",
+      path: fromSet === undefined ? path.concat("mappings") : setPath(node, path, fromSet),
     });
   }
-  for (const key of Object.keys(isObject(node.mappings) ? node.mappings : {})) {
+  for (const key of Object.keys(merged.values)) {
+    const set = merged.origins[key];
     if (!binding.used.has(key)) {
       results.push({
-        message: prefix + "has no path '" + key + "'. Its paths are "
+        message: prefix + "has no path '" + key + "'"
+          + (set === undefined ? "" : " (mapping set '" + set + "')") + ". Its paths are "
           + (binding.paths.length === 0 ? "none" : binding.paths.join(", ")) + ".",
-        path: path.concat("mappings", key),
+        path: set === undefined ? path.concat("mappings", key) : setPath(node, path, set),
       });
-    } else if (typeof node.mappings[key] !== "string"
-        || !node.mappings[key].trim().startsWith("$")) {
+    } else if (set === undefined && (typeof node.mappings[key] !== "string"
+        || !node.mappings[key].trim().startsWith("$"))) {
+      // A set's values are checked once, where it is declared
       results.push({
         message: prefix + "binds '" + key + "' to a value that is not a JSONPath (starting"
           + " with '$'). A static 'value' is declared inline.",
@@ -894,6 +1030,13 @@ function walkMapped(model, node, path, position, results, budget) {
       path: path.concat("mappings"),
     });
   }
+  if (declaresMappingSets(node)) {
+    results.push({
+      message: "'mappingSets' binds a schema, so it needs 'schema:' beside it. Name the"
+        + " schema, or declare a 'mapping' on each leaf inline.",
+      path: path.concat("mappingSets"),
+    });
+  }
   const unread = position === "unread";
   // The items of an array that is itself items are passed through as they are
   const nested = position === "items" && node.type === "array";
@@ -910,12 +1053,15 @@ function walkMapped(model, node, path, position, results, budget) {
   }
 }
 
-/** Whether an output, or one of its nested declarations, uses `schema:` or `mappings`. */
+/**
+ * Whether an output, or one of its nested declarations, uses `schema:`,
+ * `mappings` or `mappingSets`.
+ */
 function bindsDefinitions(node) {
   if (!isObject(node)) {
     return false;
   }
-  if (typeof node.schema === "string" || declaresMappings(node)) {
+  if (typeof node.schema === "string" || declaresMappings(node) || declaresMappingSets(node)) {
     return true;
   }
   if (itemsOf(node, []).some((item) => bindsDefinitions(item.value))
@@ -927,15 +1073,39 @@ function bindsDefinitions(node) {
 }
 
 function checkMappings(model, results) {
-  const budget = { visited: 0, reported: false, sizes: new Map(), unsized: new Set() };
+  const budget = {
+    visited: 0, reported: false, sizes: new Map(), unsized: new Set(), setSizes: new Map(),
+  };
+  // A mapping set's values are checked once, where it is declared; its paths at each use
+  for (const name of Object.keys(model.mappingSets)) {
+    const set = model.mappingSets[name];
+    if (!isObject(set) || Object.keys(set).length === 0) {
+      results.push({
+        message: model.owner.label + ", mapping set '" + name + "' declares no mapping."
+          + " Declare it as a map of paths to JSONPaths.",
+        path: model.defsPath.concat("mappingSets", name),
+      });
+      continue;
+    }
+    for (const key of Object.keys(set)) {
+      if (typeof set[key] !== "string" || !set[key].trim().startsWith("$")) {
+        results.push({
+          message: model.owner.label + ", mapping set '" + name + "' binds '" + key + "' to a"
+            + " value that is not a JSONPath (starting with '$'). A static 'value' is declared"
+            + " inline.",
+          path: model.defsPath.concat("mappingSets", name, key),
+        });
+      }
+    }
+  }
   for (const unit of model.units) {
     if (!unit.mapped && !unit.orchestrated) {
       // A mock returns static values: nothing there can bind a schema
       for (const p of entries(unit.unit.outputParameters)) {
         if (bindsDefinitions(p.value)) {
           results.push({
-            message: "'schema:' and 'mappings' are not allowed in a mock output, which returns"
-              + " static values. Declare the output inline.",
+            message: "'schema:', 'mappings' and 'mappingSets' are not allowed in a mock"
+              + " output, which returns static values. Declare the output inline.",
             path: unit.path.concat("outputParameters", ...p.locator),
           });
         }
@@ -958,8 +1128,9 @@ function checkMappings(model, results) {
       }
       if (entries(r.value.outputParameters).some((p) => bindsDefinitions(p.value))) {
         results.push({
-          message: model.owner.label + ", resource '" + r.key + "': 'schema:' and 'mappings'"
-            + " are not supported in an MCP resource output. Declare the output inline.",
+          message: model.owner.label + ", resource '" + r.key + "': 'schema:', 'mappings'"
+            + " and 'mappingSets' are not supported in an MCP resource output. Declare the"
+            + " output inline.",
           path: r.path.concat("outputParameters"),
         });
       }

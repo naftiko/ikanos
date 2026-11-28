@@ -534,7 +534,8 @@ class RestDefinitionsExpanderTest {
         List<String> errors = DefinitionsExpander.expandAll(spec).errors();
 
         assertEquals(List.of("REST adapter 'api', resource 'ship', operation 'get-ship', output"
-                + " 'ship': 'schema: ship' in a mapped (call-mode) output needs 'mappings', the"
+                + " 'ship': 'schema: ship' in a mapped (call-mode) output needs 'mappings' or"
+                + " 'mappingSets', the"
                 + " mapping of each path of the schema."), errors);
     }
 
@@ -563,8 +564,71 @@ class RestDefinitionsExpanderTest {
         List<String> errors = DefinitionsExpander.expandAll(spec).errors();
 
         assertEquals(List.of("REST adapter 'api', resource 'ship', operation 'get-ship', output"
-                + " 'ship': 'schema:' and 'mappings' are not allowed in a mock output, which"
+                + " 'ship': 'schema:', 'mappings' and 'mappingSets' are not allowed in a mock"
+                + " output, which"
                 + " returns static values. Declare the output inline."), errors);
+    }
+
+    @Test
+    void expandAllShouldBindAMappingSetInAMappedRestOutput() throws Exception {
+        // The set binds both paths; the operation's own mappings override one of them
+        IkanosSpec spec = rest("""
+                definitions:
+                  schemas:
+                    ship:
+                      type: object
+                      properties:
+                        imo: { type: string }
+                        tonnage: { type: integer }
+                  mappingSets:
+                    ship-from-registry:
+                      imo: "$.imo_number"
+                      tonnage: "$.tonnage"
+                    never-used:
+                      imo: "$.imo"
+                """, """
+                ships:
+                  path: "/ships"
+                  operations:
+                    list-ships:
+                      method: GET
+                      call: registry.list-ships
+                      outputParameters:
+                        - type: array
+                          mapping: "$.ships"
+                          items:
+                            schema: ship
+                            mappingSets: [ship-from-registry]
+                            mappings:
+                              tonnage: "$.gross_tonnage"
+                """);
+        IkanosSpec inline = rest("", """
+                ships:
+                  path: "/ships"
+                  operations:
+                    list-ships:
+                      method: GET
+                      call: registry.list-ships
+                      outputParameters:
+                        - type: array
+                          mapping: "$.ships"
+                          items:
+                            type: object
+                            properties:
+                              imo: { type: string, mapping: "$.imo_number" }
+                              tonnage: { type: number, mapping: "$.gross_tonnage" }
+                """);
+
+        DefinitionsExpander.Result result = DefinitionsExpander.expandAll(spec);
+        DefinitionsExpander.expandAll(inline);
+
+        assertEquals(List.of(), result.errors());
+        assertEquals(IkanosMappers.json().writeValueAsString(
+                operation(inline, "ships", "list-ships").getOutputParameters()),
+                IkanosMappers.json().writeValueAsString(
+                        operation(spec, "ships", "list-ships").getOutputParameters()));
+        assertEquals(List.of("REST adapter 'api' declares the mapping set 'never-used', which no"
+                + " resource or operation uses."), result.warnings());
     }
 
     private static IkanosSpec rest(String definitions, String resources) throws Exception {

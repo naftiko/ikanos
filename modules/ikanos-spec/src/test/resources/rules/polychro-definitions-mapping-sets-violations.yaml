@@ -1,0 +1,157 @@
+ikanos: "1.0.0-beta11"
+info:
+  display: "Mapping set violations"
+  description: "Mistakes in named mapping sets of mapped (call-mode) outputs (#1133)."
+  tags:
+    - Test
+capability:
+  consumes:
+    - type: http
+      namespace: registry
+      description: "Ship registry API"
+      baseUri: "https://registry.acme.org"
+      resources:
+        ships:
+          path: "/ships"
+          description: "Ships"
+          operations:
+            list-ships:
+              method: GET
+            get-ship:
+              method: GET
+  exposes:
+    - type: mcp
+      port: 3000
+      namespace: fleet
+      description: "Fleet tools"
+      definitions:
+        schemas:
+          ship:
+            type: object
+            properties:
+              imo: { type: string }
+              flag: { type: string }
+          crewed:
+            type: object
+            properties:
+              crew:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    fullName: { type: string }
+        mappingSets:
+          ship-from-registry:
+            imo: "$.imo_number"
+            flag: "$.flag_state"
+          ship-with-owner:
+            imo: "$.imo_number"
+            flag: "$.flag_state"
+            owner: "$.owner"
+          ship-static:
+            imo: "IMO 9321483"
+            flag: "$.flag_state"
+          never-used:
+            imo: "$.imo"
+          empty-set:
+          mock-only:
+            imo: "$.imo"
+          crew-items:
+            crew: "$.crew"
+            crew[]: "$.member"
+            crew[].fullName: "$.name"
+      tools:
+        unknown-set:
+          description: "Lists a mapping set the adapter does not declare."
+          call: registry.get-ship
+          outputParameters:
+            - schema: ship
+              mappingSets: [ship-from-crm]
+        schema-as-set:
+          description: "Lists a schema as a mapping set."
+          call: registry.get-ship
+          outputParameters:
+            - schema: ship
+              mappingSets: [ship-from-registry, ship]
+        extra-path:
+          description: "Uses a mapping set with a path the schema does not have."
+          call: registry.get-ship
+          outputParameters:
+            - schema: ship
+              mappingSets: [ship-with-owner]
+        static-value:
+          description: "Uses a mapping set whose value is not a JSONPath."
+          call: registry.get-ship
+          outputParameters:
+            - schema: ship
+              mappingSets: [ship-static]
+        sets-without-schema:
+          description: "Lists mapping sets without a schema."
+          call: registry.get-ship
+          outputParameters:
+            - type: object
+              mappingSets: [ship-from-registry]
+              properties:
+                imo: { type: string, mapping: "$.imo" }
+        mock-ship:
+          description: "A mock that lists mapping sets."
+          outputParameters:
+            ship:
+              type: object
+              mappingSets: [ship-from-registry, mock-only]
+              properties:
+                imo: { type: string, value: "IMO 9321483" }
+        single-name:
+          description: "Lists one mapping set by name, not in a list."
+          call: registry.get-ship
+          outputParameters:
+            - schema: ship
+              mappingSets: ship-from-registry
+        set-never-read:
+          description: "A mapping set binds object items, which the runtime never reads."
+          call: registry.get-ship
+          outputParameters:
+            - schema: crewed
+              mappingSets: [crew-items]
+        values-typo:
+          description: "Lists an undeclared mapping set under values."
+          call: registry.get-ship
+          outputParameters:
+            - type: object
+              mapping: "$.ships"
+              values:
+                schema: ship
+                mappingSets: [ship-from-typo]
+        numeric-name:
+          description: "Lists a mapping set name that is a number."
+          call: registry.get-ship
+          outputParameters:
+            - schema: ship
+              mappingSets: [1]
+    - type: rest
+      port: 3001
+      namespace: fleet-rest
+      description: "Fleet API"
+      definitions:
+        schemas:
+          ship:
+            type: object
+            properties:
+              imo: { type: string }
+        mappingSets:
+          ship-from-registry:
+            imo: "$.imo_number"
+          rest-never-used:
+            imo: "$.imo"
+      resources:
+        ships:
+          path: "/ships"
+          description: "Registered vessels"
+          operations:
+            rest-unknown-set:
+              method: GET
+              description: "Lists a mapping set the REST adapter does not declare."
+              call: registry.list-ships
+              outputParameters:
+                - schema: ship
+                  mappingSets: [ship-from-registry, ship-from-rest-typo]

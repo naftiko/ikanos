@@ -13,7 +13,9 @@
  */
 package io.ikanos.spec;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import tools.jackson.databind.JsonNode;
@@ -55,6 +57,13 @@ public class OutputParameterSpec extends StructureSpec<OutputParameterSpec> {
      * declares none.
      */
     private final Map<String, String> mappings = new LinkedHashMap<>();
+
+    /**
+     * The mapping sets of {@code definitions} that bind a schema reference in a mapped
+     * (call-mode) output, in order (#1133). Their mappings merge by path: a later set wins, and
+     * {@link #getMappings()} wins last. Empty when the output lists none.
+     */
+    private final List<String> mappingSets = new ArrayList<>();
 
     public OutputParameterSpec() {
         super();
@@ -115,5 +124,13 @@ public class OutputParameterSpec extends StructureSpec<OutputParameterSpec> {
      */
     public Map<String, String> getMappings() {
         return mappings;
+    }
+
+    /**
+     * @return the names of the mapping sets that bind a referenced schema, in order; empty
+     *         when the output lists none
+     */
+    public List<String> getMappingSets() {
+        return mappingSets;
     }
 }

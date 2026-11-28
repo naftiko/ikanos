@@ -420,6 +420,107 @@ class McpDefinitionsIntegrationTest {
                 + " 'schema: ship' leaves paths unbound: [tonnage]."), error.getMessage());
     }
 
+    private static final String MAPPED_WITH_SETS = HEADER + """
+              exposes:
+                - type: mcp
+                  address: localhost
+                  port: 0
+                  namespace: fleet-mcp
+                  definitions:
+                    schemas:
+                      ship:
+                        type: object
+                        properties:
+                          imo: { type: string, description: "IMO number." }
+                          tonnage: { type: integer }
+                          crew:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                fullName: { type: string }
+                          tags: { type: array, items: { type: string } }
+                    mappingSets:
+                      ship-from-registry:
+                        imo: "$.imo_number"
+                        tonnage: "$.tonnage"
+                        crew: "$.crew"
+                        crew[].fullName: "$.name"
+                      ship-labels:
+                        tags: "$.labels"
+                  tools:
+                    get-ship:
+                      description: "Get a ship."
+                      call: registry.list-ships
+                      outputParameters:
+                        - schema: ship
+                          mappingSets: [ship-from-registry, ship-labels]
+                          mappings:
+                            tonnage: "$.gross_tonnage"
+                    list-ships:
+                      description: "List ships."
+                      call: registry.list-ships
+                      outputParameters:
+                        - type: array
+                          mapping: "$.ships"
+                          items:
+                            schema: ship
+                            mappingSets: [ship-from-registry, ship-labels]
+                            mappings:
+                              tonnage: "$.gross_tonnage"
+            """;
+
+    @Test
+    void toolsListShouldBeTheInlineEquivalentWhenMappedOutputsUseMappingSets()
+            throws Exception {
+        String withSets = toolsList(load(MAPPED_WITH_SETS, null));
+        String inline = toolsList(load(MAPPED_INLINE, null));
+
+        assertEquals(inline, withSets);
+        assertFalse(withSets.contains("mappingSets"), withSets);
+    }
+
+    @Test
+    void expandedToolsShouldBeTheInlineEquivalentWhenMappedOutputsUseMappingSets()
+            throws Exception {
+        // The expanded outputs carry the mappings, which decide structuredContent: the own
+        // `tonnage` mapping must win over the set's
+        String withSets = expandedOutputs(MAPPED_WITH_SETS);
+
+        assertEquals(expandedOutputs(MAPPED_INLINE), withSets);
+        assertTrue(withSets.contains("$.gross_tonnage") && !withSets.contains("\"$.tonnage\""),
+                withSets);
+    }
+
+    /** The outputs of each MCP tool once the capability is loaded, mappings included. */
+    private static String expandedOutputs(String yaml) throws Exception {
+        IkanosSpec spec = IkanosMappers.yaml().readValue(
+                YamlAliases.reject(yaml.getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                IkanosSpec.class);
+        new Capability(spec, null);
+        StringBuilder outputs = new StringBuilder();
+        for (Object server : spec.getCapability().getExposes()) {
+            if (server instanceof io.ikanos.spec.exposes.mcp.McpServerSpec mcp) {
+                for (var tool : mcp.getTools().values()) {
+                    outputs.append(tool.getName()).append(": ").append(IkanosMappers.json()
+                            .writeValueAsString(tool.getOutputParameters())).append('\n');
+                }
+            }
+        }
+        return outputs.toString();
+    }
+
+    @Test
+    void capabilityShouldFailToLoadWhenAMappedOutputListsAnUnknownMappingSet() {
+        String yaml = MAPPED_WITH_SETS.replaceFirst("ship-labels]", "ship-tags]");
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> load(yaml, null));
+
+        assertTrue(error.getMessage().contains("MCP adapter 'fleet-mcp', tool 'get-ship', output:"
+                + " unknown mapping set 'ship-tags'."), error.getMessage());
+    }
+
     @Test
     void capabilityShouldFailToLoadWhenADefinitionIsUnknown() {
         String yaml = WITH_DEFINITIONS.replace("inputParameterSets: [odata-list, tracing]",

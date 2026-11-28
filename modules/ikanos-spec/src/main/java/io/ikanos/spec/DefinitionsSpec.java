@@ -36,10 +36,14 @@ import tools.jackson.databind.annotation.JsonDeserialize;
  *   <li>{@code schemas}: schema name to a schema declared like a nested tool input schema
  *       ({@code McpToolInputSchema}), where {@code required} is the list of required
  *       properties.</li>
+ *   <li>{@code mappingSets}: set name to mappings by path, each path of a schema (property
+ *       names joined by {@code .}, {@code []} for an array's items) to the JSONPath
+ *       {@code mapping} that node carries (#1133). A mapped (call-mode) output lists the sets
+ *       it uses beside {@code schema:}, with {@code mappingSets: [names]}.</li>
  * </ul>
  *
  * <h2>Thread safety</h2>
- * Both maps are held in {@link AtomicReference}s as synchronized {@link LinkedHashMap}s that keep
+ * The maps are held in {@link AtomicReference}s as synchronized {@link LinkedHashMap}s that keep
  * the declaration order. This satisfies SonarQube rule {@code java:S3077}.
  */
 public class DefinitionsSpec {
@@ -52,6 +56,11 @@ public class DefinitionsSpec {
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonDeserialize(using = InputParameterMapDeserializer.class)
     private final AtomicReference<Map<String, InputParameterSpec>> schemas =
+            new AtomicReference<>(Collections.synchronizedMap(new LinkedHashMap<>()));
+
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    @JsonDeserialize(using = MappingSetsDeserializer.class)
+    private final AtomicReference<Map<String, Map<String, String>>> mappingSets =
             new AtomicReference<>(Collections.synchronizedMap(new LinkedHashMap<>()));
 
     /** @return the input parameter sets, keyed by set name, then by parameter name */
@@ -72,5 +81,19 @@ public class DefinitionsSpec {
     public void setSchemas(Map<String, InputParameterSpec> schemas) {
         this.schemas.set(Collections.synchronizedMap(
                 new LinkedHashMap<>(schemas != null ? schemas : Map.of())));
+    }
+
+    /** @return the mapping sets, keyed by set name, then by path, in declaration order */
+    public Map<String, Map<String, String>> getMappingSets() {
+        return mappingSets.get();
+    }
+
+    public void setMappingSets(Map<String, Map<String, String>> sets) {
+        Map<String, Map<String, String>> copy = new LinkedHashMap<>();
+        if (sets != null) {
+            sets.forEach((name, set) -> copy.put(name,
+                    set != null ? new LinkedHashMap<>(set) : new LinkedHashMap<>()));
+        }
+        mappingSets.set(Collections.synchronizedMap(copy));
     }
 }

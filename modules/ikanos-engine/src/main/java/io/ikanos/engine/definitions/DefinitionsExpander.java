@@ -76,10 +76,14 @@ import io.ikanos.spec.util.StructureSpec;
  *       with {@code mappings} (#1036): each key a path in the schema (property names joined by
  *       {@code .}, {@code []} for an array's items), each value the {@code mapping} that node
  *       carries inline. The use expands to the inline mapped output, with items of any type;
- *       beside {@code schema:} it takes only {@code mappings} and {@code mapping}, where the
- *       whole value is read. Every scalar, array and object without properties must be
+ *       beside {@code schema:} it takes only {@code mappings}, {@code mappingSets} and
+ *       {@code mapping}, where the whole value is read. Every scalar, array and object without properties must be
  *       bound, and a binding the runtime never reads (object items, below nested arrays)
  *       is rejected.</li>
+ *   <li>Beside {@code schema:} in a mapped output, {@code mappingSets: [names]} lists mapping
+ *       sets of the definitions (#1133), each a map of such paths to JSONPaths. They merge by
+ *       path, in order: a later set wins, and the reference's own {@code mappings} win last.
+ *       The merged mappings bind the schema exactly as {@code mappings} alone would.</li>
  * </ul>
  *
  * <p>The result is the inline equivalent: once expanded, a unit holds no reference, so
@@ -92,17 +96,19 @@ import io.ikanos.spec.util.StructureSpec;
  * <p>Errors: an unknown reference, a reference of the wrong kind, a qualified ({@code a.b})
  * reference, a JSON Schema {@code $ref} (rejected by its presence, alone or beside
  * {@code schema:}), the same parameter from two sets of one unit, a cycle between schemas, keys
- * beside {@code schema:}, {@code schema:} or {@code mappings} in a mock output or an MCP
- * resource output, and in a mapped output a binding that leaves a scalar, array or object
- * without properties unbound, names a path the schema does not have, binds what the runtime
- * never reads (object items, below nested arrays, a {@code mapping} on an output object), binds
- * a value that is not a JSONPath, or comes without {@code schema:}. Warning: a
- * definition that no unit uses. Each definition's content is checked once, as declared, without
- * expanding it. Expansion is bounded by {@link #MAX_EXPANDED_NODES} declarations emitted per
- * namespace (an inline declaration counts one, a schema use or a set entry the size of the copy
- * it emits, charged before the copy is made: for an orchestrated output, the size of the output
- * shape it gives, without the branches an output does not declare), so a document cannot
- * multiply itself without limit.</p>
+ * beside {@code schema:}, {@code schema:}, {@code mappings} or {@code mappingSets} in a mock
+ * output or an MCP resource output, and in a mapped output a binding that leaves a scalar,
+ * array or object without properties unbound, names a path the schema does not have, binds
+ * what the runtime never reads (object items, below nested arrays, a {@code mapping} on an
+ * output object), binds a value that is not a JSONPath, or comes without {@code schema:}, and
+ * a mapping set whose values are not JSONPaths. Warning: a definition that no unit uses. Each
+ * definition's content is checked once, as declared, without expanding it. Expansion is
+ * bounded by {@link #MAX_EXPANDED_NODES} declarations emitted per namespace (an inline
+ * declaration counts one, a schema use or a set entry the size of the copy it emits, charged
+ * before the copy is made, a mapped schema use the entries of its mapping sets too, charged
+ * before they are checked: for an orchestrated output, the size of the output shape it gives,
+ * without the branches an output does not declare), so a document cannot multiply itself
+ * without limit.</p>
  */
 public final class DefinitionsExpander {
 
@@ -237,10 +243,12 @@ public final class DefinitionsExpander {
         private final boolean inputSchemas;
         private final Map<String, Map<String, InputParameterSpec>> sets;
         private final Map<String, InputParameterSpec> schemas;
+        private final Map<String, Map<String, String>> mappingSets;
         private final Set<String> errors;
         private final Set<String> warnings;
         private final Set<String> usedSets = new HashSet<>();
         private final Set<String> usedSchemas = new HashSet<>();
+        private final Set<String> usedMappingSets = new HashSet<>();
         private final Set<String> cyclic = new HashSet<>();
         private final Set<String> tooDeep = new HashSet<>();
         private final Set<String> checkedSchemas = new HashSet<>();
@@ -269,6 +277,8 @@ public final class DefinitionsExpander {
                     ? definitions.getInputParameterSets() : Map.of();
             this.schemas = definitions != null && definitions.getSchemas() != null
                     ? definitions.getSchemas() : Map.of();
+            this.mappingSets = definitions != null && definitions.getMappingSets() != null
+                    ? definitions.getMappingSets() : Map.of();
             this.errors = errors;
             this.warnings = warnings;
             findCycles();
@@ -385,6 +395,7 @@ public final class DefinitionsExpander {
             for (String name : schemas.keySet()) {
                 checkSchema(name);
             }
+            checkMappingSets();
             for (String name : sets.keySet()) {
                 if (!usedSets.contains(name)) {
                     warnings.add(owner + " declares the input parameter set '" + name
@@ -395,6 +406,36 @@ public final class DefinitionsExpander {
                 if (!usedSchemas.contains(name)) {
                     warnings.add(owner + " declares the schema '" + name + "', which no "
                             + unitKind + " uses.");
+                }
+            }
+            for (String name : mappingSets.keySet()) {
+                if (!usedMappingSets.contains(name)) {
+                    warnings.add(owner + " declares the mapping set '" + name + "', which no "
+                            + unitKind + " uses.");
+                }
+            }
+        }
+
+        /**
+         * Check the values of every mapping set once, where it is declared: each must be a
+         * JSONPath. Its paths depend on the schema it binds, so they are checked at each use.
+         */
+        private void checkMappingSets() {
+            for (Map.Entry<String, Map<String, String>> set : mappingSets.entrySet()) {
+                if (set.getValue().isEmpty()) {
+                    errors.add(owner + ", mapping set '" + set.getKey() + "' declares no"
+                            + " mapping. Declare it as a map of paths to JSONPaths.");
+                    continue;
+                }
+                List<String> notPaths = new ArrayList<>();
+                for (Map.Entry<String, String> entry : set.getValue().entrySet()) {
+                    addIf(notPaths, entry.getKey(),
+                            entry.getValue() == null || !entry.getValue().trim().startsWith("$"));
+                }
+                if (!notPaths.isEmpty()) {
+                    errors.add(owner + ", mapping set '" + set.getKey() + "' binds " + notPaths
+                            + " to a value that is not a JSONPath (starting with '$'). A static"
+                            + " 'value' is declared inline.");
                 }
             }
         }
@@ -533,8 +574,9 @@ public final class DefinitionsExpander {
 
         /**
          * Expand the schema references of the outputs of a unit. An orchestrated output takes
-         * {@code schema:} alone; a mapped (call-mode) output takes it with {@code mappings}, the
-         * mapping of each path of the schema (#1036). Mock outputs, static values, take none.
+         * {@code schema:} alone; a mapped (call-mode) output takes it with {@code mappings} and
+         * {@code mappingSets}, the mapping of each path of the schema (#1036, #1133). Mock
+         * outputs, static values, take none.
          *
          * @param mapped whether the outputs are mapped (call-mode) outputs
          */
@@ -548,6 +590,11 @@ public final class DefinitionsExpander {
                 String where = output.getName() != null
                         ? location + ", output '" + output.getName() + "'"
                         : location + ", output";
+                if (!mapped) {
+                    // Rejected there, but resolved: an unknown name is reported and a known one
+                    // is not also reported unused, as Polychro does
+                    resolveListedMappingSets(output, where);
+                }
                 if (orchestrated) {
                     checkNoMappings(output, where);
                     expanded.add(expandOutput(output, where));
@@ -555,9 +602,9 @@ public final class DefinitionsExpander {
                     expanded.add(expandMappedOutput(output, where, Position.TOP));
                 } else {
                     if (referencesSchema(output) || hasMappings(output)) {
-                        errors.add(where + ": 'schema:' and 'mappings' are not allowed in a mock"
-                                + " output, which returns static values. Declare the output"
-                                + " inline.");
+                        errors.add(where + ": 'schema:', 'mappings' and 'mappingSets' are not"
+                                + " allowed in a mock output, which returns static values."
+                                + " Declare the output inline.");
                         resolveListedSchemas(output, where);
                     }
                     checkJsonSchemaRefs(output, where);
@@ -568,22 +615,29 @@ public final class DefinitionsExpander {
         }
 
         /**
-         * Report {@code schema:} or {@code mappings} anywhere in the outputs of an MCP resource:
+         * Report {@code schema:}, {@code mappings} or {@code mappingSets} anywhere in the outputs
+         * of an MCP resource:
          * definitions do not reach resources, so the reference would never be expanded.
          */
         void rejectResourceSchemas(String key, McpServerResourceSpec resource) {
             String name = resource.getName() != null ? resource.getName() : key;
             for (OutputParameterSpec output : resource.getOutputParameters()) {
+                markListedMappingSets(output);
+            }
+            for (OutputParameterSpec output : resource.getOutputParameters()) {
                 if (referencesSchema(output) || hasMappings(output)) {
-                    errors.add(owner + ", resource '" + name + "': 'schema:' and 'mappings' are"
-                            + " not supported in an MCP resource output. Declare the output"
-                            + " inline.");
+                    errors.add(owner + ", resource '" + name + "': 'schema:', 'mappings' and"
+                            + " 'mappingSets' are not supported in an MCP resource output. Declare"
+                            + " the output inline.");
                     return;
                 }
             }
         }
 
-        /** Report {@code mappings} anywhere in an orchestrated output: steps bind its values. */
+        /**
+         * Report {@code mappings} or {@code mappingSets} anywhere in an orchestrated output:
+         * steps bind its values.
+         */
         private void checkNoMappings(OutputParameterSpec param, String location) {
             if (param == null) {
                 return;
@@ -592,6 +646,11 @@ public final class DefinitionsExpander {
                 errors.add(location + ": 'mappings' is only allowed beside 'schema:' in a mapped"
                         + " (call-mode) output. An orchestrated output is filled by the unit's"
                         + " step 'mappings'.");
+            }
+            if (!param.getMappingSets().isEmpty() && param.getSchema() == null) {
+                errors.add(location + ": 'mappingSets' is only allowed beside 'schema:' in a"
+                        + " mapped (call-mode) output. An orchestrated output is filled by the"
+                        + " unit's step 'mappings'.");
             }
             checkNoMappings(param.getItems(), location + ", items");
             for (OutputParameterSpec property : param.getProperties()) {
@@ -640,6 +699,12 @@ public final class DefinitionsExpander {
                 errors.add(location + ": 'mappings' binds a schema, so it needs 'schema:' beside"
                         + " it. Name the schema, or declare a 'mapping' on each leaf inline.");
             }
+            if (!param.getMappingSets().isEmpty()) {
+                errors.add(location + ": 'mappingSets' binds a schema, so it needs 'schema:'"
+                        + " beside it. Name the schema, or declare a 'mapping' on each leaf"
+                        + " inline.");
+                resolveMappingSets(param.getMappingSets(), location);
+            }
             if (!withinBudget(1)) {
                 return param;
             }
@@ -666,21 +731,26 @@ public final class DefinitionsExpander {
 
         /**
          * Bind a schema reference of a mapped output: build the inline mapped output the schema
-         * gives, with each path's mapping from {@code mappings}, and report the paths left
+         * gives, with each path's mapping from its merged {@code mappingSets} and
+         * {@code mappings}, and report the paths left
          * unbound, the paths the schema does not have, the bindings the runtime never reads,
          * and the values that are not JSONPaths.
          */
         private OutputParameterSpec bindSchema(OutputParameterSpec use, String location,
                 Position position) {
             checkMappedBesideSchema(use, location);
-            // Rejected children are never bound, but the schemas they name are resolved, as
-            // Polychro reads them
+            // Rejected children are never bound, but the schemas and sets they name are
+            // resolved, as Polychro reads them
             resolveListedSchemas(use.getItems(), location);
             resolveListedSchemas(use.getValues(), location);
+            resolveListedMappingSets(use.getItems(), location);
+            resolveListedMappingSets(use.getValues(), location);
             for (OutputParameterSpec property : use.getProperties()) {
                 resolveListedSchemas(property, location);
+                resolveListedMappingSets(property, location);
             }
             String name = use.getSchema();
+            ListedSets sets = listedSets(use, location);
             if (position == Position.UNREAD) {
                 if (lookupSchema(name, location) != null) {
                     markUsed(name);
@@ -690,9 +760,14 @@ public final class DefinitionsExpander {
                         + " are never read. Remove it, or bind the outer items instead.");
                 return use;
             }
-            if (!resolvable(name, location) || !withinBudget(size(name))) {
+            // Charged the schema it expands and the entries of the sets it lists, before the
+            // sets are merged or anything is bound or reported: a set listed by many outputs is
+            // multiplied by each use, so a use the budget refuses costs only the names it lists
+            if (!resolvable(name, location)
+                    || !withinBudget(size(name) + sets.entries())) {
                 return use;
             }
+            Mappings mappings = mergeMappings(sets, use);
             InputParameterSpec root = target(schemas.get(name));
             boolean object = "object".equals(root.getType());
             boolean withProperties = isObjectWithProperties(root);
@@ -702,13 +777,15 @@ public final class DefinitionsExpander {
                         + " property, with a 'mapping'.");
                 return use;
             }
-            Binding binding = new Binding(use.getMappings(),
+            Binding binding = new Binding(mappings,
                     position == Position.ITEMS && "array".equals(root.getType()));
             OutputParameterSpec output = binding.bind(schemas.get(name), "", false);
             output.setName(use.getName());
-            if (use.getMappings().isEmpty() && !binding.unbound.isEmpty()) {
+            if (mappings.values().isEmpty() && !binding.unbound.isEmpty()
+                    && !mappings.unresolved()) {
                 errors.add(location + ": 'schema: " + name + "' in a mapped (call-mode) output"
-                        + " needs 'mappings', the mapping of each path of the schema.");
+                        + " needs 'mappings' or 'mappingSets', the mapping of each path of the"
+                        + " schema.");
                 return use;
             }
             if (use.getMapping() != null && object && position != Position.PROPERTY
@@ -732,12 +809,150 @@ public final class DefinitionsExpander {
         }
 
         /**
+         * The mappings that bind one schema reference: its mapping sets merged by path, in
+         * order, then its own {@code mappings}, which win last (#1133).
+         *
+         * @param values     the merged mappings, by path
+         * @param origins    the mapping set each merged path comes from; absent for the
+         *                   reference's own {@code mappings}
+         * @param unresolved whether a listed mapping set does not resolve, so the paths it would
+         *                   bind are unknown
+         */
+        record Mappings(Map<String, String> values, Map<String, String> origins,
+                boolean unresolved) {
+        }
+
+        /**
+         * The mapping sets a schema reference lists, resolved but not merged.
+         *
+         * @param sets       the resolved sets, by name, in the listed order
+         * @param unresolved whether a listed mapping set does not resolve
+         * @param entries    the number of entries of the resolved sets, charged to the expansion
+         *                   budget on every use before they are merged
+         */
+        record ListedSets(List<Map.Entry<String, Map<String, String>>> sets, boolean unresolved,
+                long entries) {
+        }
+
+        /**
+         * Resolve the mapping sets a schema reference lists and count their entries, at a cost
+         * proportional to the names listed, not to the size of the sets.
+         */
+        ListedSets listedSets(OutputParameterSpec use, String location) {
+            List<Map.Entry<String, Map<String, String>>> sets = new ArrayList<>();
+            boolean unresolved = false;
+            long entries = 0;
+            for (String name : use.getMappingSets()) {
+                Map<String, String> set = resolveMappingSet(name, location);
+                if (set == null) {
+                    unresolved = true;
+                    continue;
+                }
+                entries += set.size();
+                sets.add(Map.entry(name, set));
+            }
+            return new ListedSets(sets, unresolved, entries);
+        }
+
+        /**
+         * Merge the listed mapping sets of a schema reference, in order, then its own mappings.
+         * Called once its use is charged, as the merge costs the entries of the sets.
+         */
+        static Mappings mergeMappings(ListedSets listed, OutputParameterSpec use) {
+            Map<String, String> values = new LinkedHashMap<>();
+            Map<String, String> origins = new HashMap<>();
+            for (Map.Entry<String, Map<String, String>> set : listed.sets()) {
+                for (Map.Entry<String, String> entry : set.getValue().entrySet()) {
+                    values.put(entry.getKey(), entry.getValue());
+                    origins.put(entry.getKey(), set.getKey());
+                }
+            }
+            for (Map.Entry<String, String> entry : use.getMappings().entrySet()) {
+                values.put(entry.getKey(), entry.getValue());
+                origins.remove(entry.getKey());
+            }
+            return new Mappings(values, origins, listed.unresolved());
+        }
+
+        /**
+         * Mark used the declared mapping sets an MCP resource output lists anywhere, where they
+         * are rejected, without resolving them: Polychro has no reference to check there.
+         */
+        private void markListedMappingSets(OutputParameterSpec param) {
+            if (param == null) {
+                return;
+            }
+            for (String name : param.getMappingSets()) {
+                if (mappingSets.containsKey(name)) {
+                    usedMappingSets.add(name);
+                }
+            }
+            markListedMappingSets(param.getItems());
+            markListedMappingSets(param.getValues());
+            for (OutputParameterSpec property : param.getProperties()) {
+                markListedMappingSets(property);
+            }
+        }
+
+        /**
+         * Resolve the mapping sets an output lists anywhere, where they are rejected (a mock or
+         * orchestrated output): an unknown name is reported, a known one is marked used.
+         */
+        private void resolveListedMappingSets(OutputParameterSpec param, String location) {
+            if (param == null) {
+                return;
+            }
+            resolveMappingSets(param.getMappingSets(), location);
+            resolveListedMappingSets(param.getItems(), location);
+            resolveListedMappingSets(param.getValues(), location);
+            for (OutputParameterSpec property : param.getProperties()) {
+                resolveListedMappingSets(property, location);
+            }
+        }
+
+        /** Resolve, and mark used, each mapping set a reference lists. */
+        private void resolveMappingSets(List<String> names, String location) {
+            for (String name : names) {
+                resolveMappingSet(name, location);
+            }
+        }
+
+        /**
+         * Resolve a mapping set name of this namespace, reporting an unknown name, the name of
+         * another kind of definition, or a qualified name.
+         */
+        Map<String, String> resolveMappingSet(String name, String location) {
+            if (!isBareName(name, location)) {
+                return null;
+            }
+            Map<String, String> set = mappingSets.get(name);
+            if (set == null) {
+                if (schemas.containsKey(name)) {
+                    errors.add(location + ": '" + name + "' is a schema, not a mapping set. Use"
+                            + " it with 'schema: " + name + "'.");
+                } else if (sets.containsKey(name)) {
+                    errors.add(location + ": '" + name + "' is an input parameter set, not a"
+                            + " mapping set. Use it with 'inputParameterSets: [" + name + "]' on"
+                            + " the " + unitKind + ".");
+                } else {
+                    errors.add(location + ": unknown mapping set '" + name + "'. " + owner
+                            + " declares " + names(mappingSets.keySet()) + ".");
+                }
+                return null;
+            }
+            usedMappingSets.add(name);
+            return set;
+        }
+
+        /**
          * The binding of one schema reference: its {@code mappings}, which of them are used, and
          * what is wrong with them.
          */
         private final class Binding {
 
             private final Map<String, String> mappings;
+            private final Map<String, String> origins;
+            private final boolean unresolved;
             private final Set<String> used = new HashSet<>();
             private final List<String> paths = new ArrayList<>();
             private final List<String> unbound = new ArrayList<>();
@@ -749,8 +964,10 @@ public final class DefinitionsExpander {
              * @param rootIsItems whether the bound schema is an array used as the items of
              *                    another array, whose own items the runtime never shapes
              */
-            Binding(Map<String, String> mappings, boolean rootIsItems) {
-                this.mappings = mappings;
+            Binding(Mappings mappings, boolean rootIsItems) {
+                this.mappings = mappings.values();
+                this.origins = mappings.origins();
+                this.unresolved = mappings.unresolved();
                 this.rootIsItems = rootIsItems;
             }
 
@@ -771,13 +988,16 @@ public final class DefinitionsExpander {
                 output.setType("integer".equals(type) ? "number" : type);
                 boolean withProperties = isObjectWithProperties(schema);
                 if (!path.isEmpty()) {
+                    // A key bound to null (a mapping set value left empty) is still bound: its
+                    // set's own error is the one that says what is wrong
                     String mapping = mappings.get(path);
-                    if (mapping != null) {
+                    boolean bound = mappings.containsKey(path);
+                    if (bound) {
                         used.add(path);
                     }
                     if (unread) {
-                        addIf(ineffective, path, mapping != null);
-                    } else if (mapping != null && path.endsWith("[]") && withProperties) {
+                        addIf(ineffective, path, bound);
+                    } else if (bound && path.endsWith("[]") && withProperties) {
                         // Object items are read from each element, whatever their mapping
                         paths.add(path);
                         ineffective.add(path);
@@ -786,7 +1006,7 @@ public final class DefinitionsExpander {
                         output.setMapping(mapping);
                         // Unbound, an object with properties reads its parent's root and
                         // items each element; anything else would always be null
-                        addIf(unbound, path, mapping == null && !withProperties
+                        addIf(unbound, path, !bound && !withProperties
                                 && !path.endsWith("[]"));
                     }
                 }
@@ -821,22 +1041,32 @@ public final class DefinitionsExpander {
                             + " name contains '.', '[' or ']': " + unaddressable + ". Declare"
                             + " the output inline.");
                 }
-                if (!unbound.isEmpty()) {
+                if (!unbound.isEmpty() && !unresolved) {
+                    // A set that does not resolve is already reported: what it binds is unknown
                     errors.add(prefix + "leaves paths unbound: " + unbound + ". Give each"
                             + " scalar, array and object without properties a mapping in"
-                            + " 'mappings'.");
+                            + " 'mappings' or 'mappingSets'.");
                 }
                 if (!ineffective.isEmpty()) {
-                    errors.add(prefix + "binds " + ineffective + ", which the runtime never"
-                            + " reads: object items are read from each element, and the items"
-                            + " of nested arrays are passed through as they are. Remove them.");
+                    List<String> named = new ArrayList<>();
+                    for (String path : ineffective) {
+                        String set = origins.get(path);
+                        named.add(set == null ? path : path + " (mapping set '" + set + "')");
+                    }
+                    errors.add(prefix + "binds " + named + ", which the runtime never reads:"
+                            + " object items are read from each element, and the items of nested"
+                            + " arrays are passed through as they are. Remove them, or bind this"
+                            + " schema with other mappings.");
                 }
                 List<String> unknown = new ArrayList<>();
                 List<String> notPaths = new ArrayList<>();
                 for (Map.Entry<String, String> entry : mappings.entrySet()) {
+                    String set = origins.get(entry.getKey());
                     if (!used.contains(entry.getKey())) {
-                        unknown.add(entry.getKey());
-                    } else if (!entry.getValue().trim().startsWith("$")) {
+                        unknown.add(set == null ? entry.getKey()
+                                : entry.getKey() + " (mapping set '" + set + "')");
+                    } else if (set == null && !entry.getValue().trim().startsWith("$")) {
+                        // A set's values are checked once, where it is declared
                         notPaths.add(entry.getKey());
                     }
                 }
@@ -1415,12 +1645,14 @@ public final class DefinitionsExpander {
 
         /**
          * Report the keys beside {@code schema:} in a mapped output other than {@code mappings}
-         * (its binding) and {@code mapping} (where the whole value is read).
+         * and {@code mappingSets} (its binding) and {@code mapping} (where the whole value is
+         * read).
          */
         private void checkMappedBesideSchema(OutputParameterSpec param, String location) {
             List<String> extra = new ArrayList<>();
             for (String key : param.getSchemaSiblings().keySet()) {
-                addIf(extra, key, !"mappings".equals(key) && !"mapping".equals(key));
+                addIf(extra, key, !"mappings".equals(key) && !"mappingSets".equals(key)
+                        && !"mapping".equals(key));
             }
             // Keys set on the model rather than declared (a copy built in code)
             addIf(extra, "type", param.getType() != null && !extra.contains("type"));
@@ -1429,7 +1661,8 @@ public final class DefinitionsExpander {
                     && !extra.contains("properties"));
             if (!extra.isEmpty()) {
                 errors.add(location + ": 'schema: " + param.getSchema() + "' takes only"
-                        + " 'mappings' and 'mapping' in a mapped output, found " + extra + ".");
+                        + " 'mappings', 'mappingSets' and 'mapping' in a mapped output, found "
+                        + extra + ".");
             }
         }
 
@@ -1603,12 +1836,16 @@ public final class DefinitionsExpander {
     }
 
 
-    /** Whether an output, or one of its nested declarations, declares {@code mappings}. */
+    /**
+     * Whether an output, or one of its nested declarations, declares {@code mappings} or
+     * {@code mappingSets}.
+     */
     static boolean hasMappings(OutputParameterSpec param) {
         if (param == null) {
             return false;
         }
-        if (!param.getMappings().isEmpty() || hasMappings(param.getItems())
+        if (!param.getMappings().isEmpty() || !param.getMappingSets().isEmpty()
+                || hasMappings(param.getItems())
                 || hasMappings(param.getValues())) {
             return true;
         }

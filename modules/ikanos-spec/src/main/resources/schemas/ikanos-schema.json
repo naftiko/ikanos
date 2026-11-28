@@ -632,7 +632,7 @@
     },
     "MappedOutputParameterSchemaRef": {
       "type": "object",
-      "description": "Mapped output shaped by a schema of the `definitions` of the same MCP adapter, REST adapter or aggregate, and bound by `mappings`: each key is a path in the schema (property names joined by `.`, `[]` for an array's items), each value the JSONPath `mapping` that node carries inline, relative exactly as inline. `mappings` may be left out only when the schema has nothing to bind (a scalar, an array whose items are not objects with properties, or an object without properties, bound by `mapping` alone). Every scalar, array and object without properties of the schema must be bound; an object with properties or array items may stay unbound. A binding the runtime never reads fails the load: the items of an array when they are objects with properties, anything below the items of nested arrays, and a `mapping` beside `schema:` on an output object or object items. It expands at load time to the inline mapped output, so `tools/list` and the REST contract are unchanged. Allowed as a call-mode output, its `items` and its `properties`.\n\n**Example**:\n```yaml\noutputParameters:\n  - type: array\n    mapping: \"$.ships\"\n    items:\n      schema: ship\n      mappings:\n        imo: \"$.imo_number\"\n        specs.tonnage: \"$.gross_tonnage\"\n        crew: \"$.crew\"\n        crew[].fullName: \"$.name\"\n```",
+      "description": "Mapped output shaped by a schema of the `definitions` of the same MCP adapter, REST adapter or aggregate, and bound by `mappings`, the mapping sets it lists in `mappingSets`, or both: each key is a path in the schema (property names joined by `.`, `[]` for an array's items), each value the JSONPath `mapping` that node carries inline, relative exactly as inline. `mappingSets` merge by path in order, and `mappings` win last. Both may be left out only when the schema has nothing to bind (a scalar, an array whose items are not objects with properties, or an object without properties, bound by `mapping` alone). Every scalar, array and object without properties of the schema must be bound; an object with properties or array items may stay unbound. A binding the runtime never reads fails the load: the items of an array when they are objects with properties, anything below the items of nested arrays, and a `mapping` beside `schema:` on an output object or object items. It expands at load time to the inline mapped output, so `tools/list` and the REST contract are unchanged. Allowed as a call-mode output, its `items` and its `properties`.\n\n**Example**:\n```yaml\noutputParameters:\n  - type: array\n    mapping: \"$.ships\"\n    items:\n      schema: ship\n      mappings:\n        imo: \"$.imo_number\"\n        specs.tonnage: \"$.gross_tonnage\"\n        crew: \"$.crew\"\n        crew[].fullName: \"$.name\"\n```",
       "properties": {
         "schema": {
           "$ref": "#/$defs/DefinitionName"
@@ -642,22 +642,38 @@
           "description": "JsonPath expression selecting where the whole value is read, as an inline `mapping` on this output."
         },
         "mappings": {
-          "type": "object",
-          "description": "The mapping of each path of the schema: property names joined by `.`, with `[]` to step into an array's items (`crew[].fullName`), or `[]` alone for the items of an array schema.",
-          "propertyNames": {
-            "pattern": "^(?:\\[\\](?:\\[\\])*|[^.\\[\\]]+(?:\\[\\])*)(?:\\.[^.\\[\\]]+(?:\\[\\])*)*$"
-          },
-          "additionalProperties": {
-            "type": "string",
-            "pattern": "^\\s*\\$"
-          },
-          "minProperties": 1
+          "$ref": "#/$defs/PathMappings",
+          "description": "The mapping of each path of the schema: property names joined by `.`, with `[]` to step into an array's items (`crew[].fullName`), or `[]` alone for the items of an array schema. Its entries win per path over those of `mappingSets`."
+        },
+        "mappingSets": {
+          "$ref": "#/$defs/MappingSetNames"
         }
       },
       "required": [
         "schema"
       ],
       "additionalProperties": false
+    },
+    "PathMappings": {
+      "type": "object",
+      "description": "Mappings by path of a schema: each key is a path (property names joined by `.`, with `[]` to step into an array's items, or `[]` alone for the items of an array schema), each value the JSONPath `mapping` that node carries inline, relative exactly as inline.",
+      "propertyNames": {
+        "pattern": "^(?:\\[\\](?:\\[\\])*|[^.\\[\\]]+(?:\\[\\])*)(?:\\.[^.\\[\\]]+(?:\\[\\])*)*$"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^\\s*\\$"
+      },
+      "minProperties": 1
+    },
+    "MappingSetNames": {
+      "type": "array",
+      "description": "Names of mapping sets declared in the `definitions` of the same MCP adapter, REST adapter or aggregate, which bind the schema beside them (#1133). Their mappings merge by path, in order: a later set wins, and the output's own `mappings` win last. The merged mappings bind the schema exactly as `mappings` alone would.",
+      "items": {
+        "$ref": "#/$defs/DefinitionName"
+      },
+      "minItems": 1,
+      "uniqueItems": true
     },
     "OrchestratedOutputParameterBase": {
       "type": "object",
@@ -1116,7 +1132,7 @@
         },
         "definitions": {
           "$ref": "#/$defs/Definitions",
-          "description": "Shared input parameter sets and schemas, visible to the flows of this aggregate only. Expanded at load time into the inline equivalent. MCP tools and REST operations reach them through `ref`."
+          "description": "Shared input parameter sets, schemas and mapping sets, visible to the flows of this aggregate only. Expanded at load time into the inline equivalent. MCP tools and REST operations reach them through `ref`."
         },
         "flows": {
           "type": "object",
@@ -1360,7 +1376,7 @@
         },
         "definitions": {
           "$ref": "#/$defs/RestDefinitions",
-          "description": "Shared input parameter sets and schemas, visible to the resources and operations of this adapter only. Expanded at load time into the inline equivalent."
+          "description": "Shared input parameter sets, schemas and mapping sets, visible to the resources and operations of this adapter only. Expanded at load time into the inline equivalent."
         },
         "resources": {
           "type": "object",
@@ -1459,7 +1475,7 @@
         },
         "definitions": {
           "$ref": "#/$defs/Definitions",
-          "description": "Shared input parameter sets and schemas, visible to the tools of this adapter only. Expanded at load time into the inline equivalent."
+          "description": "Shared input parameter sets, schemas and mapping sets, visible to the tools of this adapter only. Expanded at load time into the inline equivalent."
         },
         "hints": {
           "$ref": "#/$defs/McpToolHints",
@@ -2284,7 +2300,7 @@
     },
     "Definitions": {
       "type": "object",
-      "description": "Shared definitions of an MCP adapter or an aggregate, visible to its own tools or flows only.\n\n**When to use** \u2014 Several tools (or flows) repeat the same inputs, or the same input or output shape. Declare them once here and reuse them by name: `inputParameterSets: [name]` on a tool or flow, `schema: name` on an input (and in its `items` and `properties`), inside another schema, in an orchestrated (steps-mode) output, or with `mappings` in a mapped (call-mode) output.\n**Expansion** \u2014 Definitions are expanded at load time, after imports and before `ref` resolution. `tools/list` advertises the same `inputSchema` and `outputSchema` as the inline equivalent: no reference is ever sent to MCP clients. An imported adapter or aggregate carries its definitions.\n**Reuse across adapters** \u2014 A tool cannot use an aggregate's definitions: reuse across MCP and REST goes through an aggregate flow and `ref`.\n\n**Example**:\n```yaml\ndefinitions:\n  inputParameterSets:\n    odata-list:\n      filter: { type: string, required: false, description: \"OData V2 $filter expression.\" }\n      top:    { type: integer, required: false, description: \"Maximum rows to return.\" }\n  schemas:\n    date-range:\n      type: object\n      properties:\n        from: { type: string, format: date }\n        to:   { type: string, format: date }\n      required: [from]\n```",
+      "description": "Shared definitions of an MCP adapter or an aggregate, visible to its own tools or flows only.\n\n**When to use** \u2014 Several tools (or flows) repeat the same inputs, or the same input or output shape. Declare them once here and reuse them by name: `inputParameterSets: [name]` on a tool or flow, `schema: name` on an input (and in its `items` and `properties`), inside another schema, in an orchestrated (steps-mode) output, or with `mappings` and `mappingSets: [name]` in a mapped (call-mode) output.\n**Expansion** \u2014 Definitions are expanded at load time, after imports and before `ref` resolution. `tools/list` advertises the same `inputSchema` and `outputSchema` as the inline equivalent: no reference is ever sent to MCP clients. An imported adapter or aggregate carries its definitions.\n**Reuse across adapters** \u2014 A tool cannot use an aggregate's definitions: reuse across MCP and REST goes through an aggregate flow and `ref`.\n\n**Example**:\n```yaml\ndefinitions:\n  inputParameterSets:\n    odata-list:\n      filter: { type: string, required: false, description: \"OData V2 $filter expression.\" }\n      top:    { type: integer, required: false, description: \"Maximum rows to return.\" }\n  schemas:\n    date-range:\n      type: object\n      properties:\n        from: { type: string, format: date }\n        to:   { type: string, format: date }\n      required: [from]\n```",
       "properties": {
         "inputParameterSets": {
           "type": "object",
@@ -2313,7 +2329,18 @@
             "$ref": "#/$defs/McpToolInputSchema"
           },
           "minProperties": 1,
-          "description": "Named schemas, keyed by schema name, each declared like a nested tool input schema (`required` is the list of required properties). Used with `schema: name`; a schema may use another, but schemas must not reference each other in a cycle. Composition (`allOf`) is not supported: a reference stands for the whole schema.\n\n**In an orchestrated output** \u2014 A schema gives only what an orchestrated output declares: its `type` (`integer` becomes `number`), its `properties`, and its `items` when they are objects with properties. The same holds for `items: { schema: name }`: a schema that is not an object with properties gives no `items`. Input-only keywords (`description`, `enum`, `format`, `minimum`, `maximum`, `required`, `additionalProperties`) do not apply there.\n\n**In a mapped output** \u2014 `schema: name` with `mappings` gives a mapped (call-mode) output the schema's `type` (`integer` becomes `number`), `properties` and `items` of any type, each node with the `mapping` its path is bound to. Input-only keywords do not apply there either."
+          "description": "Named schemas, keyed by schema name, each declared like a nested tool input schema (`required` is the list of required properties). Used with `schema: name`; a schema may use another, but schemas must not reference each other in a cycle. Composition (`allOf`) is not supported: a reference stands for the whole schema.\n\n**In an orchestrated output** \u2014 A schema gives only what an orchestrated output declares: its `type` (`integer` becomes `number`), its `properties`, and its `items` when they are objects with properties. The same holds for `items: { schema: name }`: a schema that is not an object with properties gives no `items`. Input-only keywords (`description`, `enum`, `format`, `minimum`, `maximum`, `required`, `additionalProperties`) do not apply there.\n\n**In a mapped output** \u2014 `schema: name` with `mappings` or `mappingSets` gives a mapped (call-mode) output the schema's `type` (`integer` becomes `number`), `properties` and `items` of any type, each node with the `mapping` its path is bound to. Input-only keywords do not apply there either."
+        },
+        "mappingSets": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/IdentifierKebab"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/PathMappings"
+          },
+          "minProperties": 1,
+          "description": "Named mapping sets, keyed by set name, each the mappings by path of a schema, as `mappings` declares them beside `schema:` in a mapped (call-mode) output. Such an output lists the sets it uses with `mappingSets: [name]` beside `schema:`: their mappings merge by path, in order, a later set winning, and its own `mappings` win last. A set is not tied to one schema: its paths are checked against the schema of each use."
         }
       },
       "minProperties": 1,
@@ -2321,7 +2348,7 @@
     },
     "RestDefinitions": {
       "type": "object",
-      "description": "Shared definitions of a REST adapter, visible to its own resources and operations only.\n\n**When to use** \u2014 Several resources or operations repeat the same inputs (a path key, paging or filter query parameters), or several outputs repeat the same shape. Declare them once here and reuse them by name: `inputParameterSets: [name]` on a resource (its operations inherit the inputs) or an operation, and `schema: name` in an orchestrated (steps-mode) output or, with `mappings`, a mapped (call-mode) output, in their `items` or `properties`, or inside another schema. REST inputs are flat, so `schema:` is not allowed on them.\n**Expansion** \u2014 Definitions are expanded at load time, after imports and before `ref` resolution. The served contract and `ikanos export openapi` are the inline equivalent: no reference is ever sent to clients. An imported adapter carries its definitions.\n**Reuse across adapters** \u2014 Definitions are local: an MCP adapter, a REST adapter and an aggregate never share one. Reuse across MCP and REST goes through an aggregate flow and `ref`.\n\n**Example**:\n```yaml\ndefinitions:\n  inputParameterSets:\n    ship-key:\n      imo: { in: path, type: string, description: \"IMO number of the ship.\" }\n    paging:\n      limit:  { in: query, type: integer, description: \"Maximum items to return.\" }\n      offset: { in: query, type: integer, description: \"Items to skip.\" }\n  schemas:\n    crew-member:\n      type: object\n      properties:\n        fullName: { type: string }\n        role: { type: string }\n```",
+      "description": "Shared definitions of a REST adapter, visible to its own resources and operations only.\n\n**When to use** \u2014 Several resources or operations repeat the same inputs (a path key, paging or filter query parameters), or several outputs repeat the same shape. Declare them once here and reuse them by name: `inputParameterSets: [name]` on a resource (its operations inherit the inputs) or an operation, and `schema: name` in an orchestrated (steps-mode) output or, with `mappings` and `mappingSets: [name]`, a mapped (call-mode) output, in their `items` or `properties`, or inside another schema. REST inputs are flat, so `schema:` is not allowed on them.\n**Expansion** \u2014 Definitions are expanded at load time, after imports and before `ref` resolution. The served contract and `ikanos export openapi` are the inline equivalent: no reference is ever sent to clients. An imported adapter carries its definitions.\n**Reuse across adapters** \u2014 Definitions are local: an MCP adapter, a REST adapter and an aggregate never share one. Reuse across MCP and REST goes through an aggregate flow and `ref`.\n\n**Example**:\n```yaml\ndefinitions:\n  inputParameterSets:\n    ship-key:\n      imo: { in: path, type: string, description: \"IMO number of the ship.\" }\n    paging:\n      limit:  { in: query, type: integer, description: \"Maximum items to return.\" }\n      offset: { in: query, type: integer, description: \"Items to skip.\" }\n  schemas:\n    crew-member:\n      type: object\n      properties:\n        fullName: { type: string }\n        role: { type: string }\n```",
       "properties": {
         "inputParameterSets": {
           "type": "object",
@@ -2350,7 +2377,18 @@
             "$ref": "#/$defs/McpToolInputSchema"
           },
           "minProperties": 1,
-          "description": "Named schemas, keyed by schema name, each declared like a nested MCP tool input schema. Used with `schema: name` in an orchestrated (steps-mode) output of an operation, or with `mappings` in a mapped (call-mode) one, in their `items` or `properties`, or inside another schema; schemas must not reference each other in a cycle. A schema gives only what an orchestrated output declares: its `type` (`integer` becomes `number`), its `properties`, and its `items` when they are objects with properties.\n\n**In a mapped output** \u2014 `schema: name` with `mappings` gives a mapped (call-mode) output the schema's `type` (`integer` becomes `number`), `properties` and `items` of any type, each node with the `mapping` its path is bound to. Input-only keywords do not apply there either."
+          "description": "Named schemas, keyed by schema name, each declared like a nested MCP tool input schema. Used with `schema: name` in an orchestrated (steps-mode) output of an operation, or with `mappings` in a mapped (call-mode) one, in their `items` or `properties`, or inside another schema; schemas must not reference each other in a cycle. A schema gives only what an orchestrated output declares: its `type` (`integer` becomes `number`), its `properties`, and its `items` when they are objects with properties.\n\n**In a mapped output** \u2014 `schema: name` with `mappings` or `mappingSets` gives a mapped (call-mode) output the schema's `type` (`integer` becomes `number`), `properties` and `items` of any type, each node with the `mapping` its path is bound to. Input-only keywords do not apply there either."
+        },
+        "mappingSets": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/IdentifierKebab"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/PathMappings"
+          },
+          "minProperties": 1,
+          "description": "Named mapping sets, keyed by set name, each the mappings by path of a schema, as `mappings` declares them beside `schema:` in a mapped (call-mode) output. Such an output lists the sets it uses with `mappingSets: [name]` beside `schema:`: their mappings merge by path, in order, a later set winning, and its own `mappings` win last. A set is not tied to one schema: its paths are checked against the schema of each use."
         }
       },
       "minProperties": 1,

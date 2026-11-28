@@ -513,6 +513,110 @@ class DefinitionsSchemaValidationTest {
                 """.formatted(IKANOS, inputs.indent(12)));
     }
 
+    private static final String MAPPING_SETS = """
+            definitions:
+              schemas:
+                ship:
+                  type: object
+                  properties:
+                    imo: { type: string }
+                    flag: { type: string }
+              mappingSets:
+                ship-from-registry:
+                  imo: "$.imo_number"
+                  flag: "$.flag_state"
+            """;
+
+    @Test
+    void validateShouldAcceptMappingSetsBesideASchemaInEveryMappedOutputPosition()
+            throws Exception {
+        List<Error> errors = schema.validate(mcp(MAPPING_SETS, """
+                get-ship:
+                  description: "Get a ship."
+                  call: erp.get-ship
+                  outputParameters:
+                    - schema: ship
+                      mappingSets: [ship-from-registry]
+                list-ships:
+                  description: "List ships."
+                  call: erp.list-ships
+                  outputParameters:
+                    - type: object
+                      properties:
+                        lead:
+                          schema: ship
+                          mapping: "$.lead"
+                          mappingSets: [ship-from-registry]
+                          mappings:
+                            flag: "$.registry.flag"
+                        ships:
+                          type: array
+                          mapping: "$.ships"
+                          items: { schema: ship, mappingSets: [ship-from-registry] }
+                """));
+
+        assertTrue(errors.isEmpty(), errors.toString());
+    }
+
+    @Test
+    void validateShouldRejectAMappingSetValueThatIsNotAJsonPath() throws Exception {
+        assertRejected(mcp("""
+                definitions:
+                  mappingSets:
+                    ship-from-registry:
+                      imo: "IMO 9321483"
+                """, """
+                get-ship:
+                  description: "Get a ship."
+                  call: erp.get-ship
+                """));
+    }
+
+    @Test
+    void validateShouldRejectAMalformedPathInAMappingSet() throws Exception {
+        assertRejected(mcp("""
+                definitions:
+                  mappingSets:
+                    ship-from-registry:
+                      "crew..name": "$.name"
+                """, """
+                get-ship:
+                  description: "Get a ship."
+                  call: erp.get-ship
+                """));
+    }
+
+    @Test
+    void validateShouldRejectAnEmptyMappingSet() throws Exception {
+        assertRejected(mcp("""
+                definitions:
+                  mappingSets:
+                    ship-from-registry: {}
+                """, """
+                get-ship:
+                  description: "Get a ship."
+                  call: erp.get-ship
+                """));
+    }
+
+    @Test
+    void validateShouldRejectMappingSetsThatAreNotAListOfBareNames() throws Exception {
+        String tool = """
+                get-ship:
+                  description: "Get a ship."
+                  call: erp.get-ship
+                  outputParameters:
+                    - schema: ship
+                      mappingSets: %s
+                """;
+
+        assertRejected(mcp(MAPPING_SETS, tool.formatted("ship-from-registry")));
+        assertRejected(mcp(MAPPING_SETS, tool.formatted("[]")));
+        assertRejected(mcp(MAPPING_SETS, tool.formatted("[fleet.ship-from-registry]")));
+        assertRejected(mcp(MAPPING_SETS, tool.formatted(
+                "[ship-from-registry, ship-from-registry]")));
+    }
+
     private static void assertRejected(JsonNode document) {
         List<Error> errors = schema.validate(document);
         assertFalse(errors.isEmpty(), "Expected the document to be rejected");

@@ -1,0 +1,97 @@
+ikanos: "1.0.0-beta11"
+info:
+  display: "Mapping sets"
+  description: "Schemas bound by named mapping sets in mapped (call-mode) outputs (#1133)."
+  tags:
+    - Test
+capability:
+  consumes:
+    - type: http
+      namespace: registry
+      description: "Ship registry API"
+      baseUri: "https://registry.acme.org"
+      resources:
+        ships:
+          path: "/ships"
+          description: "Ships"
+          operations:
+            list-ships:
+              method: GET
+            get-ship:
+              method: GET
+  exposes:
+    - type: mcp
+      port: 3000
+      namespace: fleet
+      description: "Fleet tools"
+      definitions:
+        schemas:
+          ship:
+            type: object
+            properties:
+              imo: { type: string }
+              flag: { type: string }
+              crew:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    fullName: { type: string }
+        mappingSets:
+          ship-from-registry:
+            imo: "$.imo_number"
+            flag: "$.flag_state"
+            crew: "$.crew"
+            crew[].fullName: "$.name"
+          ship-from-ais:
+            flag: "$.ais.flag"
+      tools:
+        get-ship:
+          description: "Returns the IMO number, flag state and crew of one registered vessel."
+          call: registry.get-ship
+          outputParameters:
+            - schema: ship
+              mappingSets: [ship-from-registry, ship-from-ais]
+              mappings:
+                imo: "$.imo"
+        list-ships:
+          description: "Lists every registered vessel with its IMO number, flag state and crew."
+          call: registry.list-ships
+          outputParameters:
+            - type: array
+              mapping: "$.ships"
+              items:
+                schema: ship
+                mappingSets: [ship-from-registry]
+    - type: rest
+      port: 3001
+      namespace: fleet-rest
+      description: "Fleet API"
+      definitions:
+        schemas:
+          ship:
+            type: object
+            properties:
+              imo: { type: string }
+              flag: { type: string }
+        mappingSets:
+          ship-from-registry:
+            imo: "$.imo_number"
+            flag: "$.flag_state"
+      resources:
+        ships:
+          path: "/ships"
+          description: "Registered vessels"
+          operations:
+            list-ships:
+              method: GET
+              description: "Lists every registered vessel with its IMO number and flag state."
+              call: registry.list-ships
+              outputParameters:
+                - type: array
+                  mapping: "$.ships"
+                  items:
+                    schema: ship
+                    mappingSets: [ship-from-registry]
+                    mappings:
+                      flag: "$.ais.flag"
