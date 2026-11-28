@@ -143,10 +143,10 @@ public class McpTaskInputIntegrationTest {
                             type: string
                             description: Voyage to clear
                         steps:
-                          book-slot:
+                          - name: book-slot
                             type: call
-                            call: port.book-slot
-                          confirm:
+                            what: port.book-slot
+                          - name: confirm
                             type: elicit
                             message: Clear the voyage for departure?
                             fields:

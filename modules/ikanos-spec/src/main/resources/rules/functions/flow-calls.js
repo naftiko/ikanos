@@ -1,8 +1,8 @@
 /**
  * Polychro rule function: flow-calls
  *
- * Checks calls between aggregate flows (`call: namespace.flow-name`, from a
- * `call` step or a flow-level `call:`). Select the check with
+ * Checks calls between aggregate flows (`namespace.flow-name`, from a `call`
+ * step's `what:` or a flow-level `call:`). Select the check with
  * `functionOptions.check`:
  *
  *   - "targets":   a call names an aggregate namespace but no flow of that name;
@@ -117,8 +117,8 @@ function buildModel(capability) {
       }
       for (const s of entries(flow.steps)) {
         const step = s.value;
-        if (step && step.type === "call" && typeof step.call === "string") {
-          calls.push({ ref: step.call, path: path.concat("steps", ...s.locator, "call") });
+        if (step && step.type === "call" && typeof step.what === "string") {
+          calls.push({ ref: step.what, path: path.concat("steps", ...s.locator, "what") });
         }
       }
       flows.set(aggregate.namespace + "." + f.key, { flow, path, calls });
@@ -406,8 +406,8 @@ function flowSteps(tool) {
   }
   for (const s of entries(tool.steps)) {
     const step = s.value;
-    if (step && step.type === "call" && typeof step.call === "string") {
-      targets.push(step.call);
+    if (step && step.type === "call" && typeof step.what === "string") {
+      targets.push(step.what);
     }
   }
   return targets;

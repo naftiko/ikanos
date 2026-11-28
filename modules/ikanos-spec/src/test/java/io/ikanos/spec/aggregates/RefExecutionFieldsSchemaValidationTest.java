@@ -142,9 +142,9 @@ class RefExecutionFieldsSchemaValidationTest {
     void schemaShouldRejectStepsNextToRefOnMcpTool() throws Exception {
         assertRejectedAt(TOOL, validate("""
                 steps:
-                  list:
+                  - name: list
                     type: "call"
-                    call: "api.list-other"
+                    what: "api.list-other"
                 """, ""),
                 "#911: steps is ignored next to ref, so it must be invalid");
     }
@@ -169,9 +169,9 @@ class RefExecutionFieldsSchemaValidationTest {
     void schemaShouldRejectStepsNextToRefOnRestOperation() throws Exception {
         assertRejectedAt(OPERATION, validate("", """
                 steps:
-                  list:
+                  - name: list
                     type: "call"
-                    call: "api.list-other"
+                    what: "api.list-other"
                 """),
                 "#911: steps is ignored next to ref, so it must be invalid");
     }

@@ -159,12 +159,12 @@ public class RestOrchestratedStepFailureIntegrationTest {
                         pay:
                           description: "Read a part, then charge its amount"
                           steps:
-                            read-part:
+                            - name: read-part
                               type: call
-                              call: shop.get-part
-                            charge:
+                              what: shop.get-part
+                            - name: charge
                               type: call
-                              call: shop.create-charge
+                              what: shop.create-charge
                               with:
                                 amount: "{{read-part.amount}}"
                           mappings:
@@ -184,12 +184,12 @@ public class RestOrchestratedStepFailureIntegrationTest {
                             pay:
                               method: POST
                               steps:
-                                read-part:
+                                - name: read-part
                                   type: call
-                                  call: shop.get-part
-                                charge:
+                                  what: shop.get-part
+                                - name: charge
                                   type: call
-                                  call: shop.create-charge
+                                  what: shop.create-charge
                                   with:
                                     amount: "{{read-part.amount}}"
                               mappings:

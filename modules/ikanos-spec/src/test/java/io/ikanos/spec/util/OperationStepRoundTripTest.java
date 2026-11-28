@@ -31,7 +31,7 @@ public class OperationStepRoundTripTest {
         String yaml = """
                 type: call
                 name: fetch-database
-                call: notion.get-database
+                what: notion.get-database
                 with:
                   database_id: "$this.sample.database_id"
                   page_size: 100
@@ -108,7 +108,7 @@ public class OperationStepRoundTripTest {
         String yaml = """
                 type: call
                 name: get-status
-                call: api.get-status
+                what: api.get-status
                 """;
 
         ObjectMapper yamlMapper = IkanosMappers.yaml();

@@ -95,7 +95,7 @@ class McpDefinitionsIntegrationTest {
                       inputParameters:
                         flag: { type: string, description: "Flag state.", required: false }
                       steps:
-                        ships: { type: call, call: registry.list-ships }
+                        - {name: ships, type: call, what: registry.list-ships }
                       mappings:
                         - target: ships
                           value: "$.ships.ships"
@@ -162,7 +162,7 @@ class McpDefinitionsIntegrationTest {
                         limit: { type: integer, required: false, description: "Maximum ships.", minimum: 1, maximum: 100 }
                         flag: { type: string, description: "Flag state.", required: false }
                       steps:
-                        ships: { type: call, call: registry.list-ships }
+                        - {name: ships, type: call, what: registry.list-ships }
                       mappings:
                         - target: ships
                           value: "$.ships.ships"

@@ -235,9 +235,9 @@ class McpServerToolSpecTest {
         McpServerToolSpec spec = readTool("""
                 description: "Orchestrated"
                 steps:
-                  fetch:
+                  - name: fetch
                     type: "call"
-                    call: "api.fetch"
+                    what: "api.fetch"
                 outputParameters:
                   message:
                     type: "string"

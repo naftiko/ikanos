@@ -237,15 +237,15 @@ capability:
             required: true
             description: "IMO number of the ship"
         steps:
-          get-ship:
+          - name: get-ship
             type: call
-            call: registry.get-ship
+            what: registry.get-ship
             with:
               imo_number: "{{imo}}"
-          list-crew:
+          - name: list-crew
             type: call
-            call: registry.list-crew
-          resolve-crew:
+            what: registry.list-crew
+          - name: resolve-crew
             type: lookup
             index: list-crew
             match: crewId
@@ -304,15 +304,15 @@ capability:
             required: true
             description: "Voyage ID to build the manifest for"
         steps:
-          get-voyage:
+          - name: get-voyage
             type: call
-            call: registry.get-voyage
+            what: registry.get-voyage
             with:
               voyageId: "{{voyageId}}"
-          list-ships:
+          - name: list-ships
             type: call
-            call: registry.list-ships
-          resolve-ship:
+            what: registry.list-ships
+          - name: resolve-ship
             type: lookup
             index: list-ships
             match: imo-number
@@ -321,10 +321,10 @@ capability:
             - "vessel_name"
             - "vessel_type"
             - "flag_code"
-          list-crew:
+          - name: list-crew
             type: call
-            call: registry.list-crew
-          resolve-crew:
+            what: registry.list-crew
+          - name: resolve-crew
             type: lookup
             index: list-crew
             match: crewId
@@ -332,10 +332,10 @@ capability:
             outputParameters:
             - "fullName"
             - "role"
-          list-cargo:
+          - name: list-cargo
             type: call
-            call: registry.list-cargo
-          resolve-cargo:
+            what: registry.list-cargo
+          - name: resolve-cargo
             type: lookup
             index: list-cargo
             match: cargoId
@@ -507,15 +507,15 @@ capability:
                 type: string
                 description: "IMO number of the ship"
             steps:
-              get-ship:
+              - name: get-ship
                 type: call
-                call: registry.get-ship
+                what: registry.get-ship
                 with:
                   imo_number: "{{imo}}"
-              list-crew:
+              - name: list-crew
                 type: call
-                call: registry.list-crew
-              resolve-crew:
+                what: registry.list-crew
+              - name: resolve-crew
                 type: lookup
                 index: list-crew
                 match: crewId
@@ -696,15 +696,15 @@ capability:
                 type: string
                 description: "Voyage ID to build the manifest for"
             steps:
-              get-voyage:
+              - name: get-voyage
                 type: call
-                call: registry.get-voyage
+                what: registry.get-voyage
                 with:
                   voyageId: "{{voyageId}}"
-              list-ships:
+              - name: list-ships
                 type: call
-                call: registry.list-ships
-              resolve-ship:
+                what: registry.list-ships
+              - name: resolve-ship
                 type: lookup
                 index: list-ships
                 match: imo-number
@@ -713,10 +713,10 @@ capability:
                 - "vessel_name"
                 - "vessel_type"
                 - "flag_code"
-              list-crew:
+              - name: list-crew
                 type: call
-                call: registry.list-crew
-              resolve-crew:
+                what: registry.list-crew
+              - name: resolve-crew
                 type: lookup
                 index: list-crew
                 match: crewId
@@ -724,10 +724,10 @@ capability:
                 outputParameters:
                 - "fullName"
                 - "role"
-              list-cargo:
+              - name: list-cargo
                 type: call
-                call: registry.list-cargo
-              resolve-cargo:
+                what: registry.list-cargo
+              - name: resolve-cargo
                 type: lookup
                 index: list-cargo
                 match: cargoId

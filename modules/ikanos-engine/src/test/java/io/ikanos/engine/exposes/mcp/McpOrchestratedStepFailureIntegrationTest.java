@@ -237,14 +237,14 @@ public class McpOrchestratedStepFailureIntegrationTest {
                               required: true
                               description: "Part identifier"
                           steps:
-                            read-part:
+                            - name: read-part
                               type: call
-                              call: shop.get-part
+                              what: shop.get-part
                               with:
                                 part_id: "{{part_id}}"
-                            charge:
+                            - name: charge
                               type: call
-                              call: shop.create-charge
+                              what: shop.create-charge
                               with:
                                 amount: "{{read-part.amount}}"
                           mappings:
@@ -259,14 +259,14 @@ public class McpOrchestratedStepFailureIntegrationTest {
                           description: "Read a part, then charge its amount"
                           mimeType: application/json
                           steps:
-                            read-part:
+                            - name: read-part
                               type: call
-                              call: shop.get-part
+                              what: shop.get-part
                               with:
                                 part_id: "{{part_id}}"
-                            charge:
+                            - name: charge
                               type: call
-                              call: shop.create-charge
+                              what: shop.create-charge
                               with:
                                 amount: "{{read-part.amount}}"
                           outputParameters:

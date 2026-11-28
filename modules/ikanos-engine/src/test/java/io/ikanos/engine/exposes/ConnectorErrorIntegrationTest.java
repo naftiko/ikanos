@@ -234,7 +234,7 @@ class ConnectorErrorIntegrationTest {
                               steps:
                                 - type: call
                                   name: fetch
-                                  call: up.get-item
+                                  what: up.get-item
                         ref:
                           path: "/ref"
                           operations:
@@ -261,7 +261,7 @@ class ConnectorErrorIntegrationTest {
                           steps:
                             - type: call
                               name: fetch
-                              call: up.get-item
+                              what: up.get-item
                       tools:
                         call-tool:
                           description: "Single call"
@@ -271,7 +271,7 @@ class ConnectorErrorIntegrationTest {
                           steps:
                             - type: call
                               name: fetch
-                              call: up.get-item
+                              what: up.get-item
                         ref-tool:
                           description: "Aggregate"
                           ref: agg.get-item

@@ -56,7 +56,7 @@ class McpMultiRoundTripIntegrationTest {
                             type: string
                             description: Voyage to confirm
                         steps:
-                          confirm:
+                          - name: confirm
                             type: elicit
                             message: Confirm the departure?
                             fields:
@@ -84,7 +84,7 @@ class McpMultiRoundTripIntegrationTest {
                         uri: shipyard://departures/note
                         description: A departure note, confirmed by the duty officer.
                         steps:
-                          confirm:
+                          - name: confirm
                             type: elicit
                             message: Publish the departure note?
                             fields:
@@ -353,7 +353,7 @@ class McpMultiRoundTripIntegrationTest {
                   confirm-crew:
                     description: Ask the duty officer to confirm the crew list.
                     steps:
-                      confirm:
+                      - name: confirm
                         type: elicit
                         message: Confirm the crew list?
                         fields:
@@ -363,7 +363,7 @@ class McpMultiRoundTripIntegrationTest {
                   confirm-cargo:
                     description: Ask the duty officer to confirm the cargo manifest.
                     steps:
-                      confirm:
+                      - name: confirm
                         type: elicit
                         message: Confirm the cargo manifest?
                         fields:
@@ -373,12 +373,12 @@ class McpMultiRoundTripIntegrationTest {
                   clear-departure:
                     description: Clear a departure once crew and cargo are confirmed.
                     steps:
-                      crew:
+                      - name: crew
                         type: call
-                        call: departure.confirm-crew
-                      cargo:
+                        what: departure.confirm-crew
+                      - name: cargo
                         type: call
-                        call: departure.confirm-cargo
+                        what: departure.confirm-cargo
               exposes:
               - type: mcp
                 address: localhost
@@ -449,14 +449,14 @@ class McpMultiRoundTripIntegrationTest {
                             type: string
                             description: Voyage to confirm
                         steps:
-                          captain:
+                          - name: captain
                             type: elicit
                             message: Who is the captain?
                             fields:
                               name:
                                 type: string
                                 description: The captain's name
-                          confirm:
+                          - name: confirm
                             type: elicit
                             message: "%s"
                             fields:

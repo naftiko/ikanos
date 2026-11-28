@@ -155,9 +155,9 @@ capability:
           description: "Composed from steps."
           ttlFromUpstream: true
           steps:
-            items:
+            - name: items
               type: "call"
-              call: "shop.list-items"
+              what: "shop.list-items"
         lookup:
           display: "Lookup"
           uri: "data://lookup"
@@ -210,6 +210,6 @@ capability:
           description: "Composed from steps, scope inherited from the adapter."
           ttlFromUpstream: true
           steps:
-            items:
+            - name: items
               type: "call"
-              call: "shop.list-items"
+              what: "shop.list-items"

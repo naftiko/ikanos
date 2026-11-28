@@ -104,14 +104,14 @@ capability:
               required: true
               description: "CRM account identifier."
           steps:
-            inv:
+            - name: inv
               type: "call"
-              call: "billing.get-invoice"
+              what: "billing.get-invoice"
               with:
                 invoice-id: "collections.invoice-id"
-            acct:
+            - name: acct
               type: "call"
-              call: "crm.get-account"
+              what: "crm.get-account"
               with:
                 account-id: "collections.account-id"
           mappings:

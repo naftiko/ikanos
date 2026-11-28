@@ -132,7 +132,7 @@ public class McpCompositeElicitationIntegrationTest {
                         ask-confirm:
                           description: Ask the officer to confirm the export.
                           steps:
-                            confirm:
+                            - name: confirm
                               type: elicit
                               message: Confirm the export?
                               fields:
@@ -147,9 +147,9 @@ public class McpCompositeElicitationIntegrationTest {
                             interaction:
                               mode: task
                           steps:
-                            file:
+                            - name: file
                               type: call
-                              call: port.file-declaration
+                              what: port.file-declaration
                           mappings:
                             - { target: declarationId, value: $.file.declarationId }
                           outputParameters:
@@ -160,10 +160,10 @@ public class McpCompositeElicitationIntegrationTest {
                             interaction:
                               mode: task
                           steps:
-                            file:
+                            - name: file
                               type: call
-                              call: port.file-declaration
-                            confirm:
+                              what: port.file-declaration
+                            - name: confirm
                               type: elicit
                               message: Pay the inspection fee?
                               fields:
@@ -210,9 +210,9 @@ public class McpCompositeElicitationIntegrationTest {
                         confirm-up:
                           description: Ask through the upstream.
                           steps:
-                            ask:
+                            - name: ask
                               type: call
-                              call: customs.ask-confirm
+                              what: customs.ask-confirm
                           mappings:
                             - { target: confirmed, value: $.ask.confirmed }
                           outputParameters:
@@ -223,9 +223,9 @@ public class McpCompositeElicitationIntegrationTest {
                             interaction:
                               mode: task
                           steps:
-                            file:
+                            - name: file
                               type: call
-                              call: customs.file-slowly
+                              what: customs.file-slowly
                           mappings:
                             - { target: declarationId, value: $.file.declarationId }
                           outputParameters:
@@ -236,9 +236,9 @@ public class McpCompositeElicitationIntegrationTest {
                             interaction:
                               mode: task
                           steps:
-                            fa:
+                            - name: fa
                               type: call
-                              call: customs.file-then-ask
+                              what: customs.file-then-ask
                           mappings:
                             - { target: accepted, value: $.fa.accepted }
                           outputParameters:

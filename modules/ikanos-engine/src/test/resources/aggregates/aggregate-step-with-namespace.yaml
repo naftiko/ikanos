@@ -21,9 +21,9 @@ capability:
             required: true
             description: Voyage identifier
         steps:
-          fetch-voyage:
+          - name: fetch-voyage
             type: call
-            call: registry.get-voyage
+            what: registry.get-voyage
             with:
               voyage-id: shipyard.voyage-id
         mappings:

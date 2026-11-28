@@ -323,7 +323,7 @@ class UpstreamErrorIntegrationTest {
     private static String body(String mode, int status, String indent) {
         String lines = switch (mode) {
             case "call" -> "call: up.get-" + status + "\n";
-            case "steps" -> "steps:\n  - type: call\n    name: fetch\n    call: up.get-" + status
+            case "steps" -> "steps:\n  - type: call\n    name: fetch\n    what: up.get-" + status
                     + "\n";
             case "ref" -> "ref: agg.get-" + status + "\n";
             default -> "ref: agg.mapped-" + status + "\n";

@@ -64,9 +64,9 @@ class SqlWriteExposureTest {
                           inputParameters:
                             id: { type: string, description: Order id }
                           steps:
-                            ship:
+                            - name: ship
                               type: call
-                              call: erp.mark-shipped
+                              what: erp.mark-shipped
                               with:
                                 id: orders.id
                   exposes:

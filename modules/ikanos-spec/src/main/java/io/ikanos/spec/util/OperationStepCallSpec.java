@@ -52,14 +52,30 @@ public class OperationStepCallSpec extends OperationStepSpec {
         this.with.set(with != null ? Map.copyOf(with) : null);
     }
 
-    @JsonProperty("call")
+    /**
+     * @return what the step calls, written {@code what:}: a consumed operation or an aggregate
+     *         flow, as {@code <namespace>.<name>}
+     */
+    @JsonProperty("what")
     public String getCall() {
         return call.get();
     }
 
-    @JsonProperty("call")
+    @JsonProperty("what")
     public void setCall(String call) {
         this.call.set(call);
+    }
+
+    /**
+     * Refuses {@code call:}, the name of {@code what:} before steps became a list, rather than let
+     * the loader drop it as an unknown property and run a step that calls nothing.
+     */
+    @JsonProperty(value = "call", access = JsonProperty.Access.WRITE_ONLY)
+    void refuseCall(Object ignored) {
+        String step = getName() != null ? "Step '" + getName() + "'" : "A call step";
+        throw new IllegalArgumentException(step
+                + " names what it calls with 'call:', which is now 'what:'. "
+                + OperationStepMapDeserializer.MIGRATE_HINT);
     }
 
     @JsonProperty("with")

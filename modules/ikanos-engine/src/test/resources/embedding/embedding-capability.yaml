@@ -23,9 +23,9 @@ capability:
             description: Name to greet
             required: true
         steps:
-          do-greet:
+          - name: do-greet
             type: call
-            call: placeholder.greet
+            what: placeholder.greet
             with:
               name: '{{name}}'
         outputParameters:
@@ -46,9 +46,9 @@ capability:
             description: Second number
             required: true
         steps:
-          add:
+          - name: add
             type: call
-            call: placeholder.add
+            what: placeholder.add
             with:
               a: '{{a}}'
               b: '{{b}}'

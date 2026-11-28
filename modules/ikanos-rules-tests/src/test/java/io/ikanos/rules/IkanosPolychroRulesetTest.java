@@ -192,6 +192,19 @@ public class IkanosPolychroRulesetTest {
     // ────────────────────────────────────────────────────────────────
 
     @Test
+    public void stepsUniqueNamesRuleShouldFireWhenTwoStepsOfOneListShareAName() {
+        assertRuleFires("rules/polychro-steps-duplicate-names.yaml", "ikanos-steps-unique-names");
+    }
+
+    @Test
+    public void stepsUniqueNamesRuleShouldNotFireWhenStepNamesAreDistinct() {
+        LintResult result = lintFixture("rules/polychro-steps-distinct-names.yaml");
+
+        assertFalse(result.output().contains("ikanos-steps-unique-names"),
+            "Expected no ikanos-steps-unique-names finding.\n" + result.output());
+    }
+
+    @Test
     public void capabilityNoRootSectionsRuleShouldFireWhenCapabilityDocumentHasRootBinds() {
         assertRuleFires("rules/capability-root-binds.yaml", "ikanos-capability-no-root-sections");
     }

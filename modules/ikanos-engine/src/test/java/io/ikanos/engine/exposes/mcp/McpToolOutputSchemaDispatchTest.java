@@ -448,9 +448,9 @@ class McpToolOutputSchemaDispatchTest {
                             type: string
                             required: true
                         steps:
-                          fetch-ship:
+                          - name: fetch-ship
                             type: call
-                            call: registry.get-ship
+                            what: registry.get-ship
                             with:
                               imo_number: ships.imo
                         mappings:

@@ -48,9 +48,9 @@ class OutputParameterFormSchemaValidationTest {
 
     private static final String STEPS = """
             steps:
-              list:
+              - name: list
                 type: "call"
-                call: "api.list-things"
+                what: "api.list-things"
             mappings:
               - target: "total"
                 value: "$.list.total"

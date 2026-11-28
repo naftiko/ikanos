@@ -368,9 +368,9 @@ public class ToolHandlerBinaryTest {
                             description: Photo id
                             required: true
                         steps:
-                          fetch:
+                          - name: fetch
                             type: call
-                            call: photos.download
+                            what: photos.download
                 """.formatted(schemaVersion, port);
     }
 

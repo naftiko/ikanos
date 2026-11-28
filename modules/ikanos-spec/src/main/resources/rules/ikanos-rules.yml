@@ -52,6 +52,7 @@ functions:
   - mcp-tool-search
   - mcp-tool-description
   - sql-procedures
+  - step-names-unique
 
 rules:
 
@@ -75,6 +76,19 @@ rules:
     given: "$"
     then:
       function: unique-namespaces
+
+  ikanos-steps-unique-names:
+    message: "Step names must be unique within a `steps` list."
+    description: >
+      Steps run in the order they are listed, and later steps, templates and
+      mappings read a step's output under its `name`. Two steps of one list
+      with the same name would make that reference ambiguous. The engine
+      refuses such a list when the capability loads.
+    severity: error
+    recommended: true
+    given: "$"
+    then:
+      function: step-names-unique
 
   ikanos-consumes-baseuri-no-trailing-slash:
     message: "The `consumes.baseUri` should not have a trailing slash."
@@ -1078,10 +1092,8 @@ rules:
       field: "description"
       function: truthy
 
-  # ikanos-steps-name-pattern was removed: step names are now map keys in the
-  # named-object format (alpha3+). The pattern ^[A-Za-z0-9_-]+$ is enforced
-  # by the JSON Schema propertyNames/IdentifierKebab constraint on every steps
-  # map, making this Polychro rule redundant.
+  # The pattern of a step name is enforced by the JSON Schema (IdentifierKebab
+  # on OperationStepBase.name), so no Polychro rule repeats it.
 
   # ────────────────────────────────────────────────────────────────
   # 3. SECURITY

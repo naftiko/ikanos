@@ -20,11 +20,12 @@ import java.util.SequencedMap;
 /**
  * Guards the order of a {@code steps:} map.
  *
- * <p>Until {@code steps:} becomes an ordered list, the document order of the map is the order in
- * which the steps run. JSON and YAML do not guarantee key order, so the order is kept by the
- * loader (Jackson fills a {@code LinkedHashMap}) and checked where a map enters a spec object: a
- * map without a defined iteration order, such as a {@code HashMap} built by an embedder, is
- * rejected instead of running its steps in hash order.</p>
+ * <p>{@code steps:} is a list, and its steps run in list order. A spec object holds them in a map
+ * keyed by step name whose iteration order is the list order ({@link OperationStepMapDeserializer}
+ * fills it, {@link OperationStepListSerializer} writes it back as a list). The order is checked
+ * where a map enters a spec object: a map without a defined iteration order, such as a
+ * {@code HashMap} built by an embedder, is rejected instead of running its steps in hash
+ * order.</p>
  *
  * <p>Step containers hold their steps in {@link #newSteps()}, a synchronized map that keeps a
  * defined order, so the map one container's getter returns passes the check of another's

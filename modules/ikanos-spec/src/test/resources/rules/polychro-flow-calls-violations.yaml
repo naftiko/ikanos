@@ -32,12 +32,12 @@ capability:
         semantics:
           safe: true
         steps:
-          invoice:
+          - name: invoice
             type: call
-            call: billing.create-invoice
-          missing:
+            what: billing.create-invoice
+          - name: missing
             type: call
-            call: loop.nope
+            what: loop.nope
   - display: loop flows
     namespace: loop
     flows:

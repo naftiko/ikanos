@@ -217,10 +217,10 @@ public class ShipyardDepartureScenarioIntegrationTest {
                           inputParameters:
                             voyageId: { type: string, description: Voyage to clear }
                           steps:
-                            eligibility: { type: call, call: port.check-eligibility, with: { voyageId: departure.voyageId } }
-                            book-slot: { type: call, call: port.book-departure-slot, with: { voyageId: departure.voyageId } }
-                            declare: { type: call, call: port.file-declaration, with: { voyageId: departure.voyageId } }
-                            mark-cleared: { type: call, call: port.update-voyage-status, with: { voyageId: departure.voyageId } }
+                            - {name: eligibility, type: call, what: port.check-eligibility, with: { voyageId: departure.voyageId } }
+                            - {name: book-slot, type: call, what: port.book-departure-slot, with: { voyageId: departure.voyageId } }
+                            - {name: declare, type: call, what: port.file-declaration, with: { voyageId: departure.voyageId } }
+                            - {name: mark-cleared, type: call, what: port.update-voyage-status, with: { voyageId: departure.voyageId } }
                           mappings:
                             - { target: slotId, value: $.book-slot.slotId }
                             - { target: customs, value: $.declare.status }
@@ -233,15 +233,15 @@ public class ShipyardDepartureScenarioIntegrationTest {
                           inputParameters:
                             voyageId: { type: string, description: Voyage to clear }
                           steps:
-                            eligibility: { type: call, call: port.check-eligibility, with: { voyageId: departure.voyageId } }
-                            screen: { type: call, call: port.check-dangerous-goods, with: { voyageId: departure.voyageId } }
-                            confirm-hazardous:
+                            - {name: eligibility, type: call, what: port.check-eligibility, with: { voyageId: departure.voyageId } }
+                            - {name: screen, type: call, what: port.check-dangerous-goods, with: { voyageId: departure.voyageId } }
+                            - name: confirm-hazardous
                               type: elicit
                               message: Confirm the hazardous cargo declaration?
                               fields:
                                 confirmed: { type: boolean, description: Whether the officer confirms it }
-                            book-slot: { type: call, call: port.book-departure-slot, with: { voyageId: departure.voyageId } }
-                            declare: { type: call, call: port.file-declaration, with: { voyageId: departure.voyageId } }
+                            - {name: book-slot, type: call, what: port.book-departure-slot, with: { voyageId: departure.voyageId } }
+                            - {name: declare, type: call, what: port.file-declaration, with: { voyageId: departure.voyageId } }
                           mappings:
                             - { target: slotId, value: $.book-slot.slotId }
                           outputParameters:
@@ -252,14 +252,14 @@ public class ShipyardDepartureScenarioIntegrationTest {
                           inputParameters:
                             voyageId: { type: string, description: Voyage to clear }
                           steps:
-                            book-slot: { type: call, call: port.book-departure-slot, with: { voyageId: departure.voyageId } }
-                            declare: { type: call, call: port.file-declaration, with: { voyageId: departure.voyageId } }
-                            accept-fee:
+                            - {name: book-slot, type: call, what: port.book-departure-slot, with: { voyageId: departure.voyageId } }
+                            - {name: declare, type: call, what: port.file-declaration, with: { voyageId: departure.voyageId } }
+                            - name: accept-fee
                               type: elicit
                               message: Customs requires an inspection; pay the fee?
                               fields:
                                 accepted: { type: boolean, description: Whether the fee is paid }
-                            mark-cleared: { type: call, call: port.update-voyage-status, with: { voyageId: departure.voyageId } }
+                            - {name: mark-cleared, type: call, what: port.update-voyage-status, with: { voyageId: departure.voyageId } }
                           mappings:
                             - { target: accepted, value: $.accept-fee.accepted }
                           outputParameters:

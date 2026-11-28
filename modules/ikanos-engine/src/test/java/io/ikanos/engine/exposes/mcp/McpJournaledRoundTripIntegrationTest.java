@@ -130,10 +130,10 @@ public class McpJournaledRoundTripIntegrationTest {
                             type: string
                             description: Voyage to book
                         steps:
-                          book-slot:
+                          - name: book-slot
                             type: call
-                            call: port.book-slot
-                          confirm:
+                            what: port.book-slot
+                          - name: confirm
                             type: elicit
                             message: Keep the booked slot?
                             fields:
@@ -159,18 +159,18 @@ public class McpJournaledRoundTripIntegrationTest {
                       book-only:
                         description: Book a slot.
                         steps:
-                          book-slot:
+                          - name: book-slot
                             type: call
-                            call: port.book-slot
+                            what: port.book-slot
                     resources:
                       slot-note:
                         uri: shipyard://slots/note
                         description: Book a slot and publish its note, once confirmed.
                         steps:
-                          book-slot:
+                          - name: book-slot
                             type: call
-                            call: port.book-slot
-                          confirm:
+                            what: port.book-slot
+                          - name: confirm
                             type: elicit
                             message: Publish the slot note?
                             fields:
@@ -185,7 +185,7 @@ public class McpJournaledRoundTripIntegrationTest {
                         uri: shipyard://docs/{file}
                         description: A guide published once confirmed.
                         steps:
-                          confirm:
+                          - name: confirm
                             type: elicit
                             message: Publish the guide?
                             fields:
@@ -196,10 +196,10 @@ public class McpJournaledRoundTripIntegrationTest {
                         uri: shipyard://slots/{slot}/note
                         description: Book a slot and publish its note, once confirmed.
                         steps:
-                          book-slot:
+                          - name: book-slot
                             type: call
-                            call: port.book-slot
-                          confirm:
+                            what: port.book-slot
+                          - name: confirm
                             type: elicit
                             message: Publish the slot note?
                             fields:

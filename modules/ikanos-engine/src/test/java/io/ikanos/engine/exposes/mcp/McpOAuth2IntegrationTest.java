@@ -569,9 +569,9 @@ class McpOAuth2IntegrationTest {
                         order-steps:
                           description: "Status of order 42, through a step"
                           steps:
-                            fetch:
+                            - name: fetch
                               type: call
-                              call: "shop.get-order"
+                              what: "shop.get-order"
                         order-contact:
                           description: "Status of order 42, for the caller's email"
                           with:

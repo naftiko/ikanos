@@ -124,9 +124,9 @@ public class RestCallerIdentityIntegrationTest {
                             get-summary:
                               method: "GET"
                               steps:
-                                fetch:
+                                - name: fetch
                                   type: call
-                                  call: "domain.get-record"
+                                  what: "domain.get-record"
                         profile:
                           path: "/profile"
                           operations:

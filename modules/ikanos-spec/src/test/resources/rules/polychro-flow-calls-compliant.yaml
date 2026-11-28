@@ -48,9 +48,9 @@ capability:
           safe: true
           idempotent: true
         steps:
-          forecast:
+          - name: forecast
             type: call
-            call: vendor.forecast
+            what: vendor.forecast
         mappings:
         - target: summary
           value: $.forecast.summary

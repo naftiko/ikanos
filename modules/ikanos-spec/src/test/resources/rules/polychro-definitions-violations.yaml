@@ -46,7 +46,7 @@ capability:
         find-order:
           description: "Find an order."
           steps:
-            order: { type: call, call: erp.list-orders }
+            - {name: order, type: call, what: erp.list-orders }
           mappings:
             - target: order
               value: "$.order"

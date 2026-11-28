@@ -109,9 +109,9 @@ class FlowCompositionTest {
                               type: number
                               description: Amount
                           steps:
-                            charge-card:
+                            - name: charge-card
                               type: call
-                              call: canned.charge
+                              what: canned.charge
                               with:
                                 amount: stripe.amount
                           mappings:
@@ -129,9 +129,9 @@ class FlowCompositionTest {
                               type: number
                               description: Amount
                           steps:
-                            charge:
+                            - name: charge
                               type: call
-                              call: stripe.charge
+                              what: stripe.charge
                               with:
                                 amount: payments.amount
                           mappings:
@@ -220,9 +220,9 @@ class FlowCompositionTest {
                               type: string
                               description: Name
                           steps:
-                            greet:
+                            - name: greet
                               type: call
-                              call: fixed.greeting
+                              what: fixed.greeting
                           mappings:
                             - target: message
                               value: $.greet.message
@@ -247,9 +247,9 @@ class FlowCompositionTest {
                         checkout:
                           description: Reads a dotted tool name
                           steps:
-                            read:
+                            - name: read
                               type: call
-                              call: canned.files.read
+                              what: canned.files.read
                           mappings:
                             - target: content
                               value: $.read.content
@@ -299,9 +299,9 @@ class FlowCompositionTest {
                         checkout:
                           description: Calls the single-call flow
                           steps:
-                            charge:
+                            - name: charge
                               type: call
-                              call: stripe.charge
+                              what: stripe.charge
                           mappings:
                             - target: payment-id
                               value: $.charge.id
@@ -361,9 +361,9 @@ class FlowCompositionTest {
                         x:
                           description: Calls b.y
                           steps:
-                            next:
+                            - name: next
                               type: call
-                              call: b.y
+                              what: b.y
                     - namespace: b
                       flows:
                         y:
@@ -388,7 +388,7 @@ class FlowCompositionTest {
 
     @Test
     void callToUnknownFlowInKnownAggregateShouldFailAtLoad() {
-        String aggregates = shimAggregates().replace("call: stripe.charge", "call: stripe.refund");
+        String aggregates = shimAggregates().replace(": stripe.charge", ": stripe.refund");
 
         IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
                 () -> capability(cannedConsumes(200) + aggregates + MCP_EXPOSES));
@@ -414,9 +414,9 @@ class FlowCompositionTest {
         // resource, which has no ref; the lint checks the tool's hints against the flow instead.
         String exposes = MCP_EXPOSES.replace("ref: payments.checkout", """
                 steps:
-                            pay:
+                            - name: pay
                               type: call
-                              call: payments.checkout
+                              what: payments.checkout
                               with:
                                 amount: shop-mcp.amount
                           inputParameters:
@@ -555,14 +555,14 @@ class FlowCompositionTest {
                               type: string
                               description: Input
                           steps:
-                            nested:
+                            - name: nested
                               type: call
-                              call: beta.run
+                              what: beta.run
                               with:
                                 input: alpha.input
-                            own:
+                            - name: own
                               type: call
-                              call: canned.echo
+                              what: canned.echo
                               with:
                                 value: alpha.input
                           mappings:
@@ -580,9 +580,9 @@ class FlowCompositionTest {
                               type: string
                               description: Input
                           steps:
-                            own:
+                            - name: own
                               type: call
-                              call: canned.echo
+                              what: canned.echo
                               with:
                                 value: beta.input
                           mappings:

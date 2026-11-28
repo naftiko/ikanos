@@ -53,7 +53,7 @@ class DefinitionsDeserializationTest {
                     list-lines:
                       description: "List lines."
                       steps:
-                        lines: { type: call, call: erp.list-lines }
+                        - {name: lines, type: call, what: erp.list-lines }
                       mappings:
                         - target: lines
                           value: "$.lines"
@@ -151,7 +151,7 @@ class DefinitionsDeserializationTest {
                     inputParameters:
                       ship: { schema: ship, $ref: "#/elsewhere", description: "Ship." }
                     steps:
-                      ship: { type: call, call: erp.get-ship }
+                      - {name: ship, type: call, what: erp.get-ship }
                     mappings:
                       - target: flagship
                         value: "$.ship"
@@ -186,7 +186,7 @@ class DefinitionsDeserializationTest {
                   get-ship:
                     description: "Get a ship."
                     steps:
-                      ship: { type: call, call: erp.get-ship }
+                      - {name: ship, type: call, what: erp.get-ship }
                     mappings:
                       - target: flagship
                         value: "$.ship"

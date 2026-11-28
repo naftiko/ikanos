@@ -22,11 +22,13 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import tools.jackson.databind.annotation.JsonDeserialize;
+import tools.jackson.databind.annotation.JsonSerialize;
 
 import io.ikanos.spec.InputParameterSpec;
 import io.ikanos.spec.OutputParameterSpec;
 import io.ikanos.spec.exposes.ServerCallSpec;
 import io.ikanos.spec.util.OperationStepMapDeserializer;
+import io.ikanos.spec.util.OperationStepListSerializer;
 import io.ikanos.spec.util.OperationStepSpec;
 import io.ikanos.spec.util.StepOutputMappingSpec;
 import io.ikanos.spec.util.StepOrder;
@@ -65,6 +67,7 @@ public class AggregateFlowSpec {
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonDeserialize(using = OperationStepMapDeserializer.class)
+    @JsonSerialize(using = OperationStepListSerializer.class)
     private final Map<String, OperationStepSpec> steps = StepOrder.newSteps();
 
     private final CopyOnWriteArrayList<StepOutputMappingSpec> mappings = new CopyOnWriteArrayList<>();

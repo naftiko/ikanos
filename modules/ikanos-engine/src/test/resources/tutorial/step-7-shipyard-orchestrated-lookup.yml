@@ -227,15 +227,15 @@ capability:
             required: true
             description: "IMO number of the ship"
         steps:
-          get-ship:
+          - name: get-ship
             type: call
-            call: registry.get-ship
+            what: registry.get-ship
             with:
               imo_number: "{{imo}}"
-          list-crew:
+          - name: list-crew
             type: call
-            call: registry.list-crew
-          resolve-crew:
+            what: registry.list-crew
+          - name: resolve-crew
             type: lookup
             index: list-crew
             match: crewId
@@ -390,15 +390,15 @@ capability:
                 type: string
                 description: "IMO number of the ship"
             steps:
-              get-ship:
+              - name: get-ship
                 type: call
-                call: registry.get-ship
+                what: registry.get-ship
                 with:
                   imo_number: "{{imo}}"
-              list-crew:
+              - name: list-crew
                 type: call
-                call: registry.list-crew
-              resolve-crew:
+                what: registry.list-crew
+              - name: resolve-crew
                 type: lookup
                 index: list-crew
                 match: crewId

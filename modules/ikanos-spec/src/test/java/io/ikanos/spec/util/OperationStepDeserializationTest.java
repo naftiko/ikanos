@@ -27,7 +27,7 @@ public class OperationStepDeserializationTest {
         String yaml = """
                 type: call
                 name: fetch-database
-                call: notion.get-database
+                what: notion.get-database
                 with:
                   database_id: "$this.sample.database_id"
                 """;
@@ -51,7 +51,7 @@ public class OperationStepDeserializationTest {
         String yaml = """
                 type: call
                 name: list-items
-                call: api.list-items
+                what: api.list-items
                 """;
 
         ObjectMapper yamlMapper = IkanosMappers.yaml();

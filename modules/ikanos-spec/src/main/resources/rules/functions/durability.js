@@ -261,7 +261,7 @@ function flowAsks(flow, asks) {
   for (const s of entries(flow.steps)) {
     const step = s.value;
     if (step && (step.type === "elicit"
-        || (step.type === "call" && typeof step.call === "string" && asks.has(step.call)))) {
+        || (step.type === "call" && typeof step.what === "string" && asks.has(step.what)))) {
       return true;
     }
   }
@@ -312,7 +312,7 @@ function checkElicitSafety(capability) {
       // A call to a consumed MCP tool or a flow that may ask is a question too: the questions
       // pass through, and the answer replays the steps before it.
       const asksHere = step.type === "elicit"
-        || (step.type === "call" && typeof step.call === "string" && asks.has(step.call));
+        || (step.type === "call" && typeof step.what === "string" && asks.has(step.what));
       if (asksHere && unsafeCall) {
         results.push({
           message: container.label + " asks for input in step '" + s.key + "' after step '"
@@ -322,10 +322,10 @@ function checkElicitSafety(capability) {
           path: container.path.concat(...s.locator),
         });
       }
-      if (step.type === "call" && typeof step.call === "string" && !unsafeCall) {
-        const dot = step.call.indexOf(".");
-        const namespace = dot > 0 ? step.call.substring(0, dot) : step.call;
-        if (!imported.has(namespace) && safe.get(step.call) === false) {
+      if (step.type === "call" && typeof step.what === "string" && !unsafeCall) {
+        const dot = step.what.indexOf(".");
+        const namespace = dot > 0 ? step.what.substring(0, dot) : step.what;
+        if (!imported.has(namespace) && safe.get(step.what) === false) {
           unsafeCall = s.key;
         }
       }
