@@ -238,6 +238,22 @@ public class StepGuardTest {
     }
 
     @Test
+    public void holdsShouldIterateBeyondOneHundredThousandItemsWhenTheLimitIsRaised() {
+        List<Integer> items = java.util.stream.IntStream.range(0, 150_000).boxed().toList();
+
+        assertTrue(StepGuard.holds("publish", "items.all(i, i >= 0)", Map.of("items", items),
+                10_000_000));
+    }
+
+    @Test
+    public void holdsShouldReadADashedNameWrittenWithAnUnderscoreInABareName() {
+        Map<String, Object> run = params("get-ship", Map.of("assignedCrew", "C1"));
+
+        assertTrue(StepGuard.holds("s", "get_ship.assignedCrew", run));
+        assertFalse(StepGuard.holds("s", "get_ship.missing", run));
+    }
+
+    @Test
     public void subtractedNamesShouldReadThroughANegationAndAnIndex() {
         assertEquals(List.of(List.of("get", "ship")),
                 StepGuard.subtractedNames("!get-ship.active"));

@@ -99,9 +99,8 @@ public final class StepGuard {
 
     private static final CelOptions OPTIONS = CelOptions.current()
             .enableHeterogeneousNumericComparisons(true)
-            // One macro over a list longer than the whole budget stops early; the budget
-            // itself, counted while evaluating, also bounds nested macros.
-            .comprehensionMaxIterations((int) GuardManagementSpec.DEFAULT_EVALUATION_LIMIT)
+            // No iteration cap of CEL's own: the evaluation budget counts every iteration of
+            // every macro, and management.guards.evaluationLimit raises it.
             .maxRegexProgramSize(MAX_REGEX_PROGRAM_SIZE)
             .build();
     private static final CelCompiler PARSER = CelCompilerFactory.standardCelCompilerBuilder()
@@ -514,8 +513,13 @@ public final class StepGuard {
     /** Reads a dotted path from the parameters, through maps and JSON objects. */
     static Object read(Map<String, Object> parameters, String path) {
         Object current = parameters;
+        boolean top = true;
         for (String segment : path.split("\\.")) {
-            if (current instanceof Map<?, ?> map) {
+            if (top) {
+                // The top-level name resolves as in a CEL guard: get_ship reads get-ship
+                current = lookup(parameters, segment);
+                top = false;
+            } else if (current instanceof Map<?, ?> map) {
                 current = map.get(segment);
             } else if (current instanceof JsonNode node && node.isObject()) {
                 current = node.get(segment);
