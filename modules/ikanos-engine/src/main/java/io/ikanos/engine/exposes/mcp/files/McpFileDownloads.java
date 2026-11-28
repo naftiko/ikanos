@@ -162,8 +162,8 @@ public final class McpFileDownloads {
      * {@code credentials: include} it resends only the {@code Authorization} header of its MCP
      * requests, and keeps the query string of the MCP address: so no authentication,
      * {@code bearer}, {@code basic}, {@code oauth2} and an {@code apikey} in the query work, while
-     * an {@code apikey} in another header, {@code digest} (bound to one request) and
-     * {@code awsSigV4} (a signature per request) do not.
+     * an {@code apikey} in another header and {@code digest} (bound to one request) do not.
+     * ({@code awsSigV4} never gets here: an exposed adapter refuses it at load.)
      */
     static boolean resendsCredential(AuthenticationSpec authentication) {
         if (authentication == null) {
