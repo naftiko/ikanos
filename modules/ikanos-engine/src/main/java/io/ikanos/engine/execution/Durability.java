@@ -16,6 +16,8 @@ package io.ikanos.engine.execution;
 import java.time.Clock;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 import io.ikanos.durable.core.JournaledRunner;
 import io.ikanos.durable.store.StoreProvider;
 import io.ikanos.durable.store.Stores;
@@ -36,6 +38,10 @@ import java.time.format.DateTimeParseException;
  * error naming the module, and never falls back to {@code none}. {@code distributed} also fails
  * at load on a store that does not declare itself shared, or without a {@code sealingKey}.
  * {@link #close()} releases the store, such as the H2 file or the PostgreSQL connection pool.</p>
+ *
+ * <p>An operator that runs the capability, such as Skipper on Kubernetes, declares the store and
+ * the replica count it runs it with ({@link Placement}); {@link #checkPlacement} refuses at load a
+ * durability that disagrees with them, before any store opens.</p>
  */
 public final class Durability implements AutoCloseable {
 
@@ -50,6 +56,15 @@ public final class Durability implements AutoCloseable {
 
     /** The store type of the {@code distributed} mode. */
     static final String POSTGRES = "postgres";
+
+    /** The store type the operator runs the capability with, such as {@code h2}. */
+    public static final String STORE_VARIABLE = "IKANOS_DURABILITY_STORE";
+
+    /** The number of replicas the operator runs the capability as. */
+    public static final String REPLICAS_VARIABLE = "IKANOS_REPLICAS";
+
+    /** The store types an operator can declare. */
+    private static final Set<String> OPERATOR_STORES = Set.of(H2, POSTGRES, "temporal");
 
     /** The module providing the {@code h2} and {@code postgres} stores. */
     private static final String JDBC_MODULE = "io.ikanos:ikanos-durable-store-jdbc";
@@ -179,6 +194,135 @@ public final class Durability implements AutoCloseable {
             throw notShared(type);
         }
         return durability;
+    }
+
+    /**
+     * How an operator runs the capability: the store it gave it and its replica count, each
+     * {@code null} when the operator declares none.
+     *
+     * @param store the store type, such as {@code h2} or {@code postgres}, or {@code null}
+     * @param replicas the replica count, at least 1, or {@code null}
+     */
+    public record Placement(String store, Integer replicas) {
+
+        /** No operator: nothing is checked, as under Docker or a plain {@code ikanos serve}. */
+        public static final Placement NONE = new Placement(null, null);
+
+        /**
+         * Reads {@value Durability#STORE_VARIABLE} and {@value Durability#REPLICAS_VARIABLE}.
+         *
+         * @throws IllegalArgumentException when a variable is set to a value that does not parse
+         */
+        public static Placement fromEnvironment(Function<String, String> environment) {
+            String store = blankToNull(environment.apply(STORE_VARIABLE));
+            if (store != null && !OPERATOR_STORES.contains(store)) {
+                throw new IllegalArgumentException(STORE_VARIABLE + " must be h2, postgres or "
+                        + "temporal, not '" + store + "'");
+            }
+            String declared = blankToNull(environment.apply(REPLICAS_VARIABLE));
+            Integer replicas = null;
+            if (declared != null) {
+                try {
+                    replicas = Integer.valueOf(declared);
+                } catch (NumberFormatException e) {
+                    replicas = 0;
+                }
+                if (replicas < 1) {
+                    throw new IllegalArgumentException(REPLICAS_VARIABLE + " must be a whole "
+                            + "number of at least 1, not '" + declared + "'");
+                }
+            }
+            return new Placement(store, replicas);
+        }
+
+        /** Whether an operator declared how it runs the capability. */
+        boolean isManaged() {
+            return store != null || replicas != null;
+        }
+
+        private static String blankToNull(String value) {
+            return value == null || value.isBlank() ? null : value.trim();
+        }
+    }
+
+    /**
+     * Refuses a durability that disagrees with how the operator runs the capability: a mode
+     * that keeps executions in one process ({@code memory}, {@code local}) on more than one
+     * replica, a store the operator gave a mode that uses none, a store type other than the one
+     * the operator gave it, and a durable mode the operator gave no store. Nothing is checked
+     * when no operator declares a placement. An unknown mode, and a store type its mode cannot
+     * use, are errors in the capability itself, left to {@link #fromSpec}.
+     *
+     * @throws IllegalArgumentException on a disagreement, naming the operator's field to change
+     */
+    public static void checkPlacement(DurabilitySpec spec, Placement placement) {
+        if (placement == null || !placement.isManaged()) {
+            return;
+        }
+        String mode = spec == null ? DurabilitySpec.MODE_NONE : spec.effectiveMode();
+        String store;
+        // A store type the mode cannot use is an error in the capability itself: each case
+        // leaves it to fromSpec rather than ask the operator for a change that fails next.
+        switch (mode) {
+            case DurabilitySpec.MODE_NONE:
+                store = null;
+                break;
+            case DurabilitySpec.MODE_MEMORY:
+                if (!DurabilitySpec.MODE_MEMORY.equals(
+                        storeType(spec, DurabilitySpec.MODE_MEMORY))) {
+                    return;
+                }
+                // The operator gives this mode no store: its executions live in the process.
+                store = null;
+                break;
+            case DurabilitySpec.MODE_LOCAL:
+                store = storeType(spec, H2);
+                if (!H2.equals(store)) {
+                    return;
+                }
+                break;
+            case DurabilitySpec.MODE_DISTRIBUTED:
+                store = storeType(spec, POSTGRES);
+                if (H2.equals(store) || DurabilitySpec.MODE_MEMORY.equals(store)) {
+                    return;
+                }
+                break;
+            default:
+                // An unknown mode is an error in the capability itself, which fromSpec reports.
+                return;
+        }
+        boolean oneProcess = DurabilitySpec.MODE_MEMORY.equals(mode)
+                || DurabilitySpec.MODE_LOCAL.equals(mode);
+        if (oneProcess && placement.replicas() != null && placement.replicas() > 1) {
+            throw new IllegalArgumentException("Durability mode '" + mode + "' keeps executions "
+                    + "in one process; it cannot run as " + placement.replicas() + " replicas ("
+                    + REPLICAS_VARIABLE + "). Use 'distributed', or set "
+                    + "spec.durability.replicas to 1.");
+        }
+        if (store == null && placement.store() != null) {
+            throw new IllegalArgumentException("Durability mode '" + mode + "' uses no store, "
+                    + "but the operator runs this capability with store '" + placement.store()
+                    + "' (" + STORE_VARIABLE + "). Declare durability mode '"
+                    + modeOf(placement.store()) + "' with store type '" + placement.store()
+                    + "' on the control port, or remove spec.durability.store.");
+        }
+        if (store != null && !store.equals(placement.store())) {
+            String fix = "Set spec.durability.store to '" + store + "'";
+            if (placement.store() != null) {
+                fix += ", or declare durability mode '" + modeOf(placement.store())
+                        + "' with store type '" + placement.store() + "' on the control port";
+            }
+            throw new IllegalArgumentException("Durability mode '" + mode + "' keeps executions "
+                    + "in store '" + store + "', but the operator runs this capability "
+                    + (placement.store() == null ? "without a store"
+                            : "with store '" + placement.store() + "'")
+                    + " (" + STORE_VARIABLE + "). " + fix + ".");
+        }
+    }
+
+    /** The durability mode a store type an operator declares serves. */
+    private static String modeOf(String store) {
+        return H2.equals(store) ? DurabilitySpec.MODE_LOCAL : DurabilitySpec.MODE_DISTRIBUTED;
     }
 
     private static IllegalArgumentException notShared(String type) {

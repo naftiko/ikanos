@@ -208,6 +208,10 @@ public class Capability {
                 break;
             }
         }
+        // Fails fast, before any store opens, when the operator runs the capability with other
+        // replicas or another store than its durability needs (#1205).
+        Durability.checkPlacement(durabilitySpec,
+                Durability.Placement.fromEnvironment(System::getenv));
 
         // Build runtime aggregates (must happen after imports are resolved). The executor is
         // shared: each flow passes its own namespace when it calls it.
