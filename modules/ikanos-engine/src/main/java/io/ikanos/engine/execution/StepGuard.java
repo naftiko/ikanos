@@ -207,8 +207,10 @@ public final class StepGuard {
     }
 
     /**
-     * Counts the sub-expressions an evaluation evaluates, each iteration of a macro included,
-     * and stops it past the limit: CEL itself bounds one macro's iterations, not nested ones.
+     * Counts the work of an evaluation and stops it past the limit: one for each sub-expression
+     * evaluated, each iteration of a macro included, plus the size of each list or map a
+     * sub-expression yields, since what reads it ({@code in}, {@code ==}, {@code +}) walks it
+     * in one step.
      */
     private static final class Budget implements CelEvaluationListener {
         private final String label;
@@ -222,13 +224,26 @@ public final class StepGuard {
 
         @Override
         public void callback(CelExpr expr, Object result) {
-            if (++used > limit) {
+            used += 1 + sizeOf(result);
+            if (used > limit) {
                 throw new BudgetExceeded(new IllegalArgumentException(label
-                        + " evaluated more than " + limit + " sub-expressions, the limit set by"
-                        + " management.guards.evaluationLimit on the control port: make it"
-                        + " cheaper, such as by not nesting a macro over long lists in another"));
+                        + " evaluated more than " + limit + " sub-expressions and items, the limit"
+                        + " set by management.guards.evaluationLimit on the control port: make"
+                        + " it cheaper, such as by not reading a long list inside a macro over"
+                        + " another"));
             }
         }
+    }
+
+    /** The number of items of a list or entries of a map, or 0 for any other value. */
+    static long sizeOf(Object value) {
+        if (value instanceof java.util.Collection<?> items) {
+            return items.size();
+        }
+        if (value instanceof Map<?, ?> map) {
+            return map.size();
+        }
+        return 0;
     }
 
     /** Stops an evaluation past its budget, carrying the failure to report. */

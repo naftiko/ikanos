@@ -238,6 +238,19 @@ public class StepGuardTest {
     }
 
     @Test
+    public void holdsShouldCountTheItemsOfAListReadInsideAMacro() {
+        List<Integer> numbers = java.util.stream.IntStream.range(0, 2_000).boxed().toList();
+        Map<String, Object> run = Map.of("prs", numbers, "blockers", numbers);
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> StepGuard.holds("publish", "prs.exists(p, p + 2000 in blockers)", run,
+                        100_000));
+
+        assertTrue(error.getMessage().contains("management.guards.evaluationLimit"),
+                error.getMessage());
+    }
+
+    @Test
     public void holdsShouldIterateBeyondOneHundredThousandItemsWhenTheLimitIsRaised() {
         List<Integer> items = java.util.stream.IntStream.range(0, 150_000).boxed().toList();
 
