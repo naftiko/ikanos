@@ -98,8 +98,8 @@ function entries(collection) {
 
 /**
  * Every step of a step list, depth first: each step, then the tracks of a
- * `parallel` step, the steps of a `sequence` and the `do` of a `forEach`, with
- * locators relative to the list.
+ * `parallel` step, the steps of a `sequence`, the `do` of a `forEach` and the
+ * paths of a `choice`, with locators relative to the list.
  */
 function allSteps(collection) {
   const all = [];
@@ -114,11 +114,13 @@ function allSteps(collection) {
           }
         }
       }
-      if (step.do && typeof step.do === "object" && !Array.isArray(step.do)) {
-        const body = Object.assign({ name: "do" }, step.do);
-        for (const inner of allSteps([body])) {
-          all.push({ key: inner.key, value: inner.value,
-            locator: s.locator.concat("do", ...inner.locator.slice(1)) });
+      for (const key of ["do", "then", "else"]) {
+        if (step[key] && typeof step[key] === "object" && !Array.isArray(step[key])) {
+          const body = Object.assign({ name: key }, step[key]);
+          for (const inner of allSteps([body])) {
+            all.push({ key: inner.key, value: inner.value,
+              locator: s.locator.concat(key, ...inner.locator.slice(1)) });
+          }
         }
       }
     }

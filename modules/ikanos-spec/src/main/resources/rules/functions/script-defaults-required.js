@@ -61,8 +61,8 @@ export default function scriptDefaultsRequired(targetVal) {
             stepSources.push({ step, path: path.concat(key, index) });
           }
         });
-      } else if (key === "do" && value && typeof value === "object"
-          && typeof value.type === "string") {
+      } else if ((key === "do" || key === "then" || key === "else") && value
+          && typeof value === "object" && typeof value.type === "string") {
         stepSources.push({ step: value, path: path.concat(key) });
       }
       collect(value, path.concat(key));

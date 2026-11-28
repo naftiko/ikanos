@@ -79,6 +79,7 @@ public class TelemetryBootstrap {
     public static final AttributeKey<String> ATTR_STEP_NAME = AttributeKey.stringKey("ikanos.step.name");
     public static final AttributeKey<Long> ATTR_STEP_ITEMS = AttributeKey.longKey("ikanos.step.items");
     public static final AttributeKey<Long> ATTR_STEP_ITEM = AttributeKey.longKey("ikanos.step.item");
+    public static final AttributeKey<String> ATTR_STEP_PATH = AttributeKey.stringKey("ikanos.step.path");
     public static final AttributeKey<String> ATTR_STEP_MATCH = AttributeKey.stringKey("ikanos.step.match");
     public static final AttributeKey<String> ATTR_STEP_SCRIPT_FILE = AttributeKey.stringKey("ikanos.step.script.file");
     public static final AttributeKey<String> ATTR_STEP_SCRIPT_LANGUAGE = AttributeKey.stringKey("ikanos.step.script.language");
@@ -396,6 +397,17 @@ public class TelemetryBootstrap {
         setLongAttribute(builder, ATTR_STEP_INDEX, stepIndex);
         setStringAttribute(builder, ATTR_STEP_NAME, name != null ? name : "unknown");
         setLongAttribute(builder, ATTR_STEP_ITEMS, items);
+        return builder.startSpan();
+    }
+
+    /** Start an INTERNAL span for a {@code choice} step, naming the path it took. */
+    public Span startStepChoiceSpan(int stepIndex, String name, String path) {
+        if (!enabled) return Span.getInvalid();
+        SpanBuilder builder = tracer.spanBuilder("step.choice")
+            .setSpanKind(SpanKind.INTERNAL);
+        setLongAttribute(builder, ATTR_STEP_INDEX, stepIndex);
+        setStringAttribute(builder, ATTR_STEP_NAME, name != null ? name : "unknown");
+        setStringAttribute(builder, ATTR_STEP_PATH, path);
         return builder.startSpan();
     }
 

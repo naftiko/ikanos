@@ -68,6 +68,22 @@ public final class StepRun {
         this.lastResult = lastResult;
     }
 
+    /**
+     * Whether an {@code end} step completed the run, or a {@code choice} whose path reached one:
+     * the run completes there, and the steps after do not run.
+     */
+    private volatile boolean ended;
+
+    /** Marks the run as ended by an {@code end} step. */
+    public void markEnded() {
+        this.ended = true;
+    }
+
+    /** @return whether an {@code end} step ended the run */
+    public boolean isEnded() {
+        return ended;
+    }
+
     /** The exception that ended the run, or {@code null}. */
     public Exception failure() {
         return failure;

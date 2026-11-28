@@ -345,6 +345,147 @@ public class StepGuardValidatorTest {
     }
 
     @Test
+    void findWarningsShouldLetEachPathReadTheStepsBeforeTheChoice() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow("""
+                - name: issue
+                  type: call
+                  what: github.get-issue
+                - name: route
+                  type: choice
+                  if: "issue.label == 'bug'"
+                  then:
+                    type: call
+                    what: notion.create-incident
+                    onlyIf: issue.title
+                  else:
+                    type: choice
+                    if: "issue.label == 'feature'"
+                    then:
+                      type: call
+                      what: notion.add-row
+                    else:
+                      type: call
+                      what: github.ask-details
+                - name: after
+                  type: call
+                  what: log.write
+                  onlyIf: route
+                """));
+
+        assertTrue(warnings.isEmpty(), warnings.toString());
+    }
+
+    @Test
+    void findErrorsShouldReportAChoiceWithoutAnIf() {
+        List<String> errors = StepGuardValidator.findErrors(flow("""
+                - name: route
+                  type: choice
+                  then:
+                    type: call
+                    what: notion.create-incident
+                """));
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).contains("without an 'if'"), errors.get(0));
+    }
+
+    @Test
+    void findWarningsShouldReportADashedNameReadAsASubtractionInAChoiceIf() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow("""
+                - name: get-issue
+                  type: call
+                  what: github.get-issue
+                - name: route
+                  type: choice
+                  if: "get-issue.label == 'bug'"
+                  then:
+                    type: call
+                    what: notion.create-incident-page
+                """));
+
+        assertEquals(1, warnings.size(), warnings.toString());
+        assertTrue(warnings.get(0).startsWith("The if of step 'route'")
+                && warnings.get(0).contains("write 'get_issue'"), warnings.get(0));
+    }
+
+    @Test
+    void findErrorsShouldReportAChoiceWithoutAThen() {
+        List<String> errors = StepGuardValidator.findErrors(flow("""
+                - name: route
+                  type: choice
+                  if: issue
+                  else:
+                    type: call
+                    what: github.ask-details
+                """));
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).contains("without a 'then' path"), errors.get(0));
+    }
+
+    @Test
+    void findWarningsShouldSayThenNeverRunsWhenAChoiceWithoutElseReadsNothing() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow("""
+                - name: route
+                  type: choice
+                  if: missing
+                  then:
+                    type: call
+                    what: notion.create-incident
+                """));
+
+        assertEquals(1, warnings.size(), warnings.toString());
+        assertTrue(warnings.get(0).endsWith("the then path never runs."), warnings.get(0));
+    }
+
+    @Test
+    void findErrorsShouldReportAnIfThatDoesNotParse() {
+        List<String> errors = StepGuardValidator.findErrors(flow("""
+                - name: route
+                  type: choice
+                  if: "issue.label =="
+                  then:
+                    type: call
+                    what: notion.create-incident
+                """));
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).startsWith("The if of step 'route'"), errors.get(0));
+    }
+
+    @Test
+    void findErrorsShouldReportAQuestionInAPath() {
+        List<String> errors = StepGuardValidator.findErrors(flow("""
+                - name: route
+                  type: choice
+                  if: issue
+                  then:
+                    type: elicit
+                    fields:
+                      ok:
+                        type: boolean
+                """));
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).contains("or a choice"), errors.get(0));
+    }
+
+    @Test
+    void findWarningsShouldReportAnIfReadingANameNothingProvides() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow("""
+                - name: route
+                  type: choice
+                  if: "isue.label == 'bug'"
+                  then:
+                    type: call
+                    what: notion.create-incident
+                """));
+
+        assertEquals(1, warnings.size(), warnings.toString());
+        assertTrue(warnings.get(0).contains("reads 'isue'"), warnings.get(0));
+    }
+
+    @Test
     void findErrorsShouldReportASequenceInsideASequence() {
         List<String> errors = StepGuardValidator.findErrors(flow("""
                 - name: gather
@@ -844,6 +985,91 @@ public class StepGuardValidatorTest {
                         + "              as: screw\n              limit: 10\n"
                         + "              do:\n                type: call\n"
                         + "                what: shop.check-screw\n")));
+
+        assertTrue(warnings.stream().anyMatch(w -> w.contains("more than 3 levels")),
+                warnings.toString());
+    }
+
+    @Test
+    void findErrorsShouldAcceptAnEndInAChoicePath() {
+        List<String> errors = StepGuardValidator.findErrors(flow("""
+                - name: route
+                  type: choice
+                  if: "order.status == 'paid'"
+                  then:
+                    type: end
+                - name: remind
+                  type: call
+                  what: shop.remind
+                """));
+
+        assertTrue(errors.isEmpty(), errors.toString());
+    }
+
+    @Test
+    void findErrorsShouldReportAnEndInAChoicePathInsideADo() {
+        List<String> errors = StepGuardValidator.findErrors(flow("""
+                - name: lines
+                  type: forEach
+                  items: order.lines
+                  as: line
+                  do:
+                    type: choice
+                    if: "line.qty == 0"
+                    then:
+                      type: end
+                """));
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).contains("ends the flow from inside a do"), errors.get(0));
+    }
+
+    /** The memo's "choice inside an iteration inside a parallel group", single-step paths. */
+    private static final String CHOICE_IN_FOREACH_IN_PARALLEL = """
+            - name: group
+              type: parallel
+              tracks:
+                - name: lines
+                  type: forEach
+                  items: order.lines
+                  as: line
+                  limit: 10
+                  do:
+                    type: choice
+                    if: "line.qty > 0"
+                    then:
+                      type: call
+                      what: shop.reserve
+                    else:
+                      type: call
+                      what: shop.skip
+                - name: other
+                  type: call
+                  what: shop.other
+            """;
+
+    @Test
+    void findWarningsShouldAcceptAChoiceInAForEachInAParallelStep() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow(CHOICE_IN_FOREACH_IN_PARALLEL));
+
+        assertTrue(warnings.stream().noneMatch(w -> w.contains("levels deep")),
+                warnings.toString());
+    }
+
+    @Test
+    void findWarningsShouldReportAChoicePathPastThreeLevels() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow(
+                CHOICE_IN_FOREACH_IN_PARALLEL.replace(
+                        "        then:\n          type: call\n"
+                                + "          what: shop.reserve\n",
+                        "        then:\n          type: sequence\n"
+                                + "          steps:\n"
+                                + "            - name: inner\n"
+                                + "              type: choice\n"
+                                + "              if: \"line.urgent\"\n"
+                                + "              then:\n"
+                                + "                type: call\n"
+                                + "                what: shop.rush\n")));
 
         assertTrue(warnings.stream().anyMatch(w -> w.contains("more than 3 levels")),
                 warnings.toString());

@@ -48,6 +48,10 @@ public final class StepInterpreter implements Interpreter {
     @Override
     public List<Command> next(ExecutionView view) {
         for (StepNode node : tree.nodes()) {
+            if (run.isEnded()) {
+                // A choice whose path reached an end: the flow ends there too
+                return List.of(new Command.Complete(null));
+            }
             if (run.isSkipped(node.path())) {
                 continue;
             }
@@ -77,6 +81,7 @@ public final class StepInterpreter implements Interpreter {
                 // An early end: the run completes as a success, and the output is built from
                 // what the steps before it gathered.
                 run.markEvaluated(node.path());
+                run.markEnded();
                 return List.of(new Command.Complete(null));
             }
             if (node.kind() == StepNode.Kind.ELICIT) {
@@ -116,7 +121,10 @@ public final class StepInterpreter implements Interpreter {
                     // Recorded by an earlier run of this execution: restore the step's output
                     // instead of running the step again.
                     Object value = ((ActionOutcome.Succeeded) outcome.get()).value();
-                    if (node.kind() == StepNode.Kind.PARALLEL) {
+                    if (node.kind() == StepNode.Kind.CHOICE) {
+                        ChoiceRunner.restore(node.step().getName(),
+                                value instanceof JsonNode json ? json : null, run);
+                    } else if (node.kind() == StepNode.Kind.PARALLEL) {
                         ParallelTracks.restore(node.step().getName(),
                                 value instanceof JsonNode json ? json : null, run);
                     } else {

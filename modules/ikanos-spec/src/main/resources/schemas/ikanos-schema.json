@@ -3942,7 +3942,8 @@
             "end",
             "parallel",
             "sequence",
-            "forEach"
+            "forEach",
+            "choice"
           ]
         }
       },
@@ -4114,8 +4115,44 @@
         },
         {
           "$ref": "#/$defs/OperationStepForEach"
+        },
+        {
+          "$ref": "#/$defs/OperationStepChoice"
         }
       ]
+    },
+    "OperationStepChoice": {
+      "description": "Runs `then` when `if` holds, `else` otherwise: exactly one path runs, and this step's output is that path's output. Three paths nest a `choice` in `else`. Without `else`, a condition that does not hold runs nothing, and this step has no output.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/OperationStepBase"
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "choice"
+            },
+            "if": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The condition, read like `onlyIf`: a bare name, or a CEL expression that gives true or false. A value or field the run does not have makes it false, so `else` runs, or nothing runs without an `else`."
+            },
+            "then": {
+              "$ref": "#/$defs/OperationStepAny",
+              "description": "The path run when `if` holds: one step, a `sequence`, or another `choice`. Its `name` is optional (`then` by default). An `end` reached in a path ends the whole flow."
+            },
+            "else": {
+              "$ref": "#/$defs/OperationStepAny",
+              "description": "The path run when `if` does not hold: one step, a `sequence`, or another `choice`. Its `name` is optional (`else` by default). An `end` reached in a path ends the whole flow."
+            }
+          },
+          "required": [
+            "if",
+            "then"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
     },
     "OperationStepForEach": {
       "description": "Runs `do` once for each item of a list, in order. Its output is the list of each item's output. If an item fails, this step fails.",
@@ -4218,7 +4255,7 @@
       "unevaluatedProperties": false
     },
     "OperationStepEnd": {
-      "description": "Ends the flow early, as a success: the steps after it do not run, and the output is built from what the steps before it gathered. Usually guarded with `onlyIf`. Not allowed inside a parallel track or a forEach `do`, where it would end only the track or the current item.",
+      "description": "Ends the flow early, as a success: the steps after it do not run, and the output is built from what the steps before it gathered. Usually guarded with `onlyIf`. Not allowed inside a parallel track or a forEach `do`, where it would end only the track or the current item. Reached in a `choice` path, it ends the whole flow, as in `if: unchanged` with `then: {type: end}`.",
       "allOf": [
         {
           "$ref": "#/$defs/OperationStepBase"
