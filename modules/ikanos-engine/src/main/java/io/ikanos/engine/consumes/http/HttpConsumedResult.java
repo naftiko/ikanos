@@ -151,6 +151,34 @@ public class HttpConsumedResult implements ConsumedResult, RestletBackedResult {
     }
 
     /**
+     * {@inheritDoc}
+     *
+     * <p>{@code Content-Length} and {@code Content-Type} fall back to the size and media type of
+     * the entity, where the connector may have moved them.</p>
+     */
+    @Override
+    public String header(String name) {
+        if (response == null || name == null) {
+            return null;
+        }
+        String value = response.getHeaders().getFirstValue(name, true);
+        if (value != null) {
+            return value;
+        }
+        Representation entity = entity();
+        if (entity == null) {
+            return null;
+        }
+        if ("Content-Length".equalsIgnoreCase(name) && entity.getSize() >= 0) {
+            return Long.toString(entity.getSize());
+        }
+        if ("Content-Type".equalsIgnoreCase(name) && entity.getMediaType() != null) {
+            return entity.getMediaType().toString();
+        }
+        return null;
+    }
+
+    /**
      * Freshness from the upstream's {@code Cache-Control}, {@code Expires}, {@code Date} and
      * {@code Age} headers, read raw so that {@link Freshness#parse} sees exactly what the upstream
      * sent (an invalid {@code Expires} such as {@code 0} included). A non-2xx answer gets a TTL of

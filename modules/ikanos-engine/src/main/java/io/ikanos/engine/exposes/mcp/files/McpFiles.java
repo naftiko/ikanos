@@ -52,19 +52,59 @@ public final class McpFiles {
     private McpFiles() {
     }
 
+    /** Member of an {@code upload_required} result that lists the upload targets. */
+    public static final String UPLOADS = "uploads";
+
     /**
-     * The settings {@code server/discover} advertises: the inline upload limit only.
-     * {@code download} is a client setting, and advertising the extension is what lets a client
-     * declare it. {@code upload} is not advertised: it announces out-of-band uploads and the
-     * {@code upload_required} result, which the engine does not support yet, and inline files
-     * need only {@code maxInlineBytes}.
+     * The settings {@code server/discover} advertises: the inline upload limit, and
+     * {@code upload} when a tool takes files out of band. {@code download} is a client setting,
+     * and advertising the extension is what lets a client declare it. {@code upload} announces
+     * the {@code upload_required} result, so it is left out when no tool can return one: inline
+     * files need only {@code maxInlineBytes}.
      *
      * @param maxInlineBytes the largest total decoded size of the inline files of one request
+     * @param upload whether at least one tool takes files out of band
      */
-    public static ObjectNode serverSettings(ObjectMapper mapper, long maxInlineBytes) {
+    public static ObjectNode serverSettings(ObjectMapper mapper, long maxInlineBytes,
+            boolean upload) {
         ObjectNode settings = mapper.createObjectNode();
+        if (upload) {
+            settings.putObject(UPLOAD);
+        }
         settings.put(MAX_INLINE_BYTES, maxInlineBytes);
         return settings;
+    }
+
+    /**
+     * An upload target with {@code credentials: omit}: a presigned URL that carries its own
+     * authorization, sent to with {@code PUT} (the default method, so left out).
+     *
+     * @param expiresAt when the URL expires, or {@code null}
+     */
+    public static ObjectNode uploadTarget(ObjectMapper mapper, String fileId, String url,
+            Map<String, String> headers, java.time.Instant expiresAt) {
+        ObjectNode target = mapper.createObjectNode();
+        target.put("fileId", fileId);
+        target.put("url", url);
+        if (headers != null && !headers.isEmpty()) {
+            ObjectNode sent = target.putObject("headers");
+            headers.forEach(sent::put);
+        }
+        target.put("credentials", "omit");
+        if (expiresAt != null) {
+            target.put("expiresAt", expiresAt.toString());
+        }
+        return target;
+    }
+
+    /**
+     * The {@code requiredCapabilities} of a {@code -32021} error for a call that sends a file
+     * out of band without declaring {@code upload}.
+     */
+    public static ObjectNode uploadCapability(ObjectMapper mapper) {
+        ObjectNode required = mapper.createObjectNode();
+        required.putObject("extensions").putObject(EXTENSION_ID).putObject(UPLOAD);
+        return required;
     }
 
     /**

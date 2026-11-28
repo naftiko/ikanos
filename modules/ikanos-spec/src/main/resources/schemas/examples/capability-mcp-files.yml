@@ -15,6 +15,14 @@
 #     to `uploads.maxInlineBytes` per call), and is listed only to clients that declare the
 #     extension. Over REST, the operation takes a `multipart/form-data` body. Either way, the flow
 #     sends the file on as a `multipartForm` part, from `{{report.data}}` in base64.
+#   - import-scan: the `documents.import-scan` flow declares `upload`: its file is stored in an
+#     object store that issues presigned URLs, so large scans never pass through Ikanos. A client
+#     that declares `upload` calls the tool with the file's metadata and no `data`, gets an
+#     `upload_required` result with the presigned URL from `storage.create-upload-url`, sends the
+#     bytes there, and retries the call with the `requestState` it got. `storage.head-object`
+#     confirms the size and type before the flow runs. The flow sees the file with an `uploadId`,
+#     the server-chosen name of the stored object, never its bytes; an inline file is stored the
+#     same way first. The flow is not idempotent, so each `requestState` runs it at most once.
 #
 # Limits of hosted links:
 #   - a link is served only by the replica that issued it: give replicas session affinity;
@@ -60,6 +68,12 @@ capability:
           description: "Lab report resource."
           path: "/reports"
           operations:
+            import-from-storage:
+              method: "PUT"
+              description: "Import a scan already stored in the object store, by key."
+              inputParameters:
+                key:
+                  in: "query"
             upload-report:
               method: "POST"
               description: "Store a lab report, sent as multipart/form-data."
@@ -73,6 +87,32 @@ capability:
                     encoding: "base64"
                     filename: "{{report.name}}"
                     contentType: "{{report.mimeType}}"
+    - type: "http"
+      namespace: "storage"
+      description: "Object store that issues presigned upload URLs for scans."
+      baseUri: "https://storage.example.org"
+      resources:
+        upload-urls:
+          description: "Presigned upload URLs."
+          path: "/upload-urls/{{key}}"
+          operations:
+            create-upload-url:
+              method: "POST"
+              description: "Return a presigned PUT URL for an object, with the headers it signs."
+              inputParameters:
+                contentType:
+                  in: "query"
+                size:
+                  in: "query"
+                expiresIn:
+                  in: "query"
+        objects:
+          description: "Stored objects."
+          path: "/objects/{{key}}"
+          operations:
+            head-object:
+              method: "HEAD"
+              description: "Read the size and type of a stored object."
     - type: "http"
       namespace: "exports"
       description: "Upstream export API that writes files to object storage."
@@ -107,6 +147,37 @@ capability:
               type: "string"
               description: "A label for the report."
           call: "records.upload-report"
+        import-scan:
+          description: "Import a scanned document, stored in the object store first."
+          semantics:
+            idempotent: false
+          inputParameters:
+            scan:
+              type: "file"
+              accept:
+                - "application/pdf"
+                - "image/tiff"
+              maxSize: "2GiB"
+              required: true
+              description: "The scan to import."
+          upload:
+            presign:
+              call: "storage.create-upload-url"
+              with:
+                key: "scans/{{scan.uploadId}}"
+                contentType: "{{scan.mimeType}}"
+                size: "{{scan.size}}"
+                expiresIn: "{{scan.uploadExpiresIn}}"
+              url: "$.uploadUrl"
+              headers: "$.headers"
+              expiresAt: "$.expiresAt"
+            verify:
+              call: "storage.head-object"
+              with:
+                key: "scans/{{scan.uploadId}}"
+          call: "records.import-from-storage"
+          with:
+            key: "scans/{{scan.uploadId}}"
 
   exposes:
     - type: "rest"
@@ -182,3 +253,6 @@ capability:
         import-report:
           description: "Import a lab report into the records system."
           ref: "documents.import-report"
+        import-scan:
+          description: "Import a scanned document, uploaded out of band to the object store."
+          ref: "documents.import-scan"

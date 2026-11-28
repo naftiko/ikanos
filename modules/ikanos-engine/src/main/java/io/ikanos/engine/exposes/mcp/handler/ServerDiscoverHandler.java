@@ -83,7 +83,8 @@ public class ServerDiscoverHandler extends McpCallHandler {
         // Files (experimental draft): only when the adapter opts in with a files block
         if (spec.getFiles() != null) {
             extensions.set(McpFiles.EXTENSION_ID,
-                    McpFiles.serverSettings(MAPPER, adapter.getMaxInlineBytes()));
+                    McpFiles.serverSettings(MAPPER, adapter.getMaxInlineBytes(),
+                            adapter.getFileUploads() != null));
         }
         if (!extensions.isEmpty()) {
             capabilities.set("extensions", extensions);

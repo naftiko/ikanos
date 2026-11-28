@@ -1159,6 +1159,9 @@
         "semantics": {
           "$ref": "#/$defs/Semantics"
         },
+        "upload": {
+          "$ref": "#/$defs/FlowUpload"
+        },
         "outputMediaType": {
           "type": "string",
           "description": "Contract-level media type advertised by this flow to downstream `exposes`. Independent of `outputRawFormat`, which is always inherited from the underlying consumed operation (call:) or the terminal step (steps:). Overrides the consumed op's `outputMediaType` for advertisement only; never changes how the entity is parsed."
@@ -1266,6 +1269,80 @@
             ]
           }
         }
+      ],
+      "additionalProperties": false
+    },
+    "FlowUpload": {
+      "type": "object",
+      "description": "**Experimental.** Stores the file inputs (`type: file`) of this flow in an upstream that issues presigned upload URLs, such as an object store, so their bytes never pass through Ikanos. Over MCP (draft files extension, `files` on the exposes block), a client that declares `upload` and calls the tool with a file's metadata and no `data` gets an `upload_required` result: one target per file, from `presign`, with `credentials: omit`, and a sealed `requestState`. It sends the bytes there, then retries the same call with that `requestState`; `verify` confirms each file arrived, with its declared size and an accepted type, and the flow runs. A file sent inline (or through REST `multipart/form-data`) is stored the same way by Ikanos before the flow runs. Either way, the flow sees each file without `data` and with an `uploadId`, the server-chosen name of the stored object (`{{report.uploadId}}`). Unless the flow's `semantics` say it is `idempotent` or `safe`, a `requestState` runs the tool at most once.",
+      "properties": {
+        "presign": {
+          "$ref": "#/$defs/FlowUploadPresign"
+        },
+        "verify": {
+          "$ref": "#/$defs/FlowUploadVerify"
+        }
+      },
+      "required": [
+        "presign",
+        "verify"
+      ],
+      "additionalProperties": false
+    },
+    "FlowUploadPresign": {
+      "type": "object",
+      "description": "**Experimental.** The consumed operation that returns a presigned upload URL for one file. Its `with` values are resolved against the call's arguments, where the file argument has `id`, `name`, `mimeType`, `size`, `uploadId` and `uploadExpiresIn`: the seconds left until the `requestState` expires, less 30 seconds for clock skew, which the target must not outlive (map it to the presigner's expiry parameter, such as `{{scan.uploadExpiresIn}}`). Its JSON response carries the URL (an absolute `https` URL, or `http` on a loopback host), the headers the client sends with its `PUT`, and when the URL expires, where the JsonPath expressions below say.",
+      "properties": {
+        "call": {
+          "type": "string",
+          "description": "The consumed operation, as {namespace}.{operation}.",
+          "pattern": "^[a-zA-Z0-9-]+\\.[a-zA-Z0-9-_.]+$"
+        },
+        "with": {
+          "$ref": "#/$defs/WithInjector"
+        },
+        "url": {
+          "type": "string",
+          "default": "$.url",
+          "description": "JsonPath of the upload URL in the response. Default: `$.url`."
+        },
+        "headers": {
+          "type": "string",
+          "description": "JsonPath of an object of header names to string values the client sends with the transfer, such as a signed `Content-Type`. `Authorization`, `Cookie`, `Host` and the other headers a client may not set are refused."
+        },
+        "expiresAt": {
+          "type": "string",
+          "description": "JsonPath of when the URL expires, an ISO 8601 timestamp with an offset, sent in UTC. A URL that expires after the `requestState` is refused (the call gets an error result), since a presigned URL cannot be revoked. Without it, the target advertises the `requestState` expiry, and the operator is responsible for presigning within that lifetime, for example with `uploadExpiresIn`."
+        }
+      },
+      "required": [
+        "call"
+      ],
+      "additionalProperties": false
+    },
+    "FlowUploadVerify": {
+      "type": "object",
+      "description": "**Experimental.** The consumed operation that confirms the bytes of one file arrived, such as a `HEAD` on the stored object, resolved like `presign`. A successful answer must report the size the client declared and, when the input declares `accept`, an accepted media type; otherwise the call is answered with an error result and the flow does not run. Ikanos never reads the bytes of a file sent out of band, so it does not sniff them: with the `Content-Type` default, the type checked is the label the client sent with its `PUT` (usually pinned by a signed header), not one derived from the content. The draft asks servers to inspect the bytes when a tool restricts its type: point `mimeType` at a status API whose type the storage derived from the bytes to meet that rule.",
+      "properties": {
+        "call": {
+          "type": "string",
+          "description": "The consumed operation, as {namespace}.{operation}.",
+          "pattern": "^[a-zA-Z0-9-]+\\.[a-zA-Z0-9-_.]+$"
+        },
+        "with": {
+          "$ref": "#/$defs/WithInjector"
+        },
+        "size": {
+          "type": "string",
+          "description": "JsonPath of the stored size in bytes in the JSON response. Default: the `Content-Length` header."
+        },
+        "mimeType": {
+          "type": "string",
+          "description": "JsonPath of the stored media type in the JSON response. Default: the `Content-Type` header, which is the client's own label for the bytes."
+        }
+      },
+      "required": [
+        "call"
       ],
       "additionalProperties": false
     },
@@ -1652,7 +1729,7 @@
     },
     "McpFiles": {
       "type": "object",
-      "description": "**Experimental.** Opts this adapter into the draft MCP files extension (`io.modelcontextprotocol/files`), whose shape may still change. With this block, `server/discover` advertises the extension, with `maxInlineBytes` as its only setting (`download` is a client setting), and a `tools/call` request that declares `download` in its `io.modelcontextprotocol/clientCapabilities` gets large files as download targets, listed in the result's `_meta[\"io.modelcontextprotocol/files\"].downloads` with a text summary in `content`, instead of inline base64. A request that does not declare `download` gets the inline result as before. With `uploads` settings (defaults apply when it is left out), a tool whose input is `type: file` takes the file inline in its arguments, up to `maxInlineBytes` per request. Downloaded files come from two sources: a binary tool result (`outputRawFormat: binary`) larger than `downloads.inlineThreshold` is served once from a short-lived link on this adapter (`credentials: include`: the link takes the same authentication as the MCP endpoint, HTTP transport only), and a tool that declares `download` returns the URL its consumed API already gives (`credentials: omit`). Limits of hosted links: a link is served only by the replica that issued it, so replicas behind a load balancer need session affinity; files wait in one bounded in-memory store per process (at most 1/8 of the heap and 256 MiB, a quarter of it per caller), and a result that does not fit is returned inline; and a client resends only the `Authorization` header and the query string of the MCP address, so links are issued with no `authentication`, `bearer`, `basic`, `oauth2` or an `apikey` in the query, and results stay inline behind an `apikey` in another header or `digest`. Without this block, nothing changes.",
+      "description": "**Experimental.** Opts this adapter into the draft MCP files extension (`io.modelcontextprotocol/files`), whose shape may still change. With this block, `server/discover` advertises the extension with `maxInlineBytes`, plus `upload` when a tool's flow declares `upload` (`download` is a client setting), and a `tools/call` request that declares `download` in its `io.modelcontextprotocol/clientCapabilities` gets large files as download targets, listed in the result's `_meta[\"io.modelcontextprotocol/files\"].downloads` with a text summary in `content`, instead of inline base64. A request that does not declare `download` gets the inline result as before. With `uploads` settings (defaults apply when it is left out), a tool whose input is `type: file` takes the file inline in its arguments, up to `maxInlineBytes` per request. Downloaded files come from two sources: a binary tool result (`outputRawFormat: binary`) larger than `downloads.inlineThreshold` is served once from a short-lived link on this adapter (`credentials: include`: the link takes the same authentication as the MCP endpoint, HTTP transport only), and a tool that declares `download` returns the URL its consumed API already gives (`credentials: omit`). Limits of hosted links: a link is served only by the replica that issued it, so replicas behind a load balancer need session affinity; files wait in one bounded in-memory store per process (at most 1/8 of the heap and 256 MiB, a quarter of it per caller), and a result that does not fit is returned inline; and a client resends only the `Authorization` header and the query string of the MCP address, so links are issued with no `authentication`, `bearer`, `basic`, `oauth2` or an `apikey` in the query, and results stay inline behind an `apikey` in another header or `digest`. Without this block, nothing changes.",
       "properties": {
         "downloads": {
           "$ref": "#/$defs/McpFileDownloads"
@@ -1665,7 +1742,7 @@
     },
     "McpFileUploads": {
       "type": "object",
-      "description": "**Experimental.** File inputs (`type: file`) sent inline in a `tools/call`. `server/discover` advertises `maxInlineBytes`, and a tool argument carries the file's bytes in base64 in its `data`. Out-of-band uploads are not supported yet: a non-empty file without `data` is refused, and `upload` is not advertised.",
+      "description": "**Experimental.** File inputs (`type: file`) of `tools/call`. `server/discover` advertises `maxInlineBytes`, and a tool argument carries the file's bytes in base64 in its `data`. A tool whose flow declares `upload` also takes files out of band, through presigned URLs (`upload_required`): `server/discover` then advertises `upload`. For any other tool, a non-empty file without `data` is refused with an error result.",
       "properties": {
         "maxInlineBytes": {
           "$ref": "#/$defs/BinarySize",
@@ -3429,13 +3506,14 @@
           "type": "string",
           "enum": [
             "GET",
+            "HEAD",
             "POST",
             "PUT",
             "PATCH",
             "DELETE"
           ],
           "default": "GET",
-          "description": "HTTP method for this operation. Defaults to `GET`."
+          "description": "HTTP method for this operation. Defaults to `GET`. `HEAD` reads only the answer's status and headers, such as the size and type of a stored object (see `FlowUploadVerify`)."
         },
         "inputParameters": {
           "type": "object",
