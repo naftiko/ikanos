@@ -370,8 +370,11 @@ public class OperationStepExecutor {
                     } catch (Exception e) {
                         // An adapter that ends the call with an exception, such as a consumed
                         // MCP tool reporting an error, may still say its outcome: a step with
-                        // success criteria records it and reads them before failing.
-                        String reported = StepOutcomes.reportedBy(e);
+                        // success criteria records it and reads them before failing. A called
+                        // flow reports no outcome when it fails: the one in its cause chain is
+                        // that of a step inside it, not of the flow.
+                        String reported = invocation instanceof FlowInvocation ? null
+                                : StepOutcomes.reportedBy(e);
                         List<String> criteria = callStep.getSuccessCriteria();
                         if (reported != null && criteria != null && !criteria.isEmpty()) {
                             StepOutcomes.put(runtimeParameters, callStep.getName(), reported);

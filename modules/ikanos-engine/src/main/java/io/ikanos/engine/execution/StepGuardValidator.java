@@ -193,8 +193,11 @@ public final class StepGuardValidator {
                 if (step.getName() != null) {
                     visible.add(step.getName());
                     visible.add(step.getName().replace('-', '_'));
-                    ran.add(step.getName());
-                    ran.add(step.getName().replace('-', '_'));
+                    // Only a call step records an outcome
+                    if (step instanceof OperationStepCallSpec) {
+                        ran.add(step.getName());
+                        ran.add(step.getName().replace('-', '_'));
+                    }
                 }
             }
         }

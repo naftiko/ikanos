@@ -269,6 +269,29 @@ public class StepGuardValidatorTest {
     }
 
     @Test
+    void findWarningsShouldReportAGuardReadingTheOutcomeOfAStepThatIsNotACall() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow("""
+                - name: pages
+                  type: call
+                  what: notion.list-pages
+                - name: find
+                  type: lookup
+                  index: pages
+                  match: id
+                  lookupValue: $.order.page
+                  outputParameters:
+                    - title
+                - name: create
+                  type: call
+                  what: notion.create-page
+                  onlyIf: "outcome.find == 'success'"
+                """));
+
+        assertTrue(warnings.stream().anyMatch(w -> w.contains("reads the outcome of 'find',"
+                + " which no earlier step has")), warnings.toString());
+    }
+
+    @Test
     void findWarningsShouldReportAGuardReadingTheOutcomeOfALaterStep() {
         List<String> warnings = StepGuardValidator.findWarnings(flow("""
                 - name: create

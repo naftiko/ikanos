@@ -512,6 +512,46 @@ class McpClientAdapterIntegrationTest {
         assertFalse(Boolean.TRUE.equals(result.isError()), String.valueOf(result.content()));
     }
 
+    /**
+     * #1168: a step that calls a flow whose MCP step failed fails, whatever its criteria
+     * accept: the failed flow has no result, so no outcome, and the {@code failure} the inner
+     * tool reported is that of the inner step, not of the flow.
+     */
+    @Test
+    void aStepCallingAFlowShouldNotTakeTheOutcomeOfAToolThatFailedInsideIt() throws Exception {
+        consumer = capability(consumerYaml("off", "")
+                .replace("\n  exposes:\n", """
+
+                                wrapped-status:
+                                  description: Invoice status through the flow
+                                  inputParameters:
+                                    invoice-id: { type: string, description: Invoice identifier }
+                                  steps:
+                                    - name: sub
+                                      type: call
+                                      what: collections.invoice-status
+                                      with:
+                                        invoice-id: collections.invoice-id
+                                      successCriteria:
+                                        - "outcome.sub == 'success'"
+                                        - "outcome.sub == 'failure'"
+                          exposes:
+                        """)
+                .replace("\n        greeting:\n", """
+
+                                wrapped-status:
+                                  description: Invoice status through the flow
+                                  ref: collections.wrapped-status
+                                greeting:
+                        """));
+        consumer.start();
+
+        McpSchema.CallToolResult result =
+                callConsumer("wrapped-status", Map.of("invoice-id", "missing"));
+
+        assertTrue(Boolean.TRUE.equals(result.isError()), String.valueOf(result.content()));
+    }
+
     @Test
     void aStepWithoutCriteriaShouldStillFailOnAToolThatReportsAnError() throws Exception {
         startConsumer("off", "");

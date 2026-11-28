@@ -60,8 +60,9 @@ import tools.jackson.databind.JsonNode;
  * {@code order.status == 'overdue'}. Its variables are the run's parameters (inputs,
  * {@code with} values, earlier step outputs) under the names templates use; a name with
  * {@code -}, which CEL does not allow in an identifier, is also bound with {@code _}
- * ({@code get_ship}). An expression that names a variable the run does not have, or a field
- * its value does not have, does not hold either.</li>
+ * ({@code get_ship}). An expression whose result depends on a variable the run does not have,
+ * or on a field its value does not have, does not hold either; one the rest of the expression
+ * decides without it, such as {@code a || missing.x} when {@code a} holds, holds as usual.</li>
  * </ul>
  *
  * <p>A guard that reads the caller's claims ({@code auth}) fails when the run has none. Apart
