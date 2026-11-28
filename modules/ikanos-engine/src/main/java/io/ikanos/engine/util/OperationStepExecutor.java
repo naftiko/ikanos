@@ -43,7 +43,9 @@ import io.ikanos.engine.execution.Executions;
 import io.ikanos.engine.execution.InputDeclinedException;
 import io.ikanos.engine.execution.InputRequiredException;
 import io.ikanos.engine.execution.NodeRunner;
+import io.ikanos.engine.execution.StepGuard;
 import io.ikanos.engine.execution.StepNode;
+import io.ikanos.engine.execution.StepOutcomes;
 import io.ikanos.engine.execution.StepRun;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import io.ikanos.engine.scripting.ScriptStepExecutor;
@@ -366,37 +368,60 @@ public class OperationStepExecutor {
                         // Bad input raised inside a called flow stays bad input (#1001)
                         throw e;
                     } catch (Exception e) {
+                        // An adapter that ends the call with an exception, such as a consumed
+                        // MCP tool reporting an error, may still say its outcome: a step with
+                        // success criteria records it and reads them before failing. A called
+                        // flow reports no outcome when it fails: the one in its cause chain is
+                        // that of a step inside it, not of the flow.
+                        String reported = invocation instanceof FlowInvocation ? null
+                                : StepOutcomes.reportedBy(e);
+                        List<String> criteria = callStep.getSuccessCriteria();
+                        if (reported != null && criteria != null && !criteria.isEmpty()) {
+                            StepOutcomes.put(runtimeParameters, callStep.getName(), reported);
+                            if (StepGuard.anyHolds(callStep.getName(), criteria,
+                                    StepGuard.parametersOf(run), capability != null
+                                            ? capability.getGuardEvaluationLimit()
+                                            : GuardManagementSpec.DEFAULT_EVALUATION_LIMIT)) {
+                                // Accepted, as a non-2xx answer is: no output, no content
+                                run.setLastResult(StepOutcomes.accepted());
+                                return null;
+                            }
+                        }
                         throw new IllegalStateException(
                                 "Error while handling a consumed call", e);
                     }
                     run.setLastResult(lastResult);
+                    // The protocol-neutral outcome later guards and criteria read (#1168)
+                    StepOutcomes.put(runtimeParameters, callStep.getName(),
+                            StepOutcomes.of(lastResult));
 
-                    // #739: a non-2xx response fails the whole sequence. Without this, the
-                    // error body became the step output and later steps ran with it.
-                    failIfUnsuccessful(callStep.getName(), lastResult);
-
-                    // Store call output for lookup references when response is valid JSON.
-                    // text() memoizes the body so exposers can still read or forward it.
-                    // Binary bodies are never JSON, and reading them as text would replace
-                    // the original bytes with a decoded string, so they are skipped. A
-                    // native tree (SQL rows) is read as is: reparsing its text would round
-                    // its decimals.
-                    if (lastResult.hasBody() && !lastResult.operation().isBinary()) {
-                        try {
-                            JsonNode rawOutput = stepDocument(lastResult);
-                            if (rawOutput != null) {
-                                JsonNode stepOutput =
-                                        resolveStepOutput(lastResult.operation(), rawOutput);
-                                stepContext.storeStepOutput(callStep.getName(), stepOutput);
-                                addStepOutputToParameters(runtimeParameters,
-                                        callStep.getName(), stepOutput);
-                                return stepOutput;
-                            }
-                        } catch (JacksonException | IOException ignoreJsonParseError) {
-                            logger.debug("Step output is not JSON; skipping lookup index update", ignoreJsonParseError);
-                        }
+                    List<String> criteria = callStep.getSuccessCriteria();
+                    if (criteria == null || criteria.isEmpty()) {
+                        // #739: a non-2xx response fails the whole sequence. Without this, the
+                        // error body became the step output and later steps ran with it.
+                        failIfUnsuccessful(callStep.getName(), lastResult);
+                        return storeCallOutput(callStep, lastResult, run);
                     }
-                    return null;
+                    JsonNode stepOutput = lastResult.isSuccessful()
+                            ? storeCallOutput(callStep, lastResult, run) : null;
+                    if (!StepGuard.anyHolds(callStep.getName(), criteria,
+                            StepGuard.parametersOf(run), capability != null
+                                    ? capability.getGuardEvaluationLimit()
+                                    : GuardManagementSpec.DEFAULT_EVALUATION_LIMIT)) {
+                        failIfUnsuccessful(callStep.getName(), lastResult);
+                        throw new StepFailedException(callStep.getName(), lastResult.status(),
+                                "Step '" + callStep.getName() + "' succeeded, but its result"
+                                        + " meets none of its success criteria",
+                                null, null);
+                    }
+                    if (!lastResult.isSuccessful()) {
+                        // Accepted by a criterion, such as a 'not-found': the step succeeded
+                        // with no output. Its unread body is neither passed through nor
+                        // journaled, and the run keeps a success with no content.
+                        lastResult.release();
+                        run.setLastResult(StepOutcomes.accepted());
+                    }
+                    return stepOutput;
                 } catch (Exception e) {
                     TelemetryBootstrap.recordError(stepSpan, e);
                     throw e;
@@ -1043,6 +1068,35 @@ public class OperationStepExecutor {
     }
 
     /**
+     * Stores a successful call step's output for lookups, templates and mappings, when its
+     * response is JSON, and returns it; {@code null} when it has none.
+     *
+     * <p>text() memoizes the body so exposers can still read or forward it. Binary bodies are
+     * never JSON, and reading them as text would replace the original bytes with a decoded
+     * string, so they are skipped. A native tree (SQL rows) is read as is: reparsing its text
+     * would round its decimals.</p>
+     */
+    private JsonNode storeCallOutput(OperationStepCallSpec callStep, ConsumedResult result,
+            StepRun run) {
+        if (result.hasBody() && !result.operation().isBinary()) {
+            try {
+                JsonNode rawOutput = stepDocument(result);
+                if (rawOutput != null) {
+                    JsonNode stepOutput = resolveStepOutput(result.operation(), rawOutput);
+                    run.stepContext().storeStepOutput(callStep.getName(), stepOutput);
+                    addStepOutputToParameters(run.runtimeParameters(), callStep.getName(),
+                            stepOutput);
+                    return stepOutput;
+                }
+            } catch (JacksonException | IOException ignoreJsonParseError) {
+                logger.debug("Step output is not JSON; skipping lookup index update",
+                        ignoreJsonParseError);
+            }
+        }
+        return null;
+    }
+
+    /**
      * Throw {@link StepFailedException} when a call step's consumed result is not 2xx.
      * A missing result or status (connection failure) counts as a failure too.
      *
@@ -1160,7 +1214,7 @@ public class OperationStepExecutor {
             this(stepName, statusCode, message(stepName, statusCode), cause, upstreamBody);
         }
 
-        private StepFailedException(String stepName, int statusCode, String message,
+        StepFailedException(String stepName, int statusCode, String message,
                 Throwable cause, String upstreamBody) {
             super(message, cause);
             this.stepName = stepName;

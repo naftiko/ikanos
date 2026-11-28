@@ -921,4 +921,22 @@ class McpClientAdapterTest {
                 .isEmpty(), "Sealed by an earlier process with a random key");
         assertTrue(SealedCredentials.open(key, "billing", "not-sealed").isEmpty());
     }
+
+    @Test
+    void outcomeOfShouldMapAJsonRpcErrorToTheOutcomeVocabulary() {
+        assertEquals("not-found", McpStreamableHttpTransport.outcomeOf(true, 200,
+                McpStreamableHttpTransport.RESOURCE_NOT_FOUND));
+        assertEquals("failure", McpStreamableHttpTransport.outcomeOf(true, 200, -32603));
+        assertEquals("throttled", McpStreamableHttpTransport.outcomeOf(false, 429, -32603));
+        assertEquals("not-found", McpStreamableHttpTransport.outcomeOf(false, 404, -32603));
+        assertEquals("unreachable", McpStreamableHttpTransport.outcomeOf(false, 1001, -32603));
+        assertEquals("failure", McpStreamableHttpTransport.outcomeOf(false, 500, -32603));
+    }
+
+    @Test
+    void anMcpClientExceptionShouldReportFailureUnlessToldOtherwise() {
+        assertEquals("failure", new McpClientException("tool error").stepOutcome());
+        assertEquals("throttled",
+                new McpClientException("HTTP 429", "throttled").stepOutcome());
+    }
 }

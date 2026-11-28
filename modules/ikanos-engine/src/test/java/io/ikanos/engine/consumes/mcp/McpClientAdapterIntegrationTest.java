@@ -102,6 +102,10 @@ class McpClientAdapterIntegrationTest {
                     @Override
                     public void handle(Request request, Response response) {
                         String id = (String) request.getAttributes().get("id");
+                        if ("missing".equals(id)) {
+                            response.setStatus(Status.CLIENT_ERROR_NOT_FOUND);
+                            return;
+                        }
                         response.setStatus(Status.SUCCESS_OK);
                         response.setEntity(new StringRepresentation("""
                                 {"InvoiceID":"%s","Totals":{"Gross":"125.5","Currency":"EUR"},
@@ -478,5 +482,83 @@ class McpClientAdapterIntegrationTest {
             }
         });
         return component;
+    }
+
+    /** The consumer, whose {@code inv} step accepts a tool error with a success criterion. */
+    private Capability startConsumerAcceptingToolErrors() throws Exception {
+        consumer = capability(consumerYaml("off", "").replace(
+                "              what: billing.get-invoice\n",
+                "              what: billing.get-invoice\n"
+                        + "              successCriteria:\n"
+                        + "                - \"outcome.inv == 'success'\"\n"
+                        + "                - \"outcome.inv == 'failure'\"\n"));
+        consumer.start();
+        return consumer;
+    }
+
+    /**
+     * #1168: an upstream MCP tool that reports an error gives its step the outcome
+     * {@code failure}, which a success criterion can accept, instead of failing the step before
+     * any criterion is read.
+     */
+    @Test
+    void aStepWhoseCriterionAcceptsFailureShouldAcceptAToolThatReportsAnError()
+            throws Exception {
+        startConsumerAcceptingToolErrors();
+
+        McpSchema.CallToolResult result =
+                callConsumer("invoice-status", Map.of("invoice-id", "missing"));
+
+        assertFalse(Boolean.TRUE.equals(result.isError()), String.valueOf(result.content()));
+    }
+
+    /**
+     * #1168: a step that calls a flow whose MCP step failed fails, whatever its criteria
+     * accept: the failed flow has no result, so no outcome, and the {@code failure} the inner
+     * tool reported is that of the inner step, not of the flow.
+     */
+    @Test
+    void aStepCallingAFlowShouldNotTakeTheOutcomeOfAToolThatFailedInsideIt() throws Exception {
+        consumer = capability(consumerYaml("off", "")
+                .replace("\n  exposes:\n", """
+
+                                wrapped-status:
+                                  description: Invoice status through the flow
+                                  inputParameters:
+                                    invoice-id: { type: string, description: Invoice identifier }
+                                  steps:
+                                    - name: sub
+                                      type: call
+                                      what: collections.invoice-status
+                                      with:
+                                        invoice-id: collections.invoice-id
+                                      successCriteria:
+                                        - "outcome.sub == 'success'"
+                                        - "outcome.sub == 'failure'"
+                          exposes:
+                        """)
+                .replace("\n        greeting:\n", """
+
+                                wrapped-status:
+                                  description: Invoice status through the flow
+                                  ref: collections.wrapped-status
+                                greeting:
+                        """));
+        consumer.start();
+
+        McpSchema.CallToolResult result =
+                callConsumer("wrapped-status", Map.of("invoice-id", "missing"));
+
+        assertTrue(Boolean.TRUE.equals(result.isError()), String.valueOf(result.content()));
+    }
+
+    @Test
+    void aStepWithoutCriteriaShouldStillFailOnAToolThatReportsAnError() throws Exception {
+        startConsumer("off", "");
+
+        McpSchema.CallToolResult result =
+                callConsumer("invoice-status", Map.of("invoice-id", "missing"));
+
+        assertTrue(Boolean.TRUE.equals(result.isError()), String.valueOf(result.content()));
     }
 }

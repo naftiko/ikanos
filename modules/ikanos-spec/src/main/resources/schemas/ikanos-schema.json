@@ -3930,7 +3930,7 @@
         "onlyIf": {
           "type": "string",
           "minLength": 1,
-          "description": "Runs the step only when this condition holds; otherwise the step is skipped and has no output, and later steps and mappings see it as absent. A bare name such as `customer.id` holds when the value is present and is neither null nor false (an absent value skips the step). Anything else is a CEL expression that must evaluate to a boolean, such as `order.status == 'overdue'`; its variables are the inputs, the `with` values of the tool, operation or flow (not the guarded step's own `with`) and earlier step outputs, named as in templates, with `-` written `_` (`get_ship.status`). An expression that reads a variable or field the run does not have does not hold, even under negation: `order.status != 'paid'` and `!(order.status == 'paid')` both skip the step when `status` is missing, so write `!has(order.status) || order.status != 'paid'` to run it then. `auth.claims...` reads the caller's validated token, and a guard that reads `auth` fails the run when the call has none. A result that is not a boolean, an evaluation error, or a guard evaluating more sub-expressions than `management.guards.evaluationLimit` on the control port (100,000 by default, counting each iteration of a macro and the items of each list that `in`, `==`, `!=` or `+` walks) fails the run."
+          "description": "Runs the step only when this condition holds; otherwise the step is skipped and has no output, and later steps and mappings see it as absent. A bare name such as `customer.id` holds when the value is present and is neither null nor false (an absent value skips the step). Anything else is a CEL expression that must evaluate to a boolean, such as `order.status == 'overdue'`; its variables are the inputs, the `with` values of the tool, operation or flow (not the guarded step's own `with`) and earlier step outputs, named as in templates, with `-` written `_` (`get_ship.status`). An expression whose result depends on a variable or field the run does not have does not hold, even under negation (one the rest of the expression decides without it, such as `a || missing.x` when `a` holds, holds as usual): `order.status != 'paid'` and `!(order.status == 'paid')` both skip the step when `status` is missing, so write `!has(order.status) || order.status != 'paid'` to run it then. `auth.claims...` reads the caller's validated token, and a guard that reads `auth` fails the run when the call has none. A result that is not a boolean, an evaluation error, or a guard evaluating more sub-expressions than `management.guards.evaluationLimit` on the control port (100,000 by default, counting each iteration of a macro and the items of each list that `in`, `==`, `!=` or `+` walks) fails the run."
         },
         "type": {
           "type": "string",
@@ -3938,7 +3938,8 @@
             "call",
             "lookup",
             "script",
-            "elicit"
+            "elicit",
+            "end"
           ]
         }
       },
@@ -3964,6 +3965,15 @@
             },
             "with": {
               "$ref": "#/$defs/WithInjector"
+            },
+            "successCriteria": {
+              "type": "array",
+              "description": "Conditions under which the call's result counts as a success; any one is enough. Without them, the step succeeds on a 2xx answer only. Each is a guard, like `onlyIf`, that may read `outcome.<step>`: the protocol-neutral outcome of a call step, one of `success`, `not-found`, `throttled`, `unreachable` or `failure`. An HTTP call's outcome follows its status: `success` for 2xx, `not-found` for 404 and 410, `throttled` for 429, `unreachable` when no answer came, `failure` otherwise. A SQL call reports `unreachable` for a timeout or a lost connection. A consumed MCP call reports `failure` when its tool answers `isError`, `not-found` for the JSON-RPC resource-not-found error, and the HTTP mapping above when the server answers with an error status. A flow called by `what:` reports the outcome its own result maps to. A step accepted with another outcome than `success` has no output. A guard or criterion reading `outcome.<step>` of a step that does not exist or has not run yet never holds, and validation warns about it.",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "minItems": 1
             }
           },
           "required": [
@@ -4077,8 +4087,27 @@
         },
         {
           "$ref": "#/$defs/OperationStepElicit"
+        },
+        {
+          "$ref": "#/$defs/OperationStepEnd"
         }
       ]
+    },
+    "OperationStepEnd": {
+      "description": "Ends the flow early, as a success: the steps after it do not run, and the output is built from what the steps before it gathered. Usually guarded with `onlyIf`.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/OperationStepBase"
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "end"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
     },
     "OperationStepElicit": {
       "description": "Asks the caller of the current invocation for input and continues with the answer as the step's output. Over MCP it becomes an `elicitation/create` input request. Under the `none` durability mode the flow is replayed from the start with the answers, so every step before it must be read-only.",

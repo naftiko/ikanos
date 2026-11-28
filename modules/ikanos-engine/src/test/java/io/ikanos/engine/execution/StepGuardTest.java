@@ -145,6 +145,12 @@ public class StepGuardTest {
     }
 
     @Test
+    public void holdsShouldHoldWhenAnAbsentNameDoesNotDecideTheResult() {
+        assertTrue(StepGuard.holds("s", "true || find.id != ''", Map.of()));
+        assertFalse(StepGuard.holds("s", "false || find.id != ''", Map.of()));
+    }
+
+    @Test
     public void holdsShouldNotTreatComprehensionVariablesAsAbsent() {
         Map<String, Object> run = params("items", List.of(1, 2, 3));
 

@@ -76,6 +76,90 @@ public class StepGuardValidatorTest {
     }
 
     @Test
+    void findErrorsShouldReportASuccessCriterionThatDoesNotParse() {
+        List<String> errors = StepGuardValidator.findErrors(flow("""
+                - name: find
+                  type: call
+                  what: notion.find
+                  successCriteria:
+                    - "outcome.find =="
+                """));
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).startsWith("A success criterion of step 'find'"),
+                errors.get(0));
+    }
+
+    @Test
+    void findErrorsShouldReportAnOutcomeThatIsNotInTheVocabulary() {
+        List<String> errors = StepGuardValidator.findErrors(flow("""
+                - name: find
+                  type: call
+                  what: notion.find
+                  successCriteria:
+                    - "outcome.find == 'success' || outcome['find'] == 'gone'"
+                """));
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).contains("'gone', which is not one"), errors.get(0));
+    }
+
+    @Test
+    void findErrorsShouldReportAStepNamedOutcome() {
+        List<String> errors = StepGuardValidator.findErrors(flow("""
+                - name: outcome
+                  type: call
+                  what: notion.find
+                """));
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).contains("'outcome', which is reserved"), errors.get(0));
+    }
+
+    @Test
+    void findErrorsShouldReportAWithKeyNamedOutcome() {
+        IkanosSpec spec = flow("""
+                - name: find
+                  type: call
+                  what: notion.find
+                """);
+        spec.getCapability().getAggregates().values().iterator().next().getFlows()
+                .get("remind").setWith(java.util.Map.of("outcome", "won"));
+
+        List<String> errors = StepGuardValidator.findErrors(spec);
+
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).startsWith("An input or a 'with' key"), errors.get(0));
+    }
+
+    @Test
+    void findWarningsShouldLetASuccessCriterionReadItsOwnStep() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow("""
+                - name: find
+                  type: call
+                  what: notion.find
+                  successCriteria:
+                    - "outcome.find == 'not-found' || find.id != ''"
+                """));
+
+        assertTrue(warnings.isEmpty(), warnings.toString());
+    }
+
+    @Test
+    void findWarningsShouldReportStepsAnUnguardedEndMakesUnreachable() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow("""
+                - name: done
+                  type: end
+                - name: never
+                  type: call
+                  what: notion.find
+                """));
+
+        assertEquals(1, warnings.size(), warnings.toString());
+        assertTrue(warnings.get(0).contains("Step 'never'"), warnings.get(0));
+    }
+
+    @Test
     void validateShouldRefuseACapabilityWithAGuardThatDoesNotParse() {
         IkanosSpec spec = flow("""
                 - name: alert
@@ -162,5 +246,81 @@ public class StepGuardValidatorTest {
 
         assertEquals(1, warnings.size(), warnings.toString());
         assertTrue(warnings.get(0).contains("reads 'later'"), warnings.get(0));
+    }
+
+    @Test
+    void findWarningsShouldReportAGuardReadingTheOutcomeOfAStepThatDoesNotExist() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow("""
+                - name: find
+                  type: call
+                  what: notion.find-page
+                  successCriteria:
+                    - "outcome.find == 'success'"
+                    - "outcome.find == 'not-found'"
+                - name: create
+                  type: call
+                  what: notion.create-page
+                  onlyIf: "outcome.fnd != 'success'"
+                """));
+
+        assertEquals(1, warnings.size(), warnings.toString());
+        assertTrue(warnings.get(0).contains("reads the outcome of 'fnd', which no earlier step"
+                + " has"), warnings.get(0));
+    }
+
+    @Test
+    void findWarningsShouldReportAGuardReadingTheOutcomeOfAStepThatIsNotACall() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow("""
+                - name: pages
+                  type: call
+                  what: notion.list-pages
+                - name: find
+                  type: lookup
+                  index: pages
+                  match: id
+                  lookupValue: $.order.page
+                  outputParameters:
+                    - title
+                - name: create
+                  type: call
+                  what: notion.create-page
+                  onlyIf: "outcome.find == 'success'"
+                """));
+
+        assertTrue(warnings.stream().anyMatch(w -> w.contains("reads the outcome of 'find',"
+                + " which no earlier step has")), warnings.toString());
+    }
+
+    @Test
+    void findWarningsShouldReportAGuardReadingTheOutcomeOfALaterStep() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow("""
+                - name: create
+                  type: call
+                  what: notion.create-page
+                  onlyIf: "outcome['find'] == 'not-found'"
+                - name: find
+                  type: call
+                  what: notion.find-page
+                """));
+
+        assertTrue(warnings.stream().anyMatch(w -> w.contains("reads the outcome of 'find'")),
+                warnings.toString());
+    }
+
+    @Test
+    void findWarningsShouldAcceptACriterionOnItsOwnStepAndAGuardOnAnEarlierOne() {
+        List<String> warnings = StepGuardValidator.findWarnings(flow("""
+                - name: find-page
+                  type: call
+                  what: notion.find-page
+                  successCriteria:
+                    - "outcome.find_page == 'not-found'"
+                - name: create
+                  type: call
+                  what: notion.create-page
+                  onlyIf: "outcome.find_page == 'not-found'"
+                """));
+
+        assertTrue(warnings.isEmpty(), warnings.toString());
     }
 }

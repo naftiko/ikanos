@@ -39,6 +39,8 @@ public record StepNode(NodePath path, Kind kind, OperationStepSpec step, int ind
         LOOKUP,
         /** An {@code elicit} step: a pause on the caller, resumed by an update at its path. */
         ELICIT,
+        /** An {@code end} step: completes the run, as a success, without the steps after it. */
+        END,
         /** A step type the engine does not run; ignored, as before. */
         SKIP;
 
