@@ -133,6 +133,16 @@ public final class StepOutcomes {
                 && map.get(step) instanceof String outcome ? outcome : null;
     }
 
+    /**
+     * Gives {@code target} the outcomes recorded in {@code source}, as a copy: a track of a
+     * {@code parallel} step reads the outcomes of the steps before the group.
+     */
+    static void inherit(Map<String, Object> target, Map<String, Object> source) {
+        if (source.get(ROOT) instanceof OutcomeMap outcomes) {
+            target.put(ROOT, new OutcomeMap(outcomes));
+        }
+    }
+
     /** Whether {@code value} is the engine's own map of outcomes. */
     static boolean isOutcomes(Object value) {
         return value instanceof OutcomeMap;

@@ -376,6 +376,25 @@ public class TelemetryBootstrap {
         builder.startSpan().end();
     }
 
+    /** Start an INTERNAL span for a {@code parallel} step, the parent of its track spans. */
+    public Span startStepParallelSpan(int stepIndex, String name) {
+        if (!enabled) return Span.getInvalid();
+        SpanBuilder builder = tracer.spanBuilder("step.parallel")
+            .setSpanKind(SpanKind.INTERNAL);
+        setLongAttribute(builder, ATTR_STEP_INDEX, stepIndex);
+        setStringAttribute(builder, ATTR_STEP_NAME, name != null ? name : "unknown");
+        return builder.startSpan();
+    }
+
+    /** Start an INTERNAL span for one track of a {@code parallel} step. */
+    public Span startStepTrackSpan(String name) {
+        if (!enabled) return Span.getInvalid();
+        SpanBuilder builder = tracer.spanBuilder("step.track")
+            .setSpanKind(SpanKind.INTERNAL);
+        setStringAttribute(builder, ATTR_STEP_NAME, name != null ? name : "unknown");
+        return builder.startSpan();
+    }
+
     /**
      * Start an INTERNAL span for a lookup step.
      */

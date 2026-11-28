@@ -114,14 +114,25 @@ function callsOf(target) {
   if (typeof target.call === "string") {
     calls.push(target.call);
   }
-  if (Array.isArray(target.steps)) {
-    for (const step of target.steps) {
-      if (isObject(step) && typeof step.what === "string") {
-        calls.push(step.what);
-      }
-    }
-  }
+  stepCalls(target.steps, calls);
   return calls;
+}
+
+/** The `what` of each step of a list, the tracks and sequences inside it included. */
+function stepCalls(steps, calls) {
+  if (!Array.isArray(steps)) {
+    return;
+  }
+  for (const step of steps) {
+    if (!isObject(step)) {
+      continue;
+    }
+    if (typeof step.what === "string") {
+      calls.push(step.what);
+    }
+    stepCalls(step.tracks, calls);
+    stepCalls(step.steps, calls);
+  }
 }
 
 /**

@@ -13,6 +13,7 @@
  */
 package io.ikanos.engine.execution;
 
+import tools.jackson.databind.JsonNode;
 import io.ikanos.engine.observability.TelemetryBootstrap;
 import java.util.List;
 import java.util.Optional;
@@ -114,9 +115,14 @@ public final class StepInterpreter implements Interpreter {
                 if (!run.isEvaluated(node.path())) {
                     // Recorded by an earlier run of this execution: restore the step's output
                     // instead of running the step again.
-                    run.restoreOutput(node.step() != null ? node.step().getName() : null,
-                            ((ActionOutcome.Succeeded) outcome.get()).value(),
-                            node.kind() == StepNode.Kind.CALL);
+                    Object value = ((ActionOutcome.Succeeded) outcome.get()).value();
+                    if (node.kind() == StepNode.Kind.PARALLEL) {
+                        ParallelTracks.restore(node.step().getName(),
+                                value instanceof JsonNode json ? json : null, run);
+                    } else {
+                        run.restoreOutput(node.step() != null ? node.step().getName() : null,
+                                value, node.kind() == StepNode.Kind.CALL);
+                    }
                     run.markEvaluated(node.path());
                 }
             }

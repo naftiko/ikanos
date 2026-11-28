@@ -1,0 +1,41 @@
+ikanos: 1.0.0-beta11
+info:
+  display: Duplicate track names
+  description: Negative fixture for ikanos-steps-unique-names
+capability:
+  consumes:
+  - type: http
+    namespace: weather-api
+    description: Weather API
+    baseUri: https://weather.example.com
+    resources:
+      forecasts:
+        path: /forecast
+        operations:
+          get-forecast:
+            method: GET
+  aggregates:
+  - display: weather flows
+    namespace: weather
+    flows:
+      get-forecast:
+        description: Two tracks share the name forecast
+        semantics:
+          safe: true
+          idempotent: true
+        steps:
+        - name: gather
+          type: parallel
+          tracks:
+          - name: forecast
+            type: call
+            what: weather-api.get-forecast
+          - name: forecast
+            type: call
+            what: weather-api.get-forecast
+        mappings:
+        - target: summary
+          value: $.forecast.summary
+        outputParameters:
+          summary:
+            type: string

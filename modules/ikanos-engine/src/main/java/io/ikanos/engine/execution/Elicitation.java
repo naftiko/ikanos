@@ -29,6 +29,7 @@ import io.ikanos.spec.consumes.mcp.McpClientToolSpec;
 import io.ikanos.spec.exposes.ServerCallSpec;
 import io.ikanos.spec.util.OperationStepCallSpec;
 import io.ikanos.spec.util.OperationStepElicitSpec;
+import io.ikanos.spec.util.NestedSteps;
 import io.ikanos.spec.util.OperationStepSpec;
 
 /**
@@ -133,7 +134,7 @@ public final class Elicitation {
         if (steps == null) {
             return false;
         }
-        for (OperationStepSpec step : steps.values()) {
+        for (OperationStepSpec step : NestedSteps.all(steps)) {
             if (step instanceof OperationStepElicitSpec) {
                 return true;
             }

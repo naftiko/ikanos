@@ -562,7 +562,8 @@ public class OasExportBuilder {
         if (steps == null) {
             return false;
         }
-        for (OperationStepSpec step : steps.values()) {
+        // Nested steps too: a track or the do of a forEach may call a flow or tool that asks
+        for (OperationStepSpec step : io.ikanos.spec.util.NestedSteps.all(steps)) {
             if (step instanceof OperationStepElicitSpec) {
                 return true;
             }

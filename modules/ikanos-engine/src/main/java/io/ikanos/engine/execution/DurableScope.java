@@ -161,6 +161,16 @@ public final class DurableScope {
         return uses == 1 ? next : new ExecutionId(next.value() + "#" + uses);
     }
 
+    /**
+     * The scope of the steps of one track of a {@code parallel} step run by the action in
+     * progress: named after the track rather than numbered, so tracks that start in any order
+     * keep the same execution IDs across a restart.
+     */
+    DurableScope track(String name) {
+        return new DurableScope(runner, root, bounded(root, next.value() + "/" + name),
+                stopping);
+    }
+
     /** The scope of the step runs started by the action at {@code path} of {@code execution}. */
     DurableScope child(ExecutionId execution, NodePath path) {
         return new DurableScope(runner, root,
