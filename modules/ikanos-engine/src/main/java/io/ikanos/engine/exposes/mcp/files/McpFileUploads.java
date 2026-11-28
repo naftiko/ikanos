@@ -83,14 +83,25 @@ public final class McpFileUploads {
     private final UploadClaims claims;
     private final long maxInlineBytes;
 
+    /** Where presigned upload URLs may point, or {@code null} for any origin. */
+    private final OriginAllowlist allowedOrigins;
+
     McpFileUploads(Map<String, AggregateFlow> flows, McpRequestState requestState,
             UploadClaims claims, long maxInlineBytes) {
-        this(flows, Map.of(), null, requestState, claims, maxInlineBytes);
+        this(flows, Map.of(), null, requestState, claims, maxInlineBytes, null);
     }
 
     McpFileUploads(Map<String, AggregateFlow> flows,
             Map<String, List<InputParameterSpec>> hostedInputs, HostedUploads hosted,
             McpRequestState requestState, UploadClaims claims, long maxInlineBytes) {
+        this(flows, hostedInputs, hosted, requestState, claims, maxInlineBytes, null);
+    }
+
+    McpFileUploads(Map<String, AggregateFlow> flows,
+            Map<String, List<InputParameterSpec>> hostedInputs, HostedUploads hosted,
+            McpRequestState requestState, UploadClaims claims, long maxInlineBytes,
+            OriginAllowlist allowedOrigins) {
+        this.allowedOrigins = allowedOrigins;
         this.flows = Map.copyOf(flows);
         this.hostedInputs = Map.copyOf(hostedInputs);
         this.hosted = hosted;
@@ -137,7 +148,8 @@ public final class McpFileUploads {
         return flows.isEmpty() && hostedInputs.isEmpty() ? null
                 : new McpFileUploads(flows, hostedInputs,
                         hostedInputs.isEmpty() ? null : hosted, requestState,
-                        new UploadClaims(Clock.systemUTC()), maxInlineBytes);
+                        new UploadClaims(Clock.systemUTC()), maxInlineBytes,
+                        OriginAllowlist.of(serverSpec));
     }
 
     /** Whether the tool takes files out of band. */
@@ -229,6 +241,12 @@ public final class McpFileUploads {
             FlowUpload.Target target = flow.getUpload().presign(callArguments, file.input(),
                     FileInputs.argument(file.id(), file.name(), file.mimeType(), file.size(),
                             null, null, uploadId), stateExpiresAt);
+            // A target the client sends no credential to stays within the allowed origins
+            if (allowedOrigins != null && !allowedOrigins.allows(target.url())) {
+                throw new FileInputs.InvalidFileException("The upload target of file '"
+                        + file.input() + "' is on an origin that this server does not allow"
+                        + " (files.allowedOrigins)");
+            }
             // A target that expires after the state is refused by presign; without an expiry
             // from the upstream, the state's is advertised
             Instant expiresAt = target.expiresAt() == null ? stateExpiresAt

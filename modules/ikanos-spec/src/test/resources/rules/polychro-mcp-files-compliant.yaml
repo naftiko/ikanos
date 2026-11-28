@@ -1,0 +1,136 @@
+# Polychro fixture — MCP files rules MUST NOT FIRE (#1047): the shapes of
+# polychro-mcp-files-violations.yaml, with every file input bounded (maxSize) and typed
+# (accept), transfer targets fetched over https (or http on loopback, or a baseUri taken whole
+# from a binding, which lint cannot check), files.allowedOrigins declared, the flow with an
+# upload declared idempotent, and no hosted uploads.
+ikanos: "1.0.0-beta11"
+info:
+  display: "MCP files compliant"
+  description: "Capability whose file inputs and transfer targets follow the MCP files rules."
+capability:
+  binds:
+    - namespace: "exports-env"
+      description: "Export API address."
+      keys:
+        EXPORTS_URL: "exports-url"
+  consumes:
+    - type: "http"
+      namespace: "storage"
+      description: "Object store."
+      baseUri: "https://storage.internal.test"
+      resources:
+        upload-urls:
+          path: "/upload-urls/{{key}}"
+          operations:
+            create-upload-url:
+              method: "POST"
+        objects:
+          path: "/objects/{{key}}"
+          operations:
+            head-object:
+              method: "HEAD"
+    - type: "http"
+      namespace: "local-storage"
+      description: "Object store on loopback, for local development."
+      baseUri: "http://localhost:9000"
+      resources:
+        objects:
+          path: "/objects/{{key}}"
+          operations:
+            head-object:
+              method: "HEAD"
+    - type: "http"
+      namespace: "exports"
+      description: "Export API, at a bound address."
+      baseUri: "{{EXPORTS_URL}}"
+      resources:
+        exports:
+          path: "/exports"
+          operations:
+            export-orders:
+              method: "POST"
+    - type: "http"
+      namespace: "records"
+      description: "Records API."
+      baseUri: "https://records.internal.test"
+      resources:
+        imports:
+          path: "/imports"
+          operations:
+            import:
+              method: "POST"
+  aggregates:
+    - namespace: "documents"
+      definitions:
+        inputParameterSets:
+          scan-file:
+            scan:
+              type: "file"
+              accept:
+                - "application/pdf"
+              maxSize: "10MiB"
+              required: true
+              description: "The scan to import."
+      flows:
+        import-scan:
+          description: "Import a scan, stored in the object store first."
+          semantics:
+            idempotent: true
+          inputParameterSets:
+            - "scan-file"
+          upload:
+            presign:
+              call: "storage.create-upload-url"
+              with:
+                key: "{{scan.uploadId}}"
+            verify:
+              call: "local-storage.head-object"
+              with:
+                key: "{{scan.uploadId}}"
+          call: "records.import"
+          with:
+            key: "{{scan.uploadId}}"
+        attach-note:
+          description: "Attach a note, sent inline."
+          inputParameters:
+            note:
+              type: "file"
+              accept:
+                - "text/plain"
+                - ".md"
+              maxSize: "1MiB"
+              required: true
+              description: "The note to attach."
+          call: "records.import"
+  exposes:
+    - type: "mcp"
+      port: 3001
+      namespace: "documents-mcp"
+      description: "Documents MCP server."
+      files:
+        allowedOrigins:
+          - "https://storage.internal.test"
+          - "https://exports-bucket.internal.test"
+      tools:
+        import-scan:
+          description: "Import a scan through a presigned upload."
+          ref: "documents.import-scan"
+        attach-note:
+          description: "Attach a note, sent inline."
+          ref: "documents.attach-note"
+        export-orders:
+          description: "Export the orders as a CSV file."
+          call: "exports.export-orders"
+          outputParameters:
+            - type: "object"
+              mapping: "$"
+              properties:
+                url:
+                  type: "string"
+                  mapping: "$.url"
+                size:
+                  type: "number"
+                  mapping: "$.size"
+          download:
+            url: "url"
+            size: "size"

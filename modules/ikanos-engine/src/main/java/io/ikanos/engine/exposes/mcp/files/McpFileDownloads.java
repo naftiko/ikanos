@@ -97,13 +97,22 @@ public final class McpFileDownloads {
     private final DownloadStore store;
     private final Clock clock;
 
+    /** Where pass-through download URLs may point, or {@code null} for any origin. */
+    private final OriginAllowlist allowedOrigins;
+
     McpFileDownloads(long inlineThreshold, Duration ttl, boolean hosted, DownloadStore store,
             Clock clock) {
+        this(inlineThreshold, ttl, hosted, store, clock, null);
+    }
+
+    McpFileDownloads(long inlineThreshold, Duration ttl, boolean hosted, DownloadStore store,
+            Clock clock, OriginAllowlist allowedOrigins) {
         this.inlineThreshold = inlineThreshold;
         this.ttl = ttl;
         this.hosted = hosted;
         this.store = store;
         this.clock = clock;
+        this.allowedOrigins = allowedOrigins;
     }
 
     /**
@@ -144,7 +153,8 @@ public final class McpFileDownloads {
                     + spec.getAuthentication().getType() + " credential to a download link:"
                     + " binary results stay inline; presigned URLs still become downloads");
         }
-        return new McpFileDownloads(threshold, ttl, hosted, MemoryDownloadStore.shared(), clock);
+        return new McpFileDownloads(threshold, ttl, hosted, MemoryDownloadStore.shared(), clock,
+                OriginAllowlist.of(spec));
     }
 
     /**
@@ -152,8 +162,8 @@ public final class McpFileDownloads {
      * {@code credentials: include} it resends only the {@code Authorization} header of its MCP
      * requests, and keeps the query string of the MCP address: so no authentication,
      * {@code bearer}, {@code basic}, {@code oauth2} and an {@code apikey} in the query work, while
-     * an {@code apikey} in another header, {@code digest} (bound to one request) and
-     * {@code awsSigV4} (a signature per request) do not.
+     * an {@code apikey} in another header and {@code digest} (bound to one request) do not.
+     * ({@code awsSigV4} never gets here: an exposed adapter refuses it at load.)
      */
     static boolean resendsCredential(AuthenticationSpec authentication) {
         if (authentication == null) {
@@ -215,22 +225,41 @@ public final class McpFileDownloads {
      * A tool's mapped output as a pass-through download target, or {@code null} to return it as
      * it is: the request did not declare {@code download}, or the output does not carry an
      * {@code https} URL and a size where the tool's {@code download} says.
+     *
+     * <p>When the adapter declares {@code files.allowedOrigins}, a URL in the output on any other
+     * origin is an error result, whatever the request declared and whatever the URL's scheme:
+     * the mapped output would otherwise hand it to the client all the same.</p>
      */
     public McpSchema.CallToolResult passThrough(McpServerToolSpec tool, String mapped) {
         McpToolDownloadSpec download = tool.getDownload();
-        if (download == null || mapped == null || !McpFiles.downloadsAccepted()) {
+        if (download == null || mapped == null) {
+            return null;
+        }
+        boolean accepted = McpFiles.downloadsAccepted();
+        if (!accepted && allowedOrigins == null) {
             return null;
         }
         JsonNode output;
         try {
             output = JSON.readTree(mapped);
         } catch (JacksonException e) {
-            return unusable(tool, "it is not JSON");
+            return accepted ? unusable(tool, "it is not JSON") : null;
         }
         if (output == null || !output.isObject()) {
-            return unusable(tool, "it is not a JSON object");
+            return accepted ? unusable(tool, "it is not a JSON object") : null;
         }
         String url = text(output, download.getUrl());
+        if (url != null && allowedOrigins != null && !allowedOrigins.allows(url)) {
+            Context.getCurrentLogger().log(Level.WARNING, "MCP tool '" + tool.getName()
+                    + "' returned a download URL outside files.allowedOrigins: refusing it");
+            return new McpSchema.CallToolResult(List.of(McpSchema.TextContent.builder(
+                    "The file of tool '" + tool.getName() + "' is served from an origin that"
+                            + " this server does not allow (files.allowedOrigins).").build()),
+                    true, null, null);
+        }
+        if (!accepted) {
+            return null;
+        }
         if (url == null || !isHttps(url)) {
             return unusable(tool, "property '" + download.getUrl()
                     + "' is not an absolute https URL");

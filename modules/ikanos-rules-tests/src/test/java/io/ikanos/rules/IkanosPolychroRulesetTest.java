@@ -1495,6 +1495,88 @@ public class IkanosPolychroRulesetTest {
         assertFalse(result.output().contains("ikanos-definitions-"), result.output());
     }
 
+    // ────────────────────────────────────────────────────────────────
+    // MCP files extension rules (#1047)
+    // ────────────────────────────────────────────────────────────────
+
+    private static final String FILES_VIOLATIONS = "rules/polychro-mcp-files-violations.yaml";
+
+    @Test
+    public void fileInputMaxSizeRuleShouldFireOnEveryUnboundedFileInput() {
+        LintResult result = lintFixture(FILES_VIOLATIONS);
+        assertTrue(result.exitCode() != 0, result.output());
+        assertEquals(3, findings(result, "ikanos-file-input-max-size"), result.output());
+        assertTrue(result.output().contains(
+            "File input 'scan' of flow 'documents.import-scan' declares no maxSize"),
+            result.output());
+        assertTrue(result.output().contains("File input 'note' of MCP tool 'attach-note'"),
+            result.output());
+        assertTrue(result.output().contains(
+            "File input 'note' of input parameter set 'note-file' of MCP adapter"),
+            result.output());
+    }
+
+    @Test
+    public void fileInputAcceptRuleShouldWarnOnEveryUntypedFileInput() {
+        LintResult result = lintFixture(FILES_VIOLATIONS);
+        assertEquals(3, findings(result, "ikanos-file-input-accept"), result.output());
+        assertTrue(result.output().lines().anyMatch(line -> line.contains("  warn  ")
+                && line.contains("ikanos-file-input-accept")), result.output());
+    }
+
+    @Test
+    public void filesTargetHttpsRuleShouldFireOnPlainHttpPresignVerifyAndDownloadCalls() {
+        LintResult result = lintFixture(FILES_VIOLATIONS);
+        String output = result.output();
+        assertEquals(4, findings(result, "ikanos-files-target-https"), output);
+        assertTrue(output.contains("upload.presign of flow 'documents.import-scan' calls"
+            + " 'storage.create-upload-url'"), output);
+        assertTrue(output.contains("upload.verify of flow 'documents.import-scan' calls"
+            + " 'storage.head-object'"), output);
+        assertTrue(output.contains("MCP tool 'export-orders', which declares download, calls"
+            + " 'exports.export-orders'"), output);
+        assertTrue(output.contains("MCP tool 'export-report', which declares download, through"
+            + " flow 'documents.export-report', calls 'exports.export-orders'"), output);
+    }
+
+    @Test
+    public void filesOmitAllowlistRuleShouldWarnWhenOmitTargetsHaveNoAllowedOrigins() {
+        LintResult result = lintFixture(FILES_VIOLATIONS);
+        String output = result.output();
+        assertEquals(1, findings(result, "ikanos-files-omit-allowlist"), output);
+        assertTrue(output.contains("from tools 'import-scan', 'export-orders', 'export-report')"),
+            output);
+    }
+
+    @Test
+    public void filesSingleUseRuleShouldRemindOfPresignedAndHostedUploads() {
+        LintResult result = lintFixture(FILES_VIOLATIONS);
+        String output = result.output();
+        assertEquals(3, findings(result, "ikanos-files-non-idempotent-single-use"), output);
+        assertTrue(output.lines().allMatch(line ->
+                !line.contains("ikanos-files-non-idempotent-single-use")
+                    || line.contains("  info  ")), output);
+        assertTrue(output.contains("Flow 'documents.import-scan' takes presigned uploads"),
+            output);
+        assertTrue(output.contains("MCP tool 'attach-note' takes hosted uploads"), output);
+        assertTrue(output.contains("MCP tool 'attach-set' takes hosted uploads"), output);
+    }
+
+    @Test
+    public void filesRulesShouldNotFireOnTheCompliantFixture() {
+        LintResult result = lintFixtureAtSeverity("rules/polychro-mcp-files-compliant.yaml",
+            "info");
+        assertFalse(result.output().contains("ikanos-file-input-")
+                || result.output().contains("ikanos-files-"), result.output());
+    }
+
+    @Test
+    public void filesRulesShouldPassTheShippedFilesExample() {
+        LintResult result = lint("src/main/resources/schemas/examples/capability-mcp-files.yml",
+            "warn");
+        assertEquals(0, result.exitCode(), result.output());
+    }
+
     /**
      * Lint a fixture file under {@code src/test/resources/}, failing on findings at
      * {@code severity} or above.

@@ -1,0 +1,131 @@
+# Polychro fixture — MCP files rules MUST FIRE (#1047):
+#   - ikanos-file-input-max-size and ikanos-file-input-accept on the file inputs of flow
+#     documents.import-scan, of tool attach-note and of set note-file;
+#   - ikanos-files-target-https on the presign and verify calls (storage is plain HTTP) and on
+#     the calls of the two download tools (exports is plain HTTP), directly and through a ref;
+#   - ikanos-files-omit-allowlist on the adapter, which returns credentials: omit targets
+#     without files.allowedOrigins;
+#   - ikanos-files-non-idempotent-single-use on the upload of flow documents.import-scan (no
+#     semantics) and on the hosted tools attach-note and attach-set.
+ikanos: "1.0.0-beta11"
+info:
+  display: "MCP files violations"
+  description: "Capability whose file inputs and transfer targets break the MCP files rules."
+capability:
+  consumes:
+    - type: "http"
+      namespace: "storage"
+      description: "Object store, reached over plain HTTP."
+      baseUri: "http://storage.internal.test"
+      resources:
+        upload-urls:
+          path: "/upload-urls/{{key}}"
+          operations:
+            create-upload-url:
+              method: "POST"
+        objects:
+          path: "/objects/{{key}}"
+          operations:
+            head-object:
+              method: "HEAD"
+    - type: "http"
+      namespace: "exports"
+      description: "Export API, reached over plain HTTP."
+      baseUri: "http://exports.internal.test"
+      resources:
+        exports:
+          path: "/exports"
+          operations:
+            export-orders:
+              method: "POST"
+    - type: "http"
+      namespace: "records"
+      description: "Records API."
+      baseUri: "https://records.internal.test"
+      resources:
+        imports:
+          path: "/imports"
+          operations:
+            import:
+              method: "POST"
+  aggregates:
+    - namespace: "documents"
+      flows:
+        import-scan:
+          description: "Import a scan, stored in the object store first."
+          inputParameters:
+            scan:
+              type: "file"
+              required: true
+              description: "The scan to import."
+          upload:
+            presign:
+              call: "storage.create-upload-url"
+              with:
+                key: "{{scan.uploadId}}"
+            verify:
+              call: "storage.head-object"
+              with:
+                key: "{{scan.uploadId}}"
+          call: "records.import"
+          with:
+            key: "{{scan.uploadId}}"
+        export-report:
+          description: "Export the orders as a report."
+          semantics:
+            safe: true
+          call: "exports.export-orders"
+  exposes:
+    - type: "mcp"
+      port: 3001
+      namespace: "documents-mcp"
+      description: "Documents MCP server."
+      files:
+        uploads:
+          hosted: true
+      definitions:
+        inputParameterSets:
+          note-file:
+            note:
+              type: "file"
+              required: true
+              description: "The note to attach."
+      tools:
+        import-scan:
+          description: "Import a scan through a presigned upload."
+          ref: "documents.import-scan"
+        attach-note:
+          description: "Attach a note, uploaded to this server."
+          inputParameters:
+            note:
+              type: "file"
+              required: true
+              description: "The note to attach."
+          call: "records.import"
+        attach-set:
+          description: "Attach a note declared in a set, uploaded to this server."
+          inputParameterSets:
+            - "note-file"
+          call: "records.import"
+        export-orders:
+          description: "Export the orders as a CSV file."
+          call: "exports.export-orders"
+          outputParameters:
+            - type: "object"
+              mapping: "$"
+              properties:
+                url:
+                  type: "string"
+                  mapping: "$.url"
+                size:
+                  type: "number"
+                  mapping: "$.size"
+          download:
+            url: "url"
+            size: "size"
+        export-report:
+          description: "Export the orders as a report file."
+          ref: "documents.export-report"
+          download:
+            url: "url"
+            size: "size"

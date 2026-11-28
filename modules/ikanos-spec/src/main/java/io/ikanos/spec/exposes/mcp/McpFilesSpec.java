@@ -13,6 +13,8 @@
  */
 package io.ikanos.spec.exposes.mcp;
 
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
@@ -21,8 +23,8 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  *
  * <p>Opts an MCP adapter into the draft MCP files extension ({@code io.modelcontextprotocol/files}).
  * An adapter that declares this block advertises the extension in {@code server/discover}; one
- * that does not behaves as before. Downloads, and file inputs sent inline, are supported; out-of-band
- * uploads are not yet.</p>
+ * that does not behaves as before. {@code allowedOrigins} restricts where the targets it returns
+ * with {@code credentials: omit} may point.</p>
  */
 public class McpFilesSpec {
 
@@ -31,6 +33,10 @@ public class McpFilesSpec {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private final AtomicReference<McpFileUploadsSpec> uploads = new AtomicReference<>();
+
+    /** The origins that {@code credentials: omit} targets may point to; empty for any. */
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private final List<String> allowedOrigins = new CopyOnWriteArrayList<>();
 
     public McpFilesSpec() {}
 
@@ -62,5 +68,20 @@ public class McpFilesSpec {
     public McpFileUploadsSpec uploadsOrDefault() {
         McpFileUploadsSpec declared = uploads.get();
         return declared != null ? declared : new McpFileUploadsSpec();
+    }
+
+    /**
+     * @return the origins that the {@code credentials: omit} targets of the adapter may point
+     *         to, as written; empty when the block does not restrict them
+     */
+    public List<String> getAllowedOrigins() {
+        return allowedOrigins;
+    }
+
+    public void setAllowedOrigins(List<String> allowedOrigins) {
+        this.allowedOrigins.clear();
+        if (allowedOrigins != null) {
+            this.allowedOrigins.addAll(allowedOrigins);
+        }
     }
 }
