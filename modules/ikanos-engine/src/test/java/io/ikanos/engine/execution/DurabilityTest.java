@@ -264,6 +264,8 @@ public class DurabilityTest {
                         new Durability.Placement("h2", 1)));
 
         assertTrue(e.getMessage().contains("remove spec.durability.store"), e.getMessage());
+        assertTrue(e.getMessage().contains("Declare durability mode 'local' with store type 'h2'"),
+                e.getMessage());
     }
 
     @Test
@@ -275,6 +277,27 @@ public class DurabilityTest {
         assertTrue(e.getMessage().contains("store 'h2'"), e.getMessage());
         assertTrue(e.getMessage().contains("with store 'postgres'"), e.getMessage());
         assertTrue(e.getMessage().contains("Set spec.durability.store to 'h2'"), e.getMessage());
+        assertTrue(e.getMessage().contains(
+                "declare durability mode 'distributed' with store type 'postgres'"),
+                e.getMessage());
+    }
+
+    @Test
+    void checkPlacementShouldLeaveAStoreTheModeCannotUseToTheLoad() {
+        DurabilitySpec memoryOnH2 = new DurabilitySpec("memory");
+        memoryOnH2.setStore(new DurabilityStoreSpec("h2"));
+        DurabilitySpec localOnPostgres = local("tasks.db");
+        localOnPostgres.getStore().setType("postgres");
+        DurabilitySpec[] specs = {distributed("h2", "jdbc:postgresql://db/ikanos"),
+                distributed("memory", "jdbc:postgresql://db/ikanos"), memoryOnH2,
+                localOnPostgres};
+
+        for (DurabilitySpec spec : specs) {
+            Durability.checkPlacement(spec, new Durability.Placement("postgres", 3));
+        }
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> Durability.fromSpec(specs[0]));
+        assertTrue(e.getMessage().contains("several replicas share"), e.getMessage());
     }
 
     @Test

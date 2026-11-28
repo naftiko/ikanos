@@ -261,17 +261,31 @@ public final class Durability implements AutoCloseable {
         String store;
         switch (mode) {
             case DurabilitySpec.MODE_NONE:
+                store = null;
+                break;
             case DurabilitySpec.MODE_MEMORY:
-                // The operator gives these modes no store: memory lives in the process.
+                if (!DurabilitySpec.MODE_MEMORY.equals(
+                        storeType(spec, DurabilitySpec.MODE_MEMORY))) {
+                    return;
+                }
+                // The operator gives this mode no store: its executions live in the process.
                 store = null;
                 break;
             case DurabilitySpec.MODE_LOCAL:
                 store = storeType(spec, H2);
+                if (!H2.equals(store)) {
+                    return;
+                }
                 break;
             case DurabilitySpec.MODE_DISTRIBUTED:
                 store = storeType(spec, POSTGRES);
+                if (H2.equals(store) || DurabilitySpec.MODE_MEMORY.equals(store)) {
+                    return;
+                }
                 break;
             default:
+                // An unknown mode, or a store type the mode cannot use, is an error in the
+                // capability itself, which fromSpec reports; the operator is not the one to fix.
                 return;
         }
         boolean oneProcess = DurabilitySpec.MODE_MEMORY.equals(mode)
@@ -285,17 +299,27 @@ public final class Durability implements AutoCloseable {
         if (store == null && placement.store() != null) {
             throw new IllegalArgumentException("Durability mode '" + mode + "' uses no store, "
                     + "but the operator runs this capability with store '" + placement.store()
-                    + "' (" + STORE_VARIABLE + "). Declare its durability on the control port, "
-                    + "or remove spec.durability.store.");
+                    + "' (" + STORE_VARIABLE + "). Declare durability mode '"
+                    + modeOf(placement.store()) + "' with store type '" + placement.store()
+                    + "' on the control port, or remove spec.durability.store.");
         }
         if (store != null && !store.equals(placement.store())) {
+            String fix = "Set spec.durability.store to '" + store + "'";
+            if (placement.store() != null) {
+                fix += ", or declare durability mode '" + modeOf(placement.store())
+                        + "' with store type '" + placement.store() + "' on the control port";
+            }
             throw new IllegalArgumentException("Durability mode '" + mode + "' keeps executions "
                     + "in store '" + store + "', but the operator runs this capability "
                     + (placement.store() == null ? "without a store"
                             : "with store '" + placement.store() + "'")
-                    + " (" + STORE_VARIABLE + "). Set spec.durability.store to '" + store
-                    + "'.");
+                    + " (" + STORE_VARIABLE + "). " + fix + ".");
         }
+    }
+
+    /** The durability mode a store type an operator declares serves. */
+    private static String modeOf(String store) {
+        return H2.equals(store) ? DurabilitySpec.MODE_LOCAL : DurabilitySpec.MODE_DISTRIBUTED;
     }
 
     private static IllegalArgumentException notShared(String type) {
